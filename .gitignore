@@ -1,47 +1,28 @@
 # Dependencies
 node_modules/
-.pnp
-.pnp.js
 
-# Testing
-coverage/
-
-# Next.js
+# Build output
 .next/
 out/
-build/
-
-# Production
 dist/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
 
-# Misc
+# Turborepo
+.turbo/
+
+# Renders (local exports)
+renders/
+
+# Env files: never commit secrets. .env.example is the only exception.
+.env*
+!.env.example
+
+# OS / editor
 .DS_Store
-*.pem
-
-# Debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Local env files
-.env*.local
-.env
-
-# Vercel
-.vercel
-
-# Turbo
-.turbo
-
-# IDE
-.vscode/
 .idea/
 *.swp
-*.swo
-
-# AWS
-.aws-sam/
-
-# Secrets
-*.key
 *.pem
+
+# Note: .kiro/ must stay tracked (hackathon requirement).

@@ -1,0 +1,11 @@
+.env*
+!.env.example
+*.pem
+*.key
+node_modules/
+.next/
+.turbo/
+dist/
+coverage/
+renders/
+pnpm-lock.yaml

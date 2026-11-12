@@ -1,0 +1,22 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Shared versions. Reference with "catalog:" in package.json.
+# All remotion / @remotion/* entries must stay on the same exact version.
+catalog:
+  typescript: 6.0.3
+  zod: ^4.6.7
+  react: ^19.3.1
+  react-dom: ^19.3.1
+  '@types/react': ^19.3.0
+  '@types/react-dom': ^19.2.3
+  '@types/node': ^24.0.0
+  vitest: ^5.1.0
+  fast-check: ^4.10.2
+
+# Dependencies allowed to run install scripts (pnpm 11 rejects unreviewed builds).
+allowBuilds:
+  esbuild: true
+  sharp: true
+  unrs-resolver: true
