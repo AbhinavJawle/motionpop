@@ -1,0 +1,39 @@
+# Tasks: Component Library
+
+- [ ] 1. Shared primitives
+  - [ ] 1.1 `useTokens`, `useDirection`, `useLayout`, `Camera`
+  - [ ] 1.2 `fitText`, `formatNumber`, `seeded` with unit tests
+  - _Requirements: R2, R5_
+- [ ] 2. Number Reveal (reference implementation of the contract)
+  - [ ] 2.1 Schema + component + story
+  - [ ] 2.2 Property test: displayed final value equals input
+  - [ ] 2.3 Catalog entry
+  - _Requirements: R1, R2, R3.1_
+- [ ] 3. Bar Chart
+  - [ ] 3.1 Schema, vertical/horizontal, highlight, annotation, sequential reveal
+  - [ ] 3.2 Property tests: bar count, label fit, safe zones across formats
+  - _Requirements: R3.2_
+- [ ] 4. Kinetic Text
+  - [ ] 4.1 Headline reveal, emphasis words, quote-card variant
+  - _Requirements: R3.7_
+- [ ] 5. Line Chart
+  - [ ] 5.1 Draw-on, highlighted segment, markers, area fill
+  - _Requirements: R3.3_
+- [ ] 6. Comparison Split
+  - [ ] 6.1 Two sides, winner emphasis
+  - _Requirements: R3.4_
+- [ ] 7. Logo Sting
+  - [ ] 7.1 Logo from brand kit, wordmark fallback
+  - _Requirements: R3.8_
+- [ ] 8. Timeline
+  - [ ] 8.1 Horizontal/vertical, camera travel
+  - _Requirements: R3.5_
+- [ ] 9. Map / Globe
+  - [ ] 9.1 Bundle Natural Earth data with licence file
+  - [ ] 9.2 Globe spin, highlight, arcs, region zoom
+  - _Requirements: R3.6_
+- [ ] 10. Registry and catalog
+  - [ ] 10.1 Register all entries
+  - [ ] 10.2 `generateCatalog()` + test that fails if any entry is missing
+  - _Requirements: R4_
+- [ ] 11. Checkpoint: render all 8 components in all 4 formats and review visually against the "Definition of premium" list

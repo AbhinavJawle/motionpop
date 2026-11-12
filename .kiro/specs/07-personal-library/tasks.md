@@ -1,0 +1,36 @@
+# Tasks: Personal Library, Auth & BYOK
+
+- [ ] 1. Cognito auth
+  - [ ] 1.1 User pool with email + Google
+  - [ ] 1.2 Middleware JWT verification and `requireWorkspace()`
+  - [ ] 1.3 Workspace creation on first sign-in
+  - _Requirements: R1_
+- [ ] 2. Rate limiting middleware
+  - _Requirements: R7_
+- [ ] 3. Library repo and API
+  - [ ] 3.1 Create/list/update/delete with workspace scoping
+  - [ ] 3.2 Snapshot on save
+  - [ ] 3.3 Cross-workspace access test
+  - _Requirements: R2, R3_
+- [ ] 4. Auto name/tag suggestion (Haiku)
+  - _Requirements: R2.2_
+- [ ] 5. Thumbnail generation with `renderStillOnLambda`
+- [ ] 6. Library browser UI
+  - [ ] 6.1 Grid, search, filters
+  - [ ] 6.2 Item actions: open as scene, rename, retag, reference toggle, delete
+  - _Requirements: R3_
+- [ ] 7. Save-to-library dialog (⌘S) in Studio
+  - _Requirements: R2_
+- [ ] 8. Reference retrieval and planner integration
+  - [ ] 8.1 Scoring function with tests
+  - [ ] 8.2 Named-item detection ("like my Tesla chart")
+  - [ ] 8.3 Pass summaries into the planner dynamic block
+  - _Requirements: R4_
+- [ ] 9. 👍/👎 feedback endpoint and UI
+  - _Requirements: R5_
+- [ ] 10. BYOK
+  - [ ] 10.1 KMS key and encrypt/decrypt helpers
+  - [ ] 10.2 Settings UI with validate, save, delete
+  - [ ] 10.3 Log redaction and no-leak tests
+  - _Requirements: R6_
+- [ ] 11. Checkpoint: save a scene as reference, generate a similar one, see it reuse the saved component/skill/style

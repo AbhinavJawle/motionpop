@@ -1,0 +1,37 @@
+# Tasks: Studio Editor
+
+- [ ] 1. Persistence layer
+  - [ ] 1.1 DynamoDB repos for Project, Scene, SceneVersion with workspace scoping
+  - _Requirements: R4, R5_
+- [ ] 2. Studio shell and layout with dark theme
+  - _Requirements: R1_
+- [ ] 3. `useSceneEditor` hook
+  - [ ] 3.1 generate, refine, applyLocal
+  - [ ] 3.2 versions, undo/redo/restore
+  - [ ] 3.3 Autosave with retry
+  - [ ] 3.4 Property test: undo round trip
+  - _Requirements: R2, R3, R4_
+- [ ] 4. Prompt bar and plan chips
+  - [ ] 4.1 Prompt input, placeholders by goal
+  - [ ] 4.2 Chips editing → re-direct keeping content
+  - [ ] 4.3 "Why this direction?" panel
+  - _Requirements: R2_
+- [ ] 5. Canvas
+  - [ ] 5.1 Player integration, format switcher, safe-zone overlay (needs spec 06)
+  - [ ] 5.2 Inline text editing
+  - _Requirements: R3.3_
+- [ ] 6. Inspector quick controls (duration, energy, colour role, swap)
+  - _Requirements: R3.2_
+- [ ] 7. Projects and storyboard
+  - [ ] 7.1 Create project with defaults
+  - [ ] 7.2 Drag reorder with persistence
+  - [ ] 7.3 Thumbnails
+  - _Requirements: R5_
+- [ ] 8. Templates by goal (8 templates with example prompt and data)
+  - _Requirements: R6.1_
+- [ ] 9. Onboarding flow and first-clip timing check
+  - _Requirements: R6.2, R6.3_
+- [ ] 10. Export integration and keyboard shortcuts
+  - _Requirements: R7, R8_
+- [ ] 11. Playwright smoke test of the demo flow
+- [ ] 12. Checkpoint: full flow prompt → refine → export in under 2 minutes

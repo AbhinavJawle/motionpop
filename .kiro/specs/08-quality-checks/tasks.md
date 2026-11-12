@@ -1,0 +1,23 @@
+# Tasks: Deterministic Quality Checks
+
+- [ ] 1. Types and runner (`Issue`, `Box`, `LayoutProbe`, `runChecks`)
+  - _Requirements: R1, R8_
+- [ ] 2. Locale-aware number parser/formatter pair with round-trip property test
+  - _Requirements: R6.2_
+- [ ] 3. Individual checks (each with unit tests)
+  - [ ] 3.1 Text overflow
+  - [ ] 3.2 Min font size (add `MIN_FONT_SIZE` to schemas if not done in spec 06)
+  - [ ] 3.3 Collisions with `allowOverlap`
+  - [ ] 3.4 Safe zones
+  - [ ] 3.5 Data match
+  - [ ] 3.6 Duration, hold, timing ranges
+  - _Requirements: R2–R7_
+- [ ] 4. Add `probe` to each component entry (done alongside spec 02 tasks)
+  - _Requirements: R1_
+- [ ] 5. Suggested-fix patches and integration with the engine retry prompt (spec 04 task 7)
+- [ ] 6. Property test: fallback scenes pass error-level checks in all formats
+- [ ] 7. Kiro hooks
+  - [ ] 7.1 `component-quality` on save
+  - [ ] 7.2 `check:frames` script
+  - _Requirements: R9_
+- [ ] 8. Checkpoint: intentionally break a component (oversized text, wrong number) and confirm the checks catch it

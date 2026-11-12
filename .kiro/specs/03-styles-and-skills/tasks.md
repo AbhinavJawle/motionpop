@@ -1,0 +1,31 @@
+# Tasks: Styles & Skills
+
+- [ ] 1. Engine package scaffold (`packages/engine`) with tsconfig, vitest, scripts
+- [ ] 2. Skill parser
+  - [ ] 2.1 Front matter + section extraction
+  - [ ] 2.2 Shot-sequence parsing
+  - [ ] 2.3 Error messages naming file and missing item
+  - _Requirements: R2_
+- [ ] 3. Skill validator
+  - [ ] 3.1 Overlap, order, range, gap, unknown component rules
+  - [ ] 3.2 `validate:skills` CLI script
+  - [ ] 3.3 Kiro hook `skill-validator` on save, and CI step
+  - _Requirements: R3_
+- [ ] 4. Percent → seconds helper with property tests
+  - _Requirements: R5.2_
+- [ ] 5. Write the 5 missing skills
+  - [ ] Contrast Split
+  - [ ] Journey Along a Timeline
+  - [ ] Zoom From World to Place
+  - [ ] Countdown / Ranking
+  - [ ] Brand Sting
+  - _Requirements: R4_
+- [ ] 6. Validate the 3 existing skills; fix any issues the validator finds
+- [ ] 7. Style resolver
+  - [ ] 7.1 Brand palette/fonts mapping, deep freeze
+  - [ ] 7.2 Contrast guard with warning
+  - [ ] 7.3 Tests: pack unchanged after resolve; frozen output
+  - _Requirements: R1_
+- [ ] 8. Skill loader exposing `useWhen` and `intent` for UI
+  - _Requirements: R5.1_
+- [ ] 9. Checkpoint: all skills load and validate; all 3 packs pass `StylePackSchema`

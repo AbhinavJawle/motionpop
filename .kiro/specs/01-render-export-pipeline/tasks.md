@@ -1,0 +1,26 @@
+# Tasks: Render & Export Pipeline
+
+- [ ] 1. Set up Remotion in `packages/components`
+  - [ ] 1.1 Add remotion, @remotion/player, @remotion/lambda deps and a Remotion config
+  - [ ] 1.2 Create `registry.ts` with the `ComponentEntry` type and an empty registry
+  - _Requirements: R1_
+- [ ] 2. Implement `SceneComposition`
+  - [ ] 2.1 Resolve component, tokens, format; error frame for unknown component
+  - [ ] 2.2 `calculateMetadata` for width/height/fps/duration
+  - [ ] 2.3 Property test: duration frames equal `round(duration*fps)`
+  - _Requirements: R1_
+- [ ] 3. Browser preview in `apps/web`
+  - [ ] 3.1 `ScenePlayer` component wrapping Remotion Player (play/pause/scrub/loop)
+  - [ ] 3.2 Verify updates within 1s on scene change
+  - _Requirements: R2_
+- [ ] 4. Render service in `packages/render`
+  - [ ] 4.1 Deploy script for Lambda function and site bundle
+  - [ ] 4.2 `createRenderJob`, `getRenderProgress`, S3 → CloudFront signed URL
+  - [ ] 4.3 RenderJob persistence (DynamoDB) with workspace scoping
+  - _Requirements: R3, R4_
+- [ ] 5. API routes and UI wiring
+  - [ ] 5.1 `POST /api/render`, `GET /api/render/[id]` with Zod validation
+  - [ ] 5.2 Export button, progress bar, download link, failure + retry
+  - [ ] 5.3 Filename helper `{order}_{slug}.mp4` with test
+  - _Requirements: R3, R4_
+- [ ] 6. Checkpoint: export a hard-coded scene end to end; measure time for 10s 1080p

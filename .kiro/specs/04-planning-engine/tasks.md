@@ -1,0 +1,40 @@
+# Tasks: Planning Engine
+
+- [ ] 1. LLM provider layer
+  - [ ] 1.1 Vercel AI SDK wrapper for Bedrock and Anthropic
+  - [ ] 1.2 Router mapping tasks to tiers; usage recording
+  - [ ] 1.3 Mock provider for tests
+  - _Requirements: R6_
+- [ ] 2. Catalog builder with stable ordering and cache breakpoint
+  - _Requirements: R6.2_
+- [ ] 3. Data detection (numbers, currency, dates, CSV) with tests
+  - _Requirements: R1.2_
+- [ ] 4. Intent parsing with Zod structured output
+  - _Requirements: R1_
+- [ ] 5. Planning
+  - [ ] 5.1 Plan + two alternatives
+  - [ ] 5.2 Enforce project defaults, user preferences, skill/component compatibility
+  - [ ] 5.3 Tests for compatibility fix-up
+  - _Requirements: R2_
+- [ ] 6. Props and direction generation
+  - [ ] 6.1 Skill-driven prompt with duration
+  - [ ] 6.2 Parse and validate
+  - _Requirements: R3_
+- [ ] 7. Validation, retry, fallback
+  - [ ] 7.1 Fallback scene factory per component
+  - [ ] 7.2 Retry ≤2 with errors; Opus escalation
+  - [ ] 7.3 Property test: fallback always validates
+  - _Requirements: R4_
+- [ ] 8. Refinement
+  - [ ] 8.1 Haiku patch generation
+  - [ ] 8.2 `applyPatch` with lock enforcement and re-validation
+  - [ ] 8.3 Property test: untouched paths unchanged
+  - _Requirements: R5_
+- [ ] 9. Guardrails and brand-style mapping
+  - _Requirements: R8_
+- [ ] 10. API routes (plan, generate, refine) with auth and rate limit hooks
+- [ ] 11. BYOK: server-side key resolution per workspace
+  - _Requirements: R6.4_
+- [ ] 12. Live eval script; record latency and validity in KIRO_LOG.md
+  - _Requirements: R7_
+- [ ] 13. Checkpoint: 10 diverse prompts produce valid scenes; p50 under 6s

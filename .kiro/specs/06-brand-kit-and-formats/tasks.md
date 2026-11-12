@@ -1,0 +1,28 @@
+# Tasks: Brand Kit & Formats
+
+- [ ] 1. Upload pipeline
+  - [ ] 1.1 Presigned URL endpoint with type/size validation
+  - [ ] 1.2 S3 workspace-prefixed storage and signed read URLs
+  - _Requirements: R1.1, R3_
+- [ ] 2. Palette extraction and role assignment
+  - [ ] 2.1 Extraction wrapper
+  - [ ] 2.2 Heuristic with contrast check
+  - [ ] 2.3 Fixture-based tests
+  - _Requirements: R1.2, R2.2_
+- [ ] 3. Brand kit CRUD (API + repo)
+- [ ] 4. Brand kit UI
+  - [ ] 4.1 Logo upload, palette editor, font picker
+  - [ ] 4.2 Preview on sample scenes
+  - [ ] 4.3 Skip option
+  - _Requirements: R1_
+- [ ] 5. Apply brand through the style resolver and Logo Sting
+  - _Requirements: R2_
+- [ ] 6. Formats
+  - [ ] 6.1 Add `MIN_FONT_SIZE` and `PLATFORM_UI_REGIONS` to schemas
+  - [ ] 6.2 Format switcher in the canvas keeping content/timing
+  - [ ] 6.3 Safe-zone overlay with platform regions
+  - [ ] 6.4 Property test: format switch only changes `format`
+  - _Requirements: R4_
+- [ ] 7. Loop mode for product demo
+  - _Requirements: R5_
+- [ ] 8. Checkpoint: same scene looks intentional in all 4 formats with a brand applied
