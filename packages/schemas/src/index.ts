@@ -1,2 +1,5 @@
-// @motionpop/schemas: public entry point. Exports are added by the spec tasks.
-export {};
+// @motionpop/schemas: public entry point.
+export * from './time';
+export * from './transcript';
+export * from './slot';
+export * from './ai';
