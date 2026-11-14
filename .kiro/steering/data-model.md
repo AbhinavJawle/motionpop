@@ -77,6 +77,7 @@ interface Slot {
 interface FrameNote { id: string; tMs: number; shape: { kind: "circle" | "path"; points: number[] }; text: string; status: "open" | "fixed" }
 
 interface Version {
+  id: string;                     // = Firestore doc id; target of Slot.currentVersionId (spec 04)
   slotId: string; componentId: string; params: Record<string, unknown>;
   customPath?: string;            // tier-2 composition bundle in Storage
   source: "ai-device" | "ai-cloud" | "ai-claude" | "user" | "plan";

@@ -240,3 +240,17 @@ Template:
   - 112 motion tests and the root lint passed. The last spec 03 box was checked here.
   - Friction: it used `sed -i.bak` to tick the box, against its prompt again (one-line diff, backup removed), and reported this itself.
 <!-- /kiro-session:sess_85bbf944-bd9a-4803-ad5d-3ea0c507a598 -->
+
+<!-- kiro-session:sess_381d52a8-dbd2-43e0-99ed-1928801040c1 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T19:54:18.054Z · last stop: 2026-11-14T19:55:30.873Z · session: sess_381d52a8-dbd2-43e0-99ed-1928801040c1
+- commits since start: 
+  - 0f419ce feat(04-editor-shell-and-timeline): task 1 editor project schemas
+- uncommitted changes: none
+- Summary (added in Claude Code after reviewing `run13.log` and commit 0f419ce): **run 13**, spec 04 task 1.
+  - `packages/schemas/src/project.ts` defines the slot, frame-note, version, voiceover and editor-project schemas, using integer ms throughout. A pure `timelineIssues()` helper (unique ids, bounds, word indices, no overlap; touching slots allowed) backs `superRefine` and can be reused by commands.
+  - Duration limits are deliberately left to commands, with a comment saying so.
+  - 41 schemas tests pass, including fast-check properties (random non-overlapping slots parse; a forced overlap always fails). The root typecheck passes.
+  - Kiro reported its deviations itself: `VersionSchema.id` was added (not in `data-model.md`) so `currentVersionId` has a target; it used `z.number().int()` to match the existing schemas; and it added the optional `needsInput` and `sfx` fields from `data-model.md`. Claude Code reviewed the file and accepted all three.
+  - It used the file-edit tool for the box this time.
+<!-- /kiro-session:sess_381d52a8-dbd2-43e0-99ed-1928801040c1 -->
