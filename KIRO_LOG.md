@@ -53,3 +53,18 @@ Template:
   - The property test found a real bug: `inOutSine(0)` returned `-0`. Kiro fixed it by rewriting the expression as `(1 - cos(πx)) / 2`.
   - Friction: a BSD `sed` edit failed, so it fell back to its own file-replace tool. The Stop hook now lists the run's commit, which confirms the SessionStart fix works.
 <!-- /kiro-session:sess_6722cdde-1603-4ba5-8bee-0c28b704eb91 -->
+
+<!-- kiro-session:sess_6ac95ecb-5666-4598-b260-e160c8deae7f -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T15:57:28.140Z · last stop: 2026-11-14T15:58:29.997Z · session: sess_6ac95ecb-5666-4598-b260-e160c8deae7f
+- commits since start: 
+  - 811b959 docs(01-foundation): check task 4
+  - d8679b6 feat(01-foundation): task 4 Remote Config typed defaults
+- uncommitted changes: 
+  - `?? apps/web/components/`
+  - `?? apps/web/lib/motion/`
+- Summary (added in Claude Code after reviewing the run output and commits):
+  - Task: spec 01 task 4, Remote Config typed defaults. Beforehand, Claude Code pinned the flat key table in design.md (commit 7713598) so the task could run without the Firebase project.
+  - Kiro wrote `packages/schemas/src/config.ts` (`AppConfigSchema`, `APP_CONFIG_DEFAULTS`, `parseRemoteConfig`, `InferenceModeSchema`) and tests, including a fast-check property: any `Record<string,string>`, even with `__proto__` or `constructor` keys, parses to a valid config. 14 tests green.
+  - Friction: macOS `sed -i` failed again, so the box was checked in a second commit. The builder prompt now tells it to use its own file-edit tool instead of `sed -i`.
+<!-- /kiro-session:sess_6ac95ecb-5666-4598-b260-e160c8deae7f -->
