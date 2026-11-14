@@ -1,0 +1,47 @@
+import type { z } from 'zod';
+
+export type Format = '16:9' | '9:16' | '1:1';
+
+/**
+ * Visual tokens a component may use. v0 subset; the full StylePack schema
+ * (packages/schemas) replaces this in spec 07.
+ */
+export interface StyleTokens {
+  colors: { bg: string; ink: string; muted: string; accent: string };
+  fonts: { display: string; body: string; mono: string };
+}
+
+export interface BuildContext {
+  /** Container sized to the frame. The component owns its children. */
+  root: HTMLElement;
+  width: number;
+  height: number;
+  format: Format;
+  style: StyleTokens;
+  /** Slot length in ms. */
+  durationMs: number;
+  /** Offset from slot start where the focal element must land (the spoken word). */
+  keyMomentMs: number;
+  fps: 30;
+  seed: number;
+}
+
+export interface Composition {
+  durationMs: number;
+  /** Pure: renders the state at `tMs` (slot-local) with no dependency on earlier seeks. */
+  seek: (tMs: number) => void;
+  dispose: () => void;
+}
+
+export interface MotionComponent<P> {
+  id: string;
+  name: string;
+  category: 'data' | 'map' | 'text' | 'callout' | 'brand' | 'transition';
+  params: z.ZodType<P>;
+  defaults: P;
+  durationMs: { min: number; ideal: number; max: number };
+  formats: Format[];
+  /** Default key moment for these params and slot length (used when no spoken word is linked). */
+  keyMomentMs: (p: P, durationMs: number) => number;
+  build: (ctx: BuildContext, p: P) => Composition;
+}
