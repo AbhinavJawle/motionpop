@@ -21,6 +21,7 @@ apps/web/
   lib/auth/                 AuthProvider, useUser, signIn helpers
   styles/globals.css        @theme tokens
 ```
+- **As built (task 5):** auth state lives in a module store read with `useSyncExternalStore` (`lib/auth/auth-store.ts`; `loading` on the server, `local` when Firebase isn't configured, so tests and offline dev open every route). `safeNextPath` only accepts same-origin paths (property-tested against `new URL`). Password reset answers the same whether or not the account exists. Playwright runs the editor specs in local mode and `e2e/auth.spec.ts` against the Auth emulator.
 - Route protection is client-side (`AuthGate`) plus server-side checks in every API route. Firebase Auth has no session cookie by default; we don't add one in the MVP.
 
 ## Tokens

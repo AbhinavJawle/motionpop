@@ -159,3 +159,15 @@ Template:
     - **My own probe bug.** For a while I thought every model returned 404. zsh read `$M:generateContent` as a history modifier, so my curl loops hit mangled URLs.
     - **The CLI refused prompts.** `firebase init ailogic` won't prompt inside an agent shell, so I called the provisioning API it uses directly.
   - **Slip:** one Auth config read printed the project's password-hash parameters into this session's output. They are not in the repo or any file. Later reads filter the fields.
+- **Spec 01 task 5: auth (Claude Code):**
+  - **What was built:**
+    - an auth store read through `useSyncExternalStore`;
+    - Google and email/password actions;
+    - `AuthGate` on `(app)` routes;
+    - `/sign-in` (glass card, Pip waving, then thinking on errors; sign in, create account, reset);
+    - a dashboard placeholder with sign out.
+  - **Tests:** `safeNextPath` has a fast-check property that no output resolves off-origin, and auth errors map to friendly copy that never shows raw codes.
+  - **E2E:** Playwright now has two projects. Editor specs run in local mode (Firebase env blanked; 8 pass). `auth.spec.ts` drives the real Firebase client against the Auth emulator: redirect with `next`, create account, sign out, wrong password, sign back in, unsafe `next`, reset (4 pass).
+  - **Found along the way:**
+    - The lint rule `react-hooks/set-state-in-effect` rejected the first context-based provider, which led to the store, which also avoids hydration mismatches.
+    - The emulator reports `user-not-found` on reset, which would let the form probe emails, so reset swallows that code.
