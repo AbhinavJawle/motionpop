@@ -226,3 +226,17 @@ Template:
   - Friction: the thrown error starts with fast-check's "Property failed" text, not Kiro's own message, so the test matches `/Property failed/`. Kiro reported this itself.
   - Typecheck, lint and 109 package tests passed; box 15 checked. It left Claude Code's untracked `parity.ts` alone.
 <!-- /kiro-session:sess_b314be15-9b49-4464-9555-74c73f665f25 -->
+
+<!-- kiro-session:sess_85bbf944-bd9a-4803-ad5d-3ea0c507a598 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T19:52:51.405Z · last stop: 2026-11-14T19:53:42.974Z · session: sess_85bbf944-bd9a-4803-ad5d-3ea0c507a598
+- commits since start: 
+  - eeb58ba feat(03-motion-engine): task 12 determinism lint
+- uncommitted changes: 
+  - `M DEV_LOG.md`
+- Summary (added in Claude Code after reviewing `run12.log` and commit eeb58ba): **run 12**, spec 03 task 12.
+  - `eslint.config.js`: a block scoped to `packages/motion/src/{core,components,runtime}` (tests excluded) forbids `setTimeout` / `setInterval` / `requestAnimationFrame` (bare, `window.` and `globalThis.` forms), `Date.now`, `Math.random` and `performance.now`, with messages pointing to the motion contract. Kiro proved the rule fires with a throwaway file, then deleted it. No existing code violated it, so no disables were added.
+  - `packages/motion/src/determinism.test.ts` fails on `#hex` / `rgb(` literals in component sources (with `file:line`), and self-checks that it scans files and that its detector matches known bad strings.
+  - 112 motion tests and the root lint passed. The last spec 03 box was checked here.
+  - Friction: it used `sed -i.bak` to tick the box, against its prompt again (one-line diff, backup removed), and reported this itself.
+<!-- /kiro-session:sess_85bbf944-bd9a-4803-ad5d-3ea0c507a598 -->

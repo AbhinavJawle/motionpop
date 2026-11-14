@@ -91,3 +91,16 @@ Template:
     - A one-slot composition is 1.5 MB: the HyperFrames runtime is 679 KB and ours is 460 KB minified (mostly zod). The 600 KB NFR was unreachable and is corrected.
     - Producer render: 4 s at 1080p in 14 s.
   - **Not done yet:** tasks 11 (parity), 12 (determinism lint), 15 (`assertSeekPure` helper) and the 03 spec close-out.
+
+### 2026-11-14 · Evening (Claude Code + Kiro), spec 03 close-out and spec 04
+- **Kiro run 11 (task 15):** the `assertSeekPure` helper now replaces big-number's hand-written determinism tests. I reviewed Kiro's report and commit 1c3caad.
+- **Task 11, parity (Claude Code):** `services/render/scripts/parity.ts` compares five frame-aligned stills from the runtime in Chrome with frames extracted from the producer's MP4.
+  - All 5 pass: global difference ≤ 1.02 %, worst 64 px tile 3.18 %.
+  - Control: comparing mismatched frames gives a worst tile of 62–72 %, so the metric does catch real differences.
+  - The producer renders 8 s at 1080p in 15.2 s.
+  - `puppeteer` added as a devDependency of `services/render`.
+- **Task 14:** box checked. The steering work was already done in 5d1526d.
+- **Task 12 (determinism lint):** Kiro run 12, reviewed (eeb58ba). All spec 03 tasks are now checked.
+- **Spec 04, editor shell and timeline:** wrote `requirements.md` (R1–R7 in EARS), `design.md` and `tasks.md` (10 tasks; 1–4 marked `[kiro]`: schemas, timeline geometry/snap/constraints, commands with property tests, peaks worker).
+  - Firestore sync stays behind a `ProjectRepository` interface backed by IndexedDB until the Firebase login is done.
+  - The demo fixture uses a procedurally synthesized voice, so there is no third-party audio.
