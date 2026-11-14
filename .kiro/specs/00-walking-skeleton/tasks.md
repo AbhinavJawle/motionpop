@@ -2,7 +2,7 @@
 
 Tasks marked **[kiro]** are executed by Kiro CLI (`motionpop-builder` agent) and logged in `KIRO_LOG.md`. Others are done in Claude Code and logged in `DEV_LOG.md`.
 
-- [ ] 1. Monorepo skeleton: add `services/*` to the workspace; create `packages/schemas`, `packages/motion`, `packages/ai` (tsconfig, package.json, vitest) and `services/render`; scaffold `apps/web` (Next 16, Tailwind 4). Typecheck/lint/test green. _(shared with 01 task 1–2)_ — R3, R4
+- [x] 1. Monorepo skeleton: add `services/*` to the workspace; create `packages/schemas`, `packages/motion`, `packages/ai` (tsconfig, package.json, vitest) and `services/render`; scaffold `apps/web` (Next 16, Tailwind 4). Typecheck/lint/test green. _(shared with 01 task 1–2)_ — R3, R4
 - [ ] 2. **[kiro]** `packages/schemas`: `time.ts` (+ property test round-trip), `transcript.ts`, `slot.ts` (SlotSuggestion), `ai.ts` (RunResult, JsonPatchOp). — R1.4, R2, R5
 - [ ] 3. `packages/motion` core v0: eases, tween/interp, count-up; **[kiro]** property tests for eases (`e(0)=0`, `e(1)=1`, monotonic). — R3
 - [ ] 4. `big-number` v0 (params zod, 16:9 layout, build, keyMoment) + **[kiro]** seek-determinism property test. — R3

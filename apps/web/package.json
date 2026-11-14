@@ -12,6 +12,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@hyperframes/player": "catalog:",
     "@motionpop/ai": "workspace:*",
     "@motionpop/motion": "workspace:*",
     "@motionpop/schemas": "workspace:*",

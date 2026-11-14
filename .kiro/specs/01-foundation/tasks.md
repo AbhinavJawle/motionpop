@@ -2,8 +2,8 @@
 
 Tasks marked **[kiro]** are executed by Kiro CLI and logged in `KIRO_LOG.md`.
 
-- [ ] 1. Workspace: `services/*` in `pnpm-workspace.yaml`, package skeletons, shared tsconfig/eslint, root vitest workspace; `pnpm typecheck/lint/test` green. — R1
-- [ ] 2. Next 16 app scaffold + Tailwind 4 + shadcn init; `globals.css` tokens from `design-system.md`; Geist fonts; dark only. — R2
+- [x] 1. Workspace: `services/*` in `pnpm-workspace.yaml`, package skeletons, shared tsconfig/eslint, root vitest workspace; `pnpm typecheck/lint/test` green. — R1
+- [x] 2. Next 16 app scaffold + Tailwind 4 + shadcn init; `globals.css` tokens from `design-system.md`; Geist fonts; dark only. — R2
 - [ ] 3. Firebase client init + App Check (debug token locally) + lazy getters; `.env.example`. _(needs the Firebase project)_ — R3.1–R3.3, R6.2
 - [ ] 4. **[kiro]** Remote Config typed defaults with zod + unit tests. — R3.4
 - [ ] 5. Auth: AuthProvider, Google + email/password helpers, `AuthGate`, sign-in page (functional; visual polish in spec 02). — R4.1, R4.2

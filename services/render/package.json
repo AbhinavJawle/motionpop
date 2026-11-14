@@ -9,16 +9,18 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "render:dir": "node scripts/render-dir.ts"
   },
   "dependencies": {
-    "@motionpop/schemas": "workspace:*",
-    "@motionpop/motion": "workspace:*"
+    "@hyperframes/producer": "catalog:",
+    "@motionpop/motion": "workspace:*",
+    "@motionpop/schemas": "workspace:*"
   },
   "devDependencies": {
-    "typescript": "catalog:",
-    "vitest": "catalog:",
+    "@types/node": "catalog:",
     "fast-check": "catalog:",
-    "@types/node": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -26,8 +26,13 @@ Style packs and copy use descriptive names only (both rulebooks forbid third-par
 ## D-008 · 2026-11-14 · decided — Category
 Kiroween: Frankenstein. Firebase: Web/Chrome platform.
 
-## D-009 · 2026-11-14 · decided — Render engine: HyperFrames via hf-seek
-HyperFrames (`@hyperframes/player` for preview, `@hyperframes/producer` for local render, `@hyperframes/gcp-cloud-run` for cloud render). Our motion core drives each frame through the `hf-seek` event, so no GSAP ships. Rejected: Remotion (company licence), own Puppeteer + FFmpeg loop (rebuilds what HyperFrames already does). Spike on day 1 confirms it.
+## D-009 · 2026-11-14 · decided (spike confirmed) — Render engine: HyperFrames via hf-seek
+HyperFrames (`@hyperframes/player` for preview, `@hyperframes/producer` for render, `@hyperframes/gcp-cloud-run` as the long-video upgrade). Our motion core draws each frame from an `hf-seek` listener, so no GSAP ships. Rejected: Remotion (company licence), our own Puppeteer + FFmpeg loop (rebuilds what HyperFrames already does).
+
+**Spike (Nov 14, HyperFrames 0.9.46, Chrome 155 headless):** a plain-DOM composition (count-up to 40 % landing at 2.0 s, beep in the audio at 2.0 s), no timeline registered.
+- Producer: 4 s 1280×720 30 fps clip rendered in 8.4 s (draft, 1 worker). Frames exact (36 % at 1.0 s = outExpo, 40 % at 2.0 s), clips hidden outside `[data-start, +duration)`, beep at 2.0004 s in the muxed AAC.
+- Player: seeks exact; during playback `hf-seek` fires every frame and our time tracks `currentTime` within ~2 ms.
+- **Gotcha:** the player only auto-injects the runtime for compositions with GSAP timelines or nested scenes. A pure `hf-seek` composition must include the runtime itself: the compiler embeds `@hyperframes/core/dist/hyperframe.runtime.iife.js` from the pinned package (never the CDN). The producer works the same with it embedded.
 
 ## D-010 · open — Tier-2 provider for Firebase entry
 Ask in #hackathon-help. If not allowed: Gemini for tier-2 in the Firebase build (provider flag), Claude allowed in Kiroween build.

@@ -46,6 +46,7 @@ window.addEventListener("hf-seek", (e) => {
 });
 ```
 - Verified in the HyperFrames source (0.9.45): the runtime's TypeGPU and Three adapters are always registered and dispatch `hf-seek` (`{ time: seconds, waitUntil }`) on every seek and every transport tick, deduplicated by time. Our runtime does not need GPU; it just listens.
+- **Spike result (D-009):** works in both player and producer, frame-exact. The composition must embed the HyperFrames runtime itself (`<script src="assets/hyperframe.runtime.iife.js">`, copied from the pinned `@hyperframes/core` dist), because the player only auto-injects it for GSAP or nested compositions. The root needs `data-duration`; the runtime handles clip visibility, so `runtime.js` only seeks the active slot compositions.
 
 ## AI router (v0)
 ```ts
