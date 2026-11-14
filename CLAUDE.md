@@ -1,6 +1,16 @@
 # Instructions for AI coding agents (Claude Code and Kiro share these rules)
 
-Project rules live in `.kiro/steering/`. Read the `inclusion: always` files at the start of a session, and the `fileMatch` ones when touching matching paths. Plan, scope and schedule: `docs/plan.md`. Decisions: `docs/decisions.md`.
+Project rules live in `.kiro/steering/`. The `inclusion: always` files are imported below; read the `fileMatch` ones when touching matching paths (design-system, screens, editor-timeline, pip-mascot for `apps/web`; component-contract, component-library, motion-principles, style-pack-format for `packages/motion`; ai-tasks for `packages/ai`; data-model for schemas/rules; director-skill-format for `skills/`). Plan, scope and schedule: `docs/plan.md`. Decisions: `docs/decisions.md`.
+
+@.kiro/steering/product.md
+@.kiro/steering/tech.md
+@.kiro/steering/architecture.md
+@.kiro/steering/structure.md
+@.kiro/steering/workflow.md
+@.kiro/steering/testing.md
+@.kiro/steering/security-and-cost.md
+@.kiro/steering/hybrid-ai.md
+@.kiro/steering/hackathon-compliance.md
 
 **Visual source of truth:** `design/screens/*.png` and `design/figma-export.css`. Match them exactly. When a doc disagrees with the designs, the designs win.
 

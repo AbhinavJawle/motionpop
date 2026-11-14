@@ -17,7 +17,7 @@ One codebase, two submissions:
 
 ## 1. Ground rules (non-negotiable)
 
-1. **The designs are the truth.** `design/screens/*.png` and `design/figma.css` (Figma export). Match layout, tokens and copy exactly. Where any doc disagrees, the design wins. Then add life: the UI must feel poppy, playful and animated.
+1. **The designs are the truth.** `design/screens/*.png` and `design/figma-export.css` (Figma export). Match layout, tokens and copy exactly. Where any doc disagrees, the design wins. Then add life: the UI must feel poppy, playful and animated.
 2. **Firebase AI Logic is the AI backbone at runtime.** Every runtime AI call goes through `packages/ai` (router + zod + cost). The user always sees where an action runs: `⚡ free · on-device` or `☁ N credits`.
 3. **HyperFrames renders the video, with no GSAP shipped.** GSAP's licence forbids no-code animation tools that compete with Webflow. Our own deterministic motion core drives HyperFrames through its `hf-seek` protocol.
 4. **Determinism.** Every frame is a pure function of time. Time is stored as integer ms; frames are derived at render (30 fps).
@@ -125,7 +125,7 @@ packages/motion/         motion core (timeline, tweens, eases, stagger, text spl
 packages/ai/             router.ts (device vs cloud), tasks/*, prompts/*.v1.md, cost.ts, providers/(firebase|claude)
 services/render/         Cloud Run: HyperFrames producer → MP4/WebM → Storage; progress → Firestore
 skills/                  director skills (*.md)
-design/                  screens/*.png + figma.css (read-only references)
+design/                  screens/*.png + figma-export.css (read-only references)
 docs/                    plan, decisions, third-party, demo scripts, checklist, write-ups
 .kiro/                   steering/, specs/, agents/ (custom agents + hooks), settings/mcp.json, skills/
 .claude/                 skills/, commands/
