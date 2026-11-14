@@ -88,8 +88,51 @@ Template:
   - Good behaviour: it committed only its own files and left Claude Code's in-progress UI files untouched, as instructed.
 <!-- /kiro-session:sess_b69854ce-1266-439a-9e35-7f017ac6b8bf -->
 
-### 2026-11-14 · Kiro CLI · agent: motionpop-builder · run 5 (aborted, no output)
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder · run 5 (first logged as aborted; corrected below)
 - Task: review spec 03 against steering and write `.kiro/specs/03-motion-engine/review.md`.
 - What happened: the run read files and ran several shell commands, then exited with code 0, no final message, no file written, and no Stop-hook entry. Nothing was committed.
 - Likely cause (not confirmed): read-only shell commands such as `grep`/`find`/`head` matched the agent's `ask` rule, which a headless run can't answer. A kiro-cli self-update was also downloading at the same time.
 - Fix (Claude Code): allowed safe read-only commands and `npx prettier` in `motionpop-builder.json`, then reran the review as run 6.
+- **Correction (Claude Code, same day):** the run was not aborted. It was still working, with one very long file write, when Claude Code checked and saw no output. It finished at 17:32 local time, committed `01d4611` with its review, and its Stop hook entry is `sess_e7c61685` below. Claude Code misread a slow run as a dead one and started run 6 while run 5 was still going. The two runs overlapped; run 6 overwrote run 5's `review.md`. Run 5's review is restored as `.kiro/specs/03-motion-engine/review-run5.md`. Lesson: check `pgrep kiro-cli` before deciding a run has died.
+
+<!-- kiro-session:sess_e7c61685-7510-45ad-9e4d-b9f75ed9fe01 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T16:28:23.373Z · last stop: 2026-11-14T16:32:21.308Z · session: sess_e7c61685-7510-45ad-9e4d-b9f75ed9fe01
+- commits since start: 
+  - 01d4611 docs(03-motion-engine): Kiro spec review
+  - fac1b56 chore(kiro): log aborted run 5; allow read-only shell commands for headless runs
+- uncommitted changes: 
+  - `M apps/web/app/dev/skeleton/runtime/route.ts`
+  - ` M packages/motion/scripts/build-runtime.ts`
+  - ` M packages/motion/src/compiler/compile.test.ts`
+  - ` M packages/motion/src/compiler/compile.ts`
+  - ` M packages/motion/src/core/index.ts`
+  - ` M packages/motion/src/runtime/runtime.ts`
+  - ` M services/render/scripts/skeleton.ts`
+  - `?? packages/motion/src/core/camera.ts`
+  - `?? packages/motion/src/core/core.test.ts`
+  - `?? packages/motion/src/core/fit-text.ts`
+  - `?? packages/motion/src/core/path-draw.ts`
+  - `?? packages/motion/src/core/safe-area.ts`
+  - `?? packages/motion/src/core/split-text.ts`
+  - `?? packages/motion/src/fonts/`
+- Summary (added in Claude Code after reviewing `run5.log` and commit 01d4611): this is **run 5**.
+  - Task: review spec 03 against steering and code; write `review.md`; commit only that file.
+  - Output: a review in seven sections. Five High findings: big-number's accent text fails contrast (2.2:1); `document.fonts.ready` alone does not load data-URL fonts; async `ready` can lose early `hf-seek` events; weight 700 not embedded; hold time ≈ 150 ms at the 2 s minimum. Also: the `EaseName` dependency cycle, contract drift (`data-text` / `data-focal` / warnings), missing call sites, motion:check tooling gaps, a parity metric that hides text shifts, and a proposed fix order.
+  - The uncommitted files listed above are Claude Code's in-progress work for tasks 3 and 6 (committed as 87e1ad8), not Kiro's. Kiro reported them and left them alone.
+<!-- /kiro-session:sess_e7c61685-7510-45ad-9e4d-b9f75ed9fe01 -->
+
+<!-- kiro-session:sess_413d0c1b-baca-4267-aae1-309bcf86d9d7 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T16:30:42.507Z · last stop: 2026-11-14T16:36:37.213Z · session: sess_413d0c1b-baca-4267-aae1-309bcf86d9d7
+- commits since start: 
+  - b00983c docs(03-motion-engine): Kiro spec review
+  - 87e1ad8 feat(03-motion-engine): tasks 3 and 6 core helpers and embedded fonts
+  - 01d4611 docs(03-motion-engine): Kiro spec review
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+- Summary (added in Claude Code after reviewing `run6.log` and commit b00983c): this is **run 6**, the rerun started while run 5 was still going (see the correction under run 5). 87e1ad8 in the commit list is Claude Code's.
+  - Same task as run 5. Kiro noticed an existing `review.md`, overwrote it, and said so in its final message, with the command to recover the earlier version.
+  - Output: 24 findings (F1–F24). New items beyond run 5: components paint an opaque background, which hides the texture and breaks transparent WebM export (F4); the camera push-in should be a compiler-owned wrapper (F6); missing fonts fall back silently (F3); `fitText` should return the final string so `splitText` runs after it (F22); a per-timestamp assertion table for motion:check (F5); a 64 px tile parity metric (F20); and a reconciliation of `data-track-index` with `data-track-kind` (F21).
+  - Effect: Claude Code folded both reviews into the spec 03 requirements, design and tasks (new tasks 12–15, four of them `[kiro]`), updated `component-contract.md`, `structure.md` and `motion-principles.md`, and logged D-023.
+<!-- /kiro-session:sess_413d0c1b-baca-4267-aae1-309bcf86d9d7 -->

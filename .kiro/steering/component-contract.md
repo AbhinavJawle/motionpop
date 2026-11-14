@@ -28,7 +28,8 @@ export interface BuildContext {
   durationMs: number;                // slot length
   keyMomentMs: number;               // where the spoken word lands, relative to slot start
   fps: 30;
-  seed: number;                      // for seeded randomness
+  seed: number;                      // for seeded randomness (stable hash of the slot id)
+  warn: (message: string) => void;   // non-fatal problems (truncation, overflow, short slot)
 }
 
 export interface Composition {
@@ -49,5 +50,9 @@ export interface Composition {
 - **Layout per format.** Each component lays itself out deliberately for each supported format (re-layout, never crop).
 - **Tokens only.** Colours, fonts, radii and motion timings come from `ctx.style`. No hard-coded colours.
 - **Text fitting.** Use `fitText`; never overflow the safe area. If text can't fit: shrink to a minimum, then truncate with ellipsis and flag a warning.
-- **Assets** inline (SVG) or from bundled local files. Fonts loaded before the first seek (`document.fonts.ready`).
-- **Each component ships with:** zod params with descriptions, defaults, per-format layouts, README with examples (and any reference provenance), unit tests, property tests (determinism, bounds, data honesty) and a passing `pnpm motion:check <id>`.
+- **Transparent root.** Components never paint a background or a full-frame opaque fill. The compiler owns the background, texture and the transparent-export mode.
+- **Camera is the compiler's.** The runtime scales a `.mp-cam` wrapper with `style.motion.camera.pushIn`; components lay text out inside `insetForCamera(safeArea(...))` and never apply the push-in themselves.
+- **Check hooks.** Mark every text element `data-text` and the focal element `data-focal`. Text drawn on a token colour other than `bg` sets `data-on="<colour token>"` (for example `data-on="highlight"`) so the contrast check uses the right backdrop.
+- **Assets** inline (SVG) or from bundled local files. Fonts are bundled (Geist, Geist Mono) and embedded by the compiler; the runtime calls `document.fonts.load` for each family and weight, then awaits `document.fonts.ready`, before the first build and seek. An unbundled family fails compilation.
+- **Runtime API.** `window.__motionpop = { ready, seek(tMs), errors, warnings }`. One failing slot never breaks the others: preview shows a "Couldn't render" placeholder; render fails the job.
+- **Each component ships with:** zod params with descriptions, defaults, per-format layouts (`layout.ts`), `samples.ts` (fast-check arbitrary + edge cases for motion:check), README with examples (and any reference provenance), unit tests, property tests (determinism via `assertSeekPure`, bounds, data honesty) and a passing `pnpm motion:check <id>`.

@@ -16,7 +16,7 @@ These apply to every motion component and every AI-generated composition. The Hy
 7. **Camera.** Subtle continuous push-in (scale 1.00 → 1.04–1.06) on most scenes. Transitions are motion-driven (zoom, slide, match), not hard cuts.
 8. **Counters** ease out and land exactly on the final value; the final value gets an accent (highlight swipe or colour).
 9. **Data honesty.** Chart geometry is proportional to the data from a zero baseline (unless explicitly a delta chart). Labels show exact values.
-10. **Safe areas.** Text inside 5 % margins (16:9) and inside platform safe zones for 9:16.
+10. **Safe areas.** Text inside 5 % margins (16:9 and 1:1). 9:16 keeps clear of platform UI: top 12 %, bottom 20 %, sides 6 % (common short-video overlay zones, measured from the main platforms' layouts; revisit if they change). Captions are an overlay positioned by spec 12, not a band components must avoid. `safeArea()` in `core/safe-area.ts` is the single source.
 11. **Typography.** At most 2 type sizes per frame besides labels; tabular figures for numbers; no orphans in headlines.
 12. **Exit.** Elements leave faster than they enter (≈ 60 % of the entrance duration), or hand off via a transition.
 13. **Sync.** The slot's focal element lands on the spoken word (word start ± 80 ms).

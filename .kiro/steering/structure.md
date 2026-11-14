@@ -13,15 +13,18 @@ apps/web/
   workers/                whisper.worker.ts, peaks.worker.ts
 packages/schemas/src/     project, slot, transcript, version, render, credits, ai, style, skill, time
 packages/motion/src/
-  core/                   timeline, tween, eases, stagger, text split, path draw, count-up, rng, fitText
-  components/<id>/        params.ts (zod), layout.ts (per format), build.ts, index.ts, README.md, *.test.ts
+  core/                   timeline, tween, eases, stagger, text split, path draw, count-up, rng, fitText, camera, safe-area
+  components/<id>/        params.ts (zod), layout.ts (per format), build.ts, index.ts, samples.ts, README.md, *.test.ts
+  fonts/                  bundled Geist + Geist Mono variable woff2 (OFL), font-faces.ts
+  testing/                shared test helpers (assertSeekPure)
   styles/<id>.json        style packs
   compiler/               project JSON → HyperFrames composition HTML
   runtime/                hf-seek bridge, captions overlay
   sfx/                    deterministic synthesized SFX
-  scripts/check.ts        motion:check (stills + layout/contrast assertions)
+  scripts/check.ts        motion:check (stills + layout/contrast assertions), output in .check/ (gitignored)
+  scripts/build-runtime.ts runtime bundle, fonts.json, textures.json → dist/
 packages/ai/src/          router.ts, tasks/*.ts, prompts/*.v1.md, cost.ts, providers/(firebase|claude).ts
-services/render/          Cloud Run service: Dockerfile, src/server.ts, src/render.ts
+services/render/          Cloud Run service: Dockerfile, src/server.ts, src/render.ts, scripts/parity.ts
 skills/                   director skills (*.md)
 design/                   screens/*.png + figma-export.css (read-only)
 docs/                     plan, decisions, third-party, demo scripts, checklist, write-ups
