@@ -18,10 +18,12 @@ export function Ruler() {
   const ticks = useMemo(() => rulerTicks(view, widthPx), [view, widthPx]);
   const labels = useRef<Map<number, HTMLSpanElement>>(new Map());
 
+  // Hide a label only while its centre is under the capsule (≈ 42 px wide): editor.png shows
+  // "6s" touching the "5.6s" capsule.
   useFrame((ms, v) => {
     const x = msToX(ms, v);
     for (const [t, el] of labels.current) {
-      el.style.opacity = Math.abs(msToX(t, v) - x) < 34 ? '0' : '1';
+      el.style.opacity = Math.abs(msToX(t, v) - x) < 22 ? '0' : '1';
     }
   });
 

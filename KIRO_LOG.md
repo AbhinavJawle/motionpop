@@ -313,3 +313,20 @@ Template:
   - **Found a real bug:** calling `play(rate)` with a new rate while already playing (pressing L twice) started a second animation-frame loop, so every frame was emitted twice. As instructed, Kiro left the source alone and pinned the bug with `it.fails`. Claude Code fixed `PlaybackClock.play` (a rate change while playing now only adjusts the speed) and turned the test into a regression test.
   - Kiro also ran Prettier on `slot-display.test.ts` without staging it. Claude Code committed that formatting change with the fix.
 <!-- /kiro-session:sess_51344b40-71b9-49ff-8ea5-2d401fe2e7b4 -->
+
+<!-- kiro-session:sess_f1cd1186-45de-42ec-9c50-d9f0363e88da -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T20:39:44.048Z · last stop: 2026-11-14T20:45:49.576Z · session: sess_f1cd1186-45de-42ec-9c50-d9f0363e88da
+- commits since start: 
+  - 273d1dd test(04-editor-shell-and-timeline): task 10.2 playwright e2e, design check and perf
+- uncommitted changes: 
+  - `M DEV_LOG.md`
+  - ` M docs/decisions.md`
+  - `?? .kiro/specs/05-audio-pipeline/`
+- Summary (added in Claude Code after reviewing `run18.log` and commit 273d1dd): **run 18**, spec 04 task 10.2.
+  - Playwright (`@playwright/test ~1.65.1`, Chromium only) in `apps/web/e2e/`: the demo path (play, word seek, drag + ⌘Z, shift-drag create, autosave, reload, no page errors), a design check with per-region pixel diffs (pngjs + pixelmatch), and perf on `/editor/perf`. The specs typecheck through their own tsconfig and are kept out of Vitest.
+  - Measured: region diffs of top bar 2.54 %, rail 2.47 %, timeline 9.11 %. During playback the frame interval was 16.70 ms median and 16.7–16.8 ms p95 (limit 34). There were 40 word buttons at fit and 39 zoomed. No app bugs found.
+  - Outside the brief, Kiro added `distDir: process.env.NEXT_DIST_DIR` to `next.config.ts` so the e2e server can run beside the everyday dev server, which holds the `.next` lock. It disclosed the change, and the change is harmless when unset.
+  - Uncommitted files belonging to Claude Code (DEV_LOG, decisions, spec 05) were correctly left unstaged.
+  - Follow-up in Claude Code: Kiro reported the 9 % timeline diff without looking at the diff image. Claude Code looked at it, and it showed three real mismatches with `editor.png`: the footer hint (Claude Code had changed it to a Figma CSS comment from another frame), "Music · ducked", and the "6s" label hidden next to the playhead capsule. All three are fixed. The rest is expected content (synthetic waveform; only big-number exists until spec 07).
+<!-- /kiro-session:sess_f1cd1186-45de-42ec-9c50-d9f0363e88da -->

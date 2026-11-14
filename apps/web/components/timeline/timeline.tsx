@@ -135,7 +135,7 @@ export function Timeline({
         })}
         <TimeArea areaRef={areaRef} peaks={peaks} bucketMs={bucketMs} ready={widthPx > 0} />
         <p className="absolute bottom-[3px] left-6 text-[9px] leading-3 text-text-3">
-          Drag a slot to retime · Space to play
+          Space play · ⌘G generate · Drag slot to retime
         </p>
       </section>
     </TimelineContext.Provider>

@@ -7,6 +7,8 @@ const config: NextConfig = {
   // Workspace packages ship TypeScript source.
   transpilePackages: ['@motionpop/schemas', '@motionpop/motion', '@motionpop/ai'],
   reactStrictMode: true,
+  // The dev badge sits on the timeline's AUDIO label and skews design checks.
+  devIndicators: false,
 };
 
 export default config;

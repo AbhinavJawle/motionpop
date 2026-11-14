@@ -35,7 +35,7 @@ export function AudioTrack() {
         ))}
       </div>
       <span className="absolute top-[9px] left-3 text-[10px] leading-[13px] font-medium text-text-2">
-        ♫ Music
+        ♫ Music · ducked
       </span>
       {slots.flatMap((s) =>
         (s.sfx ?? []).map((cue) => (

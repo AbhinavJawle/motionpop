@@ -108,5 +108,5 @@ The transcript is the editor.png script ("Let's look at the numbers. Our revenue
 - **Shift-drag create** (`words-track.tsx`): shift + press on a word shows a dashed band and an "Add graphic here" chip; release runs `slotForWords` → AddSlot and selects the new slot. No room → `reject()` toast "Those words already have a graphic." The click after a shift-drag never seeks.
 - **Wheel** (`lib/timeline/wheel.ts`, non-passive listener on the timeline): ⌘/ctrl + wheel (trackpad pinch) zooms at the pointer, never wider than fit (zooming out past fit snaps back to `fit: true`); shift + wheel or a sideways swipe scrolls; `clampScroll` keeps the scroll within [0, duration − visible]. The zoom slider uses the same clamp.
 - When scrolled, the time area clips at its left edge (the −24 px inset for the "0s" label only applies at scroll 0).
-- Footer hint uses the design copy "Drag a slot to retime · Space to play".
+- Footer hint matches editor.png: "Space play · ⌘G generate · Drag slot to retime" (a Figma CSS comment from another frame says otherwise; the PNG wins). The ruler hides a label only while its centre is under the capsule, and the music band reads "Music · ducked", both as in editor.png.
 
