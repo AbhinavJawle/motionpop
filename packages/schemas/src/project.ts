@@ -67,11 +67,30 @@ export const VersionSchema = z.object({
 });
 export type Version = z.infer<typeof VersionSchema>;
 
+export const CleanupSchema = z.object({
+  fillersRemoved: z.number().int().nonnegative(),
+  pausesShortened: z.number().int().nonnegative(),
+  enabled: z.boolean(),
+  /** Why cleanup made no cuts: it would have removed too much, or there was no speech. */
+  skipped: z.enum(['too-much', 'no-speech']).optional(),
+});
+export type Cleanup = z.infer<typeof CleanupSchema>;
+
+/**
+ * The voiceover the editor plays (spec 05). `src` is the active audio: an AudioStore ref
+ * (`idb:…`, later a Storage path) or a synthesized fixture (`synth:…`). The original is
+ * always kept so cleanup can be turned off without transcribing again.
+ */
 export const VoiceoverSchema = z.object({
   src: z.string().min(1),
+  /** Duration of the active audio. */
   durationMs: IntMsSchema,
   /** Min/max pairs per bucket. */
   peaks: z.array(z.number()).optional(),
+  source: z.enum(['record', 'upload', 'tts', 'sample']).optional(),
+  originalSrc: z.string().min(1).optional(),
+  originalDurationMs: IntMsSchema.optional(),
+  cleanup: CleanupSchema.optional(),
 });
 export type Voiceover = z.infer<typeof VoiceoverSchema>;
 
@@ -138,6 +157,8 @@ export const EditorProjectSchema = z
     durationMs: z.number().int().positive(),
     voiceover: VoiceoverSchema,
     transcript: TranscriptSchema,
+    /** The transcript of the original (uncleaned) audio, for turning cleanup off (spec 09). */
+    originalTranscript: TranscriptSchema.optional(),
     slots: z.array(SlotSchema),
     versions: z.array(VersionSchema),
     /** Epoch ms. */

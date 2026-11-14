@@ -11,9 +11,11 @@ users/{uid}/brandKits/{id}       name, logoPath, colors[], fonts { display, body
 users/{uid}/styles/{id}          user style packs + saved director skills (copies with edits)
 users/{uid}/usage/{eventId}      task, ranOn, model, credits, latencyMs, at
 projects/{projectId}             ownerId, title, format, fps, durationMs, status, styleId, brandKitId,
-                                 voiceover { storagePath, durationMs, cleanedPath, source: record|upload|tts },
+                                 voiceover { src (active), durationMs, source: record|upload|tts|sample,
+                                             originalSrc, originalDurationMs, cleanup },
                                  captions { enabled, presetId }, createdAt, updatedAt
-projects/{id}/transcript/main    words: [{ i, text, startMs, endMs, conf, filler }], language
+projects/{id}/transcript/main    words: [{ i, text, startMs, endMs, conf, filler }], language  (cleaned timings)
+projects/{id}/transcript/original same shape, timings of the original audio (spec 05)
 projects/{id}/slots/{slotId}     startMs, endMs, wordStart, wordEnd, reason, componentId, skillId, params,
                                  status: suggested|generating|ready|failed, currentVersionId, notes[]
 projects/{id}/versions/{vid}     slotId, componentId, params, customHtmlPath?, source: ai-device|ai-cloud|ai-claude|user|plan, createdAt
@@ -43,11 +45,13 @@ interface Word { i: number; text: string; startMs: number; endMs: number; conf: 
 interface Transcript { words: Word[]; language: string; ranOn: RanOn; timingQuality: "word" | "approx"; cleaned: boolean }
 
 interface Voiceover {
-  source: "record" | "upload" | "tts";
-  originalPath: string; cleanedPath?: string; activePath: string;
-  durationMs: number; peaksPath?: string;
-  cleanup: { fillersRemoved: number; pausesShortened: number; enabled: boolean };
-  tts?: { voiceId: string; speed: number; script: string };
+  src: string;                         // active audio ref: AudioStore ref, Storage path or synth:* fixture
+  durationMs: number;                  // of the active audio
+  source?: "record" | "upload" | "tts" | "sample";
+  originalSrc?: string; originalDurationMs?: number;
+  cleanup?: { fillersRemoved: number; pausesShortened: number; enabled: boolean; skipped?: "too-much" | "no-speech" };
+  peaks?: number[];
+  tts?: { voiceId: string; speed: number; script: string };   // spec 05 task 12
 }
 
 interface Project {

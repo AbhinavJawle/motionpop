@@ -120,6 +120,39 @@ describe('EditorProjectSchema', () => {
   });
 });
 
+describe('voiceover and cleanup (spec 05)', () => {
+  it('accepts a cleaned voiceover with the original kept', () => {
+    const p = makeProject();
+    p.voiceover = {
+      src: 'idb:cleaned',
+      durationMs: DURATION,
+      source: 'upload',
+      originalSrc: 'idb:original',
+      originalDurationMs: DURATION + 2400,
+      cleanup: { fillersRemoved: 7, pausesShortened: 3, enabled: true },
+    };
+    p.originalTranscript = p.transcript;
+    expect(EditorProjectSchema.safeParse(p).success).toBe(true);
+  });
+
+  it('still accepts the old minimal voiceover', () => {
+    expect(EditorProjectSchema.safeParse(makeProject()).success).toBe(true);
+  });
+
+  it('rejects negative cleanup counts and unknown sources', () => {
+    const bad = makeProject();
+    bad.voiceover = {
+      src: 'x',
+      durationMs: DURATION,
+      cleanup: { fillersRemoved: -1, pausesShortened: 0, enabled: true },
+    };
+    expect(EditorProjectSchema.safeParse(bad).success).toBe(false);
+    const bad2 = makeProject();
+    bad2.voiceover = { src: 'x', durationMs: DURATION, source: 'phone' };
+    expect(EditorProjectSchema.safeParse(bad2).success).toBe(false);
+  });
+});
+
 describe('timeline properties', () => {
   // Build non-overlapping slots from positive gaps and lengths.
   const layout = fc
