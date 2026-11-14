@@ -44,6 +44,8 @@ Client init runs only in the browser (guard `typeof window`).
 3. Judge allow-list: `JUDGE_EMAILS` secret (comma-separated), never in the repo.
 4. Idempotent: calling twice changes nothing.
 
+**As built (task 6):** `planBootstrap` (pure, `lib/users/bootstrap-plan.ts`) decides the doc and the first ledger entry; the judge plan needs a **verified** email on the allow-list, since anyone can type a judge's address into email/password sign-up. `bootstrapUser` runs one transaction that creates `users/{uid}` and `users/{uid}/credits/signup` (fixed id, so concurrent calls can't grant twice) or only touches `lastSeenAt`. Grants come from the Remote Config server template (`serverConfig`, 5-minute cache, typed defaults). `verifyRequest` checks the ID token and the App Check token; App Check is skipped only for emulator runs outside production. The client calls the route once per user per page load from the auth store. Admin uses Application Default Credentials (`gcloud auth application-default login` locally, the App Hosting service account in production).
+
 ## Rules (sketch, full files in repo root)
 ```
 function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }

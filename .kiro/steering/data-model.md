@@ -38,6 +38,7 @@ interface UserDoc {
   credits: number;               // server-written only
   plan: "free" | "creator" | "pro" | "judge";
   settings: { preferOnDevice: boolean; captionsDefault: boolean; defaultFormat: Format };
+  schemaVersion: 1;
   createdAt: Timestamp; lastSeenAt: Timestamp;
 }
 

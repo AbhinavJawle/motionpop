@@ -171,3 +171,13 @@ Template:
   - **Found along the way:**
     - The lint rule `react-hooks/set-state-in-effect` rejected the first context-based provider, which led to the store, which also avoids hydration mismatches.
     - The emulator reports `user-not-found` on reset, which would let the form probe emails, so reset swallows that code.
+- **Spec 01 task 6: user bootstrap (Claude Code):**
+  - **What was built:**
+    - `UserDoc` and `CreditTx` zod schemas in `packages/schemas`.
+    - A pure `planBootstrap`: 20 credits on the free plan. The judge plan with 500 credits needs a verified allow-listed email, which closes the "type the judge's email into sign-up" hole. Unit tests plus a fast-check property that every plan passes the schemas and the ledger matches the balance.
+    - Server modules: Firebase Admin, `verifyRequest` for the ID token and App Check token, and a Remote Config server-template loader.
+    - The bootstrap transaction, with a fixed `signup` ledger id.
+    - `POST /api/users/bootstrap`, called from the auth store.
+  - **E2E on the Auth and Firestore emulators (5 pass):** sign-up writes `users/{uid}` (free, 20) and `credits/signup`. A pre-verified judge account gets the judge plan with 500 credits.
+  - **Manual check:** curl confirms 401 for a missing ID token, a missing App Check token and a junk App Check token, and 405 for GET.
+  - **Open:** local dev against the real project needs `gcloud auth application-default login` for the Admin SDK. In emulator mode the first Admin call waits about 5 s on a GCE metadata lookup (harmless, emulator only).

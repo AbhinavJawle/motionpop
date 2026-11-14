@@ -1,4 +1,5 @@
 import { firebaseEnabled, getAuthClient } from '../firebase/client';
+import { bootstrapCurrentUser } from '../users/bootstrap-client';
 
 export interface AuthUser {
   uid: string;
@@ -35,6 +36,22 @@ function set(next: AuthState): void {
   for (const l of listeners) l();
 }
 
+/** Users already bootstrapped in this page load. */
+const bootstrapped = new Set<string>();
+
+/**
+ * Make sure `users/{uid}` exists (spec 01 R4.3). Idempotent on the server, so a retry on the
+ * next page load is harmless; a failure never blocks the UI.
+ */
+function ensureBootstrapped(uid: string, getIdToken: () => Promise<string>): void {
+  if (bootstrapped.has(uid)) return;
+  bootstrapped.add(uid);
+  bootstrapCurrentUser(getIdToken).catch((err: unknown) => {
+    bootstrapped.delete(uid);
+    console.warn('Account setup will retry on the next visit', err);
+  });
+}
+
 function start(): void {
   if (started) return;
   started = true;
@@ -47,7 +64,8 @@ function start(): void {
     try {
       const auth = await getAuthClient();
       const { onAuthStateChanged } = await import('firebase/auth');
-      onAuthStateChanged(auth, (u) =>
+      onAuthStateChanged(auth, (u) => {
+        if (u) ensureBootstrapped(u.uid, () => u.getIdToken());
         set(
           u
             ? {
@@ -61,8 +79,8 @@ function start(): void {
                 },
               }
             : { status: 'signed-out' },
-        ),
-      );
+        );
+      });
     } catch (err) {
       // Firebase failed to start (blocked script, bad config): treat as signed out so the
       // sign-in screen can show what's wrong instead of spinning forever.
