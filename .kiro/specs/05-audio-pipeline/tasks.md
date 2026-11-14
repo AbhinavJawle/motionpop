@@ -2,7 +2,7 @@
 
 Tasks marked **[kiro]** are executed by Kiro CLI (`motionpop-builder`) and logged in `KIRO_LOG.md`. Others are done in Claude Code and logged in `DEV_LOG.md`. Blocked tasks wait on the Firebase project.
 
-- [ ] 1. **[kiro]** `lib/audio/intake.ts`: `INTAKE_LIMITS` and `validateIntake` (MIME with extension fallback, 50 MB, friendly messages) + unit tests. Tighten `chunksToWords` to R2.3 (min 40 ms, no overlap) and check `isFiller` never flags meaningful words. fast-check property for the R2.3 word invariants over random chunk lists. — R1.1, R1.2, R2.3, R2.4
+- [x] 1. **[kiro]** `lib/audio/intake.ts`: `INTAKE_LIMITS` and `validateIntake` (MIME with extension fallback, 50 MB, friendly messages) + unit tests. Tighten `chunksToWords` to R2.3 (min 40 ms, no overlap) and check `isFiller` never flags meaningful words. fast-check property for the R2.3 word invariants over random chunk lists. — R1.1, R1.2, R2.3, R2.4
 - [ ] 2. **[kiro]** `lib/audio/edl.ts`: `buildEdl`, `mapTime`, `retimeWords`, `cleanedDuration` per design "Cleanup rules", with unit tests for each rule and fast-check properties for the EDL and re-timing invariants. — R3.1, R3.2, R3.4, R3.6
 - [ ] 3. Schemas: `VoiceoverSchema` optional fields, `EditorProject.originalTranscript`; update `data-model.md`; fixtures still parse. — R3.5, R4.2, R4.4
 - [ ] 4. `lib/audio/wav.ts` (moved `encodeWav`), `decode.ts` (16 kHz + 24 kHz, `isSilent`), `render-cleaned.ts` (OfflineAudioContext, equal-power crossfades). — R1.3, R3.3

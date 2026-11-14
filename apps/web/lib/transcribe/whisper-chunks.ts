@@ -6,7 +6,25 @@ export interface WhisperChunk {
   timestamp: readonly [number | null, number | null];
 }
 
-const FILLERS = new Set(['um', 'umm', 'uh', 'uhh', 'erm', 'er', 'ah', 'hmm', 'mm', 'mhm']);
+const FILLERS = new Set([
+  'um',
+  'umm',
+  'uh',
+  'uhh',
+  'erm',
+  'er',
+  'ah',
+  'hmm',
+  'mm',
+  'mhm',
+  'uhm',
+  'ehm',
+  'err',
+  'hm',
+  'hmmm',
+  'mmm',
+  'ahh',
+]);
 
 /** True for a lone hesitation sound. Context-dependent fillers ("like", "you know") are spec 05's job. */
 export function isFiller(text: string): boolean {
@@ -18,13 +36,25 @@ export function isFiller(text: string): boolean {
   );
 }
 
+/** Minimum word length in ms (R2.3). */
+export const MIN_WORD_MS = 40;
+
 /**
  * Whisper word chunks (float seconds) → our `Word[]` (integer ms).
- * Guarantees: indices are 0..n-1, every time is within [0, durationMs],
- * `endMs >= startMs`, and start times never go backwards.
+ * Guarantees (R2.3): indices are 0..n-1, every time is an integer within [0, durationMs],
+ * starts never go backwards, words never overlap (`end <= next start`) and
+ * `endMs >= startMs + MIN_WORD_MS`.
+ *
+ * Starts are pushed forward when a word would otherwise leave the previous one shorter than
+ * MIN_WORD_MS, and capped so the remaining words still fit before `durationMs`. Ends are clamped
+ * to the next start.
+ *
+ * If the audio is too short for the word count (`n * MIN_WORD_MS > durationMs`), the minimum
+ * cannot hold. The words are then squeezed evenly across [0, durationMs]: contiguous, no overlap,
+ * and each shorter than MIN_WORD_MS (zero-length when durationMs is 0).
  */
 export function chunksToWords(chunks: readonly WhisperChunk[], durationMs: number): Word[] {
-  const dur = Math.max(0, Math.round(durationMs));
+  const dur = Math.max(0, Math.round(Number.isFinite(durationMs) ? durationMs : 0));
   const clamp = (ms: number) => Math.min(dur, Math.max(0, ms));
   const toMs = (s: number | null) =>
     s === null || !Number.isFinite(s) ? null : Math.round(s * 1000);
@@ -44,26 +74,51 @@ export function chunksToWords(chunks: readonly WhisperChunk[], durationMs: numbe
     kept.push({ text, start: toMs(c.timestamp[0]), end });
   }
 
-  const words: Word[] = [];
-  let prevStart = 0;
-  let prevEnd = 0;
-  kept.forEach((c, idx) => {
-    const nextStart = kept[idx + 1]?.start ?? null;
-    let startMs = clamp(c.start ?? prevEnd);
-    if (startMs < prevStart) startMs = prevStart;
-    let endMs = clamp(c.end ?? nextStart ?? dur);
-    if (endMs < startMs) endMs = startMs;
-    words.push({
-      i: words.length,
-      text: c.text,
-      startMs,
-      endMs,
-      // transformers.js does not expose per-word probabilities for Whisper; 1 means "no signal", not "certain".
-      conf: 1,
-      filler: isFiller(c.text),
+  const n = kept.length;
+  const starts: number[] = [];
+  const ends: number[] = [];
+
+  if (n * MIN_WORD_MS > dur) {
+    // Too short for the minimum: squeeze evenly.
+    for (let i = 0; i < n; i++) {
+      starts.push(Math.round((i * dur) / n));
+      ends.push(Math.round(((i + 1) * dur) / n));
+    }
+  } else {
+    // Raw, possibly messy times first.
+    const rawStarts: number[] = [];
+    const rawEnds: number[] = [];
+    let prevRawStart = 0;
+    let prevRawEnd = 0;
+    kept.forEach((c, idx) => {
+      const nextStart = kept[idx + 1]?.start ?? null;
+      const rs = Math.max(prevRawStart, clamp(c.start ?? prevRawEnd));
+      const re = Math.max(rs, clamp(c.end ?? nextStart ?? dur));
+      rawStarts.push(rs);
+      rawEnds.push(re);
+      prevRawStart = rs;
+      prevRawEnd = re;
     });
-    prevStart = startMs;
-    prevEnd = endMs;
-  });
-  return words;
+    // Starts: spaced at least MIN_WORD_MS apart, capped so the remaining words still fit.
+    for (let i = 0; i < n; i++) {
+      const floor = i === 0 ? 0 : starts[i - 1]! + MIN_WORD_MS;
+      const cap = dur - (n - i) * MIN_WORD_MS;
+      starts.push(Math.min(Math.max(rawStarts[i]!, floor), cap));
+    }
+    // Ends: at least start + MIN_WORD_MS, at most the next start (or the audio end).
+    for (let i = 0; i < n; i++) {
+      const limit = i + 1 < n ? starts[i + 1]! : dur;
+      ends.push(Math.min(Math.max(rawEnds[i]!, starts[i]! + MIN_WORD_MS), limit));
+    }
+  }
+
+  return kept.map((c, i) => ({
+    i,
+    text: c.text,
+    startMs: starts[i]!,
+    endMs: ends[i]!,
+    // transformers.js does not expose per-word probabilities for Whisper; 1 means "no signal", not "certain".
+    conf: 1,
+    filler: isFiller(c.text),
+  }));
 }
