@@ -402,3 +402,20 @@ Template:
   - Kiro reported that `pnpm lint` fails after an e2e run because ESLint scans the gitignored `e2e-output/` report. Claude Code added it to the ESLint ignores. Kiro's attempt at `rm -rf` was blocked by its sandbox, and it used another way to clear the folder.
   - No app bugs found.
 <!-- /kiro-session:sess_9dc96da7-e2fb-403a-9a23-86da9de53589 -->
+
+<!-- kiro-session:sess_ee72c4ee-bd1d-4f4c-8218-10a71efbf713 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T22:17:44.976Z · last stop: 2026-11-14T22:21:13.269Z · session: sess_ee72c4ee-bd1d-4f4c-8218-10a71efbf713
+- commits since start: 
+  - ac0ad48 feat(01-foundation): task 7 security rules and emulator tests
+- uncommitted changes: 
+  - `M .github/workflows/ci.yml`
+  - ` M apps/web/lib/users/bootstrap-plan.test.ts`
+  - ` M packages/motion/scripts/textures.test.ts`
+- Summary (added in Claude Code after reviewing `run23.log` and commit ac0ad48): **run 23**, spec 01 task 7.
+  - `firestore.rules` and `storage.rules` are owner-only allow-lists. Clients can update only `displayName`, `photoURL`, `settings` and `lastSeenAt` on their user doc. The ledger, usage events, renders and shares have no client writes. A project's `ownerId` is fixed at creation. Storage allows audio up to 50 MB and images up to 10 MB, and render files have no client writes.
+  - `apps/web/rules/` holds 39 emulator tests (24 Firestore, 15 Storage). They include the exact size boundaries and a fast-check property: a user-doc update is allowed exactly when the changed keys are within the allowed set. `test:rules` runs them with `emulators:exec` on an offline `demo-` project.
+  - **Kiro found real gaps in our own spec.** The `users/{uid}/{sub=**}` sketch in `data-model.md`, and the `{sub}/{doc}` sketch in `design.md`, would have let clients write the credit ledger and usage events, because Firestore ORs matching rules. Kiro used explicit subcollection matches instead. Claude Code corrected both sketches.
+  - Kiro also flagged that deleting a project from the client orphans its subcollections. That is a server-route concern for specs 04 and 11.
+  - **Friction:** a Firestore emulator left over from Claude Code's Playwright run held port 8080. Kiro left it alone, as it should, and verified on other ports. Claude Code stopped the stray process and reran `test:rules`: 39/39 pass.
+<!-- /kiro-session:sess_ee72c4ee-bd1d-4f4c-8218-10a71efbf713 -->

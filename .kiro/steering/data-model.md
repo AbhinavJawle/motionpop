@@ -110,8 +110,10 @@ Additional collections: `users/{uid}/credits/{txId}` (ledger), `projects/{id}/ch
 
 ## Security rules (sketch; real files `firestore.rules`, `storage.rules`)
 ```
-match /users/{uid} { allow read: if isOwner(uid); allow update: if isOwner(uid) && !changes(['credits','plan']); }
-match /users/{uid}/{sub=**} { allow read: if isOwner(uid); allow write: if isOwner(uid) && sub != 'credits' && sub != 'usage'; }
+match /users/{uid} { allow read: if isOwner(uid); allow update: if isOwner(uid) && changedKeys().hasOnly(['displayName','photoURL','settings','lastSeenAt']); allow create, delete: if false; }
+match /users/{uid}/credits/{tx} | /usage/{e} { allow read: if isOwner(uid); allow write: if false; }
+match /users/{uid}/brandKits/{id} | /styles/{id} { allow read, write: if isOwner(uid); }
+// Never a generic users/{uid}/{sub=**} write rule: Firestore ORs matches, so it would open the ledger.
 match /projects/{pid} { allow read, write: if resource == null ? request.resource.data.ownerId == auth.uid : resource.data.ownerId == auth.uid; }
 match /projects/{pid}/{sub=**} { allow read, write: if get(/databases/$(db)/documents/projects/$(pid)).data.ownerId == auth.uid; }
 match /renders/{rid} { allow read: if resource.data.ownerId == auth.uid; allow write: if false; }  // server only

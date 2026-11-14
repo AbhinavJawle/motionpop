@@ -53,13 +53,18 @@ describe('texture tiles', () => {
 
   it('keeps paper values within 200-255', () => {
     const p = decode(paperTile(7));
+    // One assertion on the range, not one per pixel: 262k expect() calls timed out on CI.
+    let min = 255;
+    let max = 0;
     for (let y = 0; y < p.height; y++) {
       for (let x = 0; x < p.width; x++) {
         const v = px(p, x, y);
-        expect(v).toBeGreaterThanOrEqual(200);
-        expect(v).toBeLessThanOrEqual(255);
+        if (v < min) min = v;
+        if (v > max) max = v;
       }
     }
+    expect(min).toBeGreaterThanOrEqual(200);
+    expect(max).toBeLessThanOrEqual(255);
   });
 
   it('wraps paper seamlessly across the left/right seam', () => {

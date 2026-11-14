@@ -64,10 +64,20 @@ describe('planBootstrap', () => {
     fc.assert(
       fc.property(
         fc.record({
-          email: fc.option(fc.emailAddress(), { nil: null }),
+          // Cheap emails (fc.emailAddress() costs ~1 s to build), including judge addresses.
+          email: fc.option(
+            fc.oneof(
+              fc.constantFrom('judge@example.com', 'JUDGE@example.com', 'second@example.com'),
+              fc
+                .tuple(fc.stringMatching(/^[a-z0-9]{1,8}$/), fc.constantFrom('example.com', 'x.io'))
+                .map(([local, domain]) => `${local}@${domain}`),
+              fc.string(),
+            ),
+            { nil: null },
+          ),
           emailVerified: fc.boolean(),
           displayName: fc.option(fc.string(), { nil: null }),
-          photoURL: fc.option(fc.webUrl(), { nil: null }),
+          photoURL: fc.option(fc.constantFrom('https://img.example/a.png', ''), { nil: null }),
         }),
         fc.nat(10_000),
         fc.nat(10_000),

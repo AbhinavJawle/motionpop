@@ -181,3 +181,7 @@ Template:
   - **E2E on the Auth and Firestore emulators (5 pass):** sign-up writes `users/{uid}` (free, 20) and `credits/signup`. A pre-verified judge account gets the judge plan with 500 credits.
   - **Manual check:** curl confirms 401 for a missing ID token, a missing App Check token and a junk App Check token, and 405 for GET.
   - **Open:** local dev against the real project needs `gcloud auth application-default login` for the Admin SDK. In emulator mode the first Admin call waits about 5 s on a GCE metadata lookup (harmless, emulator only).
+- **Spec 01 task 7 (Kiro run 23)** and **task 9 (Claude Code): CI.**
+  - **Task 7:** reviewed Kiro's rules and its 39 emulator tests, then reran them myself (39/39). Kiro caught that our own rule sketches would have opened the credit ledger to clients, so I corrected the sketches in `data-model.md` and the spec 01 design.
+  - **Why CI was red:** it had failed since the Firebase commit. The cause wasn't Firebase: `textures.test.ts` made 262k `expect()` calls, one per pixel, and timed out at 5 s on the runner. It now makes one range assertion. My new bootstrap property test took 1.1 s because building `fc.emailAddress()` and `fc.webUrl()` is expensive; with cheap arbitraries it takes 15 ms.
+  - **New workflow:** checkout, setup-node and setup-java on v5 (Node 20 deprecation); a gitleaks job with full history; a rules job (Java 21 plus `test:rules` on the emulators); concurrency cancel. `pnpm build` passes without any Firebase env.

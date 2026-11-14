@@ -49,10 +49,12 @@ Client init runs only in the browser (guard `typeof window`).
 ## Rules (sketch, full files in repo root)
 ```
 function isOwner(uid) { return request.auth != null && request.auth.uid == uid; }
-match /users/{uid} { allow read: if isOwner(uid); allow update: if isOwner(uid) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['credits','plan']); allow create, delete: if false; }
+match /users/{uid} { allow read: if isOwner(uid); allow update: if isOwner(uid) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName','photoURL','settings','lastSeenAt']); allow create, delete: if false; }
 match /users/{uid}/credits/{tx} { allow read: if isOwner(uid); allow write: if false; }
 match /users/{uid}/usage/{e} { allow read: if isOwner(uid); allow write: if false; }
-match /users/{uid}/{sub}/{doc} { allow read, write: if isOwner(uid); }   // styles, brandKits
+match /users/{uid}/brandKits/{id} { allow read, write: if isOwner(uid); }
+match /users/{uid}/styles/{id} { allow read, write: if isOwner(uid); }
+// (A generic {sub}/{doc} rule here would OR with the ones above and open the ledger. Kiro run 23.)
 match /projects/{pid} { allow create: if request.resource.data.ownerId == request.auth.uid; allow read, update, delete: if resource.data.ownerId == request.auth.uid; }
 match /projects/{pid}/{sub=**} { allow read, write: if get(/databases/$(database)/documents/projects/$(pid)).data.ownerId == request.auth.uid; }
 match /renders/{rid} { allow read: if resource.data.ownerId == request.auth.uid; allow write: if false; }
