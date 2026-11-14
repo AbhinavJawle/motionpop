@@ -61,6 +61,22 @@ Storage: `users/{uid}/**` owner-only; audio ≤ 50 MB `audio/.*`; images ≤ 10 
   judgeCredits: 500, freeCredits: 20, dailyBudgetCredits: 20000, customProvider: "gemini",
   models: { fast: "gemini-3.5-flash-lite", strong: "<set in console>", tts: "gemini-3.1-flash-tts-preview" } }
 ```
+Remote Config keys are flat; values arrive as strings (numbers and booleans as text, objects as JSON):
+
+| Key | Type | Default |
+|---|---|---|
+| `routing_slots_detect_device_max_words` | int ≥ 0 | 400 |
+| `routing_overrides` | JSON object `{ [taskId]: InferenceMode }` | `{}` |
+| `flag_tier2` | boolean | false |
+| `flag_auto_fill` | boolean | true |
+| `free_credits` | int ≥ 0 | 20 |
+| `judge_credits` | int ≥ 0 | 500 |
+| `daily_budget_credits` | int ≥ 0 | 20000 |
+| `kill_switch` | boolean | false |
+| `custom_provider` | `"gemini" \| "claude"` | `"gemini"` |
+| `model_fast` / `model_strong` / `model_tts` | non-empty string | `gemini-3.5-flash-lite` / `gemini-3.5-flash-lite` (until set in console) / `gemini-3.1-flash-tts-preview` |
+
+`InferenceMode` values: `PREFER_ON_DEVICE`, `ONLY_ON_DEVICE`, `PREFER_IN_CLOUD`, `ONLY_IN_CLOUD`.
 
 ## CI
 `.github/workflows/ci.yml` (exists): update to pnpm 11 + Node 24, add `pnpm typecheck`, `pnpm lint`, `pnpm test`, gitleaks action. Rules tests run in a separate job with the Firebase emulator.
