@@ -1,0 +1,14 @@
+# Tasks: 01 foundation
+
+Tasks marked **[kiro]** are executed by Kiro CLI and logged in `KIRO_LOG.md`.
+
+- [ ] 1. Workspace: `services/*` in `pnpm-workspace.yaml`, package skeletons, shared tsconfig/eslint, root vitest workspace; `pnpm typecheck/lint/test` green. — R1
+- [ ] 2. Next 16 app scaffold + Tailwind 4 + shadcn init; `globals.css` tokens from `design-system.md`; Geist fonts; dark only. — R2
+- [ ] 3. Firebase client init + App Check (debug token locally) + lazy getters; `.env.example`. _(needs the Firebase project)_ — R3.1–R3.3, R6.2
+- [ ] 4. **[kiro]** Remote Config typed defaults with zod + unit tests. — R3.4
+- [ ] 5. Auth: AuthProvider, Google + email/password helpers, `AuthGate`, sign-in page (functional; visual polish in spec 02). — R4.1, R4.2
+- [ ] 6. Server: Admin SDK, token verification helpers, `POST /api/users/bootstrap` with 20 credits + ledger + judge allow-list. — R4.3–R4.5
+- [ ] 7. **[kiro]** `firestore.rules` + `storage.rules` + rules tests on the emulator. — R5
+- [ ] 8. **[kiro]** Property test: bootstrap idempotent under concurrent calls (emulator). — R4.3
+- [ ] 9. CI: pnpm 11 / Node 24, lint, typecheck, tests, gitleaks, rules-test job. — R6
+- [ ] 10. App Hosting backend + `apphosting.yaml` + first deploy; confirm App Check on the hosted URL. — R7

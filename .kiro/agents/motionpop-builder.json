@@ -1,0 +1,40 @@
+{
+  "name": "motionpop-builder",
+  "description": "Implements one Motionpop spec task at a time: small diff, tests, typecheck/lint green, task box checked, local commit.",
+  "prompt": "file://./prompts/builder.md",
+  "welcomeMessage": "motionpop-builder ready. Give me a spec and a task number.",
+  "tools": ["read", "write", "shell", "@context7"],
+  "includeMcpJson": true,
+  "resources": [
+    "file://../../CLAUDE.md",
+    "file://../../docs/plan.md"
+  ],
+  "permissions": {
+    "rules": [
+      { "capability": "fs_read", "match": ["**"], "effect": "allow" },
+      { "capability": "fs_write", "match": ["apps/**", "packages/**", "services/**", "skills/**", ".kiro/specs/**", "firestore.rules", "storage.rules", "firebase.json", "vitest.workspace.ts", "package.json", "pnpm-workspace.yaml"], "effect": "allow" },
+      { "capability": "fs_write", "match": [".env*", "**/*.pem", "**/service-account*.json", ".github/**", ".kiro/agents/**", ".kiro/steering/**", "LICENSE"], "effect": "deny" },
+      { "capability": "shell", "match": ["pnpm install*", "pnpm add*", "pnpm --filter*", "pnpm typecheck*", "pnpm lint*", "pnpm test*", "pnpm exec*", "npx vitest*", "npx tsc*", "node *", "git status*", "git diff*", "git log*", "git add*", "git commit*", "ls*", "cat*"], "effect": "allow" },
+      { "capability": "shell", "match": ["git push*", "git reset --hard*", "rm -rf*", "firebase deploy*", "npx firebase-tools deploy*", "gcloud*", "npx hyperframes events*", "hyperframes events*", "curl*", "sudo*"], "effect": "deny" },
+      { "capability": "shell", "match": ["*"], "effect": "ask" }
+    ]
+  },
+  "hooks": [
+    {
+      "name": "session-context",
+      "trigger": "SessionStart",
+      "action": { "type": "command", "command": "bash .kiro/hooks/scripts/node.sh session-start.mjs" }
+    },
+    {
+      "name": "check-touched-package",
+      "trigger": "PostToolUse",
+      "matcher": "write",
+      "action": { "type": "command", "command": "bash .kiro/hooks/scripts/node.sh check-touched.mjs" }
+    },
+    {
+      "name": "log-run",
+      "trigger": "Stop",
+      "action": { "type": "command", "command": "bash .kiro/hooks/scripts/node.sh log-run.mjs motionpop-builder" }
+    }
+  ]
+}
