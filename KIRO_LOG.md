@@ -254,3 +254,15 @@ Template:
   - Kiro reported its deviations itself: `VersionSchema.id` was added (not in `data-model.md`) so `currentVersionId` has a target; it used `z.number().int()` to match the existing schemas; and it added the optional `needsInput` and `sfx` fields from `data-model.md`. Claude Code reviewed the file and accepted all three.
   - It used the file-edit tool for the box this time.
 <!-- /kiro-session:sess_381d52a8-dbd2-43e0-99ed-1928801040c1 -->
+
+<!-- kiro-session:sess_1b574da8-21fb-4c0a-a52c-6f356ecc51fa -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T19:56:14.598Z · last stop: 2026-11-14T19:58:00.279Z · session: sess_1b574da8-21fb-4c0a-a52c-6f356ecc51fa
+- commits since start: 
+  - 765f393 feat(04-editor-shell-and-timeline): task 2 timeline geometry, snap and constraints
+- uncommitted changes: none
+- Summary (added in Claude Code after reviewing `run14.log` and commit 765f393): **run 14**, spec 04 task 2.
+  - `apps/web/lib/timeline/` adds `geometry` (ms and px conversion, `zoomAt` anchored at the cursor, `fitView`, `rulerTicks` with labels at least 64 px apart), `snap` (word boundaries with an 8 px threshold; `snapRange` keeps the duration and the closer edge wins), `constraints` (`limitsFor` from the component registry, guarded against `__proto__`; `clampMove`/`clampResize` stop at neighbours and bounds) and `invariants` (`wordsInRange`, `checkDurations`, re-exported `timelineIssues`). Each has fast-check properties; 56 web tests pass.
+  - Judgement calls Kiro reported: zoom limits default to 0.002–2 px/ms (its own numbers); scroll is not clamped (left to the caller); when the gap is smaller than the minimum duration, resize applies only neighbours and bounds.
+  - Friction: Kiro grepped `requirements.md` for "R2.2" and found nothing, because the requirement numbers were list numbers under `## R2`. Claude Code then prefixed every item with its full ID (`**R2.2**`) so later runs can find them.
+<!-- /kiro-session:sess_1b574da8-21fb-4c0a-a52c-6f356ecc51fa -->
