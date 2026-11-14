@@ -330,3 +330,21 @@ Template:
   - Uncommitted files belonging to Claude Code (DEV_LOG, decisions, spec 05) were correctly left unstaged.
   - Follow-up in Claude Code: Kiro reported the 9 % timeline diff without looking at the diff image. Claude Code looked at it, and it showed three real mismatches with `editor.png`: the footer hint (Claude Code had changed it to a Figma CSS comment from another frame), "Music · ducked", and the "6s" label hidden next to the playhead capsule. All three are fixed. The rest is expected content (synthetic waveform; only big-number exists until spec 07).
 <!-- /kiro-session:sess_f1cd1186-45de-42ec-9c50-d9f0363e88da -->
+
+<!-- kiro-session:sess_2d9a5f70-34b8-46f3-a558-85f8f048c3cd -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T20:48:14.337Z · last stop: 2026-11-14T20:49:18.914Z · session: sess_2d9a5f70-34b8-46f3-a558-85f8f048c3cd
+- commits since start: 
+  - 602f358 feat(05-audio-pipeline): task 1 intake validation and word invariants
+- uncommitted changes: 
+  - `M .kiro/steering/data-model.md`
+  - ` M apps/web/lib/audio/synth-voice.ts`
+  - ` M packages/schemas/src/project.test.ts`
+  - ` M packages/schemas/src/project.ts`
+- Summary (added in Claude Code after reviewing `run19.log` and commit 602f358): **run 19**, spec 05 task 1.
+  - `lib/audio/intake.ts`: `validateIntake` checks MIME first, ignoring parameters, and falls back to the file extension only when `type` is empty. It also accepts the Ogg/Opus family. 0 bytes counts as not audio, and the limits are inclusive. `checkDuration` gives the 20-minute check with the same message.
+  - `chunksToWords` was tightened to R2.3: starts at least 40 ms apart, each end at least start + 40 and clamped to the next start, and words squeezed evenly when `n × 40 > duration`. That case is documented and tested.
+  - Only hesitation sounds were added as fillers, with a test that meaningful words (like, so, well, okay…) are never flagged.
+  - fast-check property: 500 runs over messy chunk lists, also checking the Transcript schema. 15 tests.
+  - Kiro ran only its own test files, not the full suite. Claude Code ran the full suite before the next commit.
+<!-- /kiro-session:sess_2d9a5f70-34b8-46f3-a558-85f8f048c3cd -->
