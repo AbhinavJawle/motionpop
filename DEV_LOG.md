@@ -104,3 +104,33 @@ Template:
 - **Spec 04, editor shell and timeline:** wrote `requirements.md` (R1–R7 in EARS), `design.md` and `tasks.md` (10 tasks; 1–4 marked `[kiro]`: schemas, timeline geometry/snap/constraints, commands with property tests, peaks worker).
   - Firestore sync stays behind a `ProjectRepository` interface backed by IndexedDB until the Firebase login is done.
   - The demo fixture uses a procedurally synthesized voice, so there is no third-party audio.
+- **Spec 04 tasks 1–4 (Kiro runs 13–16):** schemas, timeline geometry/snap/constraints, undoable commands with property tests, and the peaks worker. Each run was reviewed against its log and commit (0f419ce, 765f393, bf542f0, bb22a95). Run 16 surfaced the autosave-on-reload problem, fixed with `loadCount`.
+- **Tasks 5–8 (Claude Code):**
+  - Editor store (Zustand + Immer, commands, history cap 200), `ProjectRepository` (memory + IndexedDB, zod-parsed reads, last-good backup) and autosave after 500 ms quiet.
+  - Demo fixture measured from the Figma frame.
+  - Editor shell (top bar, rail, preview pane, inspector, Pip dock) and the timeline (ruler, slots, karaoke words, waveform, audio).
+  - `PlaybackClock` with the audio element as master clock, and the preview bridge, which seeks only on frame changes.
+  - Design check at 1440×900 matches `editor.png` 1:1 in layout.
+- **Bugs found while building tasks 5–8:**
+  - `html { font-size: 13px }` shrank every rem-based size by 19 %. Only `body` is 13 px now.
+  - `indexedDB` undefined during SSR. The repository factory is now resolved lazily.
+  - `player.seek` called before the custom element upgraded. Added a guard and a re-sync after import.
+  - A Zustand selector returning a new object looped renders. Split into primitive selectors.
+  - The ruler's "0s" label was clipped. Added a −24 px clip inset at scroll 0.
+- **Task 11 (Kiro run 17):** unit tests for playback and the preview bridge. **Kiro found a real bug:** changing the rate while playing started a second rAF loop. Claude Code fixed it (ecbc066) and turned Kiro's `it.fails` into a regression test.
+- **Task 9 (Claude Code):**
+  - Drag to move and resize: snap within 8 px, 150 ms magnetic settle, neighbour stops, one command per drag, Escape cancels, edge auto-scroll.
+  - Shift-drag across words adds a slot.
+  - ⌘/ctrl + wheel zooms at the pointer (never past fit); shift + wheel scrolls (clamped).
+  - Pure helpers (`dragRange`, `slotForWords`, `wheelView`, `clampScroll`) are property-tested; the committed range equals the drag preview.
+  - The browser smoke run found that scrolled cards bled 24 px into the label column. Fixed: the clip inset now applies only at scroll 0.
+- **Prettier drift:** 32 files failed `format:check`, which CI runs, because the spec 04 work had skipped Prettier. Fixed in one formatting-only commit (61432e3).
+- **Task 10.1 (Claude Code):** `/editor/perf` opens a seeded 3,000-word, 50-slot project. Its first screenshot showed the words overlapping into a smear at fit. The words track now declutters greedily using canvas-measured widths; every demo word still shows at the design zoom.
+- **Task 10.2:** handed to Kiro (run 18): Playwright E2E, design-check diff and perf measurement.
+- **Task 10.2 (Kiro run 18):** Playwright E2E, design check and perf, all green. During playback on `/editor/perf` the p95 frame interval is 16.8 ms, and the words track holds about 40 buttons. Reviewing Kiro's diff image turned up three mismatches with `editor.png`. All three are fixed:
+  - **Footer hint.** I had replaced the hint with copy from a Figma CSS comment that belongs to another frame. The PNG wins.
+  - **"Music · ducked" label.** It was missing.
+  - **"6s" ruler label.** It was hidden too eagerly next to the playhead capsule.
+
+  The Next dev badge is now off, because it covered the AUDIO label in screenshots. All spec 04 tasks are checked.
+- **Spec 05 (audio pipeline):** wrote requirements, design and tasks in Claude Code. Decision D-024: transcribe before cleaning, cleaned audio as 24 kHz mono WAV, and an honestly labelled synthetic sample until a real recording exists.
