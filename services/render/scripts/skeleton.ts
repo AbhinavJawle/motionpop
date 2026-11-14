@@ -15,10 +15,11 @@ if (!voice || !outDir) {
 
 const require = createRequire(import.meta.url);
 const motionDist = join(dirname(require.resolve('@motionpop/motion/package.json')), 'dist');
-const [runtimeJs, hyperframesRuntimeJs, fontsJson] = await Promise.all([
+const [runtimeJs, hyperframesRuntimeJs, fontsJson, texturesJson] = await Promise.all([
   readFile(join(motionDist, 'runtime.js'), 'utf8'),
   readFile(join(motionDist, 'hyperframe.runtime.iife.js'), 'utf8'),
   readFile(join(motionDist, 'fonts.json'), 'utf8'),
+  readFile(join(motionDist, 'textures.json'), 'utf8'),
 ]);
 
 const compDir = join(outDir, 'composition');
@@ -28,8 +29,6 @@ await copyFile(voice, join(compDir, 'assets/voice.wav'));
 const t0 = performance.now();
 const html = compileProject(
   {
-    width: 1280,
-    height: 720,
     format: '16:9',
     durationMs: 4000,
     style: editorialExplainer,
@@ -51,7 +50,12 @@ const html = compileProject(
       },
     ],
   },
-  { runtimeJs, hyperframesRuntimeJs, fonts: JSON.parse(fontsJson) as Record<string, string> },
+  {
+    runtimeJs,
+    hyperframesRuntimeJs,
+    fonts: JSON.parse(fontsJson) as Record<string, string>,
+    textures: JSON.parse(texturesJson) as { grain: string; paper: string },
+  },
 );
 await writeFile(join(compDir, 'index.html'), html);
 console.log(

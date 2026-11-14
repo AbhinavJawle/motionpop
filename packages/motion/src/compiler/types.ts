@@ -12,11 +12,12 @@ export interface CompileSlot {
 }
 
 export interface CompileInput {
-  width: number;
-  height: number;
+  /** Frame size comes from `FORMATS[format]` (packages/schemas). */
   format: Format;
   durationMs: number;
   style: StylePack;
+  /** `transparent` omits the background and texture layers (WebM overlay export). Default `style`. */
+  background?: 'style' | 'transparent';
   /** `preview` draws a placeholder for a failed slot; `render` leaves it empty so the job can fail. Default preview. */
   mode?: 'preview' | 'render';
   /** Voiceover URL or relative asset path (e.g. "assets/voice.wav"). */
@@ -25,4 +26,12 @@ export interface CompileInput {
 }
 
 /** Payload the browser runtime reads from `window.__MP_PROJECT__`. */
-export type RuntimeProject = Omit<CompileInput, 'voiceSrc'>;
+export interface RuntimeProject {
+  width: number;
+  height: number;
+  format: Format;
+  durationMs: number;
+  style: StylePack;
+  mode?: 'preview' | 'render';
+  slots: CompileSlot[];
+}

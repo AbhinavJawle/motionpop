@@ -54,5 +54,5 @@ _As a creator, I want big numbers that land on the word I say._
 
 ## Non-functional
 - Seeking one slot takes ≤ 8 ms at 1080p in desktop Chrome.
-- A compiled one-slot composition (with fonts and texture tiles) is ≤ 600 KB.
+- A compiled one-slot composition (with fonts and texture tiles) is ≤ 2 MB. Measured 2026-11-14: 1.5 MB, of which the HyperFrames runtime is 679 KB, our minified runtime 460 KB (mostly zod; worth trimming later), fonts 188 KB and texture tiles 207 KB. The first draft's 600 KB target was below the HyperFrames runtime alone.
 - Brand-kit merging and slot-level style overrides are deferred to spec 14 (recorded in design.md).

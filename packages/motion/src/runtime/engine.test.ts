@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { MotionComponent } from '../contract';
 import type { RuntimeProject } from '../compiler/types';
+import { hashString } from '../core/rng';
 import { editorialExplainer } from '../styles';
 import { createEngine, fontRequests, type FontLoader } from './engine';
 
@@ -229,6 +230,32 @@ describe('runtime engine', () => {
     expect(engine.errors.every((e) => e.slotId === '*' && e.phase === 'fonts')).toBe(true);
     expect(engine.errors).toHaveLength(2);
     expect(text('s')).toBe('x@0|key=1000');
+  });
+
+  it('scales the camera wrapper with the pack push-in and seeds each slot from its id', async () => {
+    hosts('cam');
+    const seeds: number[] = [];
+    const seedSpy: MotionComponent<P> = {
+      ...pure,
+      id: 'seed-spy',
+      build: (ctx, p) => {
+        seeds.push(ctx.seed);
+        return pure.build(ctx, p);
+      },
+    };
+    const engine = createEngine(project([slot('cam', 'seed-spy', 0, 2000)]), {
+      doc: document,
+      components: { ...components, 'seed-spy': seedSpy },
+      fonts: fakeFonts(),
+    });
+    await engine.ready;
+    const cam = document.querySelector<HTMLElement>('#cam > .mp-cam');
+    expect(cam?.firstElementChild?.className).toBe('mp-slot-root');
+    engine.seek(0);
+    expect(cam?.style.transform).toBe('scale(1)');
+    engine.seek(2000);
+    expect(cam?.style.transform).toBe(`scale(${editorialExplainer.motion.camera.pushIn})`);
+    expect(seeds).toEqual([hashString('cam')]);
   });
 
   it('derives one font request per unique primary family', () => {

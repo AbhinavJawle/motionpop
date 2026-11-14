@@ -10,6 +10,8 @@
  */
 import type { Composition, MotionComponent } from '../contract';
 import type { RuntimeProject } from '../compiler/types';
+import { pushIn } from '../core/camera';
+import { hashString } from '../core/rng';
 import { fontStack, primaryFamily } from '../fonts/font-faces';
 
 export type SlotPhase = 'fonts' | 'mount' | 'params' | 'build' | 'seek';
@@ -54,6 +56,8 @@ interface Mounted {
   slotId: string;
   startMs: number;
   durationMs: number;
+  /** Camera wrapper: the runtime owns the push-in, components never apply it. */
+  cam: HTMLElement;
   root: HTMLElement;
   composition: Composition;
 }
@@ -131,9 +135,12 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       if (keyMomentMs !== wantedKey) {
         warnOnce(slot.id, `key moment ${wantedKey} ms clamped to ${keyMomentMs} ms`);
       }
+      const cam = doc.createElement('div');
+      cam.className = 'mp-cam';
       const root = doc.createElement('div');
       root.className = 'mp-slot-root';
-      host.append(root);
+      cam.append(root);
+      host.append(cam);
       try {
         const composition = component.build(
           {
@@ -145,12 +152,19 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
             durationMs,
             keyMomentMs,
             fps: 30,
-            seed: 1,
+            seed: hashString(slot.id),
             warn: (message: string) => warnOnce(slot.id, message),
           },
           parsed.data,
         );
-        mounted.push({ slotId: slot.id, startMs: slot.startMs, durationMs, root, composition });
+        mounted.push({
+          slotId: slot.id,
+          startMs: slot.startMs,
+          durationMs,
+          cam,
+          root,
+          composition,
+        });
       } catch (e) {
         fail(slot.id, 'build', e);
         placeholder(host);
@@ -162,6 +176,7 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
   let slots: Mounted[] | null = null;
   let pendingMs = 0;
   const broken = new Set<string>();
+  const pushAmount = project.style.motion.camera.pushIn;
 
   const seek = (tMs: number) => {
     pendingMs = tMs;
@@ -171,12 +186,13 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       const local = tMs - s.startMs;
       // Only active slots are rendered; HyperFrames hides the others.
       if (local < 0 || local > s.durationMs) continue;
+      s.cam.style.transform = `scale(${pushIn(local, s.durationMs, pushAmount)})`;
       try {
         s.composition.seek(local);
       } catch (e) {
         fail(s.slotId, 'seek', e);
         broken.add(s.slotId);
-        const host = s.root.parentElement;
+        const host = s.cam.parentElement;
         if (host) placeholder(host);
       }
     }

@@ -1,6 +1,5 @@
 import { inflateSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error TS5097: Node runs these scripts with type stripping and needs the .ts extension
 import { grainTile, paperTile, textureDataUrls } from './textures.ts';
 
 const SIG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];

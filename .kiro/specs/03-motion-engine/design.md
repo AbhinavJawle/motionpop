@@ -82,10 +82,11 @@ Rules:
 </div>
 ```
 - HyperFrames 0.9.46 reads `data-track-index` (`@hyperframes/core` `clipFacts`, `compositionReadiness`); the v0 compiler's `data-track-kind` is replaced [4.8].
+- Track index is only a Studio lane in HyperFrames (paint order is DOM order / z-index): voice `0`, slots `1`.
 - `CompileInput` takes `format`; width and height come from `FORMATS = { "16:9": [1920,1080], "9:16": [1080,1920], "1:1": [1080,1080] }` in schemas [4.9]. Components always lay out in frame pixels.
 - `CompileInput.mode: "preview" | "render"` (default preview) is written into the payload for the runtime [3/R4.2].
 - `CompileInput.background: "style" | "transparent"` (default style). Transparent omits `.mp-bg` and `.mp-texture` for WebM overlays (spec 08) [F4].
-- Each slot is `div.clip.mp-slot > div.mp-cam > div.mp-root-slot`. The runtime sets `.mp-cam` scale to `pushIn(t, dur, style.motion.camera.pushIn)` around the frame centre; components never apply the camera themselves [F6].
+- Each slot is `div.clip.mp-slot > div.mp-cam > div.mp-slot-root` (the runtime creates the inner two at build; the compiler only styles them). The runtime sets `.mp-cam` scale to `pushIn(t, dur, style.motion.camera.pushIn)` around the frame centre; components never apply the camera themselves [F6].
 - Components render on a transparent root: no background on the slot root, no full-frame opaque fills [F4].
 - Property test: for random integer-ms slots, `data-start` and `data-duration` round-trip to the same integers [F13].
 - Slot seed: `hashString(slot.id)` [4.5].

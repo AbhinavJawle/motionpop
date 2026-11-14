@@ -5,7 +5,6 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-// @ts-expect-error TS5097: Node runs these scripts with type stripping and needs the .ts extension
 import { textureDataUrls } from './textures.ts';
 
 const pkgDir = join(dirname(fileURLToPath(import.meta.url)), '..');

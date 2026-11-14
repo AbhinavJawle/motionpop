@@ -72,8 +72,6 @@ export default function SkeletonPage() {
     const endMs = Math.min(voice.durationMs, startMs + 3600);
     const html = compileProject(
       {
-        width: 1280,
-        height: 720,
         format: '16:9',
         durationMs: voice.durationMs,
         style: editorialExplainer,
@@ -166,8 +164,8 @@ export default function SkeletonPage() {
       )}
       <hyperframes-player
         ref={playerRef}
-        width={1280}
-        height={720}
+        width={1920}
+        height={1080}
         controls
         style={{ display: 'block', width: '100%', aspectRatio: '16 / 9', background: '#000' }}
       />

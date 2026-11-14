@@ -1,4 +1,5 @@
-import { fontFaceCss } from '../fonts/font-faces';
+import { FORMATS } from '@motionpop/schemas';
+import { fontFaceCss, primaryFamily } from '../fonts/font-faces';
 import type { CompileInput, RuntimeProject } from './types';
 
 export interface CompileAssets {
@@ -6,9 +7,17 @@ export interface CompileAssets {
   runtimeJs: string;
   /** HyperFrames runtime IIFE from the pinned @hyperframes/core dist. */
   hyperframesRuntimeJs: string;
-  /** Family → base64 woff2 (dist/fonts.json). Missing → system fallback fonts. */
-  fonts?: Readonly<Record<string, string>>;
+  /** Family → base64 woff2 (dist/fonts.json). Every family the pack names must be present. */
+  fonts: Readonly<Record<string, string>>;
+  /**
+   * Static seeded texture tiles as data URLs (dist/textures.json). Required when the pack
+   * uses grain or paper and the background mode is `style`.
+   */
+  textures?: Readonly<{ grain: string; paper: string }>;
 }
+
+/** Grain tile edge in frame pixels; the paper tile is twice that. */
+export const GRAIN_TILE_PX = 256;
 
 const sec = (ms: number): string => (ms / 1000).toFixed(3).replace(/\.?0+$/, '') || '0';
 
@@ -25,53 +34,123 @@ const scriptJson = (v: unknown): string =>
 /** Inline script text can't contain a closing script tag. */
 const scriptText = (js: string): string => js.replace(/<\/script/gi, '<\\/script');
 
+/** Only data URLs are allowed in CSS `url()` here: compositions never touch the network. */
+const cssDataUrl = (url: string, what: string): string => {
+  if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(url)) {
+    throw new Error(`${what} must be a base64 PNG data URL`);
+  }
+  return `url(${url})`;
+};
+
+const fmt = (n: number): string => String(Math.round(n * 1000) / 1000);
+
 /**
  * Compiles a project into one self-contained HyperFrames composition (HTML string).
- * One `.clip` per slot; the HyperFrames runtime handles clip visibility and the clock,
- * our runtime renders each frame from `hf-seek`. Scripts are inlined so the same HTML
- * works as player `srcdoc` and as the producer's `index.html`.
+ * Layers, back to front: background colour, static texture (grain, paper, vignette),
+ * voice, one `.clip` per slot, captions host. The HyperFrames runtime handles clip
+ * visibility and the clock; our runtime renders each frame from `hf-seek`. Scripts are
+ * inlined so the same HTML works as player `srcdoc` and as the producer's `index.html`.
  */
 export function compileProject(input: CompileInput, assets: CompileAssets): string {
-  const { width, height, durationMs } = input;
+  const { durationMs, style } = input;
+  const { width, height } = FORMATS[input.format];
+  const background = input.background ?? 'style';
+  if (!Number.isInteger(durationMs) || durationMs <= 0) {
+    throw new Error('durationMs must be a positive integer');
+  }
   for (const s of input.slots) {
     if (!Number.isInteger(s.startMs) || !Number.isInteger(s.endMs) || s.endMs <= s.startMs) {
       throw new Error(`slot ${s.id}: times must be integer ms with endMs > startMs`);
     }
   }
+  const families = [style.fonts.display, style.fonts.body, style.fonts.mono];
+  for (const family of new Set(families.map(primaryFamily))) {
+    if (typeof assets.fonts[family] !== 'string') {
+      throw new Error(`font data missing for "${family}" (run build:runtime and pass fonts.json)`);
+    }
+  }
+
   const project: RuntimeProject = {
     width,
     height,
     format: input.format,
     durationMs,
-    style: input.style,
+    style,
     mode: input.mode ?? 'preview',
     slots: input.slots,
   };
 
-  const clips = input.slots
-    .map(
-      (s) =>
-        `    <div id="${escapeAttr(s.id)}" class="clip mp-slot" data-start="${sec(s.startMs)}" data-duration="${sec(s.endMs - s.startMs)}" data-track-kind="graphics"></div>`,
-    )
-    .join('\n');
-  const voice = input.voiceSrc
-    ? `    <audio id="voice" class="clip" data-start="0" data-duration="${sec(durationMs)}" src="${escapeAttr(input.voiceSrc)}"></audio>\n`
-    : '';
+  const opaque = background === 'style';
+  const needsTiles = opaque && (style.texture.grain > 0 || style.texture.paper);
+  if (needsTiles && !assets.textures) {
+    throw new Error('texture tiles missing (run build:runtime and pass textures.json)');
+  }
+  const textureCss: string[] = [];
+  if (needsTiles && assets.textures) {
+    const grainOpacity = style.texture.grain;
+    // Paper is a softer, larger tile at half the grain strength (spec 03 design, Texture).
+    const paperOpacity = style.texture.paper ? Math.max(grainOpacity, 0.02) / 2 : 0;
+    if (grainOpacity > 0) {
+      textureCss.push(
+        `  .mp-grain { position: absolute; inset: 0; background-image: ${cssDataUrl(assets.textures.grain, 'grain tile')}; background-size: ${GRAIN_TILE_PX}px ${GRAIN_TILE_PX}px; opacity: ${fmt(grainOpacity)}; mix-blend-mode: multiply; }`,
+      );
+    }
+    if (paperOpacity > 0) {
+      textureCss.push(
+        `  .mp-paper { position: absolute; inset: 0; background-image: ${cssDataUrl(assets.textures.paper, 'paper tile')}; background-size: ${GRAIN_TILE_PX * 2}px ${GRAIN_TILE_PX * 2}px; opacity: ${fmt(paperOpacity)}; mix-blend-mode: multiply; }`,
+      );
+    }
+  }
+  const vignette = opaque ? style.texture.vignette : 0;
+  if (vignette > 0) {
+    textureCss.push(
+      `  .mp-vignette { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgb(0 0 0 / 0) 55%, rgb(0 0 0 / ${fmt(vignette)}) 100%); }`,
+    );
+  }
 
+  const layers: string[] = [];
+  if (opaque) {
+    layers.push('    <div class="mp-bg"></div>');
+    const texture = [
+      textureCss.some((c) => c.includes('.mp-paper')) ? '<div class="mp-paper"></div>' : '',
+      textureCss.some((c) => c.includes('.mp-grain')) ? '<div class="mp-grain"></div>' : '',
+      vignette > 0 ? '<div class="mp-vignette"></div>' : '',
+    ].join('');
+    if (texture) layers.push(`    <div class="mp-texture">${texture}</div>`);
+  }
+  if (input.voiceSrc) {
+    layers.push(
+      `    <audio id="voice" class="clip" data-start="0" data-duration="${sec(durationMs)}" data-track-index="0" data-volume="1" src="${escapeAttr(input.voiceSrc)}"></audio>`,
+    );
+  }
+  for (const s of input.slots) {
+    layers.push(
+      `    <div id="${escapeAttr(s.id)}" class="clip mp-slot" data-start="${sec(s.startMs)}" data-duration="${sec(s.endMs - s.startMs)}" data-track-index="1"></div>`,
+    );
+  }
+  layers.push('    <div id="mp-captions"></div>');
+
+  const pageBg = opaque ? style.colors.bg : 'transparent';
   return `<!doctype html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-${fontFaceCss([input.style.fonts.display, input.style.fonts.body, input.style.fonts.mono], assets.fonts ?? {})}
-  html, body { margin: 0; background: ${input.style.colors.bg}; }
-  #mp-root { position: relative; width: ${width}px; height: ${height}px; overflow: hidden; background: ${input.style.colors.bg}; }
+${fontFaceCss(families, assets.fonts)}
+  html, body { margin: 0; background: ${pageBg}; }
+  #mp-root { position: relative; width: ${width}px; height: ${height}px; overflow: hidden; background: transparent; }
+  .mp-bg { position: absolute; inset: 0; background: ${style.colors.bg}; }
+  .mp-texture { position: absolute; inset: 0; pointer-events: none; }
+${textureCss.join('\n')}
   .mp-slot { position: absolute; inset: 0; }
+  .mp-cam { position: absolute; inset: 0; transform-origin: 50% 50%; }
+  .mp-slot-root { position: absolute; inset: 0; }
+  #mp-captions { position: absolute; inset: 0; pointer-events: none; }
 </style>
 </head>
 <body>
   <div id="mp-root" data-composition-id="motionpop" data-width="${width}" data-height="${height}" data-start="0" data-duration="${sec(durationMs)}">
-${voice}${clips}
+${layers.join('\n')}
   </div>
   <script>${scriptText(assets.hyperframesRuntimeJs)}</script>
   <script>window.__MP_PROJECT__ = ${scriptJson(project)};</script>

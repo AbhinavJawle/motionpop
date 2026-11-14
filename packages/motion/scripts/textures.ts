@@ -1,6 +1,5 @@
 // Seeded, dependency-free texture tiles (greyscale PNG) for the compiler's grain and paper layers.
 import { deflateSync } from 'node:zlib';
-// @ts-expect-error TS5097: Node runs these scripts with type stripping and needs the .ts extension
 import { mulberry32 } from '../src/core/rng.ts';
 
 const GRAIN_SIZE = 256;
