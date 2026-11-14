@@ -46,3 +46,6 @@ ui-debug.log*
 Information/
 
 # Note: .kiro/ must stay tracked (Kiroween requirement). Never ignore it.
+
+# Playwright e2e output (apps/web)
+e2e-output/

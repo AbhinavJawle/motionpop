@@ -11,9 +11,9 @@ Tasks marked **[kiro]** are executed by Kiro CLI (`motionpop-builder`) and logge
 - [x] 7. Timeline static: header, ruler, SLOTS (all card states), WORDS (karaoke styles, selected band), VOICE canvas, AUDIO band, hints. Compare with editor.png. — R4
 - [x] 8. Playback: audio master clock, rAF loop writing CSS vars, playhead + capsule scrubbing, word click seek, preview sync, transport and timecode. — R5
 - [x] 9. Interactions: drag move/resize with snap + magnetic settle + neighbour stops, shift-drag create, zoom anchored at the cursor, scroll, auto-scroll, keyboard map, focusable slots. — R6, R7
-- [ ] 10. E2E (Playwright) demo-path test for the editor and the 1440×900 design check; performance page (50 slots / 3,000 words). — R1–R7, NFR
+- [x] 10. E2E (Playwright) demo-path test for the editor and the 1440×900 design check; performance page (50 slots / 3,000 words). — R1–R7, NFR
   - [x] 10.1 Perf fixture: `/editor/perf` opens a seeded 3,000-word, 50-slot project; the words track declutters overlapping words when zoomed out. — NFR
-  - [ ] 10.2 **[kiro]** Playwright in `apps/web` (`@playwright/test` pinned, `playwright.config.ts` with a `webServer` on its own port, specs in `apps/web/e2e/`, kept out of Vitest, `pnpm --filter @motionpop/web e2e`). Three specs:
+  - [x] 10.2 **[kiro]** Playwright in `apps/web` (`@playwright/test` pinned, `playwright.config.ts` with a `webServer` on its own port, specs in `apps/web/e2e/`, kept out of Vitest, `pnpm --filter @motionpop/web e2e`). Three specs:
     - (a) the editor demo path on `/editor/demo`: 4 slot cards; play advances the timecode; clicking a word seeks; dragging slot-2 changes its range and ⌘Z restores it; shift-drag on a free word adds a 5th slot; "All changes saved" appears and the slot survives a reload; no page errors;
     - (b) the design check: `/editor/demo?t=5600&select=slot-2` at 1440×900 (device scale 2), saved beside `design/screens/editor.png` in a gitignored output folder, with a per-region pixel diff (top bar, tool rail, timeline) and a diff image. The thresholds come from the measured numbers;
     - (c) perf on `/editor/perf`: while playing, rAF frame intervals have p95 under 34 ms (log the median and p95); the words track keeps fewer than 600 word buttons at fit and when zoomed. — R1–R7, NFR
