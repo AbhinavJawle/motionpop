@@ -10,7 +10,7 @@
  */
 import type { Composition, MotionComponent } from '../contract';
 import type { RuntimeProject } from '../compiler/types';
-import { primaryFamily } from '../fonts/font-faces';
+import { fontStack, primaryFamily } from '../fonts/font-faces';
 
 export type SlotPhase = 'fonts' | 'mount' | 'params' | 'build' | 'seek';
 
@@ -95,7 +95,7 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
     const el = doc.createElement('div');
     el.className = 'mp-placeholder';
     el.textContent = PLACEHOLDER_TEXT;
-    el.style.cssText = `position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:500 ${Math.round(project.height * 0.03)}px/1 ${project.style.fonts.body};color:${project.style.colors.muted};background:${project.style.colors.bg};`;
+    el.style.cssText = `position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font:500 ${Math.round(project.height * 0.03)}px/1 ${fontStack(project.style.fonts.body)};color:${project.style.colors.muted};background:${project.style.colors.bg};`;
     host.replaceChildren(el);
   };
 

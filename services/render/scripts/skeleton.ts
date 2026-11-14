@@ -1,6 +1,7 @@
 // Walking-skeleton render: compiles a one-slot project with @motionpop/motion and renders it
 // with @hyperframes/producer. Usage: node scripts/skeleton.ts <voice.wav> <outDir>
 import { compileProject } from '@motionpop/motion/compiler';
+import { editorialExplainer } from '@motionpop/motion/styles';
 import { createRenderJob, executeRenderJob } from '@hyperframes/producer';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -31,14 +32,7 @@ const html = compileProject(
     height: 720,
     format: '16:9',
     durationMs: 4000,
-    style: {
-      colors: { bg: '#0b0b0f', ink: '#f4f3f8', muted: '#a09eae', accent: '#ff7a3d' },
-      fonts: {
-        display: 'Geist, Inter, sans-serif',
-        body: 'Geist, Inter, sans-serif',
-        mono: 'monospace',
-      },
-    },
+    style: editorialExplainer,
     voiceSrc: 'assets/voice.wav',
     slots: [
       {

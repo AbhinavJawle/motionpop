@@ -1,15 +1,7 @@
+import type { Format, StylePack } from '@motionpop/schemas';
 import type { z } from 'zod';
 
-export type Format = '16:9' | '9:16' | '1:1';
-
-/**
- * Visual tokens a component may use. v0 subset; the full StylePack schema
- * (packages/schemas) replaces this in spec 07.
- */
-export interface StyleTokens {
-  colors: { bg: string; ink: string; muted: string; accent: string };
-  fonts: { display: string; body: string; mono: string };
-}
+export type { Format, StylePack };
 
 export interface BuildContext {
   /** Container sized to the frame. The component owns its children. */
@@ -17,7 +9,8 @@ export interface BuildContext {
   width: number;
   height: number;
   format: Format;
-  style: StyleTokens;
+  /** Full style pack (brand-kit merging lands in spec 14). Tokens only: never hard-code colours, fonts or timings. */
+  style: StylePack;
   /** Slot length in ms. */
   durationMs: number;
   /** Offset from slot start where the focal element must land (the spoken word). */

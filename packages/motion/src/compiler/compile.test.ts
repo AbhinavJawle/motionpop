@@ -1,11 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { compileProject } from './compile';
+import { editorialExplainer as style, testInverted } from '../styles';
 import type { CompileInput } from './types';
 
-const style = {
-  colors: { bg: '#0b0b0f', ink: '#f4f3f8', muted: '#a09eae', accent: '#ff7a3d' },
-  fonts: { display: 'Geist', body: 'Geist', mono: 'Geist Mono' },
-};
 const assets = { runtimeJs: '/*mp*/', hyperframesRuntimeJs: '/*hf*/' };
 const input: CompileInput = {
   width: 1280,
@@ -73,10 +70,7 @@ describe('fonts', () => {
         height: 1080,
         format: '16:9',
         durationMs: 4000,
-        style: {
-          colors: { bg: '#000', ink: '#fff', muted: '#888', accent: '#f60' },
-          fonts: { display: "'Geist', sans-serif", body: 'Geist', mono: 'Geist Mono, monospace' },
-        },
+        style: testInverted,
         slots: [],
       },
       {

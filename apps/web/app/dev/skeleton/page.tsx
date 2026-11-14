@@ -1,20 +1,11 @@
 'use client';
 
 import { compileProject, type CompileAssets } from '@motionpop/motion/compiler';
+import { editorialExplainer } from '@motionpop/motion/styles';
 import type { Word } from '@motionpop/schemas';
 import { decodeTo16kMono } from '@/lib/audio/decode-16k';
 import { transcribeOnDevice } from '@/lib/transcribe/whisper-client';
 import { useEffect, useRef, useState } from 'react';
-
-const STYLE = {
-  colors: { bg: '#0b0b0f', ink: '#f4f3f8', muted: '#a09eae', accent: '#ff7a3d' },
-  fonts: {
-    // Real families only: CSS variables from the app don't exist inside the composition iframe.
-    display: 'Geist, Inter, system-ui, sans-serif',
-    body: 'Geist, Inter, system-ui, sans-serif',
-    mono: 'ui-monospace, monospace',
-  },
-};
 
 /** Walking skeleton (spec 00): voiceover → compile → HyperFrames player. Ugly on purpose. */
 export default function SkeletonPage() {
@@ -85,7 +76,7 @@ export default function SkeletonPage() {
         height: 720,
         format: '16:9',
         durationMs: voice.durationMs,
-        style: STYLE,
+        style: editorialExplainer,
         voiceSrc: voice.url,
         slots: [
           {

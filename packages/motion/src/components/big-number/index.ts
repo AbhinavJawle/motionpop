@@ -2,6 +2,7 @@ import type { BuildContext, Composition, MotionComponent } from '../../contract'
 import { countAt } from '../../core/count';
 import { outCubic, outExpo } from '../../core/ease';
 import { progress, tween } from '../../core/interp';
+import { fontStack } from '../../fonts/font-faces';
 import { bigNumberParams, type BigNumberParams } from './params';
 
 const ENTER_MS = 500;
@@ -26,16 +27,16 @@ function build(ctx: BuildContext, p: BigNumberParams): Composition {
 
   const context = el(
     'div',
-    `position:absolute;left:${margin}px;top:${Math.round(h * 0.22)}px;font:600 ${Math.round(h * 0.03)}px/1 ${style.fonts.body};letter-spacing:0.12em;text-transform:uppercase;color:${style.colors.muted};`,
+    `position:absolute;left:${margin}px;top:${Math.round(h * 0.22)}px;font:600 ${Math.round(h * 0.03)}px/1 ${fontStack(style.fonts.body)};letter-spacing:0.12em;text-transform:uppercase;color:${style.colors.muted};`,
     p.context ?? '',
   );
   const num = el(
     'div',
-    `position:absolute;left:${margin}px;top:${Math.round(h * 0.3)}px;font:700 ${numSize}px/1 ${style.fonts.display};font-variant-numeric:tabular-nums;color:${style.colors.ink};white-space:nowrap;`,
+    `position:absolute;left:${margin}px;top:${Math.round(h * 0.3)}px;font:700 ${numSize}px/1 ${fontStack(style.fonts.display)};font-variant-numeric:tabular-nums;color:${style.colors.ink};white-space:nowrap;`,
   );
   const label = el(
     'div',
-    `position:absolute;left:${margin}px;top:${Math.round(h * 0.3 + numSize * 1.1)}px;font:500 ${Math.round(h * 0.05)}px/1.2 ${style.fonts.body};color:${style.colors.ink};`,
+    `position:absolute;left:${margin}px;top:${Math.round(h * 0.3 + numSize * 1.1)}px;font:500 ${Math.round(h * 0.05)}px/1.2 ${fontStack(style.fonts.body)};color:${style.colors.ink};`,
     p.label,
   );
   root.append(context, num, label);

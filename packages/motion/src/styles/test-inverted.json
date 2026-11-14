@@ -1,0 +1,30 @@
+{
+  "id": "test-inverted",
+  "name": "Test Inverted",
+  "tagline": "Test-only pack: inverted palette and different timings.",
+  "tags": ["Test"],
+  "description": "Used only by tests and motion:check so hard-coded colours or timings show up. Never offered in the app.",
+  "colors": {
+    "bg": "#101418",
+    "ink": "#F4F6F8",
+    "muted": "#A7B0BA",
+    "accent": "#3DD6FF",
+    "accent2": "#FF5FA2",
+    "highlight": "#2F5BFF",
+    "positive": "#4ADE80",
+    "negative": "#FF6B6B",
+    "chart": ["#3A4654", "#5C7A99", "#3DD6FF", "#FF5FA2"]
+  },
+  "fonts": { "display": "Geist Mono", "body": "Geist", "mono": "Geist Mono", "displayWeight": 800 },
+  "texture": { "grain": 0, "paper": false, "vignette": 0 },
+  "motion": {
+    "enterEase": "outQuart",
+    "moveEase": "inOutSine",
+    "enterMs": 450,
+    "staggerMs": 40,
+    "holdMs": 900,
+    "camera": { "pushIn": 1.03 }
+  },
+  "shape": { "radius": 0, "stroke": 3 },
+  "allowPlayful": false
+}

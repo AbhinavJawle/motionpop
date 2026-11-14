@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { MotionComponent } from '../contract';
 import type { RuntimeProject } from '../compiler/types';
+import { editorialExplainer } from '../styles';
 import { createEngine, fontRequests, type FontLoader } from './engine';
 
 const params = z.object({ label: z.string() });
@@ -77,10 +78,7 @@ function project(
     format: '16:9',
     durationMs: 10_000,
     mode,
-    style: {
-      colors: { bg: '#f2ede4', ink: '#151515', muted: '#6b6560', accent: '#ff7a3d' },
-      fonts: { display: 'Geist', body: "'Geist', sans-serif", mono: 'Geist Mono' },
-    },
+    style: editorialExplainer,
     slots,
   };
 }

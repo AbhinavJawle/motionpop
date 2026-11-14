@@ -14,6 +14,13 @@ export function primaryFamily(stack: string): string {
   return first.trim().replace(/^['"]|['"]$/g, '');
 }
 
+/** CSS font-family value for a bundled family name, with system fallbacks: `Geist Mono` → `'Geist Mono', ui-monospace, monospace`. */
+export function fontStack(family: string): string {
+  const name = primaryFamily(family);
+  const fallback = /mono/i.test(name) ? 'ui-monospace, monospace' : 'system-ui, sans-serif';
+  return `'${name}', ${fallback}`;
+}
+
 /**
  * `@font-face` rules (base64 data URLs) for the bundled families used by the given stacks.
  * `data` maps family → base64 woff2 (dist/fonts.json, built by scripts/build-runtime.ts).

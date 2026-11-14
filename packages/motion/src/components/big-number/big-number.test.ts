@@ -2,6 +2,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { BuildContext } from '../../contract';
+import { editorialExplainer } from '../../styles';
 import { bigNumber } from './index';
 
 const DURATION_MS = 3600;
@@ -15,10 +16,7 @@ function mount() {
     width: 1280,
     height: 720,
     format: '16:9',
-    style: {
-      colors: { bg: '#0b0b0f', ink: '#f4f3f8', muted: '#a09eae', accent: '#ff7a3d' },
-      fonts: { display: 'Geist', body: 'Geist', mono: 'Geist Mono' },
-    },
+    style: editorialExplainer,
     durationMs: DURATION_MS,
     keyMomentMs: KEY_MOMENT_MS,
     fps: 30,

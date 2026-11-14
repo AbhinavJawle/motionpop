@@ -1,4 +1,4 @@
-import type { Format, StyleTokens } from '../contract';
+import type { Format, StylePack } from '../contract';
 
 /** What the compiler needs from a project. Integer milliseconds everywhere. */
 export interface CompileSlot {
@@ -16,7 +16,7 @@ export interface CompileInput {
   height: number;
   format: Format;
   durationMs: number;
-  style: StyleTokens;
+  style: StylePack;
   /** `preview` draws a placeholder for a failed slot; `render` leaves it empty so the job can fail. Default preview. */
   mode?: 'preview' | 'render';
   /** Voiceover URL or relative asset path (e.g. "assets/voice.wav"). */
