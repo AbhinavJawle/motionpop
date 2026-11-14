@@ -266,3 +266,19 @@ Template:
   - Judgement calls Kiro reported: zoom limits default to 0.002–2 px/ms (its own numbers); scroll is not clamped (left to the caller); when the gap is smaller than the minimum duration, resize applies only neighbours and bounds.
   - Friction: Kiro grepped `requirements.md` for "R2.2" and found nothing, because the requirement numbers were list numbers under `## R2`. Claude Code then prefixed every item with its full ID (`**R2.2**`) so later runs can find them.
 <!-- /kiro-session:sess_1b574da8-21fb-4c0a-a52c-6f356ecc51fa -->
+
+<!-- kiro-session:sess_ff52e369-9e5b-499f-a6aa-f23cf1adc03d -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T19:58:53.327Z · last stop: 2026-11-14T20:01:50.136Z · session: sess_ff52e369-9e5b-499f-a6aa-f23cf1adc03d
+- commits since start: 
+  - bf542f0 feat(04-editor-shell-and-timeline): task 3 commands and history
+- uncommitted changes: 
+  - `M .kiro/specs/04-editor-shell-and-timeline/design.md`
+  - `?? apps/web/lib/audio/synth-voice.ts`
+  - `?? apps/web/lib/projects/`
+- Summary (added in Claude Code after reviewing `run15.log` and commit bf542f0): **run 15**, spec 04 task 3.
+  - `apps/web/lib/commands/` adds the `Command` interface, a typed `CommandRejected` error, an all-or-nothing `composite`, and a pure history (`exec`/`undo`/`redo`, capped at 200). Slot commands (add, delete, move, resize, duplicate, update params via RFC 6902 patches) and project commands (format, style, rename) are pure Immer functions. Move and resize clamp through task 2's constraints, re-derive word ranges, and run `timelineIssues` on the result as a safety net.
+  - 20 tests in `commands.test.ts`, including fast-check properties: `undo(do(s)) == s` for every command; random sequences of up to 40 commands, rejected ones included, keep the invariants and limits; the history round trip; the history cap; composite undo. Unit tests cover `__proto__` and `test` patch ops. 87 web tests pass in total.
+  - Kiro listed the choices the spec had left open: commands don't touch `updatedAt` (the store sets it); a duplicate needs transcript words in the gap and clears versions and notes; deleting a slot keeps its versions. Claude Code reviewed `command.ts`, `history.ts` and `slots.ts` and accepted these choices.
+  - It left Claude Code's uncommitted task 5 files alone.
+<!-- /kiro-session:sess_ff52e369-9e5b-499f-a6aa-f23cf1adc03d -->
