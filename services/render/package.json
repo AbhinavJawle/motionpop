@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "render:dir": "tsx scripts/render-dir.ts",
-    "skeleton": "tsx scripts/skeleton.ts"
+    "skeleton": "tsx scripts/skeleton.ts",
+    "parity": "tsx scripts/parity.ts"
   },
   "dependencies": {
     "@hyperframes/producer": "catalog:",
@@ -21,6 +22,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "fast-check": "catalog:",
+    "puppeteer": "~25.13.0",
     "tsx": "^4.23.15",
     "typescript": "catalog:",
     "vitest": "catalog:"
