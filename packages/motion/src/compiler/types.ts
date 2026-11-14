@@ -17,6 +17,8 @@ export interface CompileInput {
   format: Format;
   durationMs: number;
   style: StyleTokens;
+  /** `preview` draws a placeholder for a failed slot; `render` leaves it empty so the job can fail. Default preview. */
+  mode?: 'preview' | 'render';
   /** Voiceover URL or relative asset path (e.g. "assets/voice.wav"). */
   voiceSrc?: string;
   slots: CompileSlot[];

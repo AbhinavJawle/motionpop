@@ -23,6 +23,7 @@ function mount() {
     keyMomentMs: KEY_MOMENT_MS,
     fps: 30,
     seed: 1,
+    warn: () => {},
   };
   const comp = bigNumber.build(ctx, bigNumber.defaults);
   return { root, comp };

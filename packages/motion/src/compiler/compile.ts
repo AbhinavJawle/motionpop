@@ -44,6 +44,7 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
     format: input.format,
     durationMs,
     style: input.style,
+    mode: input.mode ?? 'preview',
     slots: input.slots,
   };
 

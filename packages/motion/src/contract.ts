@@ -24,6 +24,8 @@ export interface BuildContext {
   keyMomentMs: number;
   fps: 30;
   seed: number;
+  /** Non-fatal problems (truncation, overflow); collected in `window.__motionpop.warnings`. */
+  warn: (message: string) => void;
 }
 
 export interface Composition {
