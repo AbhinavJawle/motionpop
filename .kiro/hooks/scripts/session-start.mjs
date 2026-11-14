@@ -2,10 +2,25 @@
 // Kiro SessionStart hook: prints a short orientation (stdout is added to the agent's context).
 // Shows the next unchecked task of each spec and the git state. Read-only.
 import { execSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const root = process.cwd();
+
+// Remember when this session started so the Stop hook can list the session's commits.
+try {
+  const event = JSON.parse(readFileSync(0, 'utf8') || '{}');
+  const id = String(event.session_id ?? event.sessionId ?? '');
+  if (id) {
+    const dir = join(tmpdir(), 'motionpop-kiro-sessions');
+    mkdirSync(dir, { recursive: true });
+    const file = join(dir, `${id.replace(/[^\w-]/g, '_')}.start`);
+    if (!existsSync(file)) writeFileSync(file, new Date().toISOString());
+  }
+} catch {
+  // no payload: orientation only
+}
 const specsDir = join(root, '.kiro', 'specs');
 const lines = ['# Motionpop session context (from .kiro/hooks/scripts/session-start.mjs)'];
 
