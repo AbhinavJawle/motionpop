@@ -5,5 +5,8 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
   resolve: { alias: { '@': fileURLToPath(new URL('.', import.meta.url)) } },
-  test: { include: ['**/*.test.{ts,tsx}'], exclude: ['node_modules/**', '.next/**', 'e2e/**'] },
+  test: {
+    include: ['**/*.test.{ts,tsx}'],
+    exclude: ['node_modules/**', '.next/**', 'e2e/**', 'rules/**'],
+  },
 });

@@ -1,7 +1,70 @@
 rules_version = '2';
-// Placeholder: deny everything until spec 01 task 7 writes the owner-only rules and their tests.
+// Owner-only. Credits, plan, the ledger, usage events, renders and shares are written by the
+// server (Admin SDK bypasses these rules), so clients get no write access to them.
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function projectOwner(pid) {
+      return get(/databases/$(database)/documents/projects/$(pid)).data.ownerId;
+    }
+
+    // Profile: created by the bootstrap route, never deleted by clients.
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, delete: if false;
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['displayName', 'photoURL', 'settings', 'lastSeenAt']);
+
+      // Server-written only.
+      match /credits/{tx} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+      match /usage/{event} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+
+      match /brandKits/{id} {
+        allow read, write: if isOwner(uid);
+      }
+      match /styles/{id} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    match /projects/{pid} {
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow read, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow update: if signedIn()
+        && resource.data.ownerId == request.auth.uid
+        && request.resource.data.ownerId == resource.data.ownerId;
+
+      // slots, versions, transcript, chat, ...
+      match /{sub}/{doc=**} {
+        allow read, write: if signedIn() && projectOwner(pid) == request.auth.uid;
+      }
+    }
+
+    // Server only. Owners may read their render jobs.
+    match /renders/{rid} {
+      allow read: if signedIn() && resource.data.ownerId == request.auth.uid;
+      allow write: if false;
+    }
+
+    // Served through a server route with signed URLs.
+    match /shares/{sid} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }
