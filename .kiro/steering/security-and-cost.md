@@ -16,6 +16,7 @@ inclusion: always
 
 ## Generated code (tier 2)
 - Runs only in a sandboxed iframe (`sandbox="allow-scripts"`, no same-origin), strict CSP, no network.
+- In the editor preview that means `<hyperframes-player sandbox-origin="opaque">` (D-021). The player's default mode includes same-origin and is only for library-only compositions.
 - The render service runs it in an isolated container with no credentials beyond writing its own output.
 - Lint rejects `Date.now`, `Math.random`, timers, `fetch`, CSS animations/transitions and external URLs.
 

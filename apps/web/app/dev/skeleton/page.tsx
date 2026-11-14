@@ -1,6 +1,9 @@
 'use client';
 
 import { compileProject, type CompileAssets } from '@motionpop/motion/compiler';
+import type { Word } from '@motionpop/schemas';
+import { decodeTo16kMono } from '@/lib/audio/decode-16k';
+import { transcribeOnDevice } from '@/lib/transcribe/whisper-client';
 import { useEffect, useRef, useState } from 'react';
 
 const STYLE = {
@@ -16,7 +19,9 @@ const STYLE = {
 /** Walking skeleton (spec 00): voiceover → compile → HyperFrames player. Ugly on purpose. */
 export default function SkeletonPage() {
   const [assets, setAssets] = useState<CompileAssets | null>(null);
-  const [voice, setVoice] = useState<{ url: string; durationMs: number } | null>(null);
+  const [voice, setVoice] = useState<{ url: string; durationMs: number; file: File } | null>(null);
+  const [words, setWords] = useState<Word[]>([]);
+  const [busy, setBusy] = useState<string | null>(null);
   const [value, setValue] = useState(40);
   const [label, setLabel] = useState('Revenue growth since 2020');
   const [startMs, setStartMs] = useState(500);
@@ -38,9 +43,36 @@ export default function SkeletonPage() {
     const audio = new Audio(url);
     audio.addEventListener('loadedmetadata', () => {
       const durationMs = Math.round(audio.duration * 1000);
-      setVoice({ url, durationMs });
+      setVoice({ url, durationMs, file });
+      setWords([]);
       note(`voice: ${file.name}, ${(durationMs / 1000).toFixed(1)} s`);
     });
+  };
+
+  const transcribe = async () => {
+    if (!voice) return;
+    try {
+      setBusy('Decoding…');
+      const t0 = performance.now();
+      const { pcm, durationMs } = await decodeTo16kMono(voice.file);
+      note(`decoded to 16 kHz mono in ${(performance.now() - t0).toFixed(0)} ms`);
+      const res = await transcribeOnDevice(pcm, durationMs, {
+        onProgress: (p) =>
+          setBusy(
+            p.stage === 'transcribing'
+              ? 'Transcribing…'
+              : `Loading model${p.percent === undefined ? '' : ` ${p.percent.toFixed(0)}%`}…`,
+          ),
+      });
+      setWords(res.transcript.words);
+      note(
+        `whisper on ${res.device} (${res.model}): load ${res.loadMs} ms, transcribe ${res.inferMs} ms, ${res.transcript.words.length} words`,
+      );
+    } catch (e: unknown) {
+      note(`transcribe failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(null);
+    }
   };
 
   const compile = () => {
@@ -111,6 +143,13 @@ export default function SkeletonPage() {
           />
         </label>
         <button
+          className="rounded-chip bg-card-2 px-4 py-2 font-medium disabled:opacity-40"
+          disabled={!voice || busy !== null}
+          onClick={() => void transcribe()}
+        >
+          {busy ?? 'Transcribe (on-device)'}
+        </button>
+        <button
           className="rounded-chip bg-ember px-4 py-2 font-medium text-bg disabled:opacity-40"
           disabled={!assets || !voice}
           onClick={compile}
@@ -118,6 +157,22 @@ export default function SkeletonPage() {
           Compile + preview
         </button>
       </div>
+      {words.length > 0 && (
+        <p className="flex flex-wrap gap-x-1 gap-y-0.5 text-sm leading-6" data-testid="words">
+          {words.map((w) => (
+            <button
+              key={w.i}
+              title={`${w.startMs}–${w.endMs} ms`}
+              className={`rounded px-0.5 hover:bg-card-2 ${w.filler ? 'text-text-4 line-through' : ''} ${
+                w.startMs === startMs ? 'bg-ember-soft text-ember' : ''
+              }`}
+              onClick={() => setStartMs(w.startMs)}
+            >
+              {w.text}
+            </button>
+          ))}
+        </p>
+      )}
       <hyperframes-player
         ref={playerRef}
         width={1280}

@@ -15,7 +15,8 @@ Both hackathons require disclosure of pre-existing code and third-party resource
 | motion | MIT | UI animation and Pip (never in rendered video) |
 | Firebase JS SDK, firebase-admin | Apache-2.0 | backend + AI Logic |
 | zod, zustand, immer, fast-json-patch | MIT | state/validation |
-| transformers.js + Whisper weights | Apache-2.0 / MIT (check model card) | on-device transcription |
+| `@huggingface/transformers` 4.3.2 (+ onnxruntime-web) | Apache-2.0 (onnxruntime: MIT) | on-device transcription in a Web Worker |
+| Whisper base weights, ONNX export `onnx-community/whisper-base_timestamped` (from `openai/whisper-base`) | Apache-2.0 (upstream model card; the ONNX export lists no separate licence) | word-timed transcription, downloaded at runtime from the Hugging Face hub |
 | d3-geo, topojson-client | ISC/BSD | maps |
 | Natural Earth data | Public domain | map shapes |
 | HyperFrames (`@hyperframes/player`, `producer`, `lint`, `gcp-cloud-run`) | Apache-2.0 | preview + rendering (brings Puppeteer/Chrome and FFmpeg) |
