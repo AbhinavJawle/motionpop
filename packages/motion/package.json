@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit -p .",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
-    "build:runtime": "node scripts/build-runtime.ts"
+    "build:runtime": "node scripts/build-runtime.ts",
+    "motion:check": "node scripts/build-runtime.ts && node scripts/run-check.ts"
   },
   "dependencies": {
     "@motionpop/schemas": "workspace:*",
@@ -26,6 +27,7 @@
     "esbuild": "^0.28.2",
     "fast-check": "catalog:",
     "happy-dom": "^21.0.4",
+    "puppeteer": "~25.13.0",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

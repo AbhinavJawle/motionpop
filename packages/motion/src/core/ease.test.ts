@@ -30,6 +30,25 @@ describe.each(Object.entries(eases))('ease %s', (_name, e) => {
   });
 });
 
+describe('formatCount', () => {
+  // Regression (found by motion:check samples, 2026-11-14): -0 rendered as "£-0%".
+  it('never renders negative zero', () => {
+    expect(formatCount(-0, { prefix: '£', suffix: '%' })).toBe('£0%');
+    expect(formatCount(-0.001, { decimals: 2 })).toBe('0.00');
+    expect(formatCount(-0.004, { decimals: 2, suffix: 'x' })).toBe('0.00x');
+    expect(formatCount(-0.005, { decimals: 2 })).toBe('-0.01');
+    fc.assert(
+      fc.property(
+        fc.double({ min: -0.004, max: 0.004, noNaN: true }),
+        fc.integer({ min: 0, max: 2 }),
+        (v, d) => {
+          expect(formatCount(v, { decimals: d }).startsWith('-')).toBe(false);
+        },
+      ),
+    );
+  });
+});
+
 describe('countAt', () => {
   const fmtArb = fc.record({
     prefix: fc.option(fc.constantFrom('$', '€', ''), { nil: undefined }),
@@ -50,6 +69,26 @@ describe('countAt', () => {
           const expected = formatCount(to, fmt);
           expect(countAt(start + dur, start, dur, from, to, fmt)).toBe(expected);
           expect(countAt(start + dur + after, start, dur, from, to, fmt)).toBe(expected);
+        },
+      ),
+    );
+  });
+
+  it('never shows the final value before the landing time (it appears on the word)', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 1, max: 5_000 }),
+        fc.integer({ min: 0, max: 4_999 }),
+        fc.integer({ min: -100_000, max: 100_000 }),
+        fc.integer({ min: -100_000, max: 100_000 }),
+        fc.integer({ min: 0, max: 2 }),
+        (dur, beforeRaw, from, to, decimals) => {
+          const before = beforeRaw % dur;
+          const fmt = { decimals };
+          const final = formatCount(to, fmt);
+          const shown = countAt(before, 0, dur, from, to, fmt);
+          if (from === to) expect(shown).toBe(final);
+          else expect(shown).not.toBe(final);
         },
       ),
     );

@@ -26,8 +26,14 @@ export interface FitResult {
 /** Default measurement: does the element overflow its box at the current size? */
 export type Overflows = (el: HTMLElement, box: { width: number; height: number }) => boolean;
 
+/**
+ * Width: `scrollWidth` (catches unbreakable or nowrap text). Height: the element's laid-out height
+ * (lines × line-height), not `scrollHeight`, because a font's content area can extend past the
+ * line box (Geist at line-height 1.2 does) without being real layout overflow. The element must not
+ * have a fixed CSS height.
+ */
 const domOverflows: Overflows = (el, box) =>
-  el.scrollWidth > Math.ceil(box.width) + 0.5 || el.scrollHeight > Math.ceil(box.height) + 0.5;
+  el.scrollWidth > Math.ceil(box.width) + 0.5 || el.offsetHeight > Math.ceil(box.height) + 0.5;
 
 /**
  * Fit text into a box (build time only; it reads layout). Binary-searches the largest integer size

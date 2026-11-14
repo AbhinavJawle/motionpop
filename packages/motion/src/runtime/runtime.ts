@@ -22,10 +22,18 @@ declare global {
 const project = window.__MP_PROJECT__;
 if (project) {
   const engine = createEngine(project, { doc: document, components, fonts: document.fonts });
+  let isReady = false;
+  void engine.ready.then(() => {
+    isReady = true;
+  });
   // Registered synchronously so seeks that arrive before fonts are ready are not lost.
+  // HyperFrames 0.9.46 passes `waitUntil` (must be called synchronously): until our engine is
+  // ready, the frame capture waits on it, so the producer never captures a pre-font frame.
   window.addEventListener('hf-seek', (e) => {
-    const detail = (e as CustomEvent<{ time: number }>).detail;
+    const detail = (e as CustomEvent<{ time: number; waitUntil?: (p: Promise<unknown>) => void }>)
+      .detail;
     engine.seek(Math.round(detail.time * 1000));
+    if (!isReady) detail.waitUntil?.(engine.ready);
   });
   window.__motionpop = engine;
 }

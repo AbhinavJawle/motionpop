@@ -50,6 +50,7 @@ Rules:
 - Measurement (`getTotalLength`, `fitText`) only at build; `seek` reads cached numbers and writes styles.
 - `fitText` runs on plain text **before** `splitText`, and sizes the box for the **final** string (for counters: `formatCount(value, fmt)`, which is the widest, since counts go up from `countFrom`; if `countFrom` formats wider, use that).
 - Numbers and units pass `truncatable: false`; an overflow calls `ctx.warn` and motion:check fails.
+- `fitText` measures height with the element's laid-out height (`offsetHeight`), not `scrollHeight`: Geist's content area extends past a 1.2 line box, which made every number "overflow" (found by motion:check). Text elements must not have a fixed CSS height.
 - happy-dom has no layout: unit and property tests use a deterministic measuring stub (`overflows` callback, `getTotalLength` stub). Real behaviour is covered by motion:check [4.4].
 
 ## StylePack schema [5, 2.2]
@@ -102,7 +103,7 @@ window.__motionpop = { ready: Promise<void>, seek(tMs), errors: SlotError[], war
    A slot shorter than `component.durationMs.min` still builds (components compress timings proportionally) and records a warning [F7].
 4. Errors: preview → placeholder div "Couldn't render" (tokens: muted on bg) in that slot; render → no placeholder, the producer script reads `__motionpop.errors` after `ready` and fails the job.
 5. Event contract test [F21]: load a compiled composition with the pinned HyperFrames runtime in Chrome, drive the HyperFrames clock (not our `seek`) and compare `__motionpop` state at the same times.
-6. Producer readiness: task 8 reads `@hyperframes/producer` 0.9.46 to confirm how it waits for the page (readiness hook vs fixed delay) and records it here; if it does not wait on our promise, the runtime holds HyperFrames' readiness signal until `ready` resolves.
+6. Producer readiness (verified in `@hyperframes/producer` / `@hyperframes/core` 0.9.46): the producer waits only for `window.__hf` (seek function, duration > 0), not for our promise. But the HyperFrames runtime dispatches `hf-seek` with `detail.waitUntil(promise)` (synchronous call only) and the capture awaits those promises. Our runtime calls `waitUntil(engine.ready)` on every seek until ready, so no frame is captured before fonts load and slots are built.
 
 ## big-number v1 [1.1, 1.5, 2.5, R7]
 - Timings from `style.motion`: `enter = min(enterMs, 0.25 · dur)`, `exit = round(EXIT_RATIO · enter)`, eases `eases[enterEase]` / `eases[moveEase]`; label starts `OVERLAP_MS` after the number lands.
@@ -130,6 +131,7 @@ window.__motionpop = { ready: Promise<void>, seek(tMs), errors: SlotError[], war
   - transparency: the slot root's computed background alpha is 0 [F4].
 - motion:check is not part of `vitest`; it runs per component as part of the definition of done (needs Chrome). CI job later.
 - Output: `packages/motion/.check/<id>/<format>-<case>-<pct>.png` + `report.json`. Exit 1 on failures (listed per still).
+- As built (task 10): `scripts/run-check.ts` bundles `scripts/check.ts` with esbuild (src uses extensionless imports Node can't resolve) and runs it. All cases of one format and pack go into **one composition** as consecutive slots, so fonts load once; a full run is about 13 s. Probes drive HyperFrames' own clock (`window.__player.seek(frame / 30)` in a plain page, `__hf.seek` in the producer). HyperFrames floors its clock to frames and also decides which clip is visible, so a direct `__motionpop.seek` alone screenshots the wrong clip. The direct seek is only used for the contract comparison and the hold sweep. The focal "settled" state is measured with the camera transform switched off. The hold is measured from the DOM (all text ≥ 0.9 opacity) and asserted only at the default key moment, because a word spoken at 90 % of the slot leaves no room for an 800 ms hold.
 
 ## Parity [3/R6]
 `services/render/scripts/parity.ts`: compile a fixture project, (a) runtime screenshots at 5 frame-aligned timestamps (`frameToMs(msToFrame(t))`), (b) producer render and frame extraction with the ffmpeg the producer already uses, (c) preview stills at deviceScaleFactor 1 and frame size; fail if the global mean absolute difference exceeds 2 % or any 64×64 tile exceeds 10 % (tolerance for H.264 + YUV colour shift; the comment says so, so later changes are deliberate) [F20]. Fails with a clear message if ffmpeg is missing. First task to cut; may slip to spec 08.

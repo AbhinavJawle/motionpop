@@ -62,7 +62,7 @@ describe('fitText', () => {
     const el = document.createElement('div');
     el.textContent = 'Revenue grew'; // 12 chars
     const r = fitText(el, { width: 720, height: 200 }, { max: 160, min: 24 }, overflows);
-    expect(r).toEqual({ size: 100, truncated: false });
+    expect(r).toEqual({ size: 100, text: 'Revenue grew', truncated: false, overflow: false });
   });
   it('truncates with an ellipsis when the minimum does not fit', () => {
     const el = document.createElement('div');

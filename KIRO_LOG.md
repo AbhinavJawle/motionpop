@@ -136,3 +136,79 @@ Template:
   - Output: 24 findings (F1–F24). New items beyond run 5: components paint an opaque background, which hides the texture and breaks transparent WebM export (F4); the camera push-in should be a compiler-owned wrapper (F6); missing fonts fall back silently (F3); `fitText` should return the final string so `splitText` runs after it (F22); a per-timestamp assertion table for motion:check (F5); a 64 px tile parity metric (F20); and a reconciliation of `data-track-index` with `data-track-kind` (F21).
   - Effect: Claude Code folded both reviews into the spec 03 requirements, design and tasks (new tasks 12–15, four of them `[kiro]`), updated `component-contract.md`, `structure.md` and `motion-principles.md`, and logged D-023.
 <!-- /kiro-session:sess_413d0c1b-baca-4267-aae1-309bcf86d9d7 -->
+
+<!-- kiro-session:sess_47d889c3-75f2-4fad-ab66-9ddc7f3bba90 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T16:39:30.512Z · last stop: 2026-11-14T16:40:51.840Z · session: sess_47d889c3-75f2-4fad-ab66-9ddc7f3bba90
+- commits since start: 
+  - 7c6928f feat(03-motion-engine): task 1 style pack schema
+- uncommitted changes: 
+  - `M packages/motion/src/compiler/compile.ts`
+  - ` M packages/motion/src/compiler/types.ts`
+  - ` M packages/motion/src/components/big-number/big-number.test.ts`
+  - ` M packages/motion/src/contract.ts`
+  - ` M packages/motion/src/runtime/runtime.ts`
+  - `?? packages/motion/src/runtime/engine.ts`
+- Summary (added in Claude Code after reviewing `run7.log` and commit 7c6928f): **run 7**, spec 03 task 1.
+  - Kiro wrote `packages/schemas/src/color.ts` (`contrastRatio`, `relativeLuminance`), `format.ts` (`FORMATS`, `Format`, plus an unrequested `FormatSchema`) and `style.ts`. `style.ts` has `EaseNameSchema` (the six names from `core/ease.ts`) and a strict `StylePackSchema` with a refinement that rejects ink or muted text below 4.5:1 on bg.
+  - Tests cover every rejection case in the task and also `pushIn` bounds and contrast properties. 28 schema tests pass.
+  - It left the ease-name sync test for task 2, as the task split says, and committed only its own files.
+<!-- /kiro-session:sess_47d889c3-75f2-4fad-ab66-9ddc7f3bba90 -->
+
+<!-- kiro-session:sess_f4bdad02-6d58-4584-b9bb-66a6fb07373b -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T16:41:41.169Z · last stop: 2026-11-14T16:45:06.470Z · session: sess_f4bdad02-6d58-4584-b9bb-66a6fb07373b
+- commits since start: 
+  - 1654eaa feat(03-motion-engine): task 2 rng, stagger, timeline
+  - 68d1072 feat(03-motion-engine): task 5 style packs replace StyleTokens
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+- Summary (added in Claude Code after reviewing `run8.log` and commit 1654eaa): **run 8**, spec 03 task 2. 68d1072 in the list is Claude Code's.
+  - Kiro wrote `core/rng.ts` (`mulberry32`, FNV-1a `hashString` via `Math.imul`, `rngFor`), `stagger.ts` (`STAGGER`, `STAGGER_RANGE`, `clampStep`, `stagger`) and `timeline.ts` (`track`, `sequence`, `OVERLAP_MS`, `EXIT_RATIO`), with fast-check properties in new test files and the `Object.keys(eases) == EaseNameSchema.options` test. 74 motion tests pass.
+  - Golden values are pinned. It checked that `mulberry32(1)`'s first value matches the known reference, 0.6270739405881613.
+  - It named the two spec gaps it had to fill: `from: "center"` stagger and per-segment ease semantics in `track`.
+<!-- /kiro-session:sess_f4bdad02-6d58-4584-b9bb-66a6fb07373b -->
+
+<!-- kiro-session:sess_850af8e1-92ca-435c-8e3b-9fed5f378191 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T16:45:59.795Z · last stop: 2026-11-14T16:47:33.263Z · session: sess_850af8e1-92ca-435c-8e3b-9fed5f378191
+- commits since start: 
+  - 96bc645 feat(03-motion-engine): task 13 seeded texture tiles
+- uncommitted changes: 
+  - `M .kiro/specs/03-motion-engine/design.md`
+  - ` M KIRO_LOG.md`
+  - ` M apps/web/app/dev/skeleton/page.tsx`
+  - ` M apps/web/app/dev/skeleton/runtime/route.ts`
+  - ` M packages/motion/src/compiler/compile.test.ts`
+  - ` M packages/motion/src/compiler/compile.ts`
+  - ` M packages/motion/src/compiler/types.ts`
+  - ` M packages/motion/src/runtime/engine.test.ts`
+  - ` M packages/motion/src/runtime/engine.ts`
+  - ` M services/render/scripts/skeleton.ts`
+- Summary (added in Claude Code after reviewing `run9.log` and commit 96bc645): **run 9**, spec 03 task 13.
+  - Kiro wrote `packages/motion/scripts/textures.ts`, with no new dependencies:
+    - a PNG encoder (CRC32, IHDR, deflated IDAT, IEND);
+    - a seeded 256 px grain tile;
+    - a seamless 512 px value-noise paper tile.
+  - `build:runtime` now writes `dist/textures.json`. Six tests cover determinism, PNG structure, value range and seam wrapping.
+  - Friction:
+    - Node type stripping needs `.ts` import extensions, which `tsc` rejected. Kiro added `@ts-expect-error` lines and explained them. Claude Code later enabled `allowImportingTsExtensions` and removed them.
+    - It used `sed -i.bak` against its prompt and said so.
+  - Size: the tiles total 207 KB, which Claude Code recorded against the composition size NFR.
+<!-- /kiro-session:sess_850af8e1-92ca-435c-8e3b-9fed5f378191 -->
+
+<!-- kiro-session:sess_939c391c-492d-4487-9180-678c31eebdad -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T16:50:35.356Z · last stop: 2026-11-14T16:53:33.573Z · session: sess_939c391c-492d-4487-9180-678c31eebdad
+- commits since start: 
+  - 86a4f68 feat(03-motion-engine): task 4 fitText truncatable and insetForCamera
+  - 905fe32 feat(03-motion-engine): task 7 compiler v1, camera wrapper and slot seeds
+- uncommitted changes: 
+  - `M .kiro/specs/03-motion-engine/design.md`
+  - ` M KIRO_LOG.md`
+  - ` M packages/motion/src/runtime/runtime.ts`
+- Summary (added in Claude Code after reviewing `run10.log` and commit 86a4f68): **run 10**, spec 03 task 4. 905fe32 in the list is Claude Code's.
+  - `fitText` gained `truncatable` and now returns `{ size, text, truncated, overflow }`. `insetForCamera(box, w, h, amount)` was added. Both have fast-check properties in new files. Kiro also handled a single word that can't be truncated shorter by reporting it as overflow.
+  - Kiro reported that one existing assertion in `core.test.ts` broke because the result shape changed, and it didn't edit that file because the prompt forbade it. Claude Code made the one-line fix.
+  - It documented its own property limit: very narrow boxes far from the centre have no valid inset, so they return a zero-size box.
+<!-- /kiro-session:sess_939c391c-492d-4487-9180-678c31eebdad -->
