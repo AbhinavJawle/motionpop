@@ -1,80 +1,149 @@
-# Review: 03 motion engine spec
+# Review: spec 03 motion engine
 
-Reviewed `requirements.md`, `design.md` and `tasks.md` against `component-contract.md`, `motion-principles.md`, `style-pack-format.md`, `testing.md`, `tech.md`, `structure.md`, `workflow.md`, and the current code in `packages/motion` and `packages/schemas`. Severity: **High** blocks or breaks the spec's own gate, **Medium** causes rework or a silent gap, **Low** is polish.
+Reviewed by Kiro (review run, no code changed). Inputs: this spec (`requirements.md`, `design.md`, `tasks.md`), steering (`component-contract.md`, `motion-principles.md`, `style-pack-format.md`, `testing.md`, `tech.md`, `structure.md`, `component-library.md`), and the current code in `packages/motion` and `packages/schemas`.
 
-## 1. Contradictions and defects that break the spec's own acceptance
+Findings are ordered by importance. IDs (F1…) can be referenced from tasks.
 
-| # | Sev | Finding | Suggested fix |
-|---|---|---|---|
-| 1.1 | High | The reference pack fails the contrast gate. `big-number` turns the number to `style.colors.accent` at the key moment (`index.ts`). `#FF7A3D` on `#F2EDE4` is about 2.2:1, below the 4.5:1 in R5.2 (and below the 3:1 large-text threshold). Principle 8 allows "highlight swipe **or** colour". | Make the accent a highlight swipe or underline behind ink text (`style.colors.highlight`), or compute the accent-on-bg ratio in the style-pack test and use `ink` for text. Add to the schema test: `ink/bg` and `muted/bg` ≥ 4.5. State in design.md which colour pairs the check evaluates. |
-| 1.2 | High | Font loading is under-specified and probably wrong. `document.fonts.ready` resolves at once when no text has requested the font yet, and data-URL `@font-face` fonts load lazily. R4.1 and `component-contract.md` ("fonts loaded before the first seek") would pass while the first still renders in a fallback font, and `fitText` would measure the fallback. | Before building, call `document.fonts.load('<weight> 16px "<family>"')` for every family and weight the pack uses, then await `document.fonts.ready`. Add a check assertion that `document.fonts.check(...)` is true for each of them. |
-| 1.3 | High | Async `ready` races `hf-seek`. The current runtime mounts synchronously. The design awaits fonts and then builds, so the player or producer can dispatch `hf-seek` first. Those events are lost and the first frame is blank or wrong. | Register the `hf-seek` listener immediately, store the latest time, and apply it when `ready` resolves. Verify how the producer waits for the page (a readiness hook or a fixed delay) and write the result in design.md. Add a test that seeks before ready. |
-| 1.4 | High | Weights: the design embeds Geist 400/500/600, but `big-number` uses `font: 700` for the number, and `displayWeight` is 600. The 700 weight is faux-bolded and differs between machines, which breaks parity. | Either embed 700 or change big-number to `style.fonts.displayWeight`. Better: embed the variable `Geist[wght].woff2` and `GeistMono[wght].woff2`, which ship in the `geist` package, so any weight is available and the size stays small. |
-| 1.5 | High | `big-number` hold time breaks principle 5. At the 2000 ms minimum, key moment is 900 ms, the label finishes entering at about 1550 ms and the exit starts at about 1700 ms. That is about 150 ms of fully readable label, against the required 0.8–1.2 s. Timings are also hard-coded (`ENTER_MS = 500`) instead of coming from `style.motion` (enterMs 700, holdMs 1000, `eases[enterEase]`). | Raise `durationMs.min` or derive enter, exit and hold from `style.motion` and reduce the timings proportionally for short slots. Add a check assertion: focal and label are fully visible for ≥ 800 ms, or the `durationMs.min` is raised. Add "no hard-coded timings or eases" to task 9. |
-| 1.6 | Medium | `timeline` is "keyframed tracks **with offsets**" in R1.1, but design.md defines only `track(keys)` and `enter()`. Nothing models principle 3 (overlap offsets 0.15–0.35 s) or principle 12 (exit ≈ 60 % of enter). | Add `sequence([{ at, track }])`, or drop "with offsets" from R1.1. Add named constants such as `OVERLAP_MS`, `EXIT_RATIO = 0.6` and use them in big-number. |
-| 1.7 | Medium | R1.4 says "stagger offsets within the principle ranges by default", but `stagger(i, n, stepMs)` takes any step and has no defaults. The property "bounded" is undefined. The ranges differ by kind: letters/words 30–80 ms, items 60–120 ms, dot grids 10–40 ms. | Export `STAGGER = { word: 50, item: 90, dot: 25 }` (ms) plus a `clampStep(kind, ms)` helper. Define the property: for any `i < n`, offset is in `[0, (n-1) * step]` and the step is inside the kind's range. |
+## A. Blocking: will cause failing checks or wrong output
 
-## 2. Contract and steering drift (workflow rule 1: update steering and log in `docs/decisions.md`)
+### F1. The reference pack fails the contrast assertion with big-number's own accent colour
 
-| # | Sev | Finding | Suggested fix |
-|---|---|---|---|
-| 2.1 | High | The spec adds interface surface that `component-contract.md` does not have: `[data-text]` and `[data-focal]` attributes, `samples.ts` per component, warnings (R1.3 "report a warning"), `__motionpop.errors`, and `ready` as a Promise. The `Composition` interface has no warnings channel, so R1.3 has nowhere to report. | Add one task (or sub-task) that updates `component-contract.md`, `structure.md` (`fonts/`, `camera.ts`, `safe-area.ts`, `samples.ts`, `.check/`) and `docs/decisions.md`. Add `warnings: string[]` to `__motionpop` (and a `ctx.warn(msg)` in `BuildContext`). Document the `data-*` attributes as part of the contract. |
-| 2.2 | High | `EaseName` cannot be imported from `packages/motion` into `packages/schemas` (motion already depends on schemas, so that would be a cycle). Task 1 says "enum matching ease.ts" but only touches schemas, so the two can drift. | Define the enum literal in schemas and add a test in `packages/motion` (`eases` keys equal `EaseNameSchema.options`). Make the test part of task 2 or 5, not task 1. |
-| 2.3 | Medium | Brand-kit overrides are required by `style-pack-format.md` ("merge on top at build time") and the data model has a slot-level `styleId` override. The spec has no merge function and the compiler takes a single style. | Add `mergeBrandKit(pack, kit)` to schemas or motion, with a property test (result still passes `StylePackSchema`), or record in design.md that both are deferred to spec 07 or 14. |
-| 2.4 | Medium | Safe-area numbers for 9:16 (top 12 %, bottom 20 %, sides 6 %) and 1:1 (5 %) do not appear in any steering file; principle 10 only gives 16:9. Spec 12 (captions) will overlay the bottom area. | Put the numbers into `motion-principles.md` (principle 10) and record the source. Note that captions use a separate region, so the bottom 20 % in 9:16 is reserved for captions as well as platform UI. |
-| 2.5 | Medium | `component-contract.md` requires, for every component: README, property tests (determinism, bounds, data honesty). R7 and task 9 mention only layouts, `fitText`, tokens and `data-focal`. | Add to R7 and task 9: README, `seek` determinism and random-order property test, and the data-honesty property (final text equals `formatCount(value)` for any value and decimals). |
-| 2.6 | Low | The spec says it was "written in Claude Code" but has no user stories (workflow requires "user stories + acceptance criteria"), and no non-functional requirements (runtime bundle size, per-frame seek budget, composition size with fonts). | Add a short user story per R and an NFR: seek of one slot ≤ 8 ms at 1080p, composition ≤ 600 KB. |
+R5.2 asserts text contrast ≥ 4.5:1 against `style.colors.bg`. `big-number` turns the number to `style.colors.accent` at the key moment. For `editorial-explainer`, accent `#FF7A3D` on bg `#F2EDE4` is about 2.2:1 (relative luminance ≈ 0.36 vs ≈ 0.85). The number is large text, but the spec only has the 4.5:1 rule, so `pnpm motion:check big-number` (R7.1) cannot pass as written.
+**Fix:** Define two thresholds in R5.2: 4.5:1 for normal text and 3:1 for large text (≥ 24 px, or ≥ 18.66 px bold), following WCAG. Compute the ratio against the actual pixels behind the element (sample the screenshot), not `style.colors.bg`, because the texture, vignette and any slot background change the backdrop. Also add a pack-level unit test that `ink` and `muted` on `bg` are ≥ 4.5:1 and `accent` on `bg` is ≥ 3:1.
 
-## 3. Requirement-to-task coverage gaps
+### F2. `document.fonts.ready` does not guarantee the fonts are loaded
 
-| Requirement | Gap | Suggested fix |
-|---|---|---|
-| R1.2 (no clocks, timers, global state, unseeded random) | Only property tests; nothing prevents `Date.now` or `Math.random` from sneaking into a component. | Add an ESLint `no-restricted-properties` / `no-restricted-globals` rule (`Date.now`, `Math.random`, `setTimeout`, `setInterval`, `requestAnimationFrame`, `performance.now`) scoped to `packages/motion/src/{core,components}`; add a lint rule or test against hex/rgb literals in `components/**` (tokens only). |
-| R2.2 (replace `StyleTokens`) | Task 5 says "migrate big-number and the skeleton page" but misses `services/render/scripts/skeleton.ts`, `compile.test.ts` fixtures and `apps/web/app/dev/skeleton/page.tsx`, all of which build a `StyleTokens` object. | List every call site in task 5, or the typecheck of `apps/web` and `services/render` fails. |
-| R3.2 | Fonts are "copied from the `geist` package in `apps/web`". `packages/motion` does not depend on it. The compiler is browser-safe and used from Next, so it cannot read files. | Add `geist` as a devDependency of `@motionpop/motion`. Generate a committed `font-faces.ts` (or pass the CSS in through `CompileAssets` like `runtimeJs`). Decide whether generated files are committed, since `dist/` is gitignored and turbo needs `build:runtime` ordering before `test` and `motion:check`. Add the OFL entry to `docs/third-party.md` as a task. |
-| R3.3 | "Seeded SVG turbulence" rendered per slot is resolution-dependent (`baseFrequency` is in user units) and may differ between preview scale and the render, which fails parity. `texture.paper` has no defined meaning. | Pre-render the grain to a tiny tileable PNG data URL (generated once with the seeded rng) and use CSS `background-size` in frame pixels. Define `paper` (for example a second low-contrast tile) or remove it from the pack. Grain must be static (principle 14). |
-| R4.2 | A "Couldn't render" placeholder would end up inside an exported MP4, which violates "never silent". Errors thrown on every seek would also grow `errors` without limit. | Show the placeholder only in preview (flag in the project payload). In render, read `__motionpop.errors` and fail the job (credits refunded per architecture.md). De-duplicate errors by slot and message. |
-| R5 | `pnpm motion:check <id>` needs a root script. The root `package.json` has none, and `.check/` is not in `.gitignore` (verified). `tsx` and `puppeteer-core` are not dependencies of `packages/motion` (they exist only in the pnpm store, and two puppeteer-core versions are installed). | Add the root script, the `.gitignore` line, explicit devDependencies and a Chrome path strategy (the one the producer uses). Existing scripts use `node scripts/x.ts` (type stripping); reuse that and skip `tsx`. Run `build:runtime` first (turbo `dependsOn`). |
-| R5.1 | Durations are not specified. A slot can be anywhere in `durationMs.min…max`, and layout and hold problems appear at the extremes. | Check at min, ideal and max duration, and with `keyMomentMs` at the default, near 0 and near the end. |
-| R5.2 | "Overlap" and "inside safe area" are undefined during animation: at 0 % elements are transparent or offset, and at 90 % they may be mid-exit. A push-in scale up to 1.06 also moves text boxes out of a 5 % margin. | Define: measure at the key moment and at the end of the hold; skip elements with effective opacity < 0.05; compute boxes with `getBoundingClientRect` after transforms and include camera scale in the safe-area budget (or apply the push-in only to non-text layers). |
-| R5.2 (sync) | Principle 13 (focal lands on the word ± 80 ms) is not tested. The check only asserts "visible at key moment". | Assert the focal is not settled at `key - 80 ms` and is settled at `key + 80 ms`, or expose `focalSettledMs` in the component. |
-| R6 | The parity script lives in `packages/motion`, which has no `@hyperframes/producer` dependency (producer is a dependency of `services/render`, which depends on motion). A whole-frame mean absolute difference of 2 % hides text shifts, because most pixels are flat background. Preview seeks at arbitrary ms, while the producer renders at 30 fps frame times. ffmpeg availability is not stated. | Move the script to `services/render/scripts/parity.ts`. Use frame-aligned timestamps (`frameToMs(msToFrame(t))`). Compare per tile (for example 8×8 grid, max tile error) or SSIM, not the global mean. State where ffmpeg comes from. |
-| R7 | `formats` in `big-number` is still `['16:9']`; no task item says to change it. | Add "set `formats` to all three" to task 9; `motion:check` already iterates over `component.formats`. |
+R4.1 and task 6 rely on `await document.fonts.ready` before building. That promise resolves when currently pending loads finish. Fonts declared with `@font-face` start loading only when some rendered text uses them. At runtime start nothing has rendered yet, so `ready` can resolve immediately and `fitText` then measures with fallback fonts. The current `runtime.ts` has this exact flow. Symptoms: wrong fit, wrong truncation, and preview vs render differences.
+**Fix:** In runtime v1, call `document.fonts.load(\`${weight} 16px "${family}"\`)` for every family and weight the pack declares (`displayWeight`, body 400/500, mono), `await Promise.all`, then `await document.fonts.ready`. Reject `ready` (and record an error) if a declared family is not `document.fonts.check`-true afterwards. Add a runtime test for this. Update `component-contract.md` ("Fonts loaded before the first seek") to describe the mechanism.
 
-## 4. Risky assumptions
+### F3. Missing fonts fall back silently
 
-1. **`fitText` and changing text.** `fitText` measures once at build, but the count-up string changes width over time and with params. The box must be sized for the **final** string (`formatCount(value, fmt)`) or the widest intermediate one. Add this to the design.
-2. **Truncating numbers.** Truncating with "…" is fine for labels but would break data honesty for numbers. Rule: numbers and units never truncate; `fitText` shrinks to `min`, and if still too wide the check fails (and `warn` is called). Add `truncatable: false` to `fitText` options.
-3. **`fitText` and `splitText` order.** Truncation after `splitText` would corrupt the spans. State: fit first on plain text, then split the final text.
-4. **happy-dom has no layout.** `fitText` property tests use a stub, `pathDraw` needs `getTotalLength` (absent in happy-dom). Real behaviour is only covered by `motion:check`. Note the stubs in task 3 and 4 and make sure `big-number` has a long-text edge case in `samples.ts`.
-5. **Seeds.** The runtime hard-codes `seed: 1` for every slot, so all slots share a random stream and "regenerate" cannot vary. Derive `seed` from a stable hash of the slot id (or a stored field). `rngFor(seed, key)` needs a specified, engine-independent hash (`Math.imul`, no floats) and golden-value tests; `mulberry32` should coerce the seed with `>>> 0` and require an integer.
-6. **Runtime performance.** `seek` calls every slot's composition on every `hf-seek`, and all slots are built at load. With 30+ slots this is wasted work. Seek only slots whose range contains `t`, plus one seek to the end state when a slot is left; build lazily or at least time the build. Add a budget (see 2.6).
-7. **`keyMomentMs` is not validated.** `slot.keyMomentMs ?? component.keyMomentMs(...)` can land outside `[0, durationMs]`. Clamp and warn in the runtime; property test it.
-8. **Attribute names in the compiler.** The design sample uses `data-track-index="1"`, the code emits `data-track-kind="graphics"`. Confirm against HyperFrames 0.9.46 which one it expects and make design and code agree.
-9. **Format and size can disagree.** `CompileInput` has `width`, `height` and `format`. The test fixture uses 1280×720 for 16:9. Derive size from `format` through a single `FORMATS` constant (schemas or motion) and drop `width`/`height` from the input, or validate that they match.
-10. **Only one style pack.** With one pack, hard-coded colours or timings are invisible. Add a second synthetic pack (inverted palette, different `enterMs`) used only by tests and `motion:check`, so token violations show up before spec 07.
-11. **JSON import.** `styles/index.ts` imports JSON and parses at import. This needs `resolveJsonModule` (or import attributes under Node type stripping, which the check script uses). Confirm with Next and esbuild, or generate a `.ts` module.
-12. **Schedule.** Eleven tasks by Nov 19 with a Nov 30 submission. Tasks 5, 7 and 10 are each large (several files, several packages). Parity (task 11) is the first thing to cut.
+`compileProject` takes `assets.fonts?` and `fontFaceCss` filters out any family without data, so a missing `fonts.json` produces a system-font composition with no error. `motion:check`, parity and any CI run would then pass or fail against the wrong glyphs. `StylePackSchema` also accepts any font name, but only Geist and Geist Mono are bundled.
+**Fix:** Make `assets.fonts` required, and throw from the compiler when a pack family is not in `BUNDLED_FONTS`. Validate pack fonts against the bundled list in `styles/index.ts` (the schema cannot know the list). Add a test for each failure.
 
-## 5. Testing strategy versus `testing.md`
+### F4. Components paint an opaque background, which hides the texture layer and breaks transparent export
 
-- `testing.md` requires "random seek order equals sequential seeking" for the motion core. Task 2 covers core functions only. Add a shared `assertSeekPure(component, params)` helper (fast-check: random time list, compare DOM snapshots against sequential order) and run it for every component, starting with `big-number`.
-- "Layout: every text box inside the safe area for random params and every format" is a **fast-check** property in `testing.md`; the design uses four seeded random samples. Make `samples.ts` export a fast-check arbitrary and run N cases (configurable, default 20 locally) with the failing seed printed in `report.json`.
-- A bug found by a property test needs a regression test and a DEV_LOG note (testing.md). Add this to the definition of done for tasks 2 and 4.
-- Add to the style-pack tests: reject unknown ease names, `enterMs`/`staggerMs` ≤ 0, `grain`/`vignette` outside 0–1, unknown keys (`.strict()`), non-hex colours, `chart` shorter than 3 (and cap the length). Export `StylePackSchema` and types from `schemas/src/index.ts` (task 1 does not say so).
-- Parity: add the tolerance rationale (video compression, YUV colour shift) to the test comment so a later threshold change is deliberate.
+Design puts the background and texture in compiler-owned layers (`.mp-bg`, `.mp-texture`) behind the slots. `big-number` sets `root.style.background = style.colors.bg` and `overflow:hidden`, so it covers those layers. This also defeats the transparent WebM export in `product.md` (journey 4). Neither the contract nor the spec says who owns the background.
+**Fix:** Add a rule to `component-contract.md` and R7: components render on a transparent root; only the compiler paints the background and texture. Add a compiler option `background: "style" | "transparent"` (used by export in spec 08). Add a check in `motion:check` that the slot root has no opaque full-frame background (computed style alpha 0), and update task 9.
 
-## 6. Task list structure
+### F5. `motion:check` assertions are not defined per timestamp
 
-1. Task 5 mixes five things (JSON pack, loader, context type change, big-number migration, skeleton page). Split into 5a (pack + loader + type change + all call sites) and 5b (big-number migration, which merges into task 9).
-2. Task 3 bundles five core modules with no `[kiro]` tag. `split-text`, `path-draw` and `safe-area` are good Kiro candidates (small, pure, testable) and would raise the Kiro share above the current 3 of 11. Keep `fit-text` in Claude Code (design decisions).
-3. Order: 1 → 2 → 3 → 4 → 5a → 6 → 7 → 8 → 9 → 10 → 11 is valid, but 8 (error isolation) should come before 10 because `motion:check` reads `__motionpop.errors`. Task 8 also changes `ready` to a Promise, which task 6 relies on; move the `__motionpop` shape into task 6 or put 8 before 6.
-4. Missing tasks: contract and structure steering update plus `docs/decisions.md` entry (2.1); lint rules for R1.2 (3); root script, `.gitignore`, devDependencies (3); `docs/third-party.md` for Geist; README for `big-number`.
-5. Each task should state its verification command (for example `pnpm --filter @motionpop/schemas test`), as the agent prompt expects.
+The check runs at 0 %, key moment and 90 %, but R5.2 applies every assertion to every still. At 0 % everything is at opacity 0 or mid-entrance, so "focal visible" and contrast are meaningless. At 90 % `big-number` is already exiting: with `exitDur = 300 ms`, a 2 s slot starts exiting at 1.7 s, before 90 % (1.8 s). The number is partly faded there.
+**Fix:** Add a table to the design: safe-area and overlap on all stills; contrast and focal-visible only at the key moment (elements with opacity ≥ 0.9); at 90 % assert only the safe area plus "no element has opacity between 0.1 and 0.9 unless the component declares an exit". Skip elements with computed opacity 0 or `visibility:hidden`. Define "overlap" so a text box nested in another `data-text` box is not counted.
 
-## 7. Suggested order of fixes before implementation starts
+### F6. Camera push-in moves text out of the safe area
 
-1. Resolve 1.1–1.5 (they change `design.md`, `big-number` and the check assertions).
-2. Apply 2.1 and 2.2 to the steering and add the missing tasks (section 6).
-3. Pick the font strategy (variable woff2 plus explicit `fonts.load`) and the texture strategy (static PNG tile) before task 6 and task 7.
-4. Move parity to `services/render` and define its comparison metric before task 11.
+The design has `pushIn` (scale 1 → 1.05) and `motion-principles.md` §7 wants it on most scenes, while §10 requires text inside the 5 % safe margin. Scaling about the centre pushes a box sitting on the safe edge about 2.5 % of the half-frame outward, outside the safe area, and the 90 % still will catch it. The spec does not say who applies the camera (compiler or component), at what level, or how the check accounts for it.
+**Fix:** Decide in the design: the compiler applies the camera to a wrapper around the slot root using `style.motion.camera.pushIn`, and `motion:check` measures boxes with the camera transform included. Components then lay out inside a safe area shrunk by the pack's `pushIn` (safeArea gets an optional `cameraScale` argument). Add a task and a test. Note `pushIn` takes `amount` as an argument, but the pack field `motion.camera.pushIn` should be the only source.
+
+### F7. big-number cannot meet the hold rule at the minimum duration
+
+`component-contract.md` gives `durationMs.min = 2000`; `motion-principles.md` §5 requires a 0.8–1.2 s hold. Current code with min duration: key moment = 900 ms, the label enters from 1050 to 1550 ms, exit starts at 1700 ms. The number is fully readable for under 800 ms and the label for about 150 ms. Nothing in R5 checks hold.
+**Fix:** Either raise `durationMs.min` to what the choreography needs (≈ 3000 ms) or compress the entrance when the slot is short. Add a `hold` assertion to `motion:check`, or a unit test: for `min`, `ideal` and `max`, the time from last entrance end to exit start is ≥ 800 ms. Also state how a slot shorter than `min` is handled (clamp, warn) since slots come from speech.
+
+## B. Missing requirement-to-task coverage
+
+### F8. No task covers the build-time warning channel (R1.3, R4.3, contract "flag a warning")
+
+`fitText` returns `truncated`, but nothing receives it. `BuildContext` has no `warn`, `__motionpop` exposes only `errors`, and the check script cannot see truncation.
+**Fix:** Add `warn(code, message)` to `BuildContext`. The runtime collects `{slotId, level: "error" | "warning", code, message}` into `window.__motionpop.issues` (keep `errors` as a filtered view). Define `SlotError`, which the design uses but never declares. `motion:check` fails on `error` and lists `warning` entries in the report. Add a test with a forced truncation. Add to tasks 3, 8 and 10.
+
+### F9. R1.4 (stagger ranges) is not enforceable as designed
+
+`stagger(i, n, stepMs, from)` takes any step, so nothing keeps offsets in the 30–80 ms / 60–120 ms / 10–40 ms ranges that `motion-principles.md` §4 lists, and the property test in the design only checks monotonic and bounded.
+**Fix:** Export `STAGGER = { letters: [30, 80], items: [60, 120], dots: [10, 40] }` and a `staggerStep(kind, requestedMs)` that clamps. Property test: output offset per index is within the range for random inputs. Mention the 150–350 ms overlap offsets (§3) as a helper or document that components choose them. The design's `enter(...) = tween(...)` is an alias with no new behaviour; drop it or define it.
+
+### F10. Component-level determinism is required but has no task
+
+`testing.md` requires: `seek(t)` twice gives identical DOM state, and random seek order equals sequential. The design's correctness property 1 says "every core function and component", but task 2 tests only the core functions, and task 9 lists no tests.
+**Fix:** Add to task 9: a fast-check test that builds `big-number` in happy-dom (with the stub measurer), seeks a random sequence of times, and compares `root.innerHTML` (and inline styles) to a fresh instance seeked only at the last time. Make this a reusable helper (`testing/composition-determinism.ts`) that every later component spec uses.
+
+### F11. R7 is thinner than the component contract
+
+R7.1 lists layouts, `fitText`, tokens and `data-focal`. The contract also requires a README with examples, params `.describe()`, unit tests, property tests (determinism, bounds, data honesty) and `structure.md` lays out `params.ts`, `layout.ts`, `build.ts`, `index.ts`, `README.md`. Today `big-number` is a single `index.ts` with `formats: ['16:9']`, and `ENTER_MS = 500` is a literal instead of `style.motion.enterMs`.
+**Fix:** Expand R7 and task 9: split into `layout.ts` (pure per-format layout returning boxes) and `build.ts`; `formats: ['16:9','9:16','1:1']`; all timings from `style.motion`; README; a data-honesty property (final text equals `formatCount(value, fmt)`, and the count is monotonic); a test that `params` fields all have descriptions. Move "passing `pnpm motion:check big-number`" from R7.1 to its own criterion mapped to task 10.
+
+### F12. Tokens-only rule is not checked
+
+The contract forbids hard-coded colours, fonts and timings. Nothing in the spec enforces it (task 5 only migrates).
+**Fix:** Add a lint-style unit test that scans `components/**/*.ts` for hex colour literals and `rgb(` / `rgba(` and fails with the file and line. Allow an explicit `// token-ok:` escape hatch with a reason. Optionally add an eslint `no-restricted-syntax` rule.
+
+### F13. Other requirements with no task or no owner
+
+- R5.3: the `.check/` gitignore entry has no task (currently not in `.gitignore`).
+- R3.4 (integer ms, seconds only in HTML) is mapped to task 7, but the existing compile test coverage should be extended with a property: for random integer slots, `data-start * 1000` round-trips to the integer ms.
+- Brand-kit overrides ("style pack + brand-kit overrides", `style-pack-format.md`) are in the contract but not in this spec. State explicitly that they are out of scope and name the owning spec (13 or 14), and that `BuildContext.style` is the already-merged pack.
+- The captions host appears in design and task 7 but has no requirement. Either add a one-line requirement ("the compiler SHALL emit an empty `#mp-captions` host; content lands in spec 12") or remove it from task 7.
+- `data-text` and `data-focal` are the contract between components and `motion:check` but are defined only in this design. Add them to `component-contract.md` (rules section) so every component spec inherits them.
+
+## C. Contradictions with steering or code
+
+### F14. The spec is out of date with the code
+
+Files named in tasks as new already exist, uncommitted: `core/camera.ts`, `fit-text.ts`, `path-draw.ts`, `safe-area.ts`, `split-text.ts`, `core.test.ts`, `fonts/font-faces.ts`, plus compiler and runtime edits. Task 3 and most of task 6 are therefore half done while unchecked, and `git status` shows 8+ uncommitted changes. The design's APIs also differ from the code: `splitText` and `pathDraw` match, but `fitText` takes a third `overflows` argument and `pathDraw` is paired with `measurePath`; `font-faces.ts` takes a `data` map (from `dist/fonts.json`), not data URLs built in place.
+**Fix:** Commit the existing work, then re-scope tasks 3 and 6 to "tests and gaps" (what is missing per this review) and update the design signatures to match. Keep a rule that a task is only checked when its tests exist.
+
+### F15. `StyleTokens` replacement is described inconsistently
+
+`contract.ts` says the full `StylePack` replaces `StyleTokens` "in spec 07"; R2.2 and task 5 do it in spec 03.
+**Fix:** Update the comment in `contract.ts` as part of task 5, and make the task say the whole `StyleTokens` type is deleted, not aliased. `compile.ts` also uses `input.style.fonts.display` as a family stack; with the real schema (`fonts.display: "Geist"`) keep one place (`primaryFamily`) that converts it.
+
+### F16. `EaseName` is defined in two packages
+
+Task 1 puts an `EaseName` enum in `packages/schemas`, while `core/ease.ts` derives `EaseName` from the `eases` object, and `motion` depends on `schemas` (not the reverse). The two lists can drift silently. Also `motion-principles.md` §2 allows elastic when `allowPlayful` is true, but no elastic ease exists, so the flag has no effect.
+**Fix:** Add a test in `packages/motion` asserting `z.enum` options equal `Object.keys(eases)`. Decide whether `allowPlayful` gates an `outBack` / `outElastic` ease (add to both lists, with a test that non-playful packs reject them) or document that the flag is reserved. Also add `export * from './style'` to `packages/schemas/src/index.ts` in task 1 (not mentioned).
+
+### F17. `tsx` and Puppeteer assumptions do not match the repo
+
+Design says `tsx packages/motion/scripts/check.ts`, but no `tsx` dependency exists and the repo runs scripts with `node scripts/*.ts` (Node 24 type stripping, see `build:runtime`). Puppeteer is taken "from the producer's install", but pnpm does not hoist transitive dependencies, so `import "puppeteer"` from `packages/motion` fails unless declared. There is no root `motion:check` script (root `package.json` has none), and `tech.md` / `workflow.md` define `pnpm motion:check <id>` as part of Definition of Done.
+**Fix:** Use `node scripts/check.ts`. Add `puppeteer` (catalog version equal to the producer's) as a `devDependency` of `packages/motion`. Add `"motion:check": "pnpm --filter @motionpop/motion motion:check"` at the root and `"motion:check": "node scripts/check.ts"` in the package. Note `build:runtime` must run first (the check needs `dist/`); make the script call it or fail with a clear message. Note that `.turbo` caching is irrelevant to this script.
+
+### F18. Runtime does not implement what R4 and the contract require
+
+`runtime.ts` today: `params.parse` and `build` are unguarded (one bad slot throws out of `mount` and drops all later slots); unknown component or missing host only calls `console.error`; no placeholder; `seek` calls every slot with clamped local time instead of only active slots ("calls `composition.seek(t - slotStart)` on every active slot"); `seed` is hard-coded to 1; `__motionpop` has no `errors`.
+**Fix:** Covered by task 8, but make the acceptance concrete: try/catch around parse, build and each seek; placeholder text `Couldn't render` using tokens; an `issues` list; seek only when `0 ≤ t - start ≤ duration` plus one final seek at the clamped end when leaving, so the exit state is exact; per-slot seed from `rngFor(projectSeed, slot.id)`, with `seed` added to `CompileSlot` or a project field. Add the hf-seek payload test (see F21).
+
+## D. Risky assumptions
+
+### F19. Seeded SVG turbulence is not a deterministic texture
+
+Design R3.3 uses `feTurbulence` with a fixed seed. The seed is fixed, but the rasterised noise depends on the Chrome version, GPU vs software path and device scale factor, and it scales with the element size. Preview (scaled iframe, possibly GPU) and render (headless, software) can differ, which also hurts parity (R6) and costs render time per frame.
+**Fix:** Generate the grain once at build time from `rng` as a small tiled PNG/data URL (or canvas drawn once with seeded values), tile it with `background-repeat`, and draw the vignette with a CSS radial gradient. Keep the layer static (no per-frame change, consistent with principle 14). Define `paper: true` explicitly (e.g. a second low-contrast fibre tile), or drop the field from this spec. Test: two compiles of the same input are byte-identical.
+
+### F20. Parity method can pass broken frames
+
+R6 and the design compare a mean absolute difference with a 2 % threshold. A mean over a 1920×1080 frame hides a missing line of text. Preview "may scale down" while components lay out in frame pixels, so screenshots must be taken at the same size and device scale factor. Producer frames sit on 30 fps boundaries, so a timestamp like 4.2 s is exact but 4.215 s is not. The ffmpeg dependency is also not declared.
+**Fix:** Pick the five timestamps as frame multiples (`msToFrame` round trip), take preview stills at deviceScaleFactor 1 at the frame size, and compare with a combination: global MAD ≤ 2 % and no 64×64 tile with MAD > 10 %. Declare how ffmpeg is found (the producer bundles one? verify) and fail with a clear message if missing. Mark parity as non-blocking for the Definition of Done until it is stable, but run it in the spec 08 render task.
+
+### F21. `hf-seek` shape and player behaviour are assumed
+
+`component-contract.md` says to verify the current `hf-seek` event shape before changing the runtime. The runtime reads `detail.time` in seconds, and R4/task 8 do not add a test against the pinned `@hyperframes/core` version. The design also removes `data-track-index` from the clip markup used in the walking skeleton (`compile.ts` emits `data-track-kind`), and `design.md`'s example shows `data-track-index`.
+**Fix:** Add a task-8 test that loads the compiled HTML in Chrome with the pinned runtime, drives it via the HyperFrames clock and checks `__motionpop` state at the same times, so the event contract is exercised. Reconcile the attribute (`data-track-index` vs `data-track-kind`) with the HyperFrames docs and update either the design or the compiler.
+
+### F22. `fitText` and `splitText` interact badly
+
+`fitText` truncation rewrites `el.textContent`, which destroys spans created by `splitText`. A component that splits a headline and also fits it would lose its animated spans. `fitText` reads `scrollWidth` per iteration (reflow each step) and relies on the fixed `lineHeight` set on the element, so components that style lines separately may measure incorrectly. Also real `fitText` is only property-tested through a char-count stub, which cannot catch real font metrics issues.
+**Fix:** Document the order (fit first, then `splitText` on the final text) and make `fitText` return the final string so callers split after it. Add a Chrome-based case in `motion:check` samples (long German-style words, narrow 9:16 box) as the real test of fit quality.
+
+### F23. Check inputs are loosely specified
+
+- "Key moment" for the check: which slot duration is used? Use `durationMs.ideal`, and also `min` and `max` as edge samples (this also covers F7).
+- Edge-case params are left to `samples.ts` with no list. Specify minimums: empty optional fields, maximum-length strings (the schema max), 0, negative values, very large numbers with and without decimals, non-Latin characters.
+- "4 seeded random samples" need a fixed fast-check seed stored in the report so a failure reproduces.
+- The vitest suite does not run `motion:check`. State where it runs (manual and per-component Definition of Done today). Add a CI job note for later, since it needs Chrome.
+
+### F24. Style pack schema details are open
+
+Task 1 says "bad hex" without defining it. Colours are parsed by the contrast code, so 3-digit or 8-digit hex or CSS names would break the check. `colors.chart` has a minimum of 3 but no maximum; the other fields (`texture.grain`, `vignette`, `pushIn`, `radius`) have no bounds, so a pack can request `pushIn: 3` or negative `enterMs`.
+**Fix:** `#RRGGBB` only (regex, case-insensitive), `.strict()` objects so typos fail, `chart` 3–8 entries, grain/vignette 0–1, `pushIn` 1.00–1.10 (matches §7 1.04–1.06 plus slack), `enterMs`/`staggerMs`/`holdMs` positive integers with sensible caps, `displayWeight` one of 400–900 in steps of 100. Tests for each bound.
+
+## E. Task list adjustments
+
+- Split task 2 (three modules and four property areas) into two tasks: `rng` + `stagger`, and `timeline` + `track`. It is the first Kiro task and has the largest diff.
+- Task 3 depends on nothing in task 2 but task 4 depends on task 3: keep the order and mark the dependency. Re-scope task 3 per F14.
+- Task 5 should include deleting `StyleTokens` (F15) and the tokens-only test (F12).
+- Task 8 should include F8, F18 and F21.
+- Task 9 should include F4, F7, F10, F11.
+- Task 10 should include F5, F17, F23 and the `.gitignore` entry.
+- Task 11 should include F20 and be explicitly allowed to slip to spec 08 if the producer needs the render service first. Say so in `requirements.md` so the Nov 19 target is honest.
+- Kiro share: tasks 1, 2 and 4 are tagged [kiro] (3 of 11 ≈ 27 %). Task 12 (the tokens test, F12) and the determinism helper (F10) are good further Kiro candidates, since they are self-contained with clear acceptance.
