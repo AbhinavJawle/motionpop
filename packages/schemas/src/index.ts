@@ -4,3 +4,6 @@ export * from './transcript';
 export * from './slot';
 export * from './ai';
 export * from './config';
+export * from './color';
+export * from './format';
+export * from './style';
