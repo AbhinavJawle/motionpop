@@ -212,3 +212,17 @@ Template:
   - Kiro reported that one existing assertion in `core.test.ts` broke because the result shape changed, and it didn't edit that file because the prompt forbade it. Claude Code made the one-line fix.
   - It documented its own property limit: very narrow boxes far from the centre have no valid inset, so they return a zero-size box.
 <!-- /kiro-session:sess_939c391c-492d-4487-9180-678c31eebdad -->
+
+<!-- kiro-session:sess_b314be15-9b49-4464-9555-74c73f665f25 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T17:07:30.654Z · last stop: 2026-11-14T17:08:59.068Z · session: sess_b314be15-9b49-4464-9555-74c73f665f25
+- commits since start: 
+  - 1c3caad feat(03-motion-engine): task 15 assertSeekPure helper
+- uncommitted changes: 
+  - `?? services/render/scripts/parity.ts`
+- Summary (added in Claude Code after reviewing `run11.log` and commit 1c3caad): **run 11**, spec 03 task 15.
+  - Added `packages/motion/src/testing/seek-pure.ts` (`assertSeekPure`) and `seek-pure.test.ts`: a pure fake component passes in all three formats, an impure one (a counter kept across seeks) throws, and both roots are removed afterwards. `durationMs` defaults to the component's ideal and `format` to its first listed format; Kiro said these defaults were its own additions.
+  - Replaced the two hand-written determinism tests in `big-number.test.ts` with one `assertSeekPure` call per format and removed the helpers nothing else used.
+  - Friction: the thrown error starts with fast-check's "Property failed" text, not Kiro's own message, so the test matches `/Property failed/`. Kiro reported this itself.
+  - Typecheck, lint and 109 package tests passed; box 15 checked. It left Claude Code's untracked `parity.ts` alone.
+<!-- /kiro-session:sess_b314be15-9b49-4464-9555-74c73f665f25 -->
