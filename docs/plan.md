@@ -1,6 +1,6 @@
 # Motionpop: locked build plan
 
-> v1 · 2026-11-14 · Status: **DRAFT FOR APPROVAL**. Once approved, this becomes the single source for `.kiro/steering/` and the specs. Written with Claude Code.
+> v1 · 2026-11-14 · Status: **APPROVED** (with changes: 20 free credits, email/password sign-in). This is the single source for `.kiro/steering/` and the specs. Written with Claude Code.
 
 **Motionpop: bring your voice, we'll bring the motion.** You record, upload or paste a voiceover. Motionpop gets word-level timings, finds the moments that deserve a graphic, and fills a hand-crafted motion component (chart, number, title, map, callout) that lands on the exact word. Small edits run on-device with Gemini Nano: instant, free, private. Heavy creative work runs in the cloud. Export renders the same composition to MP4.
 
@@ -45,7 +45,7 @@ One codebase, two submissions:
 **Not designed. Build in the same visual language, reusing components:** Processing (`/processing/[id]`), Paste script (`/start/script`), Sign in, Landing, Share page, Settings (AI & models, credits), Out-of-credits modal, 9:16 editor state, on-device/cloud/offline toasts and banner, failed slot.
 
 ### 2.2 MVP: must ship by Nov 27 (feature freeze)
-- Sign in (Google) + judge test account; App Check; Firestore/Storage rules.
+- Sign in (Google + email/password) + judge test account; App Check; Firestore/Storage rules.
 - Start: **upload** + **record** voiceover; **paste script → Gemini TTS**.
 - Audio pipeline: Whisper word timings (on-device worker), filler/pause cleanup, Processing screen.
 - Slot detection (pre-pass → AI → post-pass) with "You said …" reasons; slots appear as suggested cards.
@@ -189,7 +189,7 @@ All calls: `run(task, input) → { output, ranOn: "device"|"cloud", model, costC
 | `transcribe.cloud` | cloud (Gemini audio) | 1 / minute | only when Whisper is unavailable |
 | Export | Cloud Run | 720p 3 · **1080p 5** · 4K 10 | |
 
-Free plan: **120 credits** (as in the design). Judge plan: generous, set by Remote Config.
+Free plan: **20 credits** on sign-up (the design's "120" chip shows a judge/test balance). Judge/test plan: a larger allowance (default 500), set by Remote Config.
 
 **Gemini Nano facts (official docs, checked today).** It needs desktop Chrome 139+ with the `prompt-api-for-gemini-nano-multimodal-input` flag. `initializeDeviceModel()` must run after a user gesture, and the first download takes minutes. On-device it supports text and JPEG/PNG images (no audio), JSON structured output, single-turn only, no tools, and at most 9,216 tokens multimodal. Our design fits all of this: quick edits and notes are single-turn JSON; Pip conversations and audio go to the cloud.
 
@@ -224,7 +224,7 @@ App Check enforced (AI Logic, Firestore, Storage, API routes) · owner-only rule
 | # | Spec | Lands by |
 |---|---|---|
 | 00 | walking-skeleton (upload → words → slots → 1 component → preview → MP4 → on-device edit) | Nov 16 |
-| 01 | foundation (monorepo, Next, tokens + fonts from Figma, Firebase init, App Check, Auth, rules, CI) | Nov 16 |
+| 01 | foundation (monorepo, Next, tokens + fonts from Figma, Firebase init, App Check, Auth Google + email/password, rules, CI) | Nov 16 |
 | 02 | design-system-and-pip (tokens, primitives, motion language, Pip SVG + all states) | Nov 18 |
 | 03 | motion-engine (core, compiler, runtime, check script) | Nov 19 |
 | 04 | editor-shell-and-timeline | Nov 20 |
@@ -312,7 +312,9 @@ Every Kiro run is logged in `KIRO_LOG.md` (date, agent, task, outcome, what help
 - D-016: SFX synthesized in code.
 - D-017: Kiro CLI + custom agents + hooks as the genuine Kiro path.
 - D-018: auto-fill on-device after processing.
-- D-013: region us-central1 (proposed).
+- D-013: region **us-central1**.
+- D-019: free plan = **20 credits**; judge/test accounts get more (Remote Config).
+- D-020: auth = **Google + email/password**.
 
 **Open, asked as we go:** Claude allowed in the Firebase entry (ask in #hackathon-help) · cloud transcription quality · domain name.
 
