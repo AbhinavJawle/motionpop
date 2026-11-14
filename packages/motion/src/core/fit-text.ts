@@ -7,11 +7,20 @@ export interface FitOptions {
   maxLines?: number;
   /** Line height as a multiple of font size (default 1.1). */
   lineHeight?: number;
+  /**
+   * Allow word/char truncation with "…" when even `min` overflows (default true).
+   * Numbers and units pass false: the text stays unchanged and `overflow` is reported instead.
+   */
+  truncatable?: boolean;
 }
 
 export interface FitResult {
   size: number;
+  /** Final textContent of the element (the string to split). */
+  text: string;
   truncated: boolean;
+  /** True when the text still overflows at `min` and was not (or could not be) truncated. */
+  overflow: boolean;
 }
 
 /** Default measurement: does the element overflow its box at the current size? */
@@ -23,7 +32,7 @@ const domOverflows: Overflows = (el, box) =>
 /**
  * Fit text into a box (build time only; it reads layout). Binary-searches the largest integer size
  * in [min, max] that does not overflow. If even `min` overflows, drops trailing words and appends "…"
- * until it fits, and reports `truncated: true` so the caller can flag a warning.
+ * until it fits and reports `truncated: true` (or, with `truncatable: false`, leaves the text and reports `overflow: true`).
  */
 export function fitText(
   el: HTMLElement,
@@ -45,7 +54,14 @@ export function fitText(
     return !overflows(el, { width: box.width, height: height(size) });
   };
 
-  if (tryAt(max)) return { size: max, truncated: false };
+  const done = (size: number, truncated: boolean, overflow: boolean): FitResult => ({
+    size,
+    text: el.textContent ?? '',
+    truncated,
+    overflow,
+  });
+
+  if (tryAt(max)) return done(max, false, false);
   let lo = min;
   let hi = max;
   if (tryAt(min)) {
@@ -56,23 +72,31 @@ export function fitText(
       else hi = mid;
     }
     tryAt(lo);
-    return { size: lo, truncated: false };
+    return done(lo, false, false);
   }
 
-  // Even the minimum overflows: truncate words at min size.
-  const words = (el.textContent ?? '').split(/\s+/).filter(Boolean);
+  // Even the minimum overflows.
+  const original = el.textContent ?? '';
+  if (opts.truncatable === false) return done(min, false, true);
+
+  // Truncate words at min size. Every candidate must be shorter than the original.
+  const words = original.split(/\s+/).filter(Boolean);
   while (words.length > 1) {
     words.pop();
     el.textContent = `${words.join(' ')}…`;
-    if (tryAt(min)) return { size: min, truncated: true };
+    if (tryAt(min)) return done(min, true, false);
   }
   // A single word that is still too wide: cut characters.
   let word = words[0] ?? '';
   while (word.length > 1) {
     word = word.slice(0, -1);
-    el.textContent = `${word}…`;
-    if (tryAt(min)) return { size: min, truncated: true };
+    const candidate = `${word}…`;
+    if (candidate.length >= original.length) continue;
+    el.textContent = candidate;
+    if (tryAt(min)) return done(min, true, false);
   }
+  // Nothing shorter fits: keep the original text and report the overflow.
+  el.textContent = original;
   tryAt(min);
-  return { size: min, truncated: true };
+  return done(min, false, true);
 }

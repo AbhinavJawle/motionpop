@@ -32,3 +32,21 @@ export function contains(outer: Box, inner: Box, tolerance = 0.5): boolean {
     inner.y + inner.height <= outer.y + outer.height + tolerance
   );
 }
+
+/**
+ * Shrink `box` so that any point inside it, scaled by `amount` around the frame centre, stays inside
+ * the original box. Components lay text out in this box so the compiler's camera push-in never
+ * moves text out of the safe area. `amount` 1 returns the box unchanged.
+ */
+export function insetForCamera(box: Box, width: number, height: number, amount: number): Box {
+  if (!(amount >= 1)) throw new RangeError(`insetForCamera: amount must be >= 1, got ${amount}`);
+  if (amount === 1) return box;
+  const axis = (start: number, size: number, centre: number): [number, number] => {
+    const lo = Math.max(start, centre + (start - centre) / amount);
+    const hi = Math.min(start + size, centre + (start + size - centre) / amount);
+    return hi >= lo ? [lo, hi - lo] : [(lo + hi) / 2, 0];
+  };
+  const [x, w] = axis(box.x, box.width, width / 2);
+  const [y, h] = axis(box.y, box.height, height / 2);
+  return { x, y, width: w, height: h };
+}
