@@ -9,19 +9,16 @@ import { PIP_PROPS, PIP_STATES, STATES } from './states';
 delete (Element.prototype as any).animate;
 
 function mockReducedMotion(reduce: boolean) {
-  vi.stubGlobal(
-    'matchMedia',
-    (query: string) => ({
-      matches: reduce && query.includes('prefers-reduced-motion'),
-      media: query,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-      addListener: () => {},
-      removeListener: () => {},
-      onchange: null,
-      dispatchEvent: () => false,
-    }),
-  );
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: reduce && query.includes('prefers-reduced-motion'),
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+    onchange: null,
+    dispatchEvent: () => false,
+  }));
 }
 
 afterEach(() => {
