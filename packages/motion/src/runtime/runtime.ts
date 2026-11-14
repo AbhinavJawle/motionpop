@@ -10,7 +10,7 @@ import type { RuntimeProject } from '../compiler/types';
 declare global {
   interface Window {
     __MP_PROJECT__?: RuntimeProject;
-    __motionpop?: { seek: (tMs: number) => void; ready: true };
+    __motionpop?: { seek: (tMs: number) => void; ready: Promise<void> };
   }
 }
 
@@ -54,8 +54,12 @@ function mount(project: RuntimeProject): Mounted[] {
 
 const project = window.__MP_PROJECT__;
 if (project) {
-  const slots = mount(project);
+  let slots: Mounted[] | null = null;
+  // Seeks that arrive before fonts are ready are remembered and applied once mounted.
+  let pendingMs = 0;
   const seek = (tMs: number) => {
+    pendingMs = tMs;
+    if (!slots) return;
     for (const s of slots) {
       const local = Math.min(Math.max(tMs - s.startMs, 0), s.durationMs);
       s.composition.seek(local);
@@ -65,6 +69,10 @@ if (project) {
     const detail = (e as CustomEvent<{ time: number }>).detail;
     seek(Math.round(detail.time * 1000));
   });
-  window.__motionpop = { seek, ready: true };
-  seek(0);
+  // Components measure text at build time (fitText), so fonts must be loaded first.
+  const ready = document.fonts.ready.then(() => {
+    slots = mount(project);
+    seek(pendingMs);
+  });
+  window.__motionpop = { seek, ready };
 }

@@ -1,3 +1,4 @@
+import { fontFaceCss } from '../fonts/font-faces';
 import type { CompileInput, RuntimeProject } from './types';
 
 export interface CompileAssets {
@@ -5,6 +6,8 @@ export interface CompileAssets {
   runtimeJs: string;
   /** HyperFrames runtime IIFE from the pinned @hyperframes/core dist. */
   hyperframesRuntimeJs: string;
+  /** Family → base64 woff2 (dist/fonts.json). Missing → system fallback fonts. */
+  fonts?: Readonly<Record<string, string>>;
 }
 
 const sec = (ms: number): string => (ms / 1000).toFixed(3).replace(/\.?0+$/, '') || '0';
@@ -59,6 +62,7 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
 <head>
 <meta charset="utf-8">
 <style>
+${fontFaceCss([input.style.fonts.display, input.style.fonts.body, input.style.fonts.mono], assets.fonts ?? {})}
   html, body { margin: 0; background: ${input.style.colors.bg}; }
   #mp-root { position: relative; width: ${width}px; height: ${height}px; overflow: hidden; background: ${input.style.colors.bg}; }
   .mp-slot { position: absolute; inset: 0; }

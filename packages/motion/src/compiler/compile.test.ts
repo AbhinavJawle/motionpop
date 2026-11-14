@@ -64,3 +64,30 @@ describe('compileProject', () => {
     ).toThrow(/endMs > startMs/);
   });
 });
+
+describe('fonts', () => {
+  it('embeds @font-face for bundled families used by the style', () => {
+    const html = compileProject(
+      {
+        width: 1920,
+        height: 1080,
+        format: '16:9',
+        durationMs: 4000,
+        style: {
+          colors: { bg: '#000', ink: '#fff', muted: '#888', accent: '#f60' },
+          fonts: { display: "'Geist', sans-serif", body: 'Geist', mono: 'Geist Mono, monospace' },
+        },
+        slots: [],
+      },
+      {
+        runtimeJs: '',
+        hyperframesRuntimeJs: '',
+        fonts: { Geist: 'AAAA', 'Geist Mono': 'BBBB', Inter: 'CCCC' },
+      },
+    );
+    expect(html.match(/@font-face/g)?.length).toBe(2);
+    expect(html).toContain("font-family: 'Geist'; src: url(data:font/woff2;base64,AAAA)");
+    expect(html).toContain("font-family: 'Geist Mono'; src: url(data:font/woff2;base64,BBBB)");
+    expect(html).not.toContain('CCCC');
+  });
+});

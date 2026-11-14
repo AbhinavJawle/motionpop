@@ -14,9 +14,10 @@ if (!voice || !outDir) {
 
 const require = createRequire(import.meta.url);
 const motionDist = join(dirname(require.resolve('@motionpop/motion/package.json')), 'dist');
-const [runtimeJs, hyperframesRuntimeJs] = await Promise.all([
+const [runtimeJs, hyperframesRuntimeJs, fontsJson] = await Promise.all([
   readFile(join(motionDist, 'runtime.js'), 'utf8'),
   readFile(join(motionDist, 'hyperframe.runtime.iife.js'), 'utf8'),
+  readFile(join(motionDist, 'fonts.json'), 'utf8'),
 ]);
 
 const compDir = join(outDir, 'composition');
@@ -56,7 +57,7 @@ const html = compileProject(
       },
     ],
   },
-  { runtimeJs, hyperframesRuntimeJs },
+  { runtimeJs, hyperframesRuntimeJs, fonts: JSON.parse(fontsJson) as Record<string, string> },
 );
 await writeFile(join(compDir, 'index.html'), html);
 console.log(
