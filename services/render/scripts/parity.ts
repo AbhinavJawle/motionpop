@@ -24,7 +24,9 @@ const FPS = 30;
 const outDir = process.argv[2] ?? join(tmpdir(), 'motionpop-parity');
 const ffmpeg = process.env.FFMPEG_PATH ?? 'ffmpeg';
 if (spawnSync(ffmpeg, ['-version']).status !== 0) {
-  console.error(`parity: ffmpeg not found (set FFMPEG_PATH or install ffmpeg; the producer needs it too)`);
+  console.error(
+    `parity: ffmpeg not found (set FFMPEG_PATH or install ffmpeg; the producer needs it too)`,
+  );
   process.exit(2);
 }
 
@@ -51,7 +53,12 @@ const html = compileProject(
         startMs: 0,
         endMs: 3600,
         componentId: 'big-number',
-        params: { value: 40, suffix: '%', label: 'Revenue growth since 2020', context: 'The bigger picture' },
+        params: {
+          value: 40,
+          suffix: '%',
+          label: 'Revenue growth since 2020',
+          context: 'The bigger picture',
+        },
       },
       {
         id: 'b',
@@ -59,7 +66,13 @@ const html = compileProject(
         endMs: 8000,
         componentId: 'big-number',
         keyMomentMs: 1500,
-        params: { value: 987654321.99, prefix: '$', suffix: 'bn', decimals: 2, label: 'Nine digits with decimals' },
+        params: {
+          value: 987654321.99,
+          prefix: '$',
+          suffix: 'bn',
+          decimals: 2,
+          label: 'Nine digits with decimals',
+        },
       },
     ],
   },
@@ -85,7 +98,9 @@ try {
   const page = await browser.newPage();
   await page.setViewport({ width, height, deviceScaleFactor: 1 });
   await page.setContent(html, { waitUntil: 'load' });
-  await page.evaluate(() => (window as unknown as { __motionpop: { ready: Promise<void> } }).__motionpop.ready);
+  await page.evaluate(
+    () => (window as unknown as { __motionpop: { ready: Promise<void> } }).__motionpop.ready,
+  );
   for (const f of frames) {
     await page.evaluate(async (sec) => {
       const w = window as unknown as { __player?: { seek: (s: number) => unknown } };
@@ -104,14 +119,30 @@ const t0 = performance.now();
 await executeRenderJob(createRenderJob({ fps: FPS, quality: 'high' }), compDir, mp4, () => {});
 const renderS = ((performance.now() - t0) / 1000).toFixed(1);
 for (const f of frames) {
-  const r = spawnSync(ffmpeg, ['-loglevel', 'error', '-y', '-i', mp4, '-vf', `select=eq(n\\,${f})`, '-frames:v', '1', join(outDir, `render-${f}.png`)]);
+  const r = spawnSync(ffmpeg, [
+    '-loglevel',
+    'error',
+    '-y',
+    '-i',
+    mp4,
+    '-vf',
+    `select=eq(n\\,${f})`,
+    '-frames:v',
+    '1',
+    join(outDir, `render-${f}.png`),
+  ]);
   if (r.status !== 0) throw new Error(`ffmpeg frame ${f}: ${r.stderr.toString()}`);
 }
 
 // (c) Compare.
 const rgb = (png: string): Buffer => {
-  const r = spawnSync(ffmpeg, ['-loglevel', 'error', '-i', png, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'], { maxBuffer: width * height * 4 });
-  if (r.status !== 0 || r.stdout.length !== width * height * 3) throw new Error(`decode ${png}: ${r.stderr.toString()}`);
+  const r = spawnSync(
+    ffmpeg,
+    ['-loglevel', 'error', '-i', png, '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-'],
+    { maxBuffer: width * height * 4 },
+  );
+  if (r.status !== 0 || r.stdout.length !== width * height * 3)
+    throw new Error(`decode ${png}: ${r.stderr.toString()}`);
   return r.stdout;
 };
 
@@ -129,7 +160,10 @@ for (const f of frames) {
       for (let y = ty; y < Math.min(ty + TILE, height); y++) {
         for (let x = tx; x < Math.min(tx + TILE, width); x++) {
           const i = (y * width + x) * 3;
-          sum += Math.abs(a[i]! - b[i]!) + Math.abs(a[i + 1]! - b[i + 1]!) + Math.abs(a[i + 2]! - b[i + 2]!);
+          sum +=
+            Math.abs(a[i]! - b[i]!) +
+            Math.abs(a[i + 1]! - b[i + 1]!) +
+            Math.abs(a[i + 2]! - b[i + 2]!);
           n += 3;
         }
       }

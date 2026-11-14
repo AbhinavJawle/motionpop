@@ -6,7 +6,9 @@ import type { EditorProject, Slot } from '@motionpop/schemas';
 /** A ready slot whose component exists and whose params parse is rendered in the preview. */
 export function isRenderable(slot: Slot): boolean {
   if (slot.status !== 'ready') return false;
-  const c = (components as Record<string, (typeof components)[string] | undefined>)[slot.componentId];
+  const c = (components as Record<string, (typeof components)[string] | undefined>)[
+    slot.componentId
+  ];
   return c !== undefined && c.params.safeParse(slot.params).success;
 }
 

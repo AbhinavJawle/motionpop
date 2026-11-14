@@ -27,7 +27,11 @@ export function AudioTrack() {
     >
       <div aria-hidden className="absolute inset-y-0 left-[180px] flex items-center gap-[5.3px]">
         {bars.slice(0, Math.max(0, Math.floor((width - 190) / 7.3))).map((h, i) => (
-          <span key={i} className="w-0.5 rounded-full bg-music-bar opacity-40" style={{ height: h }} />
+          <span
+            key={i}
+            className="w-0.5 rounded-full bg-music-bar opacity-40"
+            style={{ height: h }}
+          />
         ))}
       </div>
       <span className="absolute top-[9px] left-3 text-[10px] leading-[13px] font-medium text-text-2">

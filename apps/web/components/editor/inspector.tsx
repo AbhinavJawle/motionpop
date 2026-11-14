@@ -48,7 +48,7 @@ export function Inspector() {
 function InspectorBody({ slot }: { slot: Slot }) {
   const words = useEditor(selectWords);
   const slotNumber = useEditor(
-    (s) => (s.project?.slots.filter((x) => x.startMs <= slot.startMs).length ?? 0),
+    (s) => s.project?.slots.filter((x) => x.startMs <= slot.startMs).length ?? 0,
   );
   const styleName = useEditor((s) => (s.project ? styleFor(s.project).name : ''));
   const said = spokenText(slot, words);
@@ -84,7 +84,9 @@ function InspectorBody({ slot }: { slot: Slot }) {
       <PromptBox key={`${slot.id}:${slot.prompt}`} slot={slot} />
 
       <div className="mt-2 flex h-8 items-center justify-between rounded-lg bg-card pr-1.5 pl-2.5 shadow-glass">
-        <span className="text-[10px] leading-[13px] text-text-3">Quick edit… e.g. make it slower</span>
+        <span className="text-[10px] leading-[13px] text-text-3">
+          Quick edit… e.g. make it slower
+        </span>
         <CostChip route="device" />
       </div>
 
@@ -119,7 +121,12 @@ function PromptBox({ slot }: { slot: Slot }) {
       />
       <Tooltip content="Cloud generation is on its way" side="top">
         <span className="absolute right-3 bottom-[8px]">
-          <Button variant="ai" size="sm" disabled className="h-[26px] w-[122px] gap-0 pr-1 pl-[11px]">
+          <Button
+            variant="ai"
+            size="sm"
+            disabled
+            className="h-[26px] w-[122px] gap-0 pr-1 pl-[11px]"
+          >
             <span>✦ Generate</span>
             <CostChip route="cloud" credits={3} className="ml-auto" />
           </Button>

@@ -3,24 +3,14 @@
   "description": "Implements one Motionpop spec task at a time: small diff, tests, typecheck/lint green, task box checked, local commit.",
   "prompt": "file://./prompts/builder.md",
   "welcomeMessage": "motionpop-builder ready. Give me a spec and a task number.",
-  "tools": [
-    "read",
-    "write",
-    "shell",
-    "@context7"
-  ],
+  "tools": ["read", "write", "shell", "@context7"],
   "includeMcpJson": true,
-  "resources": [
-    "file://../../CLAUDE.md",
-    "file://../../docs/plan.md"
-  ],
+  "resources": ["file://../../CLAUDE.md", "file://../../docs/plan.md"],
   "permissions": {
     "rules": [
       {
         "capability": "fs_read",
-        "match": [
-          "**"
-        ],
+        "match": ["**"],
         "effect": "allow"
       },
       {
@@ -104,9 +94,7 @@
       },
       {
         "capability": "shell",
-        "match": [
-          "*"
-        ],
+        "match": ["*"],
         "effect": "ask"
       }
     ]

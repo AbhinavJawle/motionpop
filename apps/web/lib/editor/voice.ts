@@ -15,7 +15,9 @@ let worker: Worker | undefined;
 let nextId = 0;
 
 function peaksInWorker(channels: Float32Array[], sampleRate: number): Promise<Float32Array> {
-  worker ??= new Worker(new URL('../../workers/peaks.worker.ts', import.meta.url), { type: 'module' });
+  worker ??= new Worker(new URL('../../workers/peaks.worker.ts', import.meta.url), {
+    type: 'module',
+  });
   const w = worker;
   const id = `p${++nextId}`;
   return new Promise((resolve, reject) => {

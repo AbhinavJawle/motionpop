@@ -25,7 +25,9 @@ export interface StoredProject {
   previous?: unknown;
 }
 
-export function parseStored(raw: unknown): { ok: true; project: EditorProject } | { ok: false; issues: string[] } {
+export function parseStored(
+  raw: unknown,
+): { ok: true; project: EditorProject } | { ok: false; issues: string[] } {
   const r = EditorProjectSchema.safeParse(raw);
   if (r.success) return { ok: true, project: r.data };
   return {
@@ -38,7 +40,12 @@ export function loadFromStored(stored: StoredProject | undefined): LoadResult {
   if (!stored) return { ok: false, error: 'not-found' };
   const r = parseStored(stored.current);
   if (r.ok) return r;
-  return { ok: false, error: 'invalid', issues: r.issues, hasBackup: stored.previous !== undefined };
+  return {
+    ok: false,
+    error: 'invalid',
+    issues: r.issues,
+    hasBackup: stored.previous !== undefined,
+  };
 }
 
 /** In-memory repository for tests and the server render path. */

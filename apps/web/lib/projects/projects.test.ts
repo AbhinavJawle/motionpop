@@ -16,7 +16,10 @@ describe('demo fixture', () => {
   it('matches the design inspector for slot 2 (0:04.2 – 0:07.8, "revenue grew forty percent since 2020")', () => {
     const s = demoProject().slots[1]!;
     expect([s.startMs, s.endMs]).toEqual([4200, 7800]);
-    const said = demoWords.slice(s.wordStart, s.wordEnd + 1).map((w) => w.text).join(' ');
+    const said = demoWords
+      .slice(s.wordStart, s.wordEnd + 1)
+      .map((w) => w.text)
+      .join(' ');
     expect(said).toBe('revenue grew forty percent since 2020.');
   });
 

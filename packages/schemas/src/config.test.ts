@@ -91,7 +91,10 @@ describe('parseRemoteConfig', () => {
     ];
     const arb = fc.dictionary(
       fc.oneof(fc.constantFrom(...knownKeys), fc.string()),
-      fc.oneof(fc.string(), fc.constantFrom('true', 'false', '0', '12', '{}', '[]', 'null', 'gemini', 'claude')),
+      fc.oneof(
+        fc.string(),
+        fc.constantFrom('true', 'false', '0', '12', '{}', '[]', 'null', 'gemini', 'claude'),
+      ),
     );
     fc.assert(
       fc.property(arb, (raw) => {

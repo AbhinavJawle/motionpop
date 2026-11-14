@@ -23,6 +23,11 @@ export async function openProject(
  */
 export function voiceUrl(project: EditorProject): string {
   if (project.voiceover.src !== DEMO_VOICE_SRC) return project.voiceover.src;
-  const samples = synthVoice(project.transcript.words, project.voiceover.durationMs, 1, SYNTH_SAMPLE_RATE);
+  const samples = synthVoice(
+    project.transcript.words,
+    project.voiceover.durationMs,
+    1,
+    SYNTH_SAMPLE_RATE,
+  );
   return URL.createObjectURL(new Blob([encodeWav(samples)], { type: 'audio/wav' }));
 }

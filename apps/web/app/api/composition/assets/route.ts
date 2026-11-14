@@ -27,7 +27,9 @@ export async function GET() {
     );
   } catch {
     return Response.json(
-      { error: 'Composition runtime not built. Run pnpm --filter @motionpop/motion build:runtime.' },
+      {
+        error: 'Composition runtime not built. Run pnpm --filter @motionpop/motion build:runtime.',
+      },
       { status: 503 },
     );
   }

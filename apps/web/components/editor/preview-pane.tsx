@@ -48,7 +48,12 @@ export function PreviewPane() {
         <label className="flex items-center gap-2 pr-3.5 pl-3.5">
           <span className="text-[11px] leading-[14px] font-semibold text-text">CC</span>
           <span className="text-text-2">Captions</span>
-          <Toggle checked={captions} onCheckedChange={toggleCaptions} label="Captions" className="ml-1.5" />
+          <Toggle
+            checked={captions}
+            onCheckedChange={toggleCaptions}
+            label="Captions"
+            className="ml-1.5"
+          />
         </label>
         <ToolbarDivider />
         <button
@@ -60,7 +65,11 @@ export function PreviewPane() {
             safeZone ? 'text-text' : 'text-text-2 hover:text-text',
           )}
         >
-          <Scan className={cn('size-[18px]', safeZone && 'text-violet')} strokeWidth={1.5} aria-hidden />
+          <Scan
+            className={cn('size-[18px]', safeZone && 'text-violet')}
+            strokeWidth={1.5}
+            aria-hidden
+          />
           Safe zone
         </button>
         <ToolbarDivider />
@@ -104,7 +113,10 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
         : 'All changes saved';
   return (
     <span role="status" className="flex items-center gap-2 text-text-2">
-      <StatusDot tone={status === 'error' ? 'error' : status === 'saving' ? 'warn' : 'mint'} className="size-[5px]" />
+      <StatusDot
+        tone={status === 'error' ? 'error' : status === 'saving' ? 'warn' : 'mint'}
+        className="size-[5px]"
+      />
       {text}
     </span>
   );

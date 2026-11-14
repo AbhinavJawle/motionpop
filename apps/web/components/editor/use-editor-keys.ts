@@ -26,7 +26,9 @@ export function useEditorKeys(clock: PlaybackClock): void {
       if (!s.project) return;
       const mod = e.metaKey || e.ctrlKey;
       const focusedSlot =
-        e.target instanceof HTMLElement ? e.target.closest<HTMLElement>('[data-slot-id]')?.dataset.slotId : undefined;
+        e.target instanceof HTMLElement
+          ? e.target.closest<HTMLElement>('[data-slot-id]')?.dataset.slotId
+          : undefined;
 
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();

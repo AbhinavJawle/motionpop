@@ -38,7 +38,9 @@ export function TopBar() {
     <header className="relative flex h-14 shrink-0 items-center border-b border-white/6 bg-raised-grad pr-[28px] pl-5">
       <Link href="/" className="flex items-center gap-[7px]" aria-label="motionpop home">
         <PipAvatar size={24} ring={false} />
-        <span className="text-[19px] leading-[25px] font-semibold tracking-[-0.2px]">motionpop</span>
+        <span className="text-[19px] leading-[25px] font-semibold tracking-[-0.2px]">
+          motionpop
+        </span>
       </Link>
       <span aria-hidden className="mr-4 ml-6 h-5 w-px bg-line-strong" />
       <Link

@@ -30,7 +30,15 @@ type Phase =
  * voice (master clock + waveform peaks) and lays out top bar, rail, preview, inspector and
  * timeline. `?t=<ms>&select=<slotId>` opens at a moment (used by the design check).
  */
-export function EditorScreen({ id, initialMs, initialSlot }: { id: string; initialMs?: number; initialSlot?: string }) {
+export function EditorScreen({
+  id,
+  initialMs,
+  initialSlot,
+}: {
+  id: string;
+  initialMs?: number;
+  initialSlot?: string;
+}) {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [voice, setVoice] = useState<LoadedVoice | null>(null);
   const repo = useMemo<ProjectRepository>(() => new IdbProjectRepository(), []);
@@ -101,9 +109,16 @@ export function EditorScreen({ id, initialMs, initialSlot }: { id: string; initi
     if (rejection) toast(rejection.reason, { description: `${rejection.label} didn’t fit` });
   }, [rejection]);
 
-  if (phase.kind === 'loading') return <CenterState pip="thinking" title="Pip is opening your project…" />;
+  if (phase.kind === 'loading')
+    return <CenterState pip="thinking" title="Pip is opening your project…" />;
   if (phase.kind === 'not-found')
-    return <CenterState pip="empty-pockets" title="Pip can’t find this project" body="It may have been deleted, or it lives on another device." />;
+    return (
+      <CenterState
+        pip="empty-pockets"
+        title="Pip can’t find this project"
+        body="It may have been deleted, or it lives on another device."
+      />
+    );
   if (phase.kind === 'invalid')
     return (
       <CenterState

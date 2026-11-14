@@ -1,6 +1,16 @@
 'use client';
 
-import { Folder, Image, LayoutGrid, Mic, Music, Sparkles, Star, Type, type LucideIcon } from 'lucide-react';
+import {
+  Folder,
+  Image,
+  LayoutGrid,
+  Mic,
+  Music,
+  Sparkles,
+  Star,
+  Type,
+  type LucideIcon,
+} from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/cn';
@@ -56,7 +66,9 @@ export function ToolRail() {
               strokeWidth={1.5}
               aria-hidden
             />
-            <span className="relative mt-[5px] text-[10px] leading-[13px] font-medium">{label}</span>
+            <span className="relative mt-[5px] text-[10px] leading-[13px] font-medium">
+              {label}
+            </span>
           </button>
         );
       })}

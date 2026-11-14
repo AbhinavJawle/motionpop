@@ -40,7 +40,8 @@ export class IdbProjectRepository implements ProjectRepository {
   private async get(id: string): Promise<StoredProject | undefined> {
     const db = await this.open();
     // IndexedDB returns structured-clone data; it is validated by `loadFromStored`.
-    return (await req(db.transaction(STORE).objectStore(STORE).get(id))) as StoredProject | undefined;
+    return (await req(db.transaction(STORE).objectStore(STORE).get(id))) as
+      StoredProject | undefined;
   }
 
   private async put(id: string, stored: StoredProject): Promise<void> {
