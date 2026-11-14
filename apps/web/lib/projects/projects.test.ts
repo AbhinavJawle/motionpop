@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { encodeWav, synthVoice } from '../audio/synth-voice';
 import { demoProject, demoWords } from './fixture';
 import { IdbProjectRepository } from './idb-repository';
+import { PERF_SLOTS, PERF_WORDS, perfProject } from './perf-fixture';
 import { MemoryProjectRepository, type ProjectRepository } from './repository';
 
 describe('demo fixture', () => {
@@ -95,5 +96,15 @@ describe.each(repos)('%s repository', (_, make) => {
       throw new Error(`expected invalid, got ${JSON.stringify(r)}`);
     }
     expect(await repo.restoreBackup('demo')).toEqual({ ok: true, project: good });
+  });
+});
+
+describe('perfProject', () => {
+  it('is a valid 3,000-word, 50-slot project', () => {
+    const p = perfProject();
+    expect(p.transcript.words).toHaveLength(PERF_WORDS);
+    expect(p.slots).toHaveLength(PERF_SLOTS);
+    expect(timelineIssues(p)).toEqual([]);
+    expect(perfProject()).toEqual(p); // deterministic
   });
 });

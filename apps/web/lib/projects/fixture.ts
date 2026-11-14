@@ -12,6 +12,13 @@ import { EditorProjectSchema, type EditorProject, type Word } from '@motionpop/s
 
 export const DEMO_PROJECT_ID = 'demo';
 export const DEMO_VOICE_SRC = 'synth:demo';
+
+/** Sample rate for a synthesized fixture voice (`synth:*`), or null for real audio. */
+export function synthRate(src: string): number | null {
+  if (src === 'synth:demo') return 22_050;
+  if (src === 'synth:perf') return 8_000; // 16 minutes: keep the WAV small
+  return null;
+}
 const DURATION_MS = 18_000;
 
 // [text, startMs, endMs]

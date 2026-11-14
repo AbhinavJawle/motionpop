@@ -5,11 +5,30 @@ import { useLayoutEffect, useMemo, useRef, type PointerEvent as ReactPointerEven
 import { addSlot } from '@/lib/commands';
 import { msToX, xToMs } from '@/lib/timeline/geometry';
 import { slotForWords } from '@/lib/timeline/create';
+import { declutterWords, estimateText, type MeasureText } from '@/lib/timeline/declutter';
 import { editorStore, selectSelectedSlot, selectWords, useEditor } from '@/lib/stores/editor';
 import { useFrame, useTimeline } from './timeline-context';
 
 /** Above this many words only the visible range is rendered (spec 04 NFR). */
 const VIRTUALIZE_ABOVE = 600;
+
+/** Real text widths for the words track (13 px, the body font), cached per text. */
+function createMeasure(): MeasureText {
+  if (typeof document === 'undefined') return estimateText;
+  const ctx = document.createElement('canvas').getContext('2d');
+  if (!ctx) return estimateText;
+  ctx.font = `13px ${getComputedStyle(document.body).fontFamily}`;
+  const cache = new Map<string, number>();
+  return (text) => {
+    let w = cache.get(text);
+    if (w === undefined) {
+      w = ctx.measureText(text).width;
+      cache.set(text, w);
+    }
+    return w;
+  };
+}
+let sharedMeasure: MeasureText | undefined;
 
 /** Index of the word being spoken at `ms` (the last word that started), or -1. */
 export function currentWordIndex(words: ReadonlyArray<Word>, ms: number): number {
@@ -40,10 +59,15 @@ export function WordsTrack() {
   const lastIndex = useRef(-2);
 
   const visible = useMemo(() => {
-    if (words.length <= VIRTUALIZE_ABOVE) return words;
-    const from = view.scrollMs - 2000;
-    const to = view.scrollMs + widthPx / view.pxPerMs + 2000;
-    return words.filter((w) => w.endMs >= from && w.startMs <= to);
+    let inView: ReadonlyArray<Word> = words;
+    if (words.length > VIRTUALIZE_ABOVE) {
+      const from = view.scrollMs - 2000;
+      const to = view.scrollMs + widthPx / view.pxPerMs + 2000;
+      inView = words.filter((w) => w.endMs >= from && w.startMs <= to);
+    }
+    // Zoomed far out, draw a readable sample instead of overlapping text.
+    sharedMeasure ??= createMeasure();
+    return declutterWords(inView, view, sharedMeasure);
   }, [words, view, widthPx]);
 
   const apply = (ms: number) => {

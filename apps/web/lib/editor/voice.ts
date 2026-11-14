@@ -1,8 +1,8 @@
 import type { EditorProject } from '@motionpop/schemas';
-import { encodeWav, synthVoice, SYNTH_SAMPLE_RATE } from '../audio/synth-voice';
+import { encodeWav, synthVoice } from '../audio/synth-voice';
 import { DEFAULT_BUCKET_MS } from '../audio/peaks';
 import { PeaksResponseSchema } from '../audio/peaks-messages';
-import { DEMO_VOICE_SRC } from '../projects/fixture';
+import { synthRate } from '../projects/fixture';
 
 export interface LoadedVoice {
   url: string;
@@ -34,8 +34,8 @@ function peaksInWorker(channels: Float32Array[], sampleRate: number): Promise<Fl
 }
 
 /**
- * Loads the project's voiceover for playback and the waveform (spec 04 R4.4, R5.1): the demo
- * voice is synthesized from its word timings; other projects decode their stored audio.
+ * Loads the project's voiceover for playback and the waveform (spec 04 R4.4, R5.1): fixture
+ * voices are synthesized from their word timings; other projects decode their stored audio.
  */
 export async function loadVoice(project: EditorProject): Promise<LoadedVoice> {
   let url: string;
@@ -43,12 +43,13 @@ export async function loadVoice(project: EditorProject): Promise<LoadedVoice> {
   let sampleRate: number;
   let revoke = () => {};
 
-  if (project.voiceover.src === DEMO_VOICE_SRC) {
-    const samples = synthVoice(project.transcript.words, project.voiceover.durationMs, 1);
-    url = URL.createObjectURL(new Blob([encodeWav(samples)], { type: 'audio/wav' }));
+  const rate = synthRate(project.voiceover.src);
+  if (rate !== null) {
+    const samples = synthVoice(project.transcript.words, project.voiceover.durationMs, 1, rate);
+    url = URL.createObjectURL(new Blob([encodeWav(samples, rate)], { type: 'audio/wav' }));
     revoke = () => URL.revokeObjectURL(url);
     channels = [samples];
-    sampleRate = SYNTH_SAMPLE_RATE;
+    sampleRate = rate;
   } else {
     url = project.voiceover.src;
     const bytes = await (await fetch(url)).arrayBuffer();
