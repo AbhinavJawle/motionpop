@@ -217,7 +217,11 @@ export default function UiGallery() {
           Open export dialog
         </Button>
         <Button onClick={() => toast.device('On-device AI ready')}>Device toast</Button>
-        <Button onClick={() => toast.cloud('Using cloud AI', "On-device AI isn't available in this browser.")}>
+        <Button
+          onClick={() =>
+            toast.cloud('Using cloud AI', "On-device AI isn't available in this browser.")
+          }
+        >
           Cloud toast
         </Button>
         <Button
