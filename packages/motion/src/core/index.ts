@@ -1,4 +1,7 @@
 export * from './ease';
+export * from './rng';
+export * from './stagger';
+export * from './timeline';
 export * from './interp';
 export * from './count';
 export * from './safe-area';
