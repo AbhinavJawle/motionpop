@@ -18,8 +18,9 @@ export class PipelineError extends Error {
   constructor(
     readonly step: PipelineStep | 'intake',
     message: string,
+    options?: { cause?: unknown },
   ) {
-    super(message);
+    super(message, options);
     this.name = 'PipelineError';
   }
 }

@@ -55,9 +55,12 @@ export class IdbAudioStore implements AudioStore {
 
   async put(blob: Blob): Promise<string> {
     const key = newKey();
+    // Read the bytes before opening the transaction: awaiting inside it lets the browser
+    // auto-commit, and the put then throws TransactionInactiveError (fake-indexeddb doesn't).
+    const bytes = await blob.arrayBuffer();
     const db = await openDb(this.factory);
     const tx = db.transaction(STORES.audio, 'readwrite');
-    tx.objectStore(STORES.audio).put({ type: blob.type, bytes: await blob.arrayBuffer() }, key);
+    tx.objectStore(STORES.audio).put({ type: blob.type, bytes }, key);
     await done(tx);
     return IDB_AUDIO_PREFIX + key;
   }

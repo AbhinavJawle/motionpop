@@ -207,7 +207,7 @@ export async function runPipeline(
       await Promise.all(written.map((ref) => deps.audioStore.delete(ref).catch(() => undefined)));
       throw err instanceof PipelineError
         ? err
-        : new PipelineError(step, "Couldn't save the project in this browser.");
+        : new PipelineError(step, "Couldn't save the project in this browser.", { cause: err });
     }
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw err;
