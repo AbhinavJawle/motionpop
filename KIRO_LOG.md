@@ -68,3 +68,22 @@ Template:
   - Kiro wrote `packages/schemas/src/config.ts` (`AppConfigSchema`, `APP_CONFIG_DEFAULTS`, `parseRemoteConfig`, `InferenceModeSchema`) and tests, including a fast-check property: any `Record<string,string>`, even with `__proto__` or `constructor` keys, parses to a valid config. 14 tests green.
   - Friction: macOS `sed -i` failed again, so the box was checked in a second commit. The builder prompt now tells it to use its own file-edit tool instead of `sed -i`.
 <!-- /kiro-session:sess_6ac95ecb-5666-4598-b260-e160c8deae7f -->
+
+<!-- kiro-session:sess_b69854ce-1266-439a-9e35-7f017ac6b8bf -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T16:10:56.341Z · last stop: 2026-11-14T16:12:46.523Z · session: sess_b69854ce-1266-439a-9e35-7f017ac6b8bf
+- commits since start: 
+  - 597632c test(02-design-system-and-pip): task 8 pip states, reduced motion, no raw hex
+- uncommitted changes: 
+  - `M apps/web/app/dev/ui/page.tsx`
+  - ` M apps/web/styles/globals.css`
+  - `?? apps/web/components/ui/dropdown.tsx`
+  - `?? apps/web/components/ui/input.tsx`
+  - `?? apps/web/components/ui/slider.tsx`
+  - `?? apps/web/components/ui/tabs.tsx`
+- Summary (added in Claude Code after reviewing the run output and commit 597632c):
+  - Task: spec 02 task 8, tests for Pip states and props, the reduced-motion static pose, and no raw hex in `components/ui`.
+  - Kiro wrote `components/pip/pip.test.tsx` (every state × every prop, aria labels, decorative = aria-hidden, reduced motion = no confetti, plus a control test that confetti does render with motion) and `components/ui/tokens.test.ts` (strips comments, then rejects hex literals). It added happy-dom and Testing Library. 37 tests green.
+  - Real finding: happy-dom's Web Animations stub throws on cancel (523 unhandled rejections). Kiro removed `Element.prototype.animate` in the test, so motion uses its JS driver, and commented why.
+  - Good behaviour: it committed only its own files and left Claude Code's in-progress UI files untouched, as instructed.
+<!-- /kiro-session:sess_b69854ce-1266-439a-9e35-7f017ac6b8bf -->
