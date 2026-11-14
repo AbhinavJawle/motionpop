@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { demoProject } from '../projects/fixture';
-import { formatClock, formatTimecode, slotCardText, spokenText, thumbnailValue } from './slot-display';
+import {
+  formatClock,
+  formatTimecode,
+  slotCardText,
+  spokenText,
+  thumbnailValue,
+} from './slot-display';
 
 describe('slot display', () => {
   const p = demoProject();
@@ -9,7 +15,10 @@ describe('slot display', () => {
   it('labels each demo slot like the design', () => {
     expect(slotCardText(s1!)).toEqual({ title: 'Opening title', subtitle: 'Suggested' });
     expect(slotCardText(s2!)).toEqual({ title: 'Big number', subtitle: 'Revenue grew 40%' });
-    expect(slotCardText(s3!)).toEqual({ title: 'Finding the bigger picture…', subtitle: 'Generating map' });
+    expect(slotCardText(s3!)).toEqual({
+      title: 'Finding the bigger picture…',
+      subtitle: 'Generating map',
+    });
     expect(thumbnailValue(s4!)).toBe('40%');
   });
 

@@ -298,3 +298,18 @@ Template:
   - Kiro reported that the full web suite had one failing test, in Claude Code's uncommitted `lib/stores` work: autosave treated reloading the same project as an edit. It left the file alone as told. Claude Code had already fixed it with a `loadCount` counter, and the suite then passed with 108 tests.
   - Deviations it reported: the result is typed `Float32Array<ArrayBuffer>` (needed for the transfer list); out-of-range columns return `[0, 0]`.
 <!-- /kiro-session:sess_bfa31186-1bbc-4cd6-95f2-d6824a274635 -->
+
+<!-- kiro-session:sess_51344b40-71b9-49ff-8ea5-2d401fe2e7b4 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T20:23:04.972Z · last stop: 2026-11-14T20:24:19.082Z · session: sess_51344b40-71b9-49ff-8ea5-2d401fe2e7b4
+- commits since start: 
+  - 0bf033f test(04-editor-shell-and-timeline): task 11 playback and preview bridge tests
+- uncommitted changes: 
+  - `M apps/web/lib/editor/slot-display.test.ts`
+  - `?? apps/web/lib/timeline/create.test.ts`
+  - `?? apps/web/lib/timeline/create.ts`
+- Summary (added in Claude Code after reviewing `run17.log` and commit 0bf033f): **run 17**, spec 04 task 11 (added after tasks 6–8).
+  - `playback.test.ts` (20 tests, with a hand-advanced fake frame env and a fake audio element) and `preview-bridge.test.ts` (9 tests, fresh module state per test). fast-check properties: seeks land as integers in [0, duration]; preview seeks are whole frames and never repeat.
+  - **Found a real bug:** calling `play(rate)` with a new rate while already playing (pressing L twice) started a second animation-frame loop, so every frame was emitted twice. As instructed, Kiro left the source alone and pinned the bug with `it.fails`. Claude Code fixed `PlaybackClock.play` (a rate change while playing now only adjusts the speed) and turned the test into a regression test.
+  - Kiro also ran Prettier on `slot-display.test.ts` without staging it. Claude Code committed that formatting change with the fix.
+<!-- /kiro-session:sess_51344b40-71b9-49ff-8ea5-2d401fe2e7b4 -->

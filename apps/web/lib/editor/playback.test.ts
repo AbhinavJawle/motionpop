@@ -275,9 +275,9 @@ describe('PlaybackClock subscribers', () => {
 });
 
 describe('PlaybackClock rate change while playing', () => {
-  // BUG (playback.ts, play): changing the rate while playing calls loop() again without
-  // cancelling the pending frame, so two rAF chains run and every frame is emitted twice.
-  it.fails('keeps a single frame loop running', async () => {
+  // Regression (found by Kiro run 17): changing the rate while playing used to start a second
+  // frame loop, so every frame was emitted twice. Fixed in playback.ts `play`.
+  it('keeps a single frame loop running', async () => {
     await clock.play(1);
     await clock.play(2);
     expect(sim.pendingCount()).toBe(1);

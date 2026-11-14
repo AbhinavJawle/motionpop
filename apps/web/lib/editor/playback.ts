@@ -76,7 +76,14 @@ export class PlaybackClock {
   }
 
   async play(rate = 1): Promise<void> {
-    if (this.playing && rate === this.rate) return;
+    if (this.playing) {
+      // Already running (e.g. L pressed again): change speed on the same frame loop.
+      if (rate === this.rate) return;
+      this.rate = rate;
+      if (this.audio) this.audio.playbackRate = rate;
+      if (this.fallbackFrom) this.fallbackFrom = { wall: this.env.now(), ms: this.ms };
+      return;
+    }
     if (this.ms >= this.durationMs) this.seek(0, { transient: true });
     this.rate = rate;
     this.playing = true;
