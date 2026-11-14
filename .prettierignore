@@ -5,6 +5,10 @@ pnpm-lock.yaml
 dist
 coverage
 out
+tmp
 # Hand-written prose and specs: don't reflow
 *.md
-docs/drafts
+# Reference material and vendored skills
+design
+.claude/skills
+.kiro/skills
