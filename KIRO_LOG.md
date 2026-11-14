@@ -282,3 +282,19 @@ Template:
   - Kiro listed the choices the spec had left open: commands don't touch `updatedAt` (the store sets it); a duplicate needs transcript words in the gap and clears versions and notes; deleting a slot keeps its versions. Claude Code reviewed `command.ts`, `history.ts` and `slots.ts` and accepted these choices.
   - It left Claude Code's uncommitted task 5 files alone.
 <!-- /kiro-session:sess_ff52e369-9e5b-499f-a6aa-f23cf1adc03d -->
+
+<!-- kiro-session:sess_bfa31186-1bbc-4cd6-95f2-d6824a274635 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T20:02:28.316Z · last stop: 2026-11-14T20:03:36.480Z · session: sess_bfa31186-1bbc-4cd6-95f2-d6824a274635
+- commits since start: 
+  - bb22a95 feat(04-editor-shell-and-timeline): task 4 peaks core and worker
+- uncommitted changes: 
+  - `M .kiro/specs/04-editor-shell-and-timeline/design.md`
+  - `?? apps/web/lib/audio/synth-voice.ts`
+  - `?? apps/web/lib/projects/`
+  - `?? apps/web/lib/stores/`
+- Summary (added in Claude Code after reviewing `run16.log` and commit bb22a95): **run 16**, spec 04 task 4.
+  - `lib/audio/peaks.ts` adds `computePeaks` (min/max per 10 ms bucket), `mixToMono` and `peaksForRange` (aggregates buckets for any zoom). `peaks-messages.ts` holds the zod request and reply schemas; `workers/peaks.worker.ts` validates requests and transfers the result. 14 tests, including fast-check properties.
+  - Kiro reported that the full web suite had one failing test, in Claude Code's uncommitted `lib/stores` work: autosave treated reloading the same project as an edit. It left the file alone as told. Claude Code had already fixed it with a `loadCount` counter, and the suite then passed with 108 tests.
+  - Deviations it reported: the result is typed `Float32Array<ArrayBuffer>` (needed for the transfer list); out-of-range columns return `[0, 0]`.
+<!-- /kiro-session:sess_bfa31186-1bbc-4cd6-95f2-d6824a274635 -->
