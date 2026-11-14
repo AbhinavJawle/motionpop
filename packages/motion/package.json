@@ -24,6 +24,7 @@
     "@types/node": "catalog:",
     "esbuild": "^0.28.2",
     "fast-check": "catalog:",
+    "happy-dom": "^21.0.4",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

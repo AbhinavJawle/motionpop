@@ -31,7 +31,7 @@ export const inOutCubic: Ease = (x) => {
   return t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2;
 };
 
-export const inOutSine: Ease = (x) => -(Math.cos(Math.PI * clamp01(x)) - 1) / 2;
+export const inOutSine: Ease = (x) => (1 - Math.cos(Math.PI * clamp01(x))) / 2;
 
 export const eases = { linear, outCubic, outQuart, outExpo, inOutCubic, inOutSine } as const;
 export type EaseName = keyof typeof eases;
