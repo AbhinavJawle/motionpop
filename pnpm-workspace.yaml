@@ -6,11 +6,13 @@ packages:
 # Dependencies allowed to run install scripts (pnpm 11 rejects unreviewed builds).
 allowBuilds:
   esbuild: true
-  # puppeteer downloads the headless Chrome that @hyperframes/producer renders with.
-  puppeteer: true
   # Browser-only Whisper: the Node ONNX runtime binary and protobufjs postinstall are not needed.
   onnxruntime-node: false
   protobufjs: false
+  # Writes App Hosting auto-init defaults; we pass the config explicitly from env.
+  '@firebase/util': false
+  # puppeteer downloads the headless Chrome that @hyperframes/producer renders with.
+  puppeteer: true
   sharp: true
   unrs-resolver: true
 

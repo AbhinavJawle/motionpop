@@ -34,6 +34,8 @@ initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(siteKey), is
 ```
 Client init runs only in the browser (guard `typeof window`).
 
+**As built (task 3, 2026-11-14):** `lib/firebase/config.ts` parses the `NEXT_PUBLIC_*` env with zod (missing config → local-only mode, no crash; the debug token is ignored outside development). `lib/firebase/client.ts` exposes memoised async getters (`getFirebaseApp`, `getAppCheckClient`, `getAuthClient`, `getDb`, `getStorageClient`, `getRemoteConfigClient`, `getAILogic`) that import each service on demand, connect to the emulators when `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true`, and use `AgentPlatformBackend('global')` with limited-use App Check tokens (D-025). `lib/firebase/remote-config.ts` returns `{ config, source }` and falls back to the typed defaults. `/dev/firebase` is a dev-only smoke test (App Check token, Remote Config, Auth, Firestore reachability, one AI call). Project setup done from the CLI: Firestore `(default)` and the Storage bucket in us-central1, email/password auth, `localhost` authorised, reCAPTCHA Enterprise key registered with App Check, App Check enforced on AI Logic, Firestore and Storage. Google sign-in needs a support email, so it is enabled in the console.
+
 ## User bootstrap (server)
 `POST /api/users/bootstrap` with `Authorization: Bearer <idToken>` and `X-Firebase-AppCheck`:
 1. Verify both tokens.
@@ -59,7 +61,7 @@ Storage: `users/{uid}/**` owner-only; audio ≤ 50 MB `audio/.*`; images ≤ 10 
 ```ts
 { routing: { "slots.detect.deviceMaxWords": 400 }, flags: { tier2: false, autoFill: true },
   judgeCredits: 500, freeCredits: 20, dailyBudgetCredits: 20000, customProvider: "gemini",
-  models: { fast: "gemini-3.5-flash-lite", strong: "<set in console>", tts: "gemini-3.1-flash-tts-preview" } }
+  models: { fast: "gemini-3.5-flash-lite", strong: "gemini-3.8-flash", tts: "gemini-3.8-flash-tts" } }
 ```
 Remote Config keys are flat; values arrive as strings (numbers and booleans as text, objects as JSON):
 
@@ -74,7 +76,7 @@ Remote Config keys are flat; values arrive as strings (numbers and booleans as t
 | `daily_budget_credits` | int ≥ 0 | 20000 |
 | `kill_switch` | boolean | false |
 | `custom_provider` | `"gemini" \| "claude"` | `"gemini"` |
-| `model_fast` / `model_strong` / `model_tts` | non-empty string | `gemini-3.5-flash-lite` / `gemini-3.5-flash-lite` (until set in console) / `gemini-3.1-flash-tts-preview` |
+| `model_fast` / `model_strong` / `model_tts` | non-empty string | `gemini-3.5-flash-lite` / `gemini-3.8-flash` / `gemini-3.8-flash-tts` (D-026) |
 
 `InferenceMode` values: `PREFER_ON_DEVICE`, `ONLY_ON_DEVICE`, `PREFER_IN_CLOUD`, `ONLY_IN_CLOUD`.
 

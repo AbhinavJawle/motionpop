@@ -39,9 +39,9 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   killSwitch: false,
   customProvider: 'gemini',
   modelFast: 'gemini-3.5-flash-lite',
-  // Until a stronger model is set in the console.
-  modelStrong: 'gemini-3.5-flash-lite',
-  modelTts: 'gemini-3.1-flash-tts-preview',
+  // Plans and long slot detection (D-026). Raise to gemini-4-carbon in Remote Config if needed.
+  modelStrong: 'gemini-3.8-flash',
+  modelTts: 'gemini-3.8-flash-tts',
 };
 
 type Decoder = (raw: string) => unknown;

@@ -143,7 +143,7 @@ docs/                    plan, decisions, third-party, demo scripts, checklist, 
 | Firebase | `firebase` 13.3 (AI Logic hybrid, Auth, Firestore, Storage, Remote Config, App Check reCAPTCHA Enterprise), `firebase-admin` (server) |
 | Video | **HyperFrames 0.9.45:** `@hyperframes/player` (preview), `@hyperframes/producer` (render), `@hyperframes/lint` (checks for tier-2). Own motion core via `hf-seek`. d3-geo + Natural Earth for maps |
 | Audio | transformers.js Whisper (Web Worker, WebGPU→WASM), Web Audio / OfflineAudioContext (cleanup, SFX synth, peaks) |
-| AI models | Nano on-device; cloud default `gemini-3.5-flash-lite` (fast tasks) and a stronger Gemini for plans/slots (Remote Config); TTS `gemini-3.1-flash-tts-preview`; Claude (Opus 5.5 / Sonnet 5.5) for tier-2 behind a flag |
+| AI models | Nano on-device; cloud default `gemini-3.5-flash-lite` (fast tasks) and `gemini-3.8-flash` for plans/slots (Remote Config); TTS `gemini-3.8-flash-tts` (D-026); Claude (Opus 5.5 / Sonnet 5.5) for tier-2 behind a flag |
 | Tests | Vitest, fast-check (property-based), Playwright, `pnpm motion:check` (stills + layout/contrast checks) |
 | Hosting | Firebase App Hosting (web), Cloud Run (render), Secret Manager; region **us-central1** |
 

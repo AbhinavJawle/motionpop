@@ -139,3 +139,23 @@ Template:
   - Task 5: AudioStore on a shared IndexedDB v2. Task 6: pipeline orchestrator. Task 7: Kiro run 21, 37 orchestrator tests, no bugs. Task 8: Processing screen (drop zone, Pip, four step cards, word strip, live region, editor hand-off).
   - "Try a sample" now goes from drop to editor in about 1.2 s. The cleaned voiceover is 14.3 s (from 18.0 s, four long pauses removed), and the project survives a reload.
   - **Bug the browser found and fake-indexeddb didn't:** `IdbAudioStore.put` awaited inside its transaction, so the put threw `TransactionInactiveError`. The friendly "Couldn't save" message hid the cause, so `PipelineError` now keeps it as `cause` and the screen logs it.
+- **Spec 01 task 3: Firebase project and client (Claude Code):**
+  - The founder logged the CLI in and confirmed the existing Blaze project, with spend kept as close to zero as possible.
+  - **Set up from the CLI, gcloud and REST:**
+    - registered the web app and wrote its config to `.env.local` (not committed);
+    - enabled the APIs;
+    - created Firestore `(default)` and the default Storage bucket in us-central1;
+    - provisioned AI Logic;
+    - enabled email/password auth and authorised `localhost`;
+    - created a reCAPTCHA Enterprise key, registered it with App Check and added a debug token for local use.
+  - **Left for the console:** Google sign-in needs a support email, which is the founder's, so I didn't send it from here. The existing $5 budget caps were already in place.
+  - **Client code:** `lib/firebase/` has a zod-parsed env, lazy getters that import each service on demand, a Remote Config loader with typed fallbacks, and `/dev/firebase`, a dev-only smoke test. `.env.example` lists names only.
+  - **Live result:** all six checks pass in headless Chromium: App Check token, Remote Config, Auth, Firestore, and AI Logic answering "ready" in about 1.3 s. App Check is now enforced on AI Logic, Firestore and Storage. A call without a token gets 401.
+  - **Friction:**
+    - **Gemini Developer API returned 429.** It said "prepayment credits are depleted": linking billing moves that API to a prepaid tier with a $5 minimum. I switched AI Logic to the Agent Platform backend, which bills per call on Blaze with no prepay (D-025).
+    - **The backend class was renamed.** It is `AgentPlatformBackend` in this SDK, not `VertexAIBackend`. The checks page caught it at runtime.
+    - **Models are global-only.** Current Gemini models only answer on the `global` endpoint.
+    - **The TTS preview model is being shut down.** The models page lists `gemini-3.1-flash-tts-preview` as shutting down on Nov 17, so the defaults moved to `gemini-3.8-flash-tts` and `gemini-3.8-flash` (D-026).
+    - **My own probe bug.** For a while I thought every model returned 404. zsh read `$M:generateContent` as a history modifier, so my curl loops hit mangled URLs.
+    - **The CLI refused prompts.** `firebase init ailogic` won't prompt inside an agent shell, so I called the provisioning API it uses directly.
+  - **Slip:** one Auth config read printed the project's password-hash parameters into this session's output. They are not in the repo or any file. Later reads filter the fields.

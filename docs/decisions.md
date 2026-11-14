@@ -34,11 +34,11 @@ HyperFrames (`@hyperframes/player` for preview, `@hyperframes/producer` for rend
 - Player: seeks exact; during playback `hf-seek` fires every frame and our time tracks `currentTime` within ~2 ms.
 - **Gotcha:** the player only auto-injects the runtime for compositions with GSAP timelines or nested scenes. A pure `hf-seek` composition must include the runtime itself: the compiler embeds `@hyperframes/core/dist/hyperframe.runtime.iife.js` from the pinned package (never the CDN). The producer works the same with it embedded.
 
-## D-010 · open — Tier-2 provider for Firebase entry
-Ask in #hackathon-help. If not allowed: Gemini for tier-2 in the Firebase build (provider flag), Claude allowed in Kiroween build.
+## D-010 · 2026-11-14 · decided — Tier-2 provider
+The founder confirmed Claude is allowed in both builds and is the frontier model for tier-2 custom graphics (server route, key in Secret Manager). Gemini stays available behind the `custom_provider` flag.
 
 ## D-011 · 2026-11-14 · decided — TTS: Gemini TTS via Firebase AI Logic
-`gemini-3.1-flash-tts-preview` through AI Logic, so all runtime AI stays on Firebase. No ElevenLabs.
+Gemini TTS through AI Logic, so all runtime AI stays on Firebase. No ElevenLabs. Model: `gemini-3.8-flash-tts` (the preview model this first named is being shut down, see D-026).
 
 ## D-012 · open — Cloud transcription fallback
 Gemini audio understanding with timestamps vs dedicated speech API. Measure word-timing accuracy on fixtures.
@@ -78,3 +78,9 @@ Two Kiro review runs of spec 03 (`.kiro/specs/03-motion-engine/review-run5.md`, 
 
 ## D-024 · 2026-11-14 · decided — Audio pipeline order and cleaned audio format
 Processing transcribes before it cleans, because filler removal needs the words. `screens.md` lists "Cleaning audio" first; the Processing screen shows Transcribing → Cleaning audio → Finding moments → Suggesting graphics instead. Whisper runs once on the original audio, and words are re-timed through the edit decision list, so cleaning never needs a second transcription and can be turned off later. Cleaned audio is mono 24 kHz 16-bit WAV (speech is lossless at 24 kHz, and 3 minutes is about 8.6 MB), rendered with OfflineAudioContext and 10 ms equal-power crossfades whose centres sit exactly on the mapped times. The original file is always kept. Until the founder records a sample, "Try a sample" uses the synthesized demo voice with the fixture transcript, labelled "Sample transcript" (no claim of speech recognition).
+
+## D-025 · 2026-11-14 · decided — AI Logic backend: Agent Platform, global endpoint
+Linking billing (Blaze) moves the Gemini Developer API to its paid tier, which needs prepaid credits (minimum $5); the first live call returned 429 "prepayment credits are depleted". AI Logic's Agent Platform (Vertex) backend bills per call on the Blaze account with no prepay, which keeps spend at a few cents for our volume. Current Gemini models are only served from the `global` location (us-central1 returns 404, checked 2026-11-14), so AI calls use `global` while everything else stays in us-central1. `NEXT_PUBLIC_AI_BACKEND=google` switches back to the Gemini Developer API. App Check is enforced on AI Logic (`firebaseml.googleapis.com`), Firestore and Storage, with limited-use tokens for AI calls; local development uses a registered debug token from `.env.local`.
+
+## D-026 · 2026-11-14 · decided — Model defaults
+The AI Logic models page (checked 2026-11-14) lists `gemini-3.1-flash-tts-preview` as shutting down on Nov 17, 2026, so TTS uses `gemini-3.8-flash-tts`. Defaults: fast `gemini-3.5-flash-lite`, strong `gemini-3.8-flash` (plans, long slot detection), TTS `gemini-3.8-flash-tts`. `gemini-4-carbon` is available for heavier reasoning through Remote Config. All four answered live on the global endpoint.

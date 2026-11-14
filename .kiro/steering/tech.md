@@ -19,12 +19,13 @@ Node 24, pnpm 11 workspaces, Turborepo 2, TypeScript 6 strict (`noUncheckedIndex
 ## Firebase (required for #BuildHybridAI)
 - `firebase` JS SDK: **AI Logic** with hybrid inference, Auth (Google + email/password), Firestore, Cloud Storage, Remote Config, App Check (reCAPTCHA Enterprise).
 - `firebase-admin` on the server (credits, renders, shares).
-- Hosting: Firebase App Hosting (Next.js). Region **us-central1** for everything.
+- Hosting: Firebase App Hosting (Next.js). Region **us-central1** for everything except Gemini calls, which use the `global` endpoint (D-025).
 
 AI Logic shape (verified against docs 2026-11-14; re-check before coding):
 ```ts
-import { getAI, getGenerativeModel, GoogleAIBackend, InferenceMode } from "firebase/ai";
-const ai = getAI(app, { backend: new GoogleAIBackend() });
+import { getAI, getGenerativeModel, AgentPlatformBackend, InferenceMode } from "firebase/ai";
+// D-025: Agent Platform (Vertex) backend, global endpoint (per-call billing on Blaze, no prepay).
+const ai = getAI(app, { backend: new AgentPlatformBackend("global"), useLimitedUseAppCheckTokens: true });
 const model = getGenerativeModel(ai, { mode: InferenceMode.PREFER_ON_DEVICE });
 // modes: PREFER_ON_DEVICE | ONLY_ON_DEVICE | PREFER_IN_CLOUD | ONLY_IN_CLOUD
 // initializeDeviceModel() only after a user gesture (first download takes minutes)
@@ -38,7 +39,7 @@ const model = getGenerativeModel(ai, { mode: InferenceMode.PREFER_ON_DEVICE });
 
 ## AI
 - All runtime AI goes through `packages/ai` (router, tasks, prompts, zod, cost). See `hybrid-ai.md` and `ai-tasks.md`.
-- On-device: Gemini Nano via AI Logic. Cloud: `gemini-3.5-flash-lite` for fast tasks, a stronger Gemini for plans and slot detection (Remote Config). TTS: `gemini-3.1-flash-tts-preview` via AI Logic.
+- On-device: Gemini Nano via AI Logic. Cloud: `gemini-3.5-flash-lite` for fast tasks, `gemini-3.8-flash` for plans and slot detection (Remote Config). TTS: `gemini-3.8-flash-tts` via AI Logic. Models are served from the `global` endpoint only (D-025, D-026).
 - Tier-2 custom graphics: provider flag `AI_CUSTOM_PROVIDER = gemini | claude`. Claude only if the Firebase organisers allow it; always allowed in the Kiroween build. Claude calls go through a server route with the key in Secret Manager.
 
 ## Audio

@@ -78,7 +78,7 @@ General prompt rules (all tasks):
 - **Checks before saving:** static lint (no `Date.now`, `Math.random`, timers, `fetch`, CSS animations, external URLs, GSAP) + `@hyperframes/lint` → sandbox mount → stills at 0 %, key moment, 90 % → layout checks (overflow, safe area, contrast) → save version. Fail → 1 retry with errors fed back → else suggest nearest library component.
 
 ## 8. `tts.generate`
-- **Mode:** ONLY_IN_CLOUD. Provider: Gemini TTS (`gemini-3.1-flash-tts-preview`) through Firebase AI Logic. Cost: 2 credits per started minute.
+- **Mode:** ONLY_IN_CLOUD. Provider: Gemini TTS (`gemini-3.8-flash-tts`, D-026) through Firebase AI Logic. Cost: 2 credits per started minute.
 - **Input:** `{ text, voiceId, speed }` → **Output:** audio file in Storage + duration.
 
 ## 9. `transcribe.cloud` (fallback)
