@@ -134,3 +134,8 @@ Template:
 
   The Next dev badge is now off, because it covered the AUDIO label in screenshots. All spec 04 tasks are checked.
 - **Spec 05 (audio pipeline):** wrote requirements, design and tasks in Claude Code. Decision D-024: transcribe before cleaning, cleaned audio as 24 kHz mono WAV, and an honestly labelled synthetic sample until a real recording exists.
+- **Spec 05 tasks 3–4 (Claude Code):** the voiceover cleanup fields and original transcript are in the schema. Added the WAV, decode and cleaned-audio renderer modules. The `keptSegments` property test found a real bug: overlapping or nested cuts made the removed total go negative. Fixed, with a regression test. (A first commit went in while that test was still red, because the check chain only grepped the output. It was amended before anything else built on it.)
+- **Spec 05 tasks 5–8:**
+  - Task 5: AudioStore on a shared IndexedDB v2. Task 6: pipeline orchestrator. Task 7: Kiro run 21, 37 orchestrator tests, no bugs. Task 8: Processing screen (drop zone, Pip, four step cards, word strip, live region, editor hand-off).
+  - "Try a sample" now goes from drop to editor in about 1.2 s. The cleaned voiceover is 14.3 s (from 18.0 s, four long pauses removed), and the project survives a reload.
+  - **Bug the browser found and fake-indexeddb didn't:** `IdbAudioStore.put` awaited inside its transaction, so the put threw `TransactionInactiveError`. The friendly "Couldn't save" message hid the cause, so `PipelineError` now keeps it as `cause` and the screen logs it.

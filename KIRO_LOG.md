@@ -372,3 +372,18 @@ Template:
     - Only words fully inside a cut are dropped.
   - Kiro also reported its own test-fixture mistakes: fixtures over the 40 % rule, and one impossible overlapping filler.
 <!-- /kiro-session:sess_a6911413-6509-4619-add8-6ff3b0cffd05 -->
+
+<!-- kiro-session:sess_05dac606-521d-4e04-9915-ff12ff3315fb -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T20:56:02.513Z · last stop: 2026-11-14T20:57:54.870Z · session: sess_05dac606-521d-4e04-9915-ff12ff3315fb
+- commits since start: 
+  - fdc8f00 test(05-audio-pipeline): task 7 pipeline orchestrator tests
+- uncommitted changes: 
+  - `M DEV_LOG.md`
+  - `?? apps/web/components/processing/`
+  - `?? apps/web/lib/pipeline/processing-state.ts`
+- Summary (added in Claude Code after reviewing `run21.log` and commit fdc8f00): **run 21**, spec 05 task 7.
+  - `lib/pipeline/run.test.ts` has 37 tests with fake deps covering: event order, the saved project shape, no cuts, more than 40 % cut, every intake error, no words, abort at four points (both stores empty), and rollback of a failed save (including a failing second write and a failing delete). Also the sample path and summary pluralisation.
+  - No bugs found. Kiro noted that an undecodable file shows the transcribe step active before the intake error, and that store failures land on the `suggest` card. Both are intended.
+  - Web suite: 238 tests.
+<!-- /kiro-session:sess_05dac606-521d-4e04-9915-ff12ff3315fb -->

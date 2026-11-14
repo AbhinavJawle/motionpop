@@ -146,3 +146,11 @@ The best sample is a ~20 s recording of the founder reading the demo script, bun
   - Processing page with the sample: the steps reach done or skipped, the editor opens, and the project survives a reload.
   - A real Whisper run is gated by `E2E_WHISPER=1`, because the cold model download takes about 80 s.
 - **Design check:** the Processing screen at 1440×900, compared by eye with `editor-generating.png` (no PNG of its own).
+
+## As built (tasks 6–8)
+- The URL stays `/processing/new` while processing, because the project id only exists at the final store step. A reload mid-run returns to the drop zone, and nothing was written. `/processing/<id>` for a saved project redirects to the editor; any other id says "This upload was interrupted".
+- The mini timeline is a **word strip**: one violet pill per word, placed by time. When cleaning re-times the words, the pills glide left as the pauses close. Keys come from `matchKeys`, which maps each kept word to its original index. A waveform can replace it once peaks are cheap to compute mid-pipeline.
+- Intake errors found while decoding (undecodable, too long, silent) return to the drop zone with the reason. Errors in later steps stay on the steps, with "Try again" and "Choose another file".
+- Store-step failures keep their underlying cause (`PipelineError.cause`) and log it to the console.
+- **Bug found in the browser, not by tests:** `IdbAudioStore.put` awaited `blob.arrayBuffer()` after opening its transaction. Real IndexedDB auto-commits the transaction across that await, so the put threw `TransactionInactiveError`. fake-indexeddb doesn't enforce this, so the unit tests passed. The bytes are now read first, and the Playwright sample test (task 9) covers it.
+
