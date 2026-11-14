@@ -13,9 +13,29 @@
   "permissions": {
     "rules": [
       { "capability": "fs_read", "match": ["**"], "effect": "allow" },
-      { "capability": "fs_write", "match": ["packages/motion/src/components/*/QA.md"], "effect": "allow" },
-      { "capability": "fs_write", "match": ["**"], "exclude": ["packages/motion/src/components/*/QA.md"], "effect": "deny" },
-      { "capability": "shell", "match": ["pnpm motion:check*", "pnpm --filter @motionpop/motion test*", "ls*", "cat*", "git diff*", "git log*"], "effect": "allow" },
+      {
+        "capability": "fs_write",
+        "match": ["packages/motion/src/components/*/QA.md"],
+        "effect": "allow"
+      },
+      {
+        "capability": "fs_write",
+        "match": ["**"],
+        "exclude": ["packages/motion/src/components/*/QA.md"],
+        "effect": "deny"
+      },
+      {
+        "capability": "shell",
+        "match": [
+          "pnpm motion:check*",
+          "pnpm --filter @motionpop/motion test*",
+          "ls*",
+          "cat*",
+          "git diff*",
+          "git log*"
+        ],
+        "effect": "allow"
+      },
       { "capability": "shell", "match": ["*"], "effect": "deny" }
     ]
   },
@@ -23,7 +43,10 @@
     {
       "name": "log-run",
       "trigger": "Stop",
-      "action": { "type": "command", "command": "bash .kiro/hooks/scripts/node.sh log-run.mjs motion-qa" }
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/hooks/scripts/node.sh log-run.mjs motion-qa"
+      }
     }
   ]
 }

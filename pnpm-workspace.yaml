@@ -1,9 +1,9 @@
 packages:
   - apps/*
   - packages/*
+  - services/*
 
 # Shared versions. Reference with "catalog:" in package.json.
-# All remotion / @remotion/* entries must stay on the same exact version.
 catalog:
   typescript: 6.0.3
   zod: ^4.6.7
@@ -14,6 +14,10 @@ catalog:
   '@types/node': ^24.0.0
   vitest: ^5.1.0
   fast-check: ^4.10.2
+  # HyperFrames is pre-1.0: keep every @hyperframes/* package on the same exact version.
+  '@hyperframes/core': 0.9.46
+  '@hyperframes/player': 0.9.46
+  '@hyperframes/producer': 0.9.46
 
 # Dependencies allowed to run install scripts (pnpm 11 rejects unreviewed builds).
 allowBuilds:

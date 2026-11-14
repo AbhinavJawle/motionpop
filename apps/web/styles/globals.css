@@ -1,0 +1,129 @@
+@import 'tailwindcss';
+
+/*
+ * Motionpop design tokens.
+ * Source of truth: design/figma-export.css + design/screens/*.png (see .kiro/steering/design-system.md).
+ * Values are copied from the Figma export; do not invent new colours in components.
+ */
+
+@theme {
+  /* Surfaces */
+  --color-bg: #08080c;
+  --color-bg-raised: #111118;
+  --color-panel: #0f0f15;
+  --color-card: #15151d;
+  --color-card-2: #191820;
+  --color-card-3: #232130;
+  --color-glass: rgb(21 21 29 / 0.7);
+
+  /* Lines */
+  --color-line: rgb(255 255 255 / 0.08);
+  --color-line-soft: rgb(255 255 255 / 0.05);
+  --color-line-strong: rgb(255 255 255 / 0.12);
+
+  /* Text */
+  --color-text: #f4f3f8;
+  --color-text-2: #a09eae;
+  --color-text-3: #817a8f;
+  --color-text-4: #56505f;
+
+  /* Accents: ember = now/primary/credits · violet = AI/selection/cloud · mint = on-device/success */
+  --color-ember: #ff7a3d;
+  --color-ember-soft: rgb(255 154 100 / 0.9);
+  --color-ember-pink: #ff4d6d;
+  --color-violet: #8b7cff;
+  --color-violet-deep: #554496;
+  --color-mint: #3ddc97;
+  --color-warn: #ffc24b;
+  --color-error: #ff5a5f;
+  --color-pip-face: #302d3d;
+
+  /* Type */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Radii */
+  --radius-chip: 10px;
+  --radius-card: 12px;
+  --radius-modal: 20px;
+
+  /* Shadows */
+  --shadow-glass: 0 8px 24px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --shadow-quiet: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  --shadow-ember:
+    0 4px 20px rgb(255 122 61 / 0.18), 0 8px 24px rgb(0 0 0 / 0.35),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --shadow-violet: 0 4px 16px rgb(139 124 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --shadow-violet-glow:
+    0 8px 24px rgb(0 0 0 / 0.35), 0 0 18px rgb(139 124 255 / 0.12),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+
+  /* Easing */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Gradients from the Figma export, as utilities. */
+@utility bg-ember-grad {
+  background: linear-gradient(90deg, #ff7a3d 0%, #ff4d6d 100%);
+}
+@utility bg-ember-fill {
+  background: linear-gradient(180deg, #ffa064 0%, #ff683c 100%);
+}
+@utility bg-violet-fill {
+  background: linear-gradient(180deg, #8070da 0%, #554496 100%);
+}
+@utility bg-frame {
+  background: linear-gradient(110.56deg, #252334 0%, #121219 90.91%);
+}
+@utility bg-raised-grad {
+  background: linear-gradient(180deg, #101018 0%, #08080c 100%);
+}
+@utility bg-ember-bloom {
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    rgb(255 122 61 / 0.19) 0%,
+    rgb(255 122 61 / 0.07) 55%,
+    rgb(255 122 61 / 0) 100%
+  );
+}
+@utility bg-pip {
+  background: linear-gradient(
+    98.93deg,
+    #ddd9ef 6.56%,
+    #f5f2fa 31.06%,
+    #fffefa 57.31%,
+    #fffdf7 83.56%,
+    #ffe5ce 91.43%,
+    #f7bc8c 94.06%
+  );
+}
+@utility label-caps {
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 500;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+  color: var(--color-text-3);
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-violet);
+    outline-offset: 2px;
+  }
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}

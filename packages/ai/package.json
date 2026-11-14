@@ -1,0 +1,25 @@
+{
+  "name": "@motionpop/ai",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p .",
+    "lint": "eslint .",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "zod": "catalog:",
+    "@motionpop/schemas": "workspace:*",
+    "fast-json-patch": "^3.1.1"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "fast-check": "catalog:",
+    "@types/node": "catalog:"
+  }
+}
