@@ -1,6 +1,7 @@
 'use client';
 
-import { motion, useReducedMotion } from 'motion/react';
+import { motion } from 'motion/react';
+import { useStill } from '@/lib/motion/use-still';
 import { cn } from '@/lib/cn';
 import { springSoft } from '@/lib/motion/presets';
 
@@ -40,7 +41,7 @@ export function NumberRoll({
   className,
   'aria-label': ariaLabel,
 }: NumberRollProps) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useStill();
   const text = formatRoll(value, decimals, group);
   const chars = text.split('');
   return (

@@ -5,7 +5,7 @@ import type { ReactNode } from 'react';
 
 /**
  * Honours the OS "reduce motion" setting for every `motion` component: transforms and layout animations
- * become instant, opacity/colour still fade. Looping presets are additionally gated with `useReducedMotion()`.
+ * become instant, opacity/colour still fade. Looping presets are additionally gated with `useStill()` (hydration-safe).
  */
 export function MotionProvider({ children }: { children: ReactNode }) {
   return <MotionConfig reducedMotion="user">{children}</MotionConfig>;

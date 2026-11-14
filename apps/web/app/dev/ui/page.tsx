@@ -2,6 +2,9 @@
 
 import { ChevronDown, Upload } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { Pip } from '@/components/pip/pip';
+import { PipAvatar } from '@/components/pip/pip-avatar';
+import { PIP_PROPS, PIP_STATES, type PipState } from '@/components/pip/states';
 import { BrandKitChip } from '@/components/ui/brand-kit-chip';
 import { Button } from '@/components/ui/button';
 import { Chip, CostChip, SyncedChip } from '@/components/ui/chip';
@@ -28,6 +31,7 @@ export default function UiGallery() {
   const [fade, setFade] = useState(false);
   const [credits, setCredits] = useState(120);
   const [timer, setTimer] = useState(4.2);
+  const [pipState, setPipState] = useState<PipState>('idle');
 
   return (
     <main className="mx-auto flex max-w-[1200px] flex-col gap-10 px-10 py-10">
@@ -97,6 +101,52 @@ export default function UiGallery() {
         <span className="flex items-center gap-1 text-[11px] text-text-3">
           <Kbd>Space</Kbd> play · <Kbd>⌘G</Kbd> generate
         </span>
+      </Section>
+
+      <Section title="Pip · states">
+        {PIP_STATES.map((st) => (
+          <button
+            key={st}
+            type="button"
+            onClick={() => setPipState(st)}
+            className="flex w-[120px] flex-col items-center gap-2 rounded-card bg-panel py-3 shadow-quiet hover:bg-card"
+          >
+            <Pip state={st} size={72} seed={st.length} />
+            <span className="font-mono text-[10px] text-text-3">{st}</span>
+          </button>
+        ))}
+      </Section>
+
+      <Section title="Pip · hero (click a state above, cursor follow)">
+        <div className="flex h-[220px] w-[320px] items-center justify-center rounded-card bg-panel shadow-glass">
+          <Pip state={pipState} size={140} glow look="cursor" />
+        </div>
+        <div className="flex h-[220px] w-[320px] items-center justify-center rounded-card bg-panel shadow-glass">
+          <Pip state="sleeping" size={130} glow props={['nightcap', 'cloud']} />
+        </div>
+        <div className="flex h-[220px] w-[220px] items-center justify-center rounded-card bg-panel shadow-glass">
+          <Pip state="idle" size={110} props={['nightcap']} look="cursor" glow />
+        </div>
+      </Section>
+
+      <Section title="Pip · props">
+        {PIP_PROPS.map((p) => (
+          <div
+            key={p}
+            className="flex w-[110px] flex-col items-center gap-2 rounded-card bg-panel py-3"
+          >
+            <Pip size={64} props={[p]} decorative />
+            <span className="font-mono text-[10px] text-text-3">{p}</span>
+          </div>
+        ))}
+        <div className="flex flex-col items-center gap-2">
+          <PipAvatar />
+          <span className="font-mono text-[10px] text-text-3">avatar</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <PipAvatar ring={false} size={29} />
+          <span className="text-[19px] font-semibold tracking-tight">motionpop</span>
+        </div>
       </Section>
 
       <Section title="Number roll">

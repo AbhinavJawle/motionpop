@@ -2,7 +2,7 @@ import type { Transition } from 'motion/react';
 
 /**
  * UI motion presets (design-system.md → "UI motion"). UI only: never used inside video compositions.
- * Looping presets (breathe, float, shimmer) must be gated with `useReducedMotion()` by the caller.
+ * Looping presets (breathe, float, shimmer) must be gated with `useStill()` by the caller.
  */
 
 export const easeOutSoft = [0.22, 1, 0.36, 1] as const;

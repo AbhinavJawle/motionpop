@@ -1,6 +1,7 @@
 'use client';
 
-import { motion, useReducedMotion } from 'motion/react';
+import { motion } from 'motion/react';
+import { useStill } from '@/lib/motion/use-still';
 import { cn } from '@/lib/cn';
 
 const tones = {
@@ -22,7 +23,7 @@ export function StatusDot({
   pulse?: boolean;
   className?: string;
 }) {
-  const reduce = useReducedMotion() ?? false;
+  const reduce = useStill();
   return (
     <span className={cn('relative inline-flex size-1.5 shrink-0', className)} aria-hidden>
       {pulse && (

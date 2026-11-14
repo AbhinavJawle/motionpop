@@ -7,7 +7,7 @@ apps/web/components/ui/        button.tsx, chip.tsx, toggle.tsx, input.tsx, card
                                slider.tsx, dropdown.tsx, modal.tsx, toast.tsx (sonner theme), tooltip.tsx,
                                shimmer.tsx, status-dot.tsx, number-roll.tsx
 apps/web/lib/motion/presets.ts springs + variants (press, hoverLift, popIn, panelSlide, modal, toast, breathe, shimmer)
-apps/web/components/pip/       pip.tsx, pip-avatar.tsx, parts/ (body, face, arms, props/*), states.ts, use-blink.ts, use-look.ts
+apps/web/components/pip/       pip.tsx, pip-avatar.tsx, geometry.ts, props.tsx, states.ts, rng.ts, use-blink.ts, use-look.ts
 apps/web/app/dev/ui/page.tsx   gallery (404 in production)
 ```
 
@@ -25,10 +25,10 @@ export const popIn = { initial: { scale: 0.9, opacity: 0 }, animate: { scale: 1,
 export const panelSlide = { initial: { x: -16, opacity: 0 }, animate: { x: 0, opacity: 1 }, exit: { x: -16, opacity: 0 }, transition: { duration: 0.24, ease: [0.22, 1, 0.36, 1] } };
 export const modal = { initial: { scale: 0.96, opacity: 0 }, animate: { scale: 1, opacity: 1 }, transition: spring };
 ```
-`useReducedMotion()` gates every looping preset.
+`useStill()` (hydration-safe `prefers-reduced-motion`, `lib/motion/use-still.ts`) gates every looping preset. motion's own `useReducedMotion()` reads matchMedia during the first client render and caused hydration mismatches, so it is not used. SVG pivots use motion's `originX`/`originY` (fractions of the element's box); a CSS `transformOrigin` in px is overwritten by motion.
 
 ## Pip construction
-- `viewBox="0 0 120 140"`. Body: one path (rounded top, 3 bottom lobes, the right lobe trailing). Fill: an SVG `linearGradient` reproducing the Figma gradient (98.93° → x1/y1/x2/y2 computed; stops 6.56 % #DDD9EF, 31.06 % #F5F2FA, 57.31 % #FFFEFA, 83.56 % #FFFDF7, 91.43 % #FFE5CE, 94.06 % #F7BC8C). Subtle inner shadow via filter.
+- `viewBox="0 0 100 100"` (as built: the Figma percentages for "Pip · Motionpop mark" are relative to a square frame, so they map 1:1). Sleeping uses a second, lying silhouette with the same path commands so the two morph. Body: one path (rounded top, 3 bottom lobes, the right lobe trailing). Fill: an SVG `linearGradient` reproducing the Figma gradient (98.93° → x1/y1/x2/y2 computed; stops 6.56 % #DDD9EF, 31.06 % #F5F2FA, 57.31 % #FFFEFA, 83.56 % #FFFDF7, 91.43 % #FFE5CE, 94.06 % #F7BC8C). Subtle inner shadow via filter.
 - Face group: two ellipses (eyes) + one path (smile), `#302D3D`. Expressions are path/ellipse attribute sets per state (open, closed arc, wide, happy squint, one-eye) interpolated by `motion`.
 - Arms: two small rounded paths, hidden unless the state needs them.
 - Props: separate groups positioned relative to the head (nightcap, popcorn) or behind/around (cloud, arcs, sparkles, confetti).
