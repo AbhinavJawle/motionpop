@@ -7,3 +7,4 @@ export * from './config';
 export * from './color';
 export * from './format';
 export * from './style';
+export * from './project';
