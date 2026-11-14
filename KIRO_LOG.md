@@ -419,3 +419,20 @@ Template:
   - Kiro also flagged that deleting a project from the client orphans its subcollections. That is a server-route concern for specs 04 and 11.
   - **Friction:** a Firestore emulator left over from Claude Code's Playwright run held port 8080. Kiro left it alone, as it should, and verified on other ports. Claude Code stopped the stray process and reran `test:rules`: 39/39 pass.
 <!-- /kiro-session:sess_ee72c4ee-bd1d-4f4c-8218-10a71efbf713 -->
+
+<!-- kiro-session:sess_be2fdbe4-44da-46e0-8c20-90b01248f2cd -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T22:23:10.508Z · last stop: 2026-11-14T22:28:25.870Z · session: sess_be2fdbe4-44da-46e0-8c20-90b01248f2cd
+- commits since start: 
+  - 605c628 test(01-foundation): task 8 bootstrap idempotency property
+- uncommitted changes: none
+- Summary (added in Claude Code after reviewing `run24.log` and commit 605c628): **run 24**, spec 01 task 8.
+  - `rules/bootstrap.emulator.test.ts` runs the real `bootstrapUser` transaction against the Firestore emulator through a separate credential-less Admin app. It has three fast-check properties, 15 runs each on fresh uids:
+    - 2–8 concurrent calls give exactly one `created`, consistent results and one `signup` ledger entry that matches the balance;
+    - sequential repeats change only `lastSeenAt`;
+    - a later verified judge claim never upgrades an existing free user.
+  - It also has a plain grant test: 20 free, 500 for a verified judge, free for an unverified judge email.
+  - No bug found. `server-only` is aliased to an empty module in the rules Vitest config only.
+  - **Friction Kiro solved:** with no credentials, each Admin call spent about 3 s probing the GCE metadata server, and the first 20-run version timed out. `METADATA_SERVER_DETECTION=none` brought a call down to about 0.6 s. Claude Code applied the same variable to the Playwright auth server, which had shown the same 5 s first call. Concurrent bootstraps still take about 3 s from transaction contention retries, which is expected.
+  - Claude Code reran `test:rules`: 43/43 pass.
+<!-- /kiro-session:sess_be2fdbe4-44da-46e0-8c20-90b01248f2cd -->

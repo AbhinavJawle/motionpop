@@ -70,6 +70,8 @@ export default defineConfig({
         FIREBASE_AUTH_EMULATOR_HOST: `127.0.0.1:${AUTH_EMULATOR_PORT}`,
         FIRESTORE_EMULATOR_HOST: `127.0.0.1:${FIRESTORE_EMULATOR_PORT}`,
         GOOGLE_CLOUD_PROJECT: 'motionpop-48409',
+        // Without credentials the Admin SDK probes the GCE metadata server (~5 s per first call).
+        METADATA_SERVER_DETECTION: 'none',
         JUDGE_EMAILS: 'judge@example.com',
       },
       reuseExistingServer: false,
