@@ -87,3 +87,9 @@ Template:
   - Real finding: happy-dom's Web Animations stub throws on cancel (523 unhandled rejections). Kiro removed `Element.prototype.animate` in the test, so motion uses its JS driver, and commented why.
   - Good behaviour: it committed only its own files and left Claude Code's in-progress UI files untouched, as instructed.
 <!-- /kiro-session:sess_b69854ce-1266-439a-9e35-7f017ac6b8bf -->
+
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder · run 5 (aborted, no output)
+- Task: review spec 03 against steering and write `.kiro/specs/03-motion-engine/review.md`.
+- What happened: the run read files and ran several shell commands, then exited with code 0, no final message, no file written, and no Stop-hook entry. Nothing was committed.
+- Likely cause (not confirmed): read-only shell commands such as `grep`/`find`/`head` matched the agent's `ask` rule, which a headless run can't answer. A kiro-cli self-update was also downloading at the same time.
+- Fix (Claude Code): allowed safe read-only commands and `npx prettier` in `motionpop-builder.json`, then reran the review as run 6.
