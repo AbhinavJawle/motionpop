@@ -41,19 +41,23 @@ export function synthVoice(
     let y1 = 0;
     let y2 = 0;
     let phase = 0;
+    // Per-syllable loudness, so bars vary like speech rather than forming solid blocks.
+    const accents = Array.from({ length: syllables * 3 }, () => 0.35 + rand() * 0.65);
     for (let i = 0; i < len; i++) {
       const t = i / len;
+      const accent = accents[Math.min(accents.length - 1, Math.floor(t * accents.length))] ?? 1;
       const env =
         (i < attack ? i / attack : 1) *
-        Math.pow(1 - t, 0.6) *
-        (0.55 + 0.45 * Math.abs(Math.sin(Math.PI * syllables * t)));
+        Math.pow(1 - t, 0.5) *
+        accent *
+        Math.pow(Math.abs(Math.sin(Math.PI * syllables * t)), 1.4);
       phase += pitch / sampleRate;
       const buzz = phase % 1 < 0.08 ? 1 : 0; // glottal-ish pulse train
       const x = buzz * 0.6 + (rand() * 2 - 1) * 0.35;
       const y = (1 - r) * x + a1 * y1 + a2 * y2;
       y2 = y1;
       y1 = y;
-      out[start + i] = Math.max(-1, Math.min(1, (out[start + i] ?? 0) + y * env * loud * 9));
+      out[start + i] = Math.max(-1, Math.min(1, (out[start + i] ?? 0) + y * env * loud * 5));
     }
   }
   return out;

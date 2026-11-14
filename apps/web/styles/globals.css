@@ -54,6 +54,31 @@
   --color-scrim: rgb(5 5 9 / 0.79); /* modal backdrop */
   --color-violet-thumb: #d2c8ff; /* slider handle */
 
+  /* Editor + timeline (design/figma-export.css, editor frame) */
+  --color-rail-active: #252036; /* active rail item */
+  --color-reason: #1d192c; /* "Why this graphic" card */
+  --color-track-a: #0c0c12; /* alternating track surface */
+  --color-track-b: rgb(21 21 29 / 0.45); /* alternating track surface */
+  --color-track-hair: rgb(255 255 255 / 0.035); /* track separator */
+  --color-slot-suggested: #17151f;
+  --color-slot-selected: #30273f;
+  --color-slot-ready: #1e1f29;
+  --color-slot-thumb: #1d1b2b;
+  --color-slot-thumb-callout: #33263d;
+  --color-slot-title: #c4bad6; /* suggested title */
+  --color-slot-title-sel: #eee8ff;
+  --color-slot-title-ready: #dad5e5;
+  --color-synced: #17241f;
+  --color-sfx: #303043;
+  --color-music: #0e1c1b;
+  --color-music-bar: #52736a;
+  --color-ready-ink: #bfe9d6; /* "Ready in 4.2s" */
+  --color-time-dim: #827d90; /* "/ 00:18.0" */
+  --color-zoom-track: #37323f;
+  --color-zoom-thumb: #e2ddec;
+  --color-bubble-ink: #c5bece; /* Pip bubble */
+  --color-style-ink: #c4bfce; /* style name in inspector */
+
   /* Type */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -122,6 +147,16 @@
     #f7bc8c 94.06%
   );
 }
+@utility bg-slot-generating {
+  background: linear-gradient(90deg, #211b30 0%, #413355 15%, #413355 45%, #211b30 100%);
+}
+@utility bg-music {
+  background:
+    radial-gradient(16% 170% at 89% 5%, rgb(56 255 156 / 0.27) 0%, rgb(20 204 122 / 0.12) 40%, rgb(10 140 89 / 0) 100%),
+    radial-gradient(22% 220% at 57% 108%, rgb(56 255 156 / 0.25) 0%, rgb(20 204 122 / 0.11) 40%, rgb(10 140 89 / 0) 100%),
+    radial-gradient(18% 180% at 19% 5%, rgb(56 255 156 / 0.3) 0%, rgb(20 204 122 / 0.135) 40%, rgb(10 140 89 / 0) 100%),
+    #0e1c1b;
+}
 @utility label-caps {
   font-size: 11px;
   line-height: 1.2;
@@ -135,11 +170,14 @@
   :root {
     color-scheme: dark;
   }
+  /* The root stays at 16px so Tailwind's rem spacing matches the design (h-14 = 56px). */
   html,
   body {
     background: var(--color-bg);
     color: var(--color-text);
     font-family: var(--font-sans);
+  }
+  body {
     font-size: 13px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;

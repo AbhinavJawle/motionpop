@@ -2,8 +2,8 @@ import { EditorProjectSchema, type EditorProject, type Word } from '@motionpop/s
 
 /**
  * The demo project behind `/editor/demo` (spec 04 R1.3). Word timings and slot ranges are
- * measured from `design/screens/editor.png` (ruler: 0 s at x=256, 18 s at x=2310 at 2420 px
- * wide). The voice is synthesized from these timings (`lib/audio/synth-voice.ts`), so the
+ * measured from the editor frame in `design/figma-export.css` (ruler: 0 s at x=152, 68 px per
+ * second; slot 2 = 0:04.2 – 0:07.8 as in the inspector). The voice is synthesized from these timings (`lib/audio/synth-voice.ts`), so the
  * waveform and karaoke line up. Real sample audio replaces it in spec 05.
  *
  * Only `big-number` exists until spec 07, so the ready slots use it. The opening title is
@@ -17,27 +17,27 @@ const DURATION_MS = 18_000;
 // [text, startMs, endMs]
 const WORDS: ReadonlyArray<readonly [string, number, number]> = [
   ["Let's", 0, 440],
-  ['look', 520, 980],
+  ['look', 530, 980],
   ['at', 1100, 1360],
   ['the', 1500, 1840],
   ['numbers.', 2050, 2840],
   ['Our', 3550, 3980],
   ['revenue', 4200, 4780],
-  ['grew', 4870, 5420],
+  ['grew', 4980, 5480],
   ['forty', 5580, 6050],
   ['percent', 6180, 6830],
   ['since', 6950, 7400],
   ['2020.', 7500, 7800],
   ['And', 8650, 9050],
-  ['this', 9210, 9600],
-  ['is', 9730, 9980],
+  ['this', 9200, 9600],
+  ['is', 9720, 9980],
   ['only', 10120, 10620],
-  ['the', 10760, 11080],
-  ['beginning.', 11210, 12100],
-  ["Here's", 13110, 13700],
-  ['what', 13860, 14350],
-  ['comes', 14510, 15130],
-  ['next.', 15310, 15740],
+  ['the', 10750, 11080],
+  ['beginning.', 11200, 12020],
+  ["Here's", 13100, 13700],
+  ['what', 13850, 14350],
+  ['comes', 14500, 15130],
+  ['next.', 15300, 15740],
 ];
 
 export const demoWords: Word[] = WORDS.map(([text, startMs, endMs], i) => ({
@@ -69,8 +69,8 @@ export function demoProject(now = 0): EditorProject {
     slots: [
       {
         id: 'slot-1',
-        startMs: 520,
-        endMs: 2840,
+        startMs: 590,
+        endMs: 3180,
         wordStart: 1,
         wordEnd: 4,
         reason: 'Opening line: a title sets the topic',
@@ -90,9 +90,10 @@ export function demoProject(now = 0): EditorProject {
         componentId: 'big-number',
         skillId: 'data-explainer',
         prompt: 'A big, confident 40% with a warm highlight and an editorial feel.',
-        params: { value: 40, suffix: '%', label: 'Revenue grew since 2020', context: 'The bigger picture' },
+        params: { value: 40, suffix: '%', label: 'Revenue grew', context: 'The bigger picture' },
         status: 'ready',
         currentVersionId: 'v-2-3',
+        sfx: [{ id: 'pop', atMs: 0 }],
         notes: [
           {
             id: 'note-1',
@@ -105,8 +106,8 @@ export function demoProject(now = 0): EditorProject {
       },
       {
         id: 'slot-3',
-        startMs: 8650,
-        endMs: 12100,
+        startMs: 8700,
+        endMs: 12020,
         wordStart: 12,
         wordEnd: 17,
         reason: "You said 'this is only the beginning'",
@@ -115,10 +116,11 @@ export function demoProject(now = 0): EditorProject {
         prompt: 'Finding the bigger picture: zoom out to show where this goes next.',
         params: {},
         status: 'generating',
+        sfx: [{ id: 'whoosh', atMs: 0 }],
       },
       {
         id: 'slot-4',
-        startMs: 13110,
+        startMs: 13100,
         endMs: 16160,
         wordStart: 18,
         wordEnd: 21,
@@ -128,13 +130,14 @@ export function demoProject(now = 0): EditorProject {
         prompt: 'A short takeaway callout that repeats the headline number.',
         params: { value: 40, suffix: '%', label: 'The takeaway' },
         status: 'ready',
+        sfx: [{ id: 'pop', atMs: 0 }],
       },
     ],
     versions: [1, 2, 3].map((n) => ({
       id: `v-2-${n}`,
       slotId: 'slot-2',
       componentId: 'big-number',
-      params: { value: 40, suffix: '%', label: 'Revenue grew since 2020', context: 'The bigger picture' },
+      params: { value: 40, suffix: '%', label: 'Revenue grew', context: 'The bigger picture' },
       source: n === 1 ? 'ai-device' : 'ai-cloud',
       costCredits: n === 1 ? 0 : 3,
       createdAt: now,

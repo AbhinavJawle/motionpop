@@ -22,11 +22,12 @@ function req<T>(r: IDBRequest<T>): Promise<T> {
 export class IdbProjectRepository implements ProjectRepository {
   private db: Promise<IDBDatabase> | undefined;
 
-  constructor(private readonly factory: IDBFactory = indexedDB) {}
+  /** `factory` defaults to the browser's `indexedDB`, resolved lazily so SSR can construct this. */
+  constructor(private readonly factory?: IDBFactory) {}
 
   private open(): Promise<IDBDatabase> {
     this.db ??= new Promise((resolve, reject) => {
-      const r = this.factory.open(DB_NAME, DB_VERSION);
+      const r = (this.factory ?? indexedDB).open(DB_NAME, DB_VERSION);
       r.onupgradeneeded = () => {
         if (!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE);
       };

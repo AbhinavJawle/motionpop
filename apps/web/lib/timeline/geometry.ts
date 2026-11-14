@@ -12,13 +12,14 @@ export type RulerTicks = {
 };
 
 export const MAJOR_STEPS_MS = [500, 1000, 2000, 5000, 10000, 30000] as const;
-export const MIN_LABEL_SPACING_PX = 64;
+/** 96 px gives editor.png's 2 s labels at the default fit (68 px per second). */
+export const MIN_LABEL_SPACING_PX = 96;
 export const DEFAULT_ZOOM_LIMITS: ZoomLimits = { minPxPerMs: 0.002, maxPxPerMs: 2 };
 
 const MINOR_STEP_MS: Record<number, number> = {
   500: 100,
   1000: 200,
-  2000: 500,
+  2000: 1000,
   5000: 1000,
   10000: 2000,
   30000: 5000,

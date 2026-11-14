@@ -91,3 +91,12 @@ The transcript is the editor.png script ("Let's look at the numbers. Our revenue
 1. The project in the store always satisfies the timeline invariants.
 2. Every user-visible mutation is one undoable step.
 3. Playhead, karaoke, timecode and preview always show the same frame.
+
+## As built (tasks 6–8, 2026-11-14)
+- **Root font size:** `globals.css` set `font-size: 13px` on `html`, which made every rem-based Tailwind size 13/16 of its intended value (`h-14` rendered as 45.5 px instead of 56). The design comparison caught it. The root now stays at 16 px and only `body` is 13 px, which also corrects the spec 02 primitives to the sizes their comments state.
+- **Ruler:** `MIN_LABEL_SPACING_PX` is 96 (not 64) and the minor step for 2 s majors is 1 s, which gives editor.png's "0s, 2s, … 18s" labels at the default fit (68 px per second at 1440 px). The time area clips with `clip-path: inset(0 0 0 -24px)` so the centred "0s" label isn't cut.
+- **Playback:** `lib/editor/playback.ts` (`PlaybackClock`) reads the audio element once per animation frame and notifies subscribers (`useFrame`). Subscribers write `--playhead-x`, the timecode text, word `data-state` and the preview seek (`lib/editor/preview-bridge.ts`, which only seeks when the 30 fps frame changes). The preview player is muted; the editor plays the voice itself.
+- **Waveform:** bars every 4 px (2 px wide, 4–31 px tall) from `peaksForRange`, drawn on two canvases with the played copy clipped at `--playhead-x`, on a rounded ember band, as in the design.
+- **Open at a moment:** `/editor/demo?t=5600&select=slot-2` opens paused at 5.6 s with slot 2 selected (used by the design check).
+- **Composition assets:** served by `app/api/composition/assets` from `packages/motion/dist`. Packaging `dist/` for App Hosting is part of spec 08.
+- **Keyboard (part of task 9):** `use-editor-keys.ts` already handles Space, J/K/L, ←/→ (⇧ = 1 s), ⌘Z/⇧⌘Z, Delete, ⌘D and Esc. Arrows nudge a focused slot. J steps back 1 s, because an `<audio>` element can't play in reverse.
