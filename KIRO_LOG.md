@@ -38,3 +38,18 @@ Template:
   - Odd: its final message said it "didn't run the motionpop-builder agent" and suggested not logging the run as Kiro. It was launched with `kiro-cli chat --agent motionpop-builder`, so this is a genuine Kiro run; the model just didn't recognise the prompt as describing itself.
   - Fix: the builder prompt now says explicitly "you are running inside Kiro CLI".
 
+<!-- kiro-session:sess_6722cdde-1603-4ba5-8bee-0c28b704eb91 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T15:42:30.776Z · last stop: 2026-11-14T15:43:43.845Z · session: sess_6722cdde-1603-4ba5-8bee-0c28b704eb91
+- commits since start: 
+  - 1b79540 test(00-walking-skeleton): tasks 3-4 ease and big-number seek property tests
+- uncommitted changes: 
+  - `?? apps/web/AGENTS.md`
+  - `?? apps/web/app/dev/`
+  - `?? apps/web/types/`
+- Summary (added in Claude Code after reviewing the run output and commit 1b79540):
+  - Task: spec 00 tasks 3–4 `[kiro]` parts (ease property tests, `countAt` landing, big-number seek determinism).
+  - Kiro wrote `ease.test.ts` and `big-number.test.ts` (happy-dom), added `happy-dom` to `@motionpop/motion`, ran typecheck/lint/test (26 tests green), checked both boxes and committed.
+  - The property test found a real bug: `inOutSine(0)` returned `-0`. Kiro fixed it by rewriting the expression as `(1 - cos(πx)) / 2`.
+  - Friction: a BSD `sed` edit failed, so it fell back to its own file-replace tool. The Stop hook now lists the run's commit, which confirms the SessionStart fix works.
+<!-- /kiro-session:sess_6722cdde-1603-4ba5-8bee-0c28b704eb91 -->
