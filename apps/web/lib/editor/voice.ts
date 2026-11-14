@@ -2,6 +2,7 @@ import type { EditorProject } from '@motionpop/schemas';
 import { encodeWav, synthVoice } from '../audio/synth-voice';
 import { DEFAULT_BUCKET_MS } from '../audio/peaks';
 import { PeaksResponseSchema } from '../audio/peaks-messages';
+import { audioStore, isIdbAudioRef } from '../audio/audio-store';
 import { synthRate } from '../projects/fixture';
 
 export interface LoadedVoice {
@@ -35,7 +36,8 @@ function peaksInWorker(channels: Float32Array[], sampleRate: number): Promise<Fl
 
 /**
  * Loads the project's voiceover for playback and the waveform (spec 04 R4.4, R5.1): fixture
- * voices are synthesized from their word timings; other projects decode their stored audio.
+ * voices are synthesized from their word timings; other projects decode their stored audio
+ * (AudioStore `idb:` refs, or a URL).
  */
 export async function loadVoice(project: EditorProject): Promise<LoadedVoice> {
   let url: string;
@@ -51,8 +53,18 @@ export async function loadVoice(project: EditorProject): Promise<LoadedVoice> {
     channels = [samples];
     sampleRate = rate;
   } else {
-    url = project.voiceover.src;
-    const bytes = await (await fetch(url)).arrayBuffer();
+    let bytes: ArrayBuffer;
+    if (isIdbAudioRef(project.voiceover.src)) {
+      const blob = await audioStore().get(project.voiceover.src);
+      if (!blob) throw new Error('The voiceover audio is missing from this browser.');
+      url = URL.createObjectURL(blob);
+      const objectUrl = url;
+      revoke = () => URL.revokeObjectURL(objectUrl);
+      bytes = await blob.arrayBuffer();
+    } else {
+      url = project.voiceover.src;
+      bytes = await (await fetch(url)).arrayBuffer();
+    }
     const ctx = new OfflineAudioContext(1, 1, 44_100);
     const buffer = await ctx.decodeAudioData(bytes);
     channels = Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));

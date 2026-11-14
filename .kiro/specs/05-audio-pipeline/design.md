@@ -45,7 +45,7 @@ Inputs: words (with `filler`) and `durationMs`. Options: `{ pauseMs: 700, keepMs
 
 1. **Speech words** are the non-filler words. Walk the gaps between consecutive speech words, plus the leading gap `[0, first.startMs]` and the trailing gap `[last.endMs, durationMs]`.
 2. **Inner gap `[a, b]`:**
-   - If `b − a > pauseMs`, cut `[a + keepMs/2, b − keepMs/2]`. Any filler inside it goes with the cut, so it counts as removed. `pausesShortened += 1`.
+   - If `b − a > pauseMs`, cut `[a + keepMs/2, b − keepMs/2]`, plus each filler's own range, so a filler inside the kept 300 ms is still removed. `pausesShortened += 1`. As built in run 20.
    - Otherwise, cut each filler word's `[startMs, endMs]`, clamped to `[a, b]`.
 3. **Leading gap:** if longer than `pauseMs`, cut `[0, first.startMs − keepMs]`. **Trailing gap:** if longer than `pauseMs`, cut `[last.endMs + keepMs, durationMs]`. Fillers inside either gap follow the same rule as inner gaps.
 4. **Tidy up:** merge touching cuts and drop cuts shorter than `minCutMs`.
@@ -55,7 +55,7 @@ Inputs: words (with `filler`) and `durationMs`. Options: `{ pauseMs: 700, keepMs
 `fillersRemoved` counts filler words whose range lies inside a cut.
 
 **Re-timing:**
-- `mapTime(ms) = ms − Σ len(cut)` over the cuts that end at or before `ms`.
+- `mapTime(ms) = ms − Σ len(cut)` over the cuts that end at or before `ms`. A time inside a cut maps to that cut's start. Kiro run 20 found that the bare formula jumps back at each cut's end, so it isn't monotonic.
 - A kept word becomes `startMs' = mapTime(startMs)` and `endMs' = startMs' + (endMs − startMs)`. Words inside cuts are dropped and the rest re-indexed 0..n−1.
 - Speech words are never inside a cut, and cuts never overlap a speech word, so every kept word keeps its exact duration.
 

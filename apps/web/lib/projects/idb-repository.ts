@@ -1,4 +1,5 @@
 import type { EditorProject } from '@motionpop/schemas';
+import { done, openDb, req, STORES } from '../storage/idb';
 import {
   loadFromStored,
   parseStored,
@@ -7,34 +8,15 @@ import {
   type StoredProject,
 } from './repository';
 
-const DB_NAME = 'motionpop';
-const DB_VERSION = 1;
-const STORE = 'projects';
-
-function req<T>(r: IDBRequest<T>): Promise<T> {
-  return new Promise((resolve, reject) => {
-    r.onsuccess = () => resolve(r.result);
-    r.onerror = () => reject(r.error ?? new Error('IndexedDB request failed'));
-  });
-}
+const STORE = STORES.projects;
 
 /** Local persistence until Firestore sync lands (spec 01). One record per project id. */
 export class IdbProjectRepository implements ProjectRepository {
-  private db: Promise<IDBDatabase> | undefined;
-
   /** `factory` defaults to the browser's `indexedDB`, resolved lazily so SSR can construct this. */
   constructor(private readonly factory?: IDBFactory) {}
 
   private open(): Promise<IDBDatabase> {
-    this.db ??= new Promise((resolve, reject) => {
-      const r = (this.factory ?? indexedDB).open(DB_NAME, DB_VERSION);
-      r.onupgradeneeded = () => {
-        if (!r.result.objectStoreNames.contains(STORE)) r.result.createObjectStore(STORE);
-      };
-      r.onsuccess = () => resolve(r.result);
-      r.onerror = () => reject(r.error ?? new Error('IndexedDB open failed'));
-    });
-    return this.db;
+    return openDb(this.factory);
   }
 
   private async get(id: string): Promise<StoredProject | undefined> {
@@ -48,11 +30,7 @@ export class IdbProjectRepository implements ProjectRepository {
     const db = await this.open();
     const tx = db.transaction(STORE, 'readwrite');
     tx.objectStore(STORE).put(stored, id);
-    await new Promise<void>((resolve, reject) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error ?? new Error('IndexedDB write failed'));
-      tx.onabort = () => reject(tx.error ?? new Error('IndexedDB write aborted'));
-    });
+    await done(tx);
   }
 
   async load(id: string): Promise<LoadResult> {

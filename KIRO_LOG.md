@@ -348,3 +348,27 @@ Template:
   - fast-check property: 500 runs over messy chunk lists, also checking the Transcript schema. 15 tests.
   - Kiro ran only its own test files, not the full suite. Claude Code ran the full suite before the next commit.
 <!-- /kiro-session:sess_2d9a5f70-34b8-46f3-a558-85f8f048c3cd -->
+
+<!-- kiro-session:sess_a6911413-6509-4619-add8-6ff3b0cffd05 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T20:51:29.260Z · last stop: 2026-11-14T20:54:09.107Z · session: sess_a6911413-6509-4619-add8-6ff3b0cffd05
+- commits since start: 
+  - 789ab09 feat(05-audio-pipeline): task 2 edit decision list and re-timing
+- uncommitted changes: 
+  - `M DEV_LOG.md`
+  - ` M apps/web/lib/editor/voice.ts`
+  - ` M apps/web/lib/projects/idb-repository.ts`
+  - `?? apps/web/lib/audio/audio-store.test.ts`
+  - `?? apps/web/lib/audio/audio-store.ts`
+  - `?? apps/web/lib/pipeline/`
+  - `?? apps/web/lib/storage/`
+- Summary (added in Claude Code after reviewing `run20.log` and commit 789ab09): **run 20**, spec 05 task 2.
+  - `lib/audio/edl.ts`: `buildEdl`, `mapTime`, `retimeWords`, `cleanedDuration`. Unit tests cover every cleanup rule, and fast-check properties cover the EDL and re-timing invariants. A cross-check confirms that `keptSegments` output positions equal `mapTime` for every kept word. Full web suite: 201 tests, exit 0.
+  - **Found a design error:** the design's `mapTime` formula isn't monotonic, because it jumps back at the end of each cut. Kiro clamps times inside a cut to the cut's start. Claude Code updated design.md.
+  - Other disclosed decisions:
+    - Fillers in the kept 300 ms of a long pause are still removed (each filler's range is unioned with the pause cut).
+    - `skipped: 'no-speech'`.
+    - Zero-length words aren't merged across.
+    - Only words fully inside a cut are dropped.
+  - Kiro also reported its own test-fixture mistakes: fixtures over the 40 % rule, and one impossible overlapping filler.
+<!-- /kiro-session:sess_a6911413-6509-4619-add8-6ff3b0cffd05 -->
