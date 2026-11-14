@@ -9,5 +9,5 @@ Tasks marked **[kiro]** are executed by Kiro CLI and logged in `KIRO_LOG.md`.
 - [x] 5. Pip body + face + gradient + `PipAvatar`; idle with blink and float; eye follow. — R3.1, R3.4–R3.7
 - [x] 6. Pip states (listening, thinking, done, celebrating, sleeping, waking, catching, caught, waving, empty-pockets) + props. — R3.2, R3.3
 - [ ] 7. `/dev/ui` gallery. — R4.1
-- [ ] 8. **[kiro]** Tests: Pip states/props render, reduced-motion static pose, no raw hex in `components/ui`. — R1.2, R2.4, R3.2
+- [x] 8. **[kiro]** Tests: Pip states/props render, reduced-motion static pose, no raw hex in `components/ui`. — R1.2, R2.4, R3.2
 - [ ] 9. Playwright screenshots of `/dev/ui` at 1440×900; review against the designs; fix gaps. — R4.2
