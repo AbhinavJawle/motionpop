@@ -7,12 +7,14 @@ import { spring } from '@/lib/motion/presets';
 /**
  * "Captions switch" / "Fade switch" (design/figma-export.css l.1614, l.3143):
  * track 28×16 r8 (on = violet), thumb 12×12 white r6. The thumb springs across.
+ * size="lg": the export dialog toggles (export.png), 40×22 with an 18px thumb.
  */
 export function Toggle({
   checked,
   onCheckedChange,
   label,
   disabled,
+  size = 'md',
   className,
 }: {
   checked: boolean;
@@ -20,6 +22,7 @@ export function Toggle({
   /** Accessible name when no visible label is associated. */
   label?: string;
   disabled?: boolean;
+  size?: 'md' | 'lg';
   className?: string;
 }) {
   return (
@@ -31,12 +34,17 @@ export function Toggle({
       disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
       className={cn(
-        'relative inline-flex h-4 w-7 shrink-0 items-center rounded-full p-0.5 transition-colors duration-200 disabled:opacity-40',
+        'relative inline-flex shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-40',
+        size === 'lg' ? 'h-[22px] w-10 p-0.5' : 'h-4 w-7 p-0.5',
         checked ? 'justify-end bg-violet' : 'justify-start bg-text-4',
         className,
       )}
     >
-      <motion.span layout transition={spring} className="block size-3 rounded-full bg-white" />
+      <motion.span
+        layout
+        transition={spring}
+        className={cn('block rounded-full bg-white', size === 'lg' ? 'size-[18px]' : 'size-3')}
+      />
     </button>
   );
 }

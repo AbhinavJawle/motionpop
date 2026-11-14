@@ -1,6 +1,14 @@
 'use client';
 
-import { ChevronDown, Upload } from 'lucide-react';
+import {
+  ChevronDown,
+  Frame,
+  Pencil,
+  RectangleHorizontal,
+  RectangleVertical,
+  Square,
+  Upload,
+} from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Pip } from '@/components/pip/pip';
 import { PipAvatar } from '@/components/pip/pip-avatar';
@@ -13,6 +21,12 @@ import { Dropdown } from '@/components/ui/dropdown';
 import { Input, Textarea } from '@/components/ui/input';
 import { Slider } from '@/components/ui/slider';
 import { Tabs } from '@/components/ui/tabs';
+import { Card, OptionCard } from '@/components/ui/card';
+import { GlassToolbar, ToolbarDivider } from '@/components/ui/glass-toolbar';
+import { Modal } from '@/components/ui/modal';
+import { Shimmer } from '@/components/ui/shimmer';
+import { toast } from '@/components/ui/toast';
+import { Tooltip } from '@/components/ui/tooltip';
 import { Kbd } from '@/components/ui/kbd';
 import { NumberRoll } from '@/components/ui/number-roll';
 import { SegmentedPills } from '@/components/ui/segmented-pills';
@@ -40,6 +54,8 @@ export default function UiGallery() {
   const [zoom, setZoom] = useState(54);
   const [style, setStyle] = useState<'editorial' | 'dark-money' | 'clean'>('editorial');
   const [tab, setTab] = useState<'transcript' | 'captions'>('transcript');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [res, setRes] = useState<'720p' | '1080p' | '4K'>('1080p');
 
   return (
     <main className="mx-auto flex max-w-[1200px] flex-col gap-10 px-10 py-10">
@@ -172,6 +188,109 @@ export default function UiGallery() {
           </div>
         </div>
       </Section>
+
+      <Section title="Surfaces, toolbar, overlays">
+        <GlassToolbar label="Preview tools">
+          <Tooltip content="Draw a note" shortcut="N">
+            <Button variant="ghost" size="icon" aria-label="Draw a note">
+              <Pencil strokeWidth={1.5} aria-hidden />
+            </Button>
+          </Tooltip>
+          <ToolbarDivider />
+          <span className="font-mono text-[11px] text-text-2">CC</span> Captions
+          <Toggle checked={captions} onCheckedChange={setCaptions} label="Captions" />
+          <ToolbarDivider />
+          <Frame className="size-[18px] text-text-2" strokeWidth={1.5} aria-hidden /> Safe zone
+          <ToolbarDivider />
+          75%
+          <ChevronDown className="size-3.5 text-text-2" strokeWidth={1.5} aria-hidden />
+        </GlassToolbar>
+        <Card className="relative h-[56px] w-[240px] overflow-hidden px-4 py-2.5">
+          <p className="text-[12px] font-medium">Finding the bigger picture…</p>
+          <p className="text-[10px] text-text-3">Generating map</p>
+          <Shimmer />
+        </Card>
+        <Card variant="frame" className="flex h-[90px] w-[160px] items-end p-3">
+          <span className="label-caps text-[9px]">Frame card</span>
+        </Card>
+        <Button variant="primary" size="lg" onClick={() => setModalOpen(true)}>
+          Open export dialog
+        </Button>
+        <Button onClick={() => toast.device('On-device AI ready')}>Device toast</Button>
+        <Button onClick={() => toast.cloud('Using cloud AI', "On-device AI isn't available in this browser.")}>
+          Cloud toast
+        </Button>
+        <Button
+          onClick={() =>
+            toast.error("Couldn't generate", { action: { label: 'Retry', onClick: () => {} } })
+          }
+        >
+          Error toast
+        </Button>
+      </Section>
+
+      <Modal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        title="Export video"
+        description="A little voice. Ready for the world."
+      >
+        <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-3">
+            <span className="text-[13px] leading-[17px] font-medium">Format</span>
+            <div role="radiogroup" aria-label="Format" className="grid grid-cols-3 gap-3">
+              <OptionCard
+                selected={format === '16:9'}
+                onClick={() => setFormat('16:9')}
+                icon={<RectangleHorizontal strokeWidth={1.5} aria-hidden />}
+              >
+                16:9
+              </OptionCard>
+              <OptionCard
+                selected={format === '9:16'}
+                onClick={() => setFormat('9:16')}
+                icon={<RectangleVertical strokeWidth={1.5} aria-hidden />}
+              >
+                9:16
+              </OptionCard>
+              <OptionCard
+                selected={format === '1:1'}
+                onClick={() => setFormat('1:1')}
+                icon={<Square strokeWidth={1.5} aria-hidden />}
+              >
+                1:1
+              </OptionCard>
+            </div>
+          </div>
+          <div className="flex flex-col gap-3">
+            <span className="text-[13px] leading-[17px] font-medium">Resolution</span>
+            <div role="radiogroup" aria-label="Resolution" className="grid grid-cols-3 gap-3">
+              {(['720p', '1080p', '4K'] as const).map((r) => (
+                <OptionCard key={r} selected={res === r} onClick={() => setRes(r)}>
+                  {r}
+                </OptionCard>
+              ))}
+            </div>
+          </div>
+          <label className="flex items-center justify-between text-[15px]">
+            Captions{' '}
+            <Toggle checked={captions} onCheckedChange={setCaptions} label="Captions" size="lg" />
+          </label>
+          <div className="h-px bg-white/6" />
+          <div className="flex justify-between font-mono text-[12px]">
+            <span className="text-ember">Cost: 5 credits</span>
+            <span className="text-text-2">{credits} available</span>
+          </div>
+          <Button
+            variant="primary"
+            size="lg"
+            className="h-12 w-full justify-start gap-3 px-5 text-[14px]"
+          >
+            <Upload strokeWidth={1.5} aria-hidden /> Export video
+          </Button>
+          <p className="text-center font-mono text-[12px] text-text-2">MP4 · H.264 · 30 fps</p>
+        </div>
+      </Modal>
 
       <Section title="Pip · states">
         {PIP_STATES.map((st) => (

@@ -47,6 +47,11 @@
   --color-mint-tint: #16251f; /* mint chip background */
   --color-avatar: #403451; /* creator avatar circle */
   --color-track: #34303f; /* slider track */
+  --color-ember-tint: #33252b; /* selected option card */
+  --color-ember-ink: #ffad85; /* text on ember tint */
+  --color-option: #1b1823; /* unselected option card */
+  --color-dialog: rgb(19 18 26 / 0.96); /* modal surface (blur 16) */
+  --color-scrim: rgb(5 5 9 / 0.79); /* modal backdrop */
   --color-violet-thumb: #d2c8ff; /* slider handle */
 
   /* Type */
@@ -56,7 +61,7 @@
   /* Radii */
   --radius-chip: 10px;
   --radius-card: 12px;
-  --radius-modal: 20px;
+  --radius-modal: 24px; /* "Export dialog" l.66587 */
 
   /* Shadows */
   /* The PNGs show a faint 1px edge on glass cards (explicit as a border on "Format switcher" l.246); drawn as an inset ring. */
@@ -75,6 +80,7 @@
   --shadow-generate:
     0 3px 16px rgb(139 124 255 / 0.16), 0 8px 24px rgb(0 0 0 / 0.35),
     inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --shadow-modal: 0 24px 64px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.06);
   --shadow-sel: 0 4px 16px rgb(139 124 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.08);
 
   /* Easing */
