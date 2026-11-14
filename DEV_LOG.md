@@ -41,3 +41,26 @@ Template:
     - `kiro-cli agent validate` needs a login, so the agent configs aren't validated yet.
     - Kiro hooks run without nvm on PATH, so `node.sh` locates Node.
 
+- **Evening (Claude Code), specs 00–02:**
+  - **Spec 00:**
+    - Motion core v0 (eases, interp, count-up), `big-number`, and a compiler that turns a project into a self-contained HyperFrames composition. The hf-seek runtime is bundled with esbuild.
+    - `services/render` renders the compiled composition (4 s at 720p in about 11 s).
+    - `/dev/skeleton` plays it in `<hyperframes-player>` with the uploaded voiceover.
+  - **On-device Whisper (00 task 8):**
+    - transformers.js 4.3.2 in a worker, `whisper-base_timestamped`, WebGPU first with a WASM fallback.
+    - In headless Chrome: 4.8 s of speech → 11 words with correct timings. Transcription takes ~1.7 s after a one-time model download of ~80 s.
+    - Clicking the word "40%" moves the slot so the count lands on the spoken word (D-022).
+  - **Spec 02 (design system + Pip):**
+    - Motion presets, NumberRoll, buttons, chips, cost chips, toggles, fields, slider, dropdown, tabs, cards, glass toolbar, modal, toasts, tooltip and shimmer.
+    - Pip in SVG + motion: 11 states, 8 props, seeded blink, cursor-follow eyes, and a lying silhouette for sleeping.
+    - Measured from the Figma CSS and compared with editor.png, export.png and projects-empty.png at 1440×900.
+  - **Kiro runs 2–4 (see KIRO_LOG):** property tests for eases/big-number (found an `inOutSine(0) = -0` bug), Remote Config typed defaults (01 task 4), and Pip/token tests (02 task 8).
+  - **Bugs found by checking, not assuming:**
+    - Composition fonts used app CSS variables, which don't exist inside the player iframe.
+    - Two hydration bugs: motion's `useReducedMotion()` reads matchMedia on the first client render (fixed with a `useSyncExternalStore` hook), and the same issue in StatusDot.
+    - motion overwrites a px `transformOrigin` on SVG, so the pivots now use `originX`/`originY`.
+    - `<hyperframes-player>` runs compositions same-origin by default. Tier-2 code must use `sandbox-origin="opaque"` (D-021).
+  - **Friction:**
+    - pnpm 11 left placeholder keys in `pnpm-workspace.yaml` after a failed `add`.
+    - Kiro kept tripping on BSD `sed` and didn't run Prettier; the builder prompt now covers both.
+    - Firebase (00 tasks 9–10, 01 tasks 3+) is still blocked on the Firebase login.
