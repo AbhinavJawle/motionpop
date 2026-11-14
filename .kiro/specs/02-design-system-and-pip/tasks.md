@@ -2,8 +2,8 @@
 
 Tasks marked **[kiro]** are executed by Kiro CLI and logged in `KIRO_LOG.md`.
 
-- [ ] 1. Motion presets (`lib/motion/presets.ts`) + reduced-motion handling + NumberRoll. — R2
-- [ ] 2. Buttons, Chips (incl. cost chips), Toggle, Kbd, StatusDot measured from the CSS. — R1
+- [x] 1. Motion presets (`lib/motion/presets.ts`) + reduced-motion handling + NumberRoll. — R2
+- [x] 2. Buttons, Chips (incl. cost chips), Toggle, Kbd, StatusDot measured from the CSS. — R1
 - [ ] 3. Inputs, Textarea, Slider, Dropdown, Tabs, SegmentedPills. — R1
 - [ ] 4. Card variants, GlassToolbar, Modal, Toast theme, Tooltip, Shimmer; CreditsChip + BrandKitChip. — R1, R2
 - [ ] 5. Pip body + face + gradient + `PipAvatar`; idle with blink and float; eye follow. — R3.1, R3.4–R3.7

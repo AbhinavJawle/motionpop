@@ -38,6 +38,15 @@
   --color-error: #ff5a5f;
   --color-pip-face: #302d3d;
 
+  /* Tints measured in the Figma export (chips, selected pills, AI buttons) */
+  --color-text-body: #d0cdd9; /* soft body copy in cards */
+  --color-violet-sel: #302842; /* selected segmented pill */
+  --color-violet-ink: #c9bdff; /* text on violet fills (Generate) */
+  --color-violet-ink-2: #bfafff; /* cloud cost chip */
+  --color-mint-ink: #78ddb0; /* text on mint tint (free · on-device, Synced) */
+  --color-mint-tint: #16251f; /* mint chip background */
+  --color-avatar: #403451; /* creator avatar circle */
+
   /* Type */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -57,6 +66,11 @@
   --shadow-violet-glow:
     0 8px 24px rgb(0 0 0 / 0.35), 0 0 18px rgb(139 124 255 / 0.12),
     inset 0 1px 0 rgb(255 255 255 / 0.08);
+
+  --shadow-generate:
+    0 3px 16px rgb(139 124 255 / 0.16), 0 8px 24px rgb(0 0 0 / 0.35),
+    inset 0 1px 0 rgb(255 255 255 / 0.08);
+  --shadow-sel: 0 4px 16px rgb(139 124 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.08);
 
   /* Easing */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
