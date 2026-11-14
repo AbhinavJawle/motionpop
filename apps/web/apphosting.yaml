@@ -1,0 +1,16 @@
+# Firebase App Hosting (spec 01 R7). Cost: scale to zero, at most 2 instances.
+runConfig:
+  cpu: 1
+  memoryMiB: 512
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+
+env:
+  # The Firebase web config comes from FIREBASE_WEBAPP_CONFIG (injected by App Hosting) and is
+  # mapped to NEXT_PUBLIC_* in next.config.ts. The reCAPTCHA Enterprise site key is public.
+  - variable: NEXT_PUBLIC_RECAPTCHA_SITE_KEY
+    value: 6LdPeSAuAAAAABLJLe7lbgK25EZIzeN4zGOmipqq
+    availability:
+      - BUILD
+      - RUNTIME

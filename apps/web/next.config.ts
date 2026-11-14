@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { webappConfigEnv } from './lib/firebase/webapp-config-env';
 
 const config: NextConfig = {
   // The Playwright server sets this so it can run beside the everyday dev server (`next dev`
@@ -7,6 +8,8 @@ const config: NextConfig = {
   // Workspace packages ship TypeScript source.
   transpilePackages: ['@motionpop/schemas', '@motionpop/motion', '@motionpop/ai'],
   reactStrictMode: true,
+  // On App Hosting the web config arrives as FIREBASE_WEBAPP_CONFIG; inline it as NEXT_PUBLIC_*.
+  env: webappConfigEnv(process.env),
   // The dev badge sits on the timeline's AUDIO label and skews design checks.
   devIndicators: false,
 };

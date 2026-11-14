@@ -185,3 +185,9 @@ Template:
   - **Task 7:** reviewed Kiro's rules and its 39 emulator tests, then reran them myself (39/39). Kiro caught that our own rule sketches would have opened the credit ledger to clients, so I corrected the sketches in `data-model.md` and the spec 01 design.
   - **Why CI was red:** it had failed since the Firebase commit. The cause wasn't Firebase: `textures.test.ts` made 262k `expect()` calls, one per pixel, and timed out at 5 s on the runner. It now makes one range assertion. My new bootstrap property test took 1.1 s because building `fc.emailAddress()` and `fc.webUrl()` is expensive; with cheap arbitraries it takes 15 ms.
   - **New workflow:** checkout, setup-node and setup-java on v5 (Node 20 deprecation); a gitleaks job with full history; a rules job (Java 21 plus `test:rules` on the emulators); concurrency cancel. `pnpm build` passes without any Firebase env.
+- **Spec 01 task 10 (in progress, Claude Code): App Hosting.**
+  - Created backend `motionpop-web` in us-central1 from the CLI. It has no GitHub connection and deploys from local source, uploading the whole repo minus ignores so the pnpm workspace packages are included. The hosted URL is `motionpop-web--motionpop-48409.us-central1.hosted.app`.
+  - `apphosting.yaml` scales to zero, runs at most 2 instances, and sets the public reCAPTCHA key.
+  - The web config is read from App Hosting's injected `FIREBASE_WEBAPP_CONFIG` and mapped to `NEXT_PUBLIC_*` in `next.config.ts`, so no API key is committed (gitleaks would flag it). Env vars that are already set win, including blanks.
+  - Added the hosted domain to the reCAPTCHA key and the Auth authorized domains.
+  - The first `firebase deploy --only apphosting` was blocked by Claude Code's permission check. It's waiting on the founder.
