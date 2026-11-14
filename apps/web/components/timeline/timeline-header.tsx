@@ -9,7 +9,7 @@ import { Slider } from '@/components/ui/slider';
 import { Tooltip } from '@/components/ui/tooltip';
 import { formatTimecode } from '@/lib/editor/slot-display';
 import { buttonMotion } from '@/lib/motion/presets';
-import { DEFAULT_ZOOM_LIMITS, fitView } from '@/lib/timeline/geometry';
+import { clampScroll, DEFAULT_ZOOM_LIMITS, fitView } from '@/lib/timeline/geometry';
 import { useEditor } from '@/lib/stores/editor';
 import { useFrame, useTimeline } from './timeline-context';
 
@@ -47,7 +47,7 @@ export function TimelineHeader() {
     // Keep the playhead in view while zooming from the slider.
     const anchorMs = clock.currentMs;
     const anchorX = (anchorMs - view.scrollMs) * view.pxPerMs;
-    const scrollMs = Math.max(0, Math.round(anchorMs - anchorX / pxPerMs));
+    const scrollMs = clampScroll(anchorMs - anchorX / pxPerMs, pxPerMs, widthPx - 64, durationMs);
     setView({ pxPerMs, scrollMs, fit: false });
   };
 
@@ -65,7 +65,10 @@ export function TimelineHeader() {
       </span>
 
       <div className="absolute left-[calc(50%-165px)] flex items-center">
-        <TransportButton label="Previous frame" onClick={() => clock.seek(clock.currentMs - FRAME_MS)}>
+        <TransportButton
+          label="Previous frame"
+          onClick={() => clock.seek(clock.currentMs - FRAME_MS)}
+        >
           <SkipBack className="size-[18px]" strokeWidth={1.5} />
         </TransportButton>
         <motion.button
@@ -156,7 +159,12 @@ function TransportButton({
   children: React.ReactNode;
 }) {
   return (
-    <button type="button" aria-label={label} onClick={onClick} className="text-text-2 hover:text-text">
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="text-text-2 hover:text-text"
+    >
       {children}
     </button>
   );

@@ -1,9 +1,11 @@
 'use client';
 
 import type { Word } from '@motionpop/schemas';
-import { useLayoutEffect, useMemo, useRef } from 'react';
-import { msToX } from '@/lib/timeline/geometry';
-import { selectSelectedSlot, selectWords, useEditor } from '@/lib/stores/editor';
+import { useLayoutEffect, useMemo, useRef, type PointerEvent as ReactPointerEvent } from 'react';
+import { addSlot } from '@/lib/commands';
+import { msToX, xToMs } from '@/lib/timeline/geometry';
+import { slotForWords } from '@/lib/timeline/create';
+import { editorStore, selectSelectedSlot, selectWords, useEditor } from '@/lib/stores/editor';
 import { useFrame, useTimeline } from './timeline-context';
 
 /** Above this many words only the visible range is rendered (spec 04 NFR). */
@@ -92,6 +94,67 @@ export function WordsTrack() {
     el.style.width = `${b.offsetLeft + b.offsetWidth + 6 - left}px`;
   }, [bandFrom, bandTo, view, visible]);
 
+  // Shift-drag across words → a suggested slot spanning them (R6.2, "Add graphic here").
+  const createBand = useRef<HTMLSpanElement>(null);
+  const suppressClick = useRef(false);
+  const showCreateBand = (a: number, b: number | null) => {
+    const el = createBand.current;
+    if (!el) return;
+    const first = words[Math.min(a, b ?? a)];
+    const last = words[Math.max(a, b ?? a)];
+    if (b === null || !first || !last) {
+      el.style.display = 'none';
+      return;
+    }
+    const v = editorStore.getState().view;
+    const lastSpan = spans.current[last.i];
+    const left = msToX(first.startMs, v) - 5;
+    const right = lastSpan ? lastSpan.offsetLeft + lastSpan.offsetWidth + 6 : msToX(last.endMs, v);
+    el.style.display = 'block';
+    el.style.left = `${left}px`;
+    el.style.width = `${right - left}px`;
+  };
+  const startCreate = (e: ReactPointerEvent<HTMLButtonElement>, anchor: number) => {
+    e.preventDefault();
+    const el = e.currentTarget;
+    const area = el.closest<HTMLElement>('[data-time-area]');
+    const pointerId = e.pointerId;
+    el.setPointerCapture(pointerId);
+    suppressClick.current = true;
+    let hovered = anchor;
+    showCreateBand(anchor, anchor);
+    const onMove = (ev: PointerEvent) => {
+      if (!area) return;
+      const ms = xToMs(ev.clientX - area.getBoundingClientRect().left, editorStore.getState().view);
+      const i = Math.max(0, currentWordIndex(words, ms));
+      if (i !== hovered) {
+        hovered = i;
+        showCreateBand(anchor, i);
+      }
+    };
+    const finish = (commit: boolean) => {
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onCancel);
+      if (el.hasPointerCapture(pointerId)) el.releasePointerCapture(pointerId);
+      showCreateBand(anchor, null);
+      // The click that follows this pointerup must not seek.
+      setTimeout(() => (suppressClick.current = false), 0);
+      if (!commit) return;
+      const st = editorStore.getState();
+      if (!st.project) return;
+      const id = `slot-${crypto.randomUUID().slice(0, 8)}`;
+      const slot = slotForWords(st.project, anchor, hovered, id);
+      if (!slot) return st.reject('Add graphic', 'Those words already have a graphic.');
+      if (st.exec(addSlot(slot))) st.select(id);
+    };
+    const onUp = () => finish(true);
+    const onCancel = () => finish(false);
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onCancel);
+  };
+
   if (words.length === 0) {
     return (
       <p className="absolute top-1/2 left-4 -translate-y-1/2 text-[11px] text-text-3">
@@ -102,7 +165,20 @@ export function WordsTrack() {
 
   return (
     <>
-      <span ref={band} aria-hidden className="absolute top-1.5 hidden h-8 rounded-md bg-violet/12" />
+      <span
+        ref={band}
+        aria-hidden
+        className="absolute top-1.5 hidden h-8 rounded-md bg-violet/12"
+      />
+      <span
+        ref={createBand}
+        aria-hidden
+        className="pointer-events-none absolute top-1.5 z-[1] hidden h-8 rounded-md border border-dashed border-violet/70 bg-violet/10"
+      >
+        <span className="absolute -top-[19px] left-0 rounded-full bg-violet px-2 py-px text-[9px] leading-3 font-medium whitespace-nowrap text-white shadow-violet-glow">
+          ✦ Add graphic here
+        </span>
+      </span>
       {visible.map((w) => (
         <button
           key={w.i}
@@ -112,8 +188,13 @@ export function WordsTrack() {
           type="button"
           tabIndex={-1}
           data-state="upcoming"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => clock.seek(w.startMs)}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            if (e.shiftKey && e.button === 0) startCreate(e, w.i);
+          }}
+          onClick={() => {
+            if (!suppressClick.current) clock.seek(w.startMs);
+          }}
           className="absolute top-[15px] text-[13px] leading-[17px] whitespace-nowrap text-text-3 transition-colors duration-150 hover:text-text data-[state=current]:text-text data-[state=spoken]:text-text-2"
           style={{ left: msToX(w.startMs, view) }}
         >

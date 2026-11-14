@@ -100,3 +100,13 @@ The transcript is the editor.png script ("Let's look at the numbers. Our revenue
 - **Open at a moment:** `/editor/demo?t=5600&select=slot-2` opens paused at 5.6 s with slot 2 selected (used by the design check).
 - **Composition assets:** served by `app/api/composition/assets` from `packages/motion/dist`. Packaging `dist/` for App Hosting is part of spec 08.
 - **Keyboard (part of task 9):** `use-editor-keys.ts` already handles Space, J/K/L, ←/→ (⇧ = 1 s), ⌘Z/⇧⌘Z, Delete, ⌘D and Esc. Arrows nudge a focused slot. J steps back 1 s, because an `<audio>` element can't play in reverse.
+
+## As built (task 9)
+- **Drag** (`components/timeline/slot-drag.ts`): pointer capture on the card, 3 px threshold so clicks still select, mode from `dragModeAt` (8 px edges; cards under 24 px only move). Every move recomputes `dragRange` from the press-time project and writes `dragPreview { slotId, startMs, endMs, snapped }`; release commits that exact range as one MoveSlot / ResizeSlot (property-tested: committed range equals the preview). Escape cancels without deselecting.
+- **Magnetic settle**: while `snapped`, the card's `left`/`width` ease over 150 ms with a slight overshoot; off under reduced motion.
+- **Auto-scroll**: when zoomed, a 12 px zone at either edge of the time area scrolls 10 px per frame, and the drag delta includes the scroll change so the card stays under the pointer.
+- **Shift-drag create** (`words-track.tsx`): shift + press on a word shows a dashed band and an "Add graphic here" chip; release runs `slotForWords` → AddSlot and selects the new slot. No room → `reject()` toast "Those words already have a graphic." The click after a shift-drag never seeks.
+- **Wheel** (`lib/timeline/wheel.ts`, non-passive listener on the timeline): ⌘/ctrl + wheel (trackpad pinch) zooms at the pointer, never wider than fit (zooming out past fit snaps back to `fit: true`); shift + wheel or a sideways swipe scrolls; `clampScroll` keeps the scroll within [0, duration − visible]. The zoom slider uses the same clamp.
+- When scrolled, the time area clips at its left edge (the −24 px inset for the "0s" label only applies at scroll 0).
+- Footer hint uses the design copy "Drag a slot to retime · Space to play".
+

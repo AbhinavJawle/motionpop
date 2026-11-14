@@ -46,7 +46,7 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
       animate={{ scale: 1, opacity: 1 }}
       transition={springPop}
       className={cn(
-        'group absolute rounded-[9px] outline-none select-none',
+        'group absolute cursor-grab touch-none rounded-[9px] outline-none select-none data-[dragging=move]:cursor-grabbing',
         selected ? 'top-2 h-[47px] p-px' : 'top-2.5 h-[43px]',
         selected &&
           'bg-[linear-gradient(90deg,var(--color-violet),var(--color-ember-pink)_70%,var(--color-ember))] shadow-[0_0_18px_rgb(139_124_255/0.13)]',
@@ -58,7 +58,9 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
       <div
         className={cn(
           'relative flex h-full items-center overflow-hidden rounded-[8px] shadow-glass',
-          slot.status === 'suggested' && !selected && 'border border-dashed border-white/14 bg-slot-suggested',
+          slot.status === 'suggested' &&
+            !selected &&
+            'border border-dashed border-white/14 bg-slot-suggested',
           slot.status === 'suggested' && selected && 'bg-slot-suggested',
           slot.status === 'generating' && 'bg-slot-generating',
           slot.status === 'ready' && (selected ? 'bg-slot-selected' : 'bg-slot-ready'),
@@ -82,7 +84,11 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
           </span>
         )}
         {slot.status === 'generating' && (
-          <Sparkles className="ml-[13px] size-[17px] shrink-0 text-violet-ink" strokeWidth={1.5} aria-hidden />
+          <Sparkles
+            className="ml-[13px] size-[17px] shrink-0 text-violet-ink"
+            strokeWidth={1.5}
+            aria-hidden
+          />
         )}
         {(slot.status === 'ready' || slot.status === 'failed') && (
           <span
@@ -104,15 +110,22 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
           <span
             className={cn(
               'relative min-w-0 flex-1 pr-6',
-              slot.status === 'suggested' ? 'ml-2.5' : slot.status === 'generating' ? 'ml-2.5' : 'ml-2.5',
+              slot.status === 'suggested'
+                ? 'ml-2.5'
+                : slot.status === 'generating'
+                  ? 'ml-2.5'
+                  : 'ml-2.5',
             )}
           >
             <span
               className={cn(
                 'block truncate leading-[14px] font-medium',
-                slot.status === 'generating' ? 'text-[10px] leading-[13px] text-text' : 'text-[11px]',
+                slot.status === 'generating'
+                  ? 'text-[10px] leading-[13px] text-text'
+                  : 'text-[11px]',
                 slot.status === 'suggested' && 'text-slot-title',
-                slot.status === 'ready' && (selected ? 'text-slot-title-sel' : 'text-slot-title-ready'),
+                slot.status === 'ready' &&
+                  (selected ? 'text-slot-title-sel' : 'text-slot-title-ready'),
                 slot.status === 'failed' && 'text-text',
               )}
             >
@@ -135,16 +148,43 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
           </span>
         )}
         {hasNote ? (
-          <span aria-label="Has an unresolved note" className="absolute top-2.5 right-3.5 size-1.5 rounded-full bg-error" />
+          <span
+            aria-label="Has an unresolved note"
+            className="absolute top-2.5 right-3.5 size-1.5 rounded-full bg-error"
+          />
         ) : (
           slot.status === 'ready' && (
-            <span aria-hidden className="absolute top-[11px] right-3.5 size-[5px] rounded-full bg-mint" />
+            <span
+              aria-hidden
+              className="absolute top-[11px] right-3.5 size-[5px] rounded-full bg-mint"
+            />
           )
         )}
       </div>
+      {width >= 24 && (
+        <>
+          <ResizeHandle side="left" />
+          <ResizeHandle side="right" />
+        </>
+      )}
     </motion.div>
   );
 });
+
+/** 8 px resize zone on each edge (the drag code picks the mode from the pointer x). */
+function ResizeHandle({ side }: { side: 'left' | 'right' }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'absolute inset-y-0 z-10 flex w-2 cursor-ew-resize items-center justify-center',
+        side === 'left' ? 'left-0' : 'right-0',
+      )}
+    >
+      <span className="h-4 w-0.5 rounded-full bg-white/50 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-data-[dragging]:opacity-100" />
+    </span>
+  );
+}
 
 function MiniBars() {
   return (

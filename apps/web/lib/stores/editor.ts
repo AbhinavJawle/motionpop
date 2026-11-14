@@ -20,13 +20,16 @@ import type { View } from '../timeline/geometry';
  * refs directly (R5.1); `playheadMs` updates on pause, seek and scrub end.
  */
 
-export type RailItem = 'voice' | 'ai' | 'styles' | 'media' | 'audio' | 'fonts' | 'brand' | 'projects';
+export type RailItem =
+  'voice' | 'ai' | 'styles' | 'media' | 'audio' | 'fonts' | 'brand' | 'projects';
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 
 export interface DragPreview {
   slotId: string;
   startMs: number;
   endMs: number;
+  /** The dragged edge landed on a word boundary: the card eases onto it (magnetic settle). */
+  snapped: boolean;
 }
 
 export interface EditorState {
@@ -49,6 +52,8 @@ export interface EditorState {
   load(project: EditorProject): void;
   /** Runs a command. Returns false (and records `rejection`) if the command was rejected. */
   exec(cmd: Command): boolean;
+  /** Records a refused action that never became a command (e.g. no room for a new slot). */
+  reject(label: string, reason: string): void;
   undo(): void;
   redo(): void;
   select(slotId: string | null): void;
@@ -124,6 +129,11 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
             return false;
           }
         },
+
+        reject: (label, reason) =>
+          set((s) => {
+            s.rejection = { label, reason, at: now() };
+          }),
 
         undo: () => {
           const { project, history } = get();

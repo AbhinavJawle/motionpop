@@ -5,7 +5,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PlaybackClock } from '@/lib/editor/playback';
 import { cn } from '@/lib/cn';
 import { fitView, msToX } from '@/lib/timeline/geometry';
-import { useEditor } from '@/lib/stores/editor';
+import { editorStore, useEditor } from '@/lib/stores/editor';
+import { wheelView } from '@/lib/timeline/wheel';
 import { AudioTrack } from './audio-track';
 import { PlayheadCapsule, PlayheadLine, usePlayheadVar } from './playhead';
 import { Ruler } from './ruler';
@@ -44,16 +45,46 @@ export function Timeline({
   useEffect(() => {
     const el = areaRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([entry]) => setWidthPx(Math.round(entry?.contentRect.width ?? 0)));
+    const ro = new ResizeObserver(([entry]) =>
+      setWidthPx(Math.round(entry?.contentRect.width ?? 0)),
+    );
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  // ⌘/ctrl + wheel zooms at the pointer; shift + wheel or a sideways swipe scrolls (R6.3).
+  // Non-passive so we can stop the page from scrolling or zooming.
+  const sectionRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    const onWheel = (e: WheelEvent) => {
+      const area = areaRef.current;
+      const st = editorStore.getState();
+      if (!area || !st.project) return;
+      const r = area.getBoundingClientRect();
+      const next = wheelView(st.view, r.width - TL.rightPad, st.project.durationMs, {
+        deltaX: e.deltaX,
+        deltaY: e.deltaY,
+        deltaMode: e.deltaMode,
+        zoom: e.metaKey || e.ctrlKey,
+        shift: e.shiftKey,
+        anchorX: Math.max(0, Math.min(r.width, e.clientX - r.left)),
+      });
+      if (!next) return;
+      e.preventDefault();
+      st.setView(next);
+    };
+    section.addEventListener('wheel', onWheel, { passive: false });
+    return () => section.removeEventListener('wheel', onWheel);
   }, []);
 
   // Fit to width unless the user zoomed (spec 04 design: window resize keeps fit).
   useEffect(() => {
     if (storeView.fit && widthPx > 0) {
       const fit = fitView(durationMs, widthPx - TL.rightPad);
-      if (fit.pxPerMs !== storeView.pxPerMs || storeView.scrollMs !== 0) setView({ ...fit, fit: true });
+      if (fit.pxPerMs !== storeView.pxPerMs || storeView.scrollMs !== 0)
+        setView({ ...fit, fit: true });
     }
   }, [storeView, widthPx, durationMs, setView]);
 
@@ -70,6 +101,7 @@ export function Timeline({
   return (
     <TimelineContext.Provider value={ctx}>
       <section
+        ref={sectionRef}
         aria-label="Timeline"
         className="relative h-[300px] shrink-0 border-t border-white/10 bg-panel select-none"
       >
@@ -103,7 +135,7 @@ export function Timeline({
         })}
         <TimeArea areaRef={areaRef} peaks={peaks} bucketMs={bucketMs} ready={widthPx > 0} />
         <p className="absolute bottom-[3px] left-6 text-[9px] leading-3 text-text-3">
-          Space play · ⌘G generate · Drag slot to retime
+          Drag a slot to retime · Space to play
         </p>
       </section>
     </TimelineContext.Provider>
@@ -122,12 +154,19 @@ function TimeArea({
   ready: boolean;
 }) {
   usePlayheadVar(areaRef);
+  const { view } = useTimeline();
   return (
     <div
       ref={areaRef}
+      data-time-area
       className="absolute right-0 bottom-0"
-      // Clip to the time area, with room on the left for the centred "0s" label.
-      style={{ left: TL.labelCol, top: TL.rows.ruler.top, clipPath: 'inset(0 0 0 -24px)' }}
+      // Clip to the time area, with room on the left for the centred "0s" label (and the
+      // playhead capsule) while the start is in view. Scrolled, nothing may cross the labels.
+      style={{
+        left: TL.labelCol,
+        top: TL.rows.ruler.top,
+        clipPath: view.scrollMs > 0 ? 'inset(0)' : 'inset(0 0 0 -24px)',
+      }}
     >
       {ready && (
         <>
@@ -153,7 +192,15 @@ function TimeArea({
   );
 }
 
-function Row({ id, label, children }: { id: keyof typeof TL.rows; label: string; children: React.ReactNode }) {
+function Row({
+  id,
+  label,
+  children,
+}: {
+  id: keyof typeof TL.rows;
+  label: string;
+  children: React.ReactNode;
+}) {
   const r = TL.rows[id];
   return (
     <div

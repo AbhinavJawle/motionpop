@@ -65,3 +65,17 @@ export function rulerTicks(view: View, widthPx: number): RulerTicks {
   }
   return { stepMs, majors, minors };
 }
+
+/**
+ * Clamps a scroll position so the timeline never scrolls past its start or leaves empty
+ * space after the end. `visiblePx` is the time area width minus the right padding.
+ */
+export function clampScroll(
+  scrollMs: number,
+  pxPerMs: number,
+  visiblePx: number,
+  durationMs: number,
+): number {
+  const max = Math.max(0, durationMs - visiblePx / pxPerMs);
+  return Math.round(Math.max(0, Math.min(max, scrollMs)));
+}

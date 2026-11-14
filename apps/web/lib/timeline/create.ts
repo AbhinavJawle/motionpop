@@ -7,7 +7,12 @@ import { wordsInRange } from './invariants';
  * (spec 04 R6.2). Starts on the first word's start and ends on the last word's end, widened
  * to the minimum duration where the neighbours allow it. Returns null when it can't fit.
  */
-export function slotForWords(project: EditorProject, a: number, b: number, id: string): Slot | null {
+export function slotForWords(
+  project: EditorProject,
+  a: number,
+  b: number,
+  id: string,
+): Slot | null {
   const words = project.transcript.words;
   const i0 = Math.max(0, Math.min(a, b));
   const i1 = Math.min(words.length - 1, Math.max(a, b));

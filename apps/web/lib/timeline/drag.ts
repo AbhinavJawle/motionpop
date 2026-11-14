@@ -32,7 +32,11 @@ export function dragRange(
     const raw = slot.startMs + deltaMs;
     const snapped = snapRange(raw, raw + len, boundaries, pxPerMs);
     const start = clampMove(project.slots, slotId, snapped.startMs, project.durationMs);
-    return { startMs: start, endMs: start + len, snapped: snapped.snapped && start === snapped.startMs };
+    return {
+      startMs: start,
+      endMs: start + len,
+      snapped: snapped.snapped && start === snapped.startMs,
+    };
   }
 
   const limits = limitsFor(slot.componentId);

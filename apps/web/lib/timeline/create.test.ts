@@ -35,12 +35,16 @@ describe('slotForWords', () => {
     const empty = { ...p, slots: [] };
     const n = empty.transcript.words.length;
     fc.assert(
-      fc.property(fc.integer({ min: 0, max: n - 1 }), fc.integer({ min: 0, max: n - 1 }), (a, b) => {
-        const s = slotForWords(empty, a, b, 'x');
-        if (!s) return;
-        expect(s.endMs - s.startMs).toBeGreaterThanOrEqual(1000);
-        expect(() => addSlot(s).do(empty)).not.toThrow();
-      }),
+      fc.property(
+        fc.integer({ min: 0, max: n - 1 }),
+        fc.integer({ min: 0, max: n - 1 }),
+        (a, b) => {
+          const s = slotForWords(empty, a, b, 'x');
+          if (!s) return;
+          expect(s.endMs - s.startMs).toBeGreaterThanOrEqual(1000);
+          expect(() => addSlot(s).do(empty)).not.toThrow();
+        },
+      ),
     );
   });
 });

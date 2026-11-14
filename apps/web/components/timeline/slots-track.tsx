@@ -3,16 +3,23 @@
 import { INSPECTOR_PROMPT_ID } from '@/components/editor/inspector';
 import { msToX } from '@/lib/timeline/geometry';
 import { selectSlots, useEditor } from '@/lib/stores/editor';
+import { useStill } from '@/lib/motion/use-still';
 import { SlotCard } from './slot-card';
 import { useTimeline } from './timeline-context';
+import { startSlotDrag } from './slot-drag';
 
-/** SLOTS track: one card per slot, positioned by time. Dragging lands in task 9. */
+/** Magnetic settle onto a word boundary (spec 04 R6.1: 120–180 ms). */
+const SETTLE =
+  'left 150ms cubic-bezier(0.2, 0.9, 0.3, 1.2), width 150ms cubic-bezier(0.2, 0.9, 0.3, 1.2)';
+
+/** SLOTS track: one card per slot, positioned by time; drag to move, edges to resize. */
 export function SlotsTrack() {
   const { view } = useTimeline();
   const slots = useEditor(selectSlots);
   const selectedId = useEditor((s) => s.selectedSlotId);
   const select = useEditor((s) => s.select);
   const preview = useEditor((s) => s.dragPreview);
+  const still = useStill();
 
   if (slots.length === 0) {
     return (
@@ -25,7 +32,8 @@ export function SlotsTrack() {
   return (
     <>
       {slots.map((slot) => {
-        const range = preview?.slotId === slot.id ? preview : slot;
+        const dragged = preview?.slotId === slot.id ? preview : null;
+        const range = dragged ?? slot;
         const left = msToX(range.startMs, view);
         const width = Math.max(8, msToX(range.endMs, view) - left);
         return (
@@ -34,9 +42,9 @@ export function SlotsTrack() {
             entry={slot}
             selected={slot.id === selectedId}
             width={width}
-            className="z-[2]"
-            style={{ left }}
-            onPointerDown={(e) => e.stopPropagation()}
+            className={dragged ? 'z-[3]' : 'z-[2]'}
+            style={{ left, transition: dragged?.snapped && !still ? SETTLE : 'none' }}
+            onPointerDown={(e) => startSlotDrag(e, slot.id)}
             onClick={() => select(slot.id)}
             onDoubleClick={() => {
               select(slot.id);

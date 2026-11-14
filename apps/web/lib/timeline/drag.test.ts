@@ -37,14 +37,18 @@ describe('dragRange', () => {
         fc.integer({ min: -20_000, max: 20_000 }),
         (id, mode, delta) => {
           const r = dragRange(p, id, mode, delta, PX_PER_MS, bounds)!;
-          const cmd = mode === 'move' ? moveSlot(id, r.startMs) : resizeSlot(id, mode, mode === 'start' ? r.startMs : r.endMs);
+          const cmd =
+            mode === 'move'
+              ? moveSlot(id, r.startMs)
+              : resizeSlot(id, mode, mode === 'start' ? r.startMs : r.endMs);
           const next = cmd.do(p);
           expect(timelineIssues(next)).toEqual([]);
           const s = next.slots.find((x) => x.id === id)!;
           // The committed slot equals the preview.
           expect([s.startMs, s.endMs]).toEqual([r.startMs, r.endMs]);
           if (r.snapped) {
-            const edges = mode === 'move' ? [r.startMs, r.endMs] : [mode === 'start' ? r.startMs : r.endMs];
+            const edges =
+              mode === 'move' ? [r.startMs, r.endMs] : [mode === 'start' ? r.startMs : r.endMs];
             expect(edges.some((e) => bounds.includes(e))).toBe(true);
           }
         },
