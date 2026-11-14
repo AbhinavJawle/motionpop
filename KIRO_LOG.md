@@ -387,3 +387,18 @@ Template:
   - No bugs found. Kiro noted that an undecodable file shows the transcribe step active before the intake error, and that store failures land on the `suggest` card. Both are intended.
   - Web suite: 238 tests.
 <!-- /kiro-session:sess_05dac606-521d-4e04-9915-ff12ff3315fb -->
+
+<!-- kiro-session:sess_9dc96da7-e2fb-403a-9a23-86da9de53589 -->
+### 2026-11-14 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-14T21:01:47.027Z · last stop: 2026-11-14T21:04:23.083Z · session: sess_9dc96da7-e2fb-403a-9a23-86da9de53589
+- commits since start: 
+  - e8743db test(05-audio-pipeline): task 9 playwright pipeline tests
+- uncommitted changes: 
+  - `?? .kiro/specs/06-slot-detection-and-autofill/`
+- Summary (added in Claude Code after reviewing `run22.log` and commit e8743db): **run 22**, spec 05 task 9.
+  - `render-cleaned.spec.ts` uses a dev-only `/dev/audio-test` page that exposes the renderer. The output length matches exactly (60,000 samples). The largest jump at the seams is 0.0487 against a 0.05 limit; that is the equal-power crossfade of two in-phase tones, not a click. With no cuts the output is identical to the input.
+  - `processing.spec.ts`: intake alert, sample to editor in about 1.5 s with the expected step details, 14.3 s voiceover with 22 words before and after a reload, and the interrupted state.
+  - `whisper.spec.ts` skips without `E2E_WHISPER=1` and a self-recorded `e2e/fixtures/speech.*`. No third-party audio was added.
+  - Kiro reported that `pnpm lint` fails after an e2e run because ESLint scans the gitignored `e2e-output/` report. Claude Code added it to the ESLint ignores. Kiro's attempt at `rm -rf` was blocked by its sandbox, and it used another way to clear the folder.
+  - No app bugs found.
+<!-- /kiro-session:sess_9dc96da7-e2fb-403a-9a23-86da9de53589 -->
