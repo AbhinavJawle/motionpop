@@ -46,6 +46,8 @@
   --color-mint-ink: #78ddb0; /* text on mint tint (free · on-device, Synced) */
   --color-mint-tint: #16251f; /* mint chip background */
   --color-avatar: #403451; /* creator avatar circle */
+  --color-track: #34303f; /* slider track */
+  --color-violet-thumb: #d2c8ff; /* slider handle */
 
   /* Type */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
@@ -57,7 +59,10 @@
   --radius-modal: 20px;
 
   /* Shadows */
-  --shadow-glass: 0 8px 24px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.08);
+  /* The PNGs show a faint 1px edge on glass cards (explicit as a border on "Format switcher" l.246); drawn as an inset ring. */
+  --shadow-glass:
+    0 8px 24px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.08),
+    inset 0 0 0 1px rgb(255 255 255 / 0.06);
   --shadow-quiet: inset 0 1px 0 rgb(255 255 255 / 0.05);
   --shadow-ember:
     0 4px 20px rgb(255 122 61 / 0.18), 0 8px 24px rgb(0 0 0 / 0.35),

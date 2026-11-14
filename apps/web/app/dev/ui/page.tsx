@@ -9,6 +9,10 @@ import { BrandKitChip } from '@/components/ui/brand-kit-chip';
 import { Button } from '@/components/ui/button';
 import { Chip, CostChip, SyncedChip } from '@/components/ui/chip';
 import { CreditsChip } from '@/components/ui/credits-chip';
+import { Dropdown } from '@/components/ui/dropdown';
+import { Input, Textarea } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
+import { Tabs } from '@/components/ui/tabs';
 import { Kbd } from '@/components/ui/kbd';
 import { NumberRoll } from '@/components/ui/number-roll';
 import { SegmentedPills } from '@/components/ui/segmented-pills';
@@ -32,6 +36,10 @@ export default function UiGallery() {
   const [credits, setCredits] = useState(120);
   const [timer, setTimer] = useState(4.2);
   const [pipState, setPipState] = useState<PipState>('idle');
+  const [timing, setTiming] = useState(3.6);
+  const [zoom, setZoom] = useState(54);
+  const [style, setStyle] = useState<'editorial' | 'dark-money' | 'clean'>('editorial');
+  const [tab, setTab] = useState<'transcript' | 'captions'>('transcript');
 
   return (
     <main className="mx-auto flex max-w-[1200px] flex-col gap-10 px-10 py-10">
@@ -101,6 +109,68 @@ export default function UiGallery() {
         <span className="flex items-center gap-1 text-[11px] text-text-3">
           <Kbd>Space</Kbd> play · <Kbd>⌘G</Kbd> generate
         </span>
+      </Section>
+
+      <Section title="Fields (inspector, 320 wide)">
+        <div className="flex w-[320px] flex-col gap-3">
+          <Textarea
+            defaultValue="A clean, animated bar chart with warm orange bars and an editorial feel."
+            footer={
+              <Button variant="ai" size="sm" className="w-[122px] justify-between pr-1">
+                ✦ Generate
+                <CostChip route="cloud" credits={3} />
+              </Button>
+            }
+          />
+          <Input
+            density="roomy"
+            placeholder="Quick edit… e.g. make it slower"
+            trailing={<CostChip route="device" />}
+          />
+          <Input defaultValue="Revenue grew 40%" aria-label="Title" />
+          <div className="flex items-center gap-3">
+            <span className="label-caps w-14 text-[10px]">Style</span>
+            <Dropdown
+              label="Style"
+              value={style}
+              onChange={setStyle}
+              className="flex-1"
+              options={[
+                { value: 'editorial', label: 'Editorial Explainer' },
+                { value: 'dark-money', label: 'Dark Money' },
+                { value: 'clean', label: 'Clean Minimal' },
+              ]}
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="label-caps w-14 text-[10px]">Timing</span>
+            <Slider
+              label="Timing"
+              value={timing}
+              min={0.5}
+              max={6}
+              step={0.1}
+              onChange={setTiming}
+              format={(v) => `${v.toFixed(1)} seconds`}
+              className="flex-1"
+            />
+            <span className="w-8 text-right font-mono text-[11px]">{timing.toFixed(1)}s</span>
+          </div>
+        </div>
+        <div className="flex w-[320px] flex-col gap-6 self-start">
+          <Tabs
+            label="Bottom panel"
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { value: 'transcript', label: 'Transcript' },
+              { value: 'captions', label: 'Captions' },
+            ]}
+          />
+          <div className="w-[98px]">
+            <Slider label="Timeline zoom" tone="neutral" value={zoom} onChange={setZoom} />
+          </div>
+        </div>
       </Section>
 
       <Section title="Pip · states">
