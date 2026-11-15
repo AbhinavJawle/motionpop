@@ -1,3 +1,4 @@
+import type { Energy, Look } from '@motionpop/schemas';
 import type { Format, StylePack } from '../contract';
 
 /** What the compiler needs from a project. Integer milliseconds everywhere. */
@@ -9,13 +10,22 @@ export interface CompileSlot {
   params: unknown;
   /** Slot-local key moment (spoken word); defaults to the component's own. */
   keyMomentMs?: number;
+  /** Scenes only: the slot's words, times relative to the slot start. */
+  words?: { startMs: number; endMs: number }[];
+  /** Scenes only: prosody stress per slot word (0–100). */
+  stress?: number[];
+  /** Scenes only: pauses in the delivery, relative to the slot start. */
+  pauses?: { startMs: number; endMs: number }[];
 }
 
 export interface CompileInput {
   /** Frame size comes from `FORMATS[format]` (packages/schemas). */
   format: Format;
   durationMs: number;
-  style: StylePack;
+  /** A style pack, or a look (a style pack with the spec 07 craft blocks). */
+  style: StylePack | Look;
+  /** Beat energy for scenes; defaults to the look's. */
+  energy?: Energy;
   /** `transparent` omits the background and texture layers (WebM overlay export). Default `style`. */
   background?: 'style' | 'transparent';
   /** `preview` draws a placeholder for a failed slot; `render` leaves it empty so the job can fail. Default preview. */
@@ -31,7 +41,10 @@ export interface RuntimeProject {
   height: number;
   format: Format;
   durationMs: number;
-  style: StylePack;
+  /** A style pack, or a look (a style pack with the spec 07 craft blocks). */
+  style: StylePack | Look;
+  /** Beat energy for scenes; defaults to the look's. */
+  energy?: Energy;
   mode?: 'preview' | 'render';
   slots: CompileSlot[];
 }

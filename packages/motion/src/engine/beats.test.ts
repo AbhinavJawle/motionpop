@@ -4,9 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { beatInputArb, deepFreeze } from './beat-arbitraries';
 import {
   DEFAULT_SNAP_MARGIN,
+  MIN_EXIT_MS,
   MIN_GAP_MS,
   MIN_LEAD_MS,
-  inQuiet,
   scheduleBeats,
   snapWord,
   type BeatInput,
@@ -57,7 +57,15 @@ describe('scheduleBeats properties', () => {
     fc.assert(
       fc.property(beatInputArb, (input) => {
         const plan = scheduleBeats(input);
-        expect(plan.exitStartMs).toBe(Math.max(0, input.durationMs - input.exitMs));
+        // The exit is the look's length, shortened (never below MIN_EXIT_MS) only to let a late
+        // spoken word land (changed by Claude Code after motion:check showed late key words
+        // fading out before they landed).
+        expect(plan.exitStartMs).toBeGreaterThanOrEqual(
+          Math.max(0, input.durationMs - input.exitMs),
+        );
+        expect(plan.exitStartMs).toBeLessThanOrEqual(
+          Math.max(0, input.durationMs - Math.min(MIN_EXIT_MS, input.exitMs)),
+        );
         let prev = 0;
         for (const c of plan.cues) {
           expect(c.landMs).toBeLessThanOrEqual(plan.exitStartMs);
@@ -69,7 +77,7 @@ describe('scheduleBeats properties', () => {
     );
   });
 
-  it('keeps read time: quiet windows are [land, land + read time] clipped to the exit, and no unsqueezed cue starts inside an earlier one', () => {
+  it('keeps read time: quiet windows are [land, land + read time] clipped to the exit, and an unanchored cue follows the previous landing by the gap', () => {
     fc.assert(
       fc.property(beatInputArb, (input) => {
         const plan = scheduleBeats(input);
@@ -81,21 +89,11 @@ describe('scheduleBeats properties', () => {
         });
         expect(plan.quiet).toEqual(expected);
         plan.cues.forEach((c, i) => {
-          if (plan.squeezed.includes(c.id)) return;
-          for (const q of plan.quiet) {
-            if (plan.cues.findIndex((x) => x.id === q.cue) < i)
-              expect(c.startMs).toBeGreaterThanOrEqual(q.endMs);
-          }
-          // The entrance of a cue never overlaps an earlier read window.
-          expect(
-            inQuiet(
-              plan.quiet.filter(
-                (q) => q.cue !== c.id && plan.cues.findIndex((x) => x.id === q.cue) < i,
-              ),
-              c.startMs,
-              c.landMs,
-            ),
-          ).toBe(false);
+          // A cue with no word to hit follows the previous landing by a short gap (changed by
+          // Claude Code: waiting out the whole read time dropped labels at the ideal length and
+          // made scenes build one element at a time). Text stillness is asserted at stage level.
+          if (plan.squeezed.includes(c.id) || c.word !== null || i === 0) return;
+          expect(c.startMs).toBeGreaterThanOrEqual(plan.cues[i - 1]!.landMs + MIN_GAP_MS);
         });
       }),
       RUNS,

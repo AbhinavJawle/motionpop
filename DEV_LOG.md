@@ -292,3 +292,13 @@ Template:
   - Text recipes held the look without reference images.
   - Parallel image calls hit a 429 rate limit, so generation will be sequential. A call takes 12–18 s.
   - Limits: BiRefNet was run in Node on CPU, not in a browser, and I stopped it after 9 of 12 images. Prices are list prices from token counts, not a bill.
+- **Spec 07 tasks 2–13 and 15 (Claude Code, Fable 5.2, with Kiro runs 30–32):**
+  - **Built:** schemas (score, look, asset, plan, gate, prosody); on-device prosody in the pipeline; router `maxRepairs`; the stage engine (`beats.ts`, `juice.ts`, `stage.ts`); the scene helper with per-scene score schemas; the first scene, `stat-punch` (3 variants × 3 formats); `motion:check` for scenes.
+  - **Kiro:** run 30 schema properties (and it caught my design example disagreeing with the schema); run 31 prosody tests (it found and fixed my pause-detection bug) and the schema-rules test; run 32 engine properties with a mutation check.
+  - **Mistakes of mine that the checks caught:**
+    - I committed the schemas with a failing config test (I had not read the test output before committing). Fixed in the next commit.
+    - My first scheduler made every cue wait out the previous text's read time. `motion:check` showed the number landing over a second late, and the stills showed the label missing in every variant. Corrected and recorded as D-031; this changed a rule I had written into R5.1b.
+    - The exit could start before a late spoken word landed. Now the exit shortens.
+    - A wide number overflowed in two variants. Minimum sizes fixed.
+  - **Result:** `motion:check stat-punch`: 102 cases × 3 formats, 0 failures, 24 warnings (all "count settled more than 80 ms early", which `big-number` also has). `big-number` still passes unchanged. Stills checked by eye in all three formats.
+  - **Honest state of the look:** `stat-punch` in the plain look is clean but plain: type and a highlighter bar. The richness the brief asks for comes with materials, marks and the two looks (tasks 20–22), which are not built yet.

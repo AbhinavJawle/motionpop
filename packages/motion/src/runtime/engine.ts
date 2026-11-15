@@ -11,6 +11,7 @@
 import type { Composition, MotionComponent } from '../contract';
 import type { RuntimeProject } from '../compiler/types';
 import { pushIn } from '../core/camera';
+import type { SceneContext } from '../engine/stage';
 import { hashString } from '../core/rng';
 import { fontStack, primaryFamily } from '../fonts/font-faces';
 
@@ -35,6 +36,8 @@ export interface Engine {
   seek: (tMs: number) => void;
   errors: SlotError[];
   warnings: SlotWarning[];
+  /** Stage reports of mounted scenes, by slot id. */
+  reports: () => Record<string, unknown>;
 }
 
 /** The subset of `FontFaceSet` the engine needs (lets tests pass a fake). */
@@ -154,7 +157,13 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
             fps: 30,
             seed: hashString(slot.id),
             warn: (message: string) => warnOnce(slot.id, message),
-          },
+            // Scene context (ignored by plain components).
+            look: project.style,
+            ...(slot.words ? { words: slot.words } : {}),
+            ...(slot.stress ? { stress: slot.stress } : {}),
+            ...(slot.pauses ? { pauses: slot.pauses } : {}),
+            ...(project.energy ? { energy: project.energy } : {}),
+          } as SceneContext,
           parsed.data,
         );
         mounted.push({
@@ -219,5 +228,15 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       seek(pendingMs);
     });
 
-  return { ready, seek, errors, warnings };
+  /** Stage reports of mounted scenes (beat plan, juice, energy), for motion:check and the gates. */
+  const reports = (): Record<string, unknown> => {
+    const out: Record<string, unknown> = {};
+    for (const s of slots ?? []) {
+      const report = (s.composition as { report?: unknown }).report;
+      if (report !== undefined) out[s.slotId] = report;
+    }
+    return out;
+  };
+
+  return { ready, seek, errors, warnings, reports };
 }

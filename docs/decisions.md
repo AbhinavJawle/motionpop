@@ -128,3 +128,10 @@ Spec 07 task 1. 22 test images (about $0.90 at list price), evidence in `docs/re
 - **Measured on our backend:** 1,120 image output tokens per 1K image, as the pricing page says, plus about 900–1,100 thinking tokens per call. At list prices that is roughly $0.04 per image, not $0.034. One call takes 12–18 s. **Rate limit:** 6 parallel calls returned 429 for 4 of 12, and 2 parallel still hit some. Generation must be sequential with backoff, so 6 images take about 1.5–3 minutes.
 - **Not checked:** the Agent Platform price list (only the token counts), and browser timings.
 
+## D-031 · 2026-11-15 · decided — Read time protects text and limits juice; it does not delay content
+`motion:check` on the first scene (`stat-punch`) showed that my first beat scheduler was wrong in two ways. It made every cue wait for the previous text's whole read time, so a context line pushed the number more than a second past its spoken word, and at the scene's ideal length the label no longer fit and was dropped. It also let the exit start before a late spoken word landed.
+- **Rule now:** (1) a cue anchored to a spoken word lands on it; (2) landed text is never moved or covered during its read time and stays on screen at least that long; (3) a cue with no word to hit follows the previous landing by 150 ms; (4) only engine-added juice and the camera are restricted during read time (slow, non-covering, camera within 3 %).
+- **Why this is the intended rule:** the founder asked that text stay still long enough to be read, and the research rule is about juice. "Nothing else may move anywhere" was my own extension in R5.1b; it contradicted voice sync (principle 13) and overlap (principle 3), and made scenes slow and linear.
+- **Also:** a late spoken word shortens the exit (to 60 ms at least) instead of losing its landing.
+- R5.1b, motion principle 16 and the design are corrected. Two of Kiro's run 32 properties were updated to the new rule, with a note in the test file.
+

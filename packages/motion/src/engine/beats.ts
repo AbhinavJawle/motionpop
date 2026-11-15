@@ -3,6 +3,15 @@ import { readTimeMs } from '@motionpop/schemas';
 /**
  * Beat scheduling (spec 07 R2.3, R5.1b, R9.1). Pure: cue times come from the spoken words, the
  * read-time rule and the slot length only. No DOM, no randomness.
+ *
+ * The rules, in priority order:
+ * 1. A cue anchored to a spoken word lands on it (principle 13).
+ * 2. Text that has landed is never moved or covered during its read time, and stays on screen
+ *    for at least that long before the exit (optional cues that can't are dropped).
+ * 3. A cue with no word to hit follows the previous landing by a short gap, so a scene builds
+ *    with overlap (principle 3) instead of one element at a time.
+ * 4. Engine-added juice and the camera are restricted while any read-time window is open
+ *    (see juice.ts). Scene content is not: other actors may enter beside text being read.
  */
 export interface CueSpec {
   id: string;
@@ -68,10 +77,12 @@ export interface BeatPlan {
 
 /** Shortest entrance we ever compress to. */
 export const MIN_LEAD_MS = 120;
-/** Gap after a cue without text before the next one may start. */
+/** Gap after a cue lands before the next unanchored cue may start. */
 export const MIN_GAP_MS = 150;
 /** Hold a cue without text needs before the exit. */
 export const MIN_HOLD_MS = 150;
+/** Shortest exit, when a late spoken word leaves almost no room. */
+export const MIN_EXIT_MS = 60;
 export const DEFAULT_SNAP_MARGIN = 15;
 
 /** The word a cue lands on after the prosody snap (± 1 word, only when clearly more stressed). */
@@ -99,7 +110,6 @@ export function snapWord(
 export function scheduleBeats(input: BeatInput): BeatPlan {
   const { cues, durationMs } = input;
   const words = input.words ?? [];
-  const exitStartMs = Math.max(0, durationMs - Math.max(0, input.exitMs));
   const margin = input.snapMargin ?? DEFAULT_SNAP_MARGIN;
 
   // Desired landing time per cue: the (snapped) word start, or null when unanchored.
@@ -110,11 +120,19 @@ export function scheduleBeats(input: BeatInput): BeatPlan {
     return { word, landMs: (words[word] as SlotWordTime).startMs, snapped: word !== anchor.word };
   });
 
+  // A late spoken word shortens the exit rather than losing its landing: voice sync comes first.
+  const lastWord = desired.reduce((m, d) => (d ? Math.max(m, d.landMs) : m), 0);
+  const exitMs = Math.max(
+    Math.min(MIN_EXIT_MS, input.exitMs),
+    Math.min(Math.max(0, input.exitMs), durationMs - lastWord - MIN_HOLD_MS),
+  );
+  const exitStartMs = Math.max(0, durationMs - exitMs);
+
   const out: ScheduledCue[] = [];
   const dropped: string[] = [];
   const squeezed: string[] = [];
   const quiet: QuietWindow[] = [];
-  let minStart = 0; // nothing may start before the previous text's read time is over
+  let minStart = 0; // an unanchored cue follows the previous landing by a short gap
   let prevLand = 0;
 
   cues.forEach((cue, i) => {
@@ -136,8 +154,10 @@ export function scheduleBeats(input: BeatInput): BeatPlan {
           ? lead
           : minStart + lead;
     }
-    // Entrances can be compressed, but never start before the previous text has been read.
-    let startMs = Math.max(minStart, landMs - lead);
+    // Anchored: land on the word, waiting only for cue order. Unanchored: follow the previous
+    // landing by a short gap. Entrances compress to fit.
+    let startMs = want ? Math.max(0, landMs - lead) : Math.max(minStart, landMs - lead);
+    if (want) landMs = Math.max(landMs, prevLand);
     landMs = Math.max(landMs, startMs + MIN_LEAD_MS);
     if (landMs - startMs > lead) startMs = landMs - lead;
     landMs = Math.round(landMs);
@@ -167,10 +187,8 @@ export function scheduleBeats(input: BeatInput): BeatPlan {
     if (cue.words) {
       const endMs = Math.min(exitStartMs, landMs + readTimeMs(cue.words));
       if (endMs > landMs) quiet.push({ cue: cue.id, startMs: landMs, endMs });
-      minStart = Math.max(minStart, endMs);
-    } else {
-      minStart = Math.max(minStart, landMs + MIN_GAP_MS);
     }
+    minStart = Math.max(minStart, landMs + MIN_GAP_MS);
   });
 
   return { cues: out, dropped, squeezed, quiet, exitStartMs };

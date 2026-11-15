@@ -29,9 +29,9 @@ One task at a time. Each ends with typecheck, lint and tests green; motion work 
 
 ## D. First scenes
 
-- [ ] 13. `stat-punch` (3 variants × 3 formats, image-free forms) on the engine, with `big-number` as its actor. Pure migration of saved `big-number` slots; the demo fixture renders unchanged. — R1.5, R2.1, R2.2
+- [x] 13. `stat-punch` (3 variants × 3 formats, image-free forms) on the engine, with `big-number` as its actor. Pure migration of saved `big-number` slots; the demo fixture renders unchanged. — R1.5, R2.1, R2.2 _(Done 2026-11-15. `big-number` stays registered as it is, so saved projects need no migration; `stat-punch` is a new scene beside it, in a separate `scenes` registry until the catalogue is wired in task 27. Images roles come with task 26.)_
 - [ ] 14. `hook-statement` (3 variants, word by word on the voice). Scene registry, `scoreSchemaFor(scene)`, generated catalogue summary for prompts, `solo(actor)` helper. — R2.1, R2.6, R9.4
-- [ ] 15. `motion:check` for scenes: scene × look × format matrix, with the stage-report assertions (beat budget per energy, read time, no dropped cue at the ideal duration). — R5.2
+- [x] 15. `motion:check` for scenes: scene × look × format matrix, with the stage-report assertions (beat budget per energy, read time, no dropped cue at the ideal duration). — R5.2 _(Done for the engine assertions: scenes run through `motion:check` with samples next to the scene, and the check fails on a missed beat budget, a squeezed cue, or a cue dropped at the ideal length. The look matrix grows as looks land in tasks 21–22.)_
 
 ## E. Check, repair, examples, eval
 

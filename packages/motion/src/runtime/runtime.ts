@@ -4,6 +4,7 @@
  * `hf-seek` event (detail.time in seconds). Pure function of time: no clocks, timers or rAF.
  */
 import { components } from '../components';
+import { scenes } from '../scenes';
 import type { RuntimeProject } from '../compiler/types';
 import { createEngine, type SlotError, type SlotWarning } from './engine';
 
@@ -15,13 +16,19 @@ declare global {
       ready: Promise<void>;
       errors: SlotError[];
       warnings: SlotWarning[];
+      /** Stage reports of mounted scenes, by slot id. */
+      reports: () => Record<string, unknown>;
     };
   }
 }
 
 const project = window.__MP_PROJECT__;
 if (project) {
-  const engine = createEngine(project, { doc: document, components, fonts: document.fonts });
+  const engine = createEngine(project, {
+    doc: document,
+    components: { ...components, ...scenes },
+    fonts: document.fonts,
+  });
   let isReady = false;
   void engine.ready.then(() => {
     isReady = true;

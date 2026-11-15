@@ -491,7 +491,9 @@ export function stage(
           p.clipR > 0 || p.clipB > 0 ? `inset(0 ${p.clipR * 100}% ${p.clipB * 100}% 0)` : 'none';
       };
       const seek = (tMs: number) => {
-        const out = moveEase(progress(q(tMs, durationMs), exitStart, Math.max(1, exitMs)));
+        const out = moveEase(
+          progress(q(tMs, durationMs), exitStart, Math.max(1, durationMs - exitStart)),
+        );
         const fresh = (): Props => ({
           opacity: 1 - out,
           tx: 0,

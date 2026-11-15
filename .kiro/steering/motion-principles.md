@@ -22,5 +22,5 @@ These apply to every motion component and every AI-generated composition. The Hy
 13. **Sync.** The slot's focal element lands on the spoken word (word start ± 80 ms).
 14. **No meaningless loops.** Motion performs a job. Secondary motion must be purposeful; nothing loops just to look busy (D-028).
 15. **Determinism.** Same params + same t = identical frame. Always.
-16. **Read time.** After a text block lands, nothing moves or covers it for its read time: at least 0.8 s, plus 0.2 s per word beyond three. During read time the only motion allowed anywhere in the frame is slow and non-covering: a camera push of at most 3 %, background parallax, texture drift (D-028, D-029).
+16. **Read time.** After a text block lands it is not moved or covered for its read time (at least 0.8 s, plus 0.2 s per word beyond three), and it stays on screen at least that long. While any text is in its read time, engine-added motion is slow and non-covering only: a camera push of at most 3 %, background parallax, texture drift. Scene content is not held back: other elements may enter beside text being read, and a cue lands on its spoken word (rule 13) (D-028, D-029, D-031).
 17. **Beats follow energy.** A visible change at least every 3.0 s (calm), 2.2 s (steady), 1.6 s (lively) or 1.1 s (hype). Calm lessons get slower beats. The engine fills gaps; it never breaks rule 16 to do so.

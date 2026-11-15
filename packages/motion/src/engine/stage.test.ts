@@ -97,8 +97,10 @@ describe('stage', () => {
     const { plan, juice } = comp.report;
     expect(plan.cues.map((c) => c.id)).toEqual(['context', 'focal', 'label']);
     const [context, focal, label] = plan.cues;
-    expect(focal!.startMs).toBeGreaterThanOrEqual(context!.landMs + 800);
-    expect(label!.startMs).toBeGreaterThanOrEqual(focal!.landMs + 800);
+    // The anchored number lands on its word; the unanchored label follows it by a short gap.
+    expect(focal!.landMs).toBe(2030);
+    expect(context!.landMs).toBeLessThanOrEqual(focal!.landMs);
+    expect(label!.startMs).toBeGreaterThanOrEqual(focal!.landMs + 150);
     expect(juice.budgetOk).toBe(true);
     // Fast juice never runs while text is being read.
     for (const j of juice.beats.filter((b) => !b.slow)) {

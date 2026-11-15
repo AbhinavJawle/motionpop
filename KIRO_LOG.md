@@ -582,3 +582,24 @@ Template:
   - It noted that the four numeric rules do not catch `slots.detect`'s free-form `params` record, and that an "ids are enums" rule would. It did not add rules it was not asked for.
   - Prompt sizes it logged (system + sample prompt): 962 to 3,219 characters; the `slots.detect` sample was only 8 words.
 <!-- /kiro-session:sess_9ca1ce2c-84c3-4751-8b73-c199ea4aab45 -->
+
+<!-- kiro-session:sess_28fa7a42-6fba-49d8-9fcd-94ff52a38a81 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T14:15:38.274Z · last stop: 2026-11-15T14:19:20.619Z · session: sess_28fa7a42-6fba-49d8-9fcd-94ff52a38a81
+- commits since start: 
+  - 54af9ca test(07-scene-engine-and-looks): tasks 10 and 12 stage engine properties
+- uncommitted changes: 
+  - `M packages/motion/src/compiler/compile.ts`
+  - ` M packages/motion/src/compiler/types.ts`
+  - ` M packages/motion/src/index.ts`
+  - ` M packages/motion/src/runtime/engine.ts`
+  - ` M packages/motion/src/runtime/runtime.ts`
+  - `?? packages/motion/src/scenes/`
+- Summary (added in Claude Code after reviewing `run32.log` and commit 54af9ca):
+  - Tasks 10 and 12: fast-check properties for `scheduleBeats`, `snapWord`, `planJuice`, `cameraTrack` (500 runs each) and three stage-level tests in happy-dom (text does not move inside its read window; budget and the 3 % camera cap hold; `assertSeekPure`). 142 motion tests.
+  - Every property passed on the first run, so it changed nothing in the engine. It checked its own tests by temporarily removing two engine rules: six tests failed, and it restored the files.
+  - It reported coverage of its generators (40 % of inputs with a dropped cue, 46 % squeezed, 38 % anchored; it raised the snap rate from 3 %).
+  - It said where it narrowed properties (the ± 80 ms landing only when nothing forces the cue late; integer pause times only).
+  - Behaviours it flagged that the spec did not state: squeezed cues are exempt from read time; only the first anchor for a cue id counts.
+  - **Afterwards Claude Code changed two engine rules** when `motion:check` on the first scene showed them wrong (see DEV_LOG and D-031): a cue anchored to a spoken word now lands on it regardless of read time, and unanchored cues follow the previous landing by a short gap. Claude Code updated two of Kiro's properties to match and noted it in the test file.
+<!-- /kiro-session:sess_28fa7a42-6fba-49d8-9fcd-94ff52a38a81 -->

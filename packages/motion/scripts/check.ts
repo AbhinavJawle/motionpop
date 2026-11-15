@@ -16,6 +16,7 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import puppeteer, { type Page } from 'puppeteer';
 import { components } from '../src/components';
+import { scenes } from '../src/scenes';
 import { compileProject, type CompileSlot } from '../src/compiler';
 import type { MotionComponent } from '../src/contract';
 import { contains, safeArea, type Box } from '../src/core/safe-area';
@@ -54,6 +55,12 @@ interface Probe {
   rootBgAlpha: number;
 }
 
+interface StageReportLite {
+  energy: string;
+  plan: { dropped: string[]; squeezed: string[] };
+  juice: { budgetOk: boolean; maxGapMs: number };
+}
+
 interface Failure {
   case: string;
   format: Format;
@@ -77,7 +84,7 @@ const HOLD_MS = 800;
 const SYNC_MS = 80;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registry of heterogeneous components; params are validated by each schema
-const registry = components as Record<string, MotionComponent<any>>;
+const registry = { ...components, ...scenes } as Record<string, MotionComponent<any>>;
 if (!id || !registry[id]) {
   console.error(`usage: pnpm motion:check <id>   (known: ${Object.keys(registry).join(', ')})`);
   process.exit(2);
@@ -100,7 +107,12 @@ const assets = {
   textures: JSON.parse(texturesJson) as { grain: string; paper: string },
 };
 
-const samplesMod = (await import(`../src/components/${id}/samples.ts`)) as Samples<unknown>;
+// Scenes (spec 07) keep their samples next to the scene.
+const samplesMod = (
+  id in scenes
+    ? await import(`../src/scenes/${id}/samples.ts`)
+    : await import(`../src/components/${id}/samples.ts`)
+) as Samples<unknown>;
 
 function buildCases(): Case[] {
   const { min, ideal, max } = component.durationMs;
@@ -127,7 +139,11 @@ function buildCases(): Case[] {
           keyMomentMs,
           keyLabel,
           style: editorialExplainer,
-          keepStills: name === 'defaults' && durLabel === 'ideal' && keyLabel === 'default',
+          // Stills for the defaults, and for edge cases named `show-*` (one per scene variant).
+          keepStills:
+            (name === 'defaults' || name.startsWith('show-')) &&
+            durLabel === 'ideal' &&
+            keyLabel === 'default',
         });
       }
     }
@@ -347,10 +363,31 @@ async function main() {
         for (const [f, ok] of runtime.fonts)
           if (!ok) failures.push({ case: '*', format, check: 'fonts', detail: `${f} not loaded` });
 
+        // Scenes (spec 07 R5.2): the stage report must show the beat budget met, no cue squeezed
+        // out of its read time, and nothing dropped once the slot has its ideal length.
+        const reports = (await page.evaluate(() =>
+          (
+            window as unknown as { __motionpop: { reports?: () => unknown } }
+          ).__motionpop.reports?.(),
+        )) as Record<string, StageReportLite> | undefined;
+
         for (const s of slots) {
           const c = s.case;
           const fail = (check: string, detail: string, atMs?: number) =>
             failures.push({ case: c.name, format, atMs, check, detail });
+          const rep = reports?.[s.id];
+          if (rep) {
+            if (!rep.juice.budgetOk)
+              fail(
+                'beat budget',
+                `longest still gap ${rep.juice.maxGapMs} ms at energy ${rep.energy}`,
+              );
+            const roomy = !c.name.includes('-min-') && c.keyLabel === 'default';
+            if (roomy && rep.plan.dropped.length > 0)
+              fail('cue dropped', `${rep.plan.dropped.join(', ')} dropped at ${c.durationMs} ms`);
+            if (roomy && rep.plan.squeezed.length > 0)
+              fail('read time', `${rep.plan.squeezed.join(', ')} squeezed at ${c.durationMs} ms`);
+          }
           for (const wn of runtime.warnings.filter((x) => x.slotId === s.id)) {
             if (/overflow/i.test(wn.message)) fail('overflow warning', wn.message);
             else if (!/shorter than/.test(wn.message))
