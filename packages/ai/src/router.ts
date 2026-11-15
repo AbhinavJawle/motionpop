@@ -59,6 +59,8 @@ export interface TaskDef<I, O> {
   cloudCost: (input: I) => number;
   /** May the router retry in the cloud after a failed device answer? (No surprise spend.) */
   cloudFallback: boolean;
+  /** Repair rounds after an invalid answer (default 1). `component.fill` uses 2 (spec 07 R1.4). */
+  maxRepairs?: number;
   /** Cloud thinking level; omit for the model default. */
   thinking?: ThinkingLevel;
   /**
@@ -216,7 +218,10 @@ export function createRouter(deps: {
 
       let result = await attempt(mode, prompt);
       // Repair only a bad answer; a provider failure (model unavailable, network) won't fix itself.
-      if (!result && failure() === 'invalid-output') result = await attempt(mode, repairPrompt());
+      for (let round = 0; round < (task.maxRepairs ?? 1); round++) {
+        if (result || failure() !== 'invalid-output') break;
+        result = await attempt(mode, repairPrompt());
+      }
       if (!result && task.cloudFallback && !isCloudMode(mode) && !cfg.killSwitch) {
         result = await attempt(
           'PREFER_IN_CLOUD',

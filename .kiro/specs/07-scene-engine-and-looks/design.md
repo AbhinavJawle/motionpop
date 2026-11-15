@@ -211,30 +211,37 @@ Written into `ai-tasks.md` (done with this spec change). For this spec they mean
 ```jsonc
 {
   "id": "field-notes", "name": "Field Notes", "energy": "lively",
-  "colors": { /* as today */ }, "fonts": { "display": "…", "body": "…", "mono": "…", "hand": "…" },
-  "motion": {
-    "personality": "snappy",                       // preset; fields below override it
+  "colors": { /* as today */ },
+  "fonts": { "display": "…", "body": "…", "mono": "…", "displayWeight": 700, "hand": "…" },
+  "motion": { /* the style pack's block, unchanged: eases, enterMs, staggerMs, holdMs, camera.pushIn */ },
+  "personality": {
+    "preset": "snappy",
     "enter": { "text": "mask", "number": "count", "image": "slam", "shape": "draw" },
-    "ease": { "enter": "outExpo", "move": "inOutCubic", "settle": "outBack" },
-    "enterMs": 520, "staggerMs": 45, "overshoot": 0.06, "exitRatio": 0.6
+    "overshoot": 0.06,        // how far a landing overshoots before it settles
+    "popMax": 0.08,           // largest scale pop a stressed word adds (prosody)
+    "exitRatio": 0.6,
+    "snapMargin": 15          // stress lead a neighbouring word needs before a cue snaps to it
+    // "stepFps": 12          // stepped looks only (paper-collage)
   },
   "camera": { "push": [1.0, 1.06], "snap": 0.08, "whip": false, "parallax": 14 },
   "surfaces": {                                    // semantic surface → material stack
     "card": ["paper", "torn-edge", "shadow-soft"],
     "photo": ["white-border", "tape", "tilt"],
-    "label": ["hand", "marker-underline"],
+    "label": ["plain"],                            // label text uses fonts.hand; its underline is a mark
     "strip": ["paper", "torn-edge"]
   },
   "marks": { "emphasis": "marker-circle", "pointer": "marker-arrow", "divider": "torn-rule", "badge": "stamp" },
   "juice": ["decor-draw", "camera-snap", "parallax-shift", "surface-flip", "camera-push"],
   "image": {
-    "recipe": "A single {subject}, documentary photograph, soft daylight, slightly desaturated, centred, full subject visible",
-    "treatment": ["key", "white-border", "shadow-soft"], "tint": null
+    "recipe": "{subject}, documentary photograph, soft natural daylight, slightly desaturated, realistic",
+    "treatment": ["key", "white-border", "shadow-soft"]
   },
   "sound": { "enter": "paper", "mark": "pen", "focal": "thud", "snap": "whoosh" },
   "transitions": ["paper-wipe", "push"]
 }
 ```
+
+The schema is `LookSchema` in `packages/schemas/src/look.ts` (this example was corrected to match it after Kiro run 30 found the first draft disagreed). Overshoot and settle are behaviour maths driven by `personality.overshoot`, so no new ease name is needed.
 
 **How scenes stay look-free (R3.3):** scenes only ever ask for semantic things: a surface kind (`card`, `photo`, `label`, `strip`), a mark role (`emphasis`, `pointer`, `divider`, `badge`), a behaviour family. The look maps each to an implementation. Field Notes circles a number with a red marker; Paper Collage slaps a torn coral strip behind it; Ink Essay draws a thin underline. Same scene code.
 

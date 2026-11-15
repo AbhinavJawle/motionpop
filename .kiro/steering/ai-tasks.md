@@ -18,7 +18,7 @@ General prompt rules (all tasks):
 ### Schema rules (D-029, apply to every task)
 - Structured output on both routes (`responseJsonSchema` in the cloud, `responseConstraint` on-device), then zod again: constrained decoding guarantees shape, not sense.
 - Ids are **string enums** (scene, variant, cue, role, component, skill). Never free strings for anything the code looks up.
-- Schemas stay small and flat: depth 3 at most, few optional properties, no large enums. Complex schemas can be rejected by the model service.
+- Schemas stay small and flat: depth 3 at most, at most 6 optional properties per object, enums of 40 values at most. These are our own limits, chosen to keep prompts small for the on-device model; the Firebase structured-output page (read 2026-11-15) gives no numeric limits. It does say the schema counts toward input tokens, unsupported fields are ignored silently, and the supported subset is `enum`, `items`, `maxItems`, `nullable`, `properties`, `required`. So never rely on `minimum`, `maxLength` or `format` being enforced by the model: zod enforces them.
 - Don't paste the JSON schema into the prompt text. Describe intent and give examples instead.
 - One slot per fill call, in parallel. Only tiny per-row plans go in a single call.
 - Give 2 hand-approved examples (input → output) per call where a library exists.

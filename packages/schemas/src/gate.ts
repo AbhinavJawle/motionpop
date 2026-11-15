@@ -30,5 +30,8 @@ export type GateReport = z.infer<typeof GateReportSchema>;
 
 /** The repair message sent back to the model: one line per report. */
 export function gateReportText(reports: readonly GateReport[]): string {
-  return reports.map((r) => `- ${r.actor} (${r.rule}): ${r.hint}`).join('\n');
+  // One line per report, even if a hint contains a line break.
+  return reports
+    .map((r) => `- ${r.actor} (${r.rule}): ${r.hint.replace(/\s*\n\s*/g, ' ')}`)
+    .join('\n');
 }

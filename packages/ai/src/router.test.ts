@@ -119,6 +119,19 @@ describe('createRouter', () => {
     expect(p.calls[1]?.mode).toBe('PREFER_ON_DEVICE');
   });
 
+  it('repairs up to maxRepairs times, each round with the latest error', async () => {
+    const p = scripted([answer('{"n":99}'), answer('{"n":-1}'), answer('{"n":3}')]);
+    const r = await make(p).router.run(task({ maxRepairs: 2 }), { q: 'a' });
+    expect(r).toMatchObject({ output: { n: 3 }, attempts: 3, ranOn: 'device' });
+    expect(p.calls[2]?.prompt).toContain('previous answer was invalid');
+
+    const p2 = scripted([answer('bad'), answer('bad'), answer('bad')]);
+    await expect(make(p2).router.run(task({ maxRepairs: 2 }), { q: 'a' })).rejects.toMatchObject({
+      reason: 'invalid-output',
+    });
+    expect(p2.calls).toHaveLength(3);
+  });
+
   it('does not escalate to the cloud unless the task allows it', async () => {
     const p = scripted([answer('bad'), answer('bad')]);
     const { router, usage } = make(p);

@@ -546,3 +546,22 @@ Template:
   - Honest notes it gave: its first e2e run failed on a 0.3 px slot overrun because its own assertion was too strict, and it loosened it to the word's right edge. After a final unused-import fix it reran only lint, typecheck and prettier, not the e2e. Nothing enforces 50 ms; the tests assert 150 ms against CI flakiness.
   - It left Claude Code's uncommitted auto-fill and `component.fill` work alone.
 <!-- /kiro-session:sess_a46a246a-8df3-41d0-b49b-05725ec869d8 -->
+
+<!-- kiro-session:sess_4fcfbd91-a4fe-4fd1-8d9c-4e4036d7194a -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T14:06:11.377Z · last stop: 2026-11-15T14:08:02.320Z · session: sess_4fcfbd91-a4fe-4fd1-8d9c-4e4036d7194a
+- commits since start: 
+  - 6e48509 test(07-scene-engine-and-looks): task 4 schema properties
+- uncommitted changes: 
+  - `M apps/web/lib/pipeline/events.ts`
+  - ` M apps/web/lib/pipeline/run.test.ts`
+  - ` M apps/web/lib/pipeline/run.ts`
+  - `?? apps/web/lib/audio/prosody.test.ts`
+  - `?? apps/web/lib/audio/prosody.ts`
+- Summary (added in Claude Code after reviewing `run30.log` and commit 6e48509):
+  - Task: spec 07 task 4, property tests for the new schemas (score, look, asset, plan, gate, transcript prosody). 45 tests in 6 files; all passed on the first run with no schema changes.
+  - It confirmed both existing style packs parse as looks, and that the strict blocks reject unknown keys.
+  - Awkward spots it reported, fixed by Claude Code afterwards: a gate hint with a line break would split `gateReportText` (now flattened); `ImageAssetSchema.subject` allowed an empty string (now `min(1)`).
+  - Spots it reported that stay for code to enforce: `beats[].word` has no upper bound in the schema (the gate's `anchor-out-of-range` rule covers it); the plan schema does not check that `peak` is in `arc` or that slots are unique (the enforcer's job).
+  - It found the look example in design.md disagreed with the schema in four places (motion block shape, tint, the label surface, missing fields). Claude Code corrected the example to match the schema.
+<!-- /kiro-session:sess_4fcfbd91-a4fe-4fd1-8d9c-4e4036d7194a -->

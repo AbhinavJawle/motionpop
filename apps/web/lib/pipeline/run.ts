@@ -12,6 +12,7 @@ import type { AudioStore } from '../audio/audio-store';
 import { isSilent, OUTPUT_SAMPLE_RATE, type DecodedAudio } from '../audio/decode';
 import { buildEdl, cleanedDuration, retimeWords } from '../audio/edl';
 import { checkDuration, validateIntake } from '../audio/intake';
+import { prosody as analyseProsody, stressedCount, type Prosody } from '../audio/prosody';
 import type { ProjectRepository } from '../projects/repository';
 import {
   cleanupSummary,
@@ -182,7 +183,20 @@ export async function runPipeline(
     step = 'moments';
     onEvent({ type: 'step', step, state: 'active' });
     const spans = tagSpans(cleanedWords);
-    onEvent({ type: 'step', step, state: 'done', detail: momentsSummary(spans.length) });
+    // Delivery analysis on the cleaned audio (spec 07 R9.1): on-device, no AI. Optional: a
+    // failure here must never stop processing.
+    let delivery: Prosody | undefined;
+    try {
+      delivery = analyseProsody(cleanedPcm ?? audio.pcm24k, OUTPUT_SAMPLE_RATE, cleanedWords);
+    } catch {
+      delivery = undefined;
+    }
+    onEvent({
+      type: 'step',
+      step,
+      state: 'done',
+      detail: momentsSummary(spans.length, delivery ? stressedCount(delivery) : 0),
+    });
 
     // Suggest (spec 06 R2-R3): detect, then the post-pass makes them timeline-valid.
     step = 'suggest';
@@ -240,7 +254,10 @@ export async function runPipeline(
             ...(edl.skipped ? { skipped: edl.skipped } : {}),
           },
         },
-        transcript: transcript(cleanedWords, cuts.length > 0),
+        transcript: {
+          ...transcript(cleanedWords, cuts.length > 0),
+          ...(delivery ? { prosody: delivery } : {}),
+        },
         originalTranscript: transcript(t.words, false),
         ...firstVersions(placed, now),
         createdAt: now,

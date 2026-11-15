@@ -37,8 +37,9 @@ export function cleanupSummary(fillersRemoved: number, pausesShortened: number):
 }
 
 /** "Found 3 moments" / "No moments found" (spec 06 R4.1). */
-export function momentsSummary(n: number): string {
-  return n === 0 ? 'No moments found' : `Found ${plural(n, 'moment', 'moments')}`;
+export function momentsSummary(n: number, stressed = 0): string {
+  const base = n === 0 ? 'No moments found' : `Found ${plural(n, 'moment', 'moments')}`;
+  return stressed > 0 ? `${base} · ${plural(stressed, 'stressed word', 'stressed words')}` : base;
 }
 
 /** "3 slots found" / "No slots this time" (spec 06 R4.1). */

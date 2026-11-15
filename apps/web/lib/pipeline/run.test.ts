@@ -574,6 +574,16 @@ describe('runPipeline: slot detection (spec 06)', () => {
     expect(timelineIssues(loaded.project)).toEqual([]);
   });
 
+  it('stores on-device prosody with one stress value per cleaned word', async () => {
+    const { h, result } = await runSample();
+    await result;
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    const t = loaded.project.transcript;
+    expect(t.prosody?.v).toBe(1);
+    expect(t.prosody?.stress).toHaveLength(t.words.length);
+  });
+
   it('passes the cleaned words and the tagged spans to the injected detector', async () => {
     const detect = vi.fn<PipelineDeps['detect']>(() => Promise.resolve([]));
     const { result } = await runSample({ detect });

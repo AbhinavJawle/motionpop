@@ -16,7 +16,7 @@ One task at a time. Each ends with typecheck, lint and tests green; motion work 
 
 ## B. The voice as a signal
 
-- [ ] 6. `prosody.ts`: per-word loudness, pitch, duration per syllable and stress (0–100), pauses of 300 ms or longer; run in the audio worker after cleaning; stored on the transcript; the moments card shows the count with the on-device chip. — R9.1
+- [x] 6. `prosody.ts`: per-word loudness, pitch, duration per syllable and stress (0–100), pauses of 300 ms or longer; run after cleaning on the cleaned audio; stored on the transcript; the moments card shows the stressed-word count. _(Runs inline, not in a worker: it samples at most 8 pitch frames per word on an 8 kHz copy. Task 7 measures it; move it to the worker only if that is slow. A word with no audio under it stays at 50.)_ — R9.1
 - [ ] 7. **[kiro]** Prosody tests: a table on synthesized signals with known loud, high and long words and known pauses; properties (deterministic, stress in 0–100, pauses inside the audio, silence gives none, input not mutated); a timing check on 3 minutes of audio. — R9.1
 
 ## C. Stage engine

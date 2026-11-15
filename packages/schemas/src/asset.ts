@@ -10,7 +10,7 @@ export const ImageAssetSchema = z.object({
   hash: z.string().regex(/^[0-9a-f]{64}$/),
   status: z.enum(['pending', 'ready', 'failed']),
   source: z.enum(['generated', 'upload']),
-  subject: z.string().max(120),
+  subject: z.string().min(1).max(120),
   /** True when the background was keyed out; false = shown as a framed photo. */
   keyed: z.boolean(),
   width: z.number().int().positive().optional(),
