@@ -144,16 +144,36 @@ export function buildDecor(
       el.dataset.mark = 'highlighter';
       const y = text.y + text.height * 0.58;
       const n = 8;
+      const stroke = text.height * 0.5;
+      // The visible pass runs a little past the text on both sides and stays at least 2.5 % of
+      // the frame width inside the frame. The round caps add half the stroke at each end, so the
+      // path runs between the cap centres (found in the editor preview: a big number at the
+      // safe-area edge put the cap on the frame edge).
+      const inset = o.frame.width * 0.025;
+      const left = Math.max(o.frame.x + inset, text.x - o.size * 0.08);
+      const right = Math.min(
+        o.frame.x + o.frame.width - inset,
+        text.x + text.width + o.size * 0.08,
+      );
+      const mid = (left + right) / 2;
+      const r = stroke / 2;
+      // A pass shorter than its own stroke becomes one dab at the middle, kept inside too.
+      const lo = o.frame.x + inset + r;
+      const hi = o.frame.x + o.frame.width - inset - r;
+      const x0 = Math.min(Math.max(lo, Math.min(mid, left + r)), hi);
+      const x1 = Math.max(x0, Math.min(hi, Math.max(mid, right - r)));
       const pts = Array.from({ length: n + 1 }, (_, i) => {
         const wobble = ((seedOf(o.seed, 3 + i) % 100) / 100 - 0.5) * o.size * 0.05;
-        return [text.x - o.size * 0.06 + ((text.width + o.size * 0.12) * i) / n, y + wobble, 0.5];
+        return [x0 + ((x1 - x0) * i) / n, y + wobble, 0.5];
       });
       const outline = getStroke(pts, {
-        size: text.height * 0.5,
+        size: stroke,
         thinning: 0.15,
         smoothing: 0.6,
         streamline: 0.4,
         simulatePressure: false,
+        // A finished pass: the outline reaches the last point instead of trailing behind it.
+        last: true,
       });
       const path = doc.createElementNS(SVG_NS, 'path');
       path.setAttribute(
@@ -167,7 +187,7 @@ export function buildDecor(
       );
       path.setAttribute('fill', o.color);
       el.append(path);
-      el.style.transformOrigin = `${text.x}px ${y}px`;
+      el.style.transformOrigin = `${left}px ${y}px`;
       return { el, reveal: 'grow', layer: 'under' };
     }
     default: {
