@@ -307,3 +307,34 @@ Template:
   - **Result:** `motion:check stat-punch`: 120 cases × 3 formats, 0 failures, in the plain look and in `field-notes`.
   - **Not built yet:** paper strips, torn edges, tape and tilt (the surface materials), so `field-notes` is so far paper, ink, red marker and handwriting.
 - **Flaky property fixed:** Kiro's prosody property failed about one run in ten in the full suite. The cause was float rounding in the test's own bound (`length / rate * 1000` gave 1008.9999999999999 for audio that is exactly 1009 ms), not a pause past the audio. The bound has a 1e-6 tolerance now, and 15 of 15 runs pass. I also made the pause-end check in `prosody.ts` unrounded.
+- **Model switch:** the founder clicked through the running app for the first time ("small issues, but the editor looks good"; those issues are deferred). Then they switched this session to Opus 5.5 to carry spec 07 on from where Fable left it.
+- **Spec 07 task 14, `hook-statement` (Claude Code, Opus 5.5):**
+  - **Word-by-word text:** the stage can now reveal text one word at a time, one span per word. Each word appears on its spoken word, or at a steady 280 ms pace once the transcript runs out, and the reveal is compressed to fit the slot.
+  - **Scheduler:** a cue can now keep building after it lands (`spanMs`), so the next cue waits for the whole line to finish.
+  - **Variants:** `center`, `left` (with an accent bar) and `punch` (a small lead-in, then the emphasis words huge).
+  - **Emphasis:** when the score names none, the most stressed spoken word is emphasised.
+  - **Prompt catalogue:** `catalogueSummary()` generates it from the scene registry.
+  - **Seen in the stills:** emphasis that wrapped onto a second line put the mark under the wrong line, and a highlighter made orange-on-yellow text. Both fixed: marks now sit on the widest line of their words, and highlighted words stay ink.
+  - **Moved:** `solo(actor)` moves to task 30, with the drawer that needs it.
+- **Spec 07 task 16, gate reports, repair and safe defaults (Claude Code, Opus 5.5):**
+  - **`gateSlot`:** builds the slot off-screen and returns reports written by code: actor, rule, numbers and a hint.
+  - **`safeScore`:** gives every scene a default that passes the gates.
+  - **`component.fill`:** now sends the component's own params schema as structured output, so the known `schema-in-prompt` violation is gone for it. It runs the gate as its check and repairs up to twice. Usage events log `attempts` and `problems`.
+  - **A rule I settled on:** a dropped optional cue only counts as a gate failure from the scene's ideal length up. Shorter than that, dropping is the designed fallback, the same rule `motion:check` already applies. Without this, `stat-punch` could not pass at its 2.6 s minimum with any label.
+- **Kiro run 33, task 17 (gate and repair properties):** Kiro found a real bug in my scene helper. An empty word list was treated as real timings, so the safe default failed at 2.6 s. Kiro fixed it with a regression test.
+- **Spec 07 task 18, example library (Claude Code, Opus 5.5):**
+  - **Exemplars:** 12 hand-approved, original exemplars, 2 per variant. Each is gated in CI in 3 formats × 2 looks and also runs as a `motion:check` sample. A CI test checks they are honest: numbers are spoken, and emphasis words are in their line.
+  - **Prompt:** the 2 closest exemplars go into the fill prompt, which is about 1,950 characters with the catalogue entry.
+  - **My mistake:** I first added the exemplars to `motion:check` with their beats. The check has no word timings, so 213 cases failed on focal timing. The beats are now stripped in samples.
+- **CI was red since Nov 15, morning (my miss, Fable and Opus sessions):** I hadn't checked CI after the pushes.
+  - The tagger timing test took 64 ms against a 60 ms budget on GitHub's slower runners.
+  - `field-notes` (a look) was expected to parse as a plain style pack.
+  - Locally the schemas test was served from turbo's cache, because it reads `packages/motion/src/styles`, which wasn't a declared input. It is now.
+  - Fixed, along with three flaky tests: random hook lines over 90 characters, a rare coverage rule in Kiro's property, and the detection timing test under full parallel load, which now takes the best of 3.
+  - CI is green on ab6e98c.
+- **Spec 07 task 20, surfaces (Claude Code, Opus 5.5):**
+  - **Materials:** `paper`, `torn-edge` (a seeded polygon), `tape`, `white-border`, `shadow-soft` (it follows the torn outline) and `tilt`.
+  - **`stage.surface()`:** builds the look's card or strip behind the text as it is set. A plain look gets nothing.
+  - **Seen in the stills:** the first label strip spanned the full box rather than the text, and the 9:16 card touched the frame edge. Fixed with text line boxes and an edge margin.
+  - **Result:** in `field-notes`, the hook now sits on a torn paper card and the stat label on a torn paper clipping. Both scenes: `motion:check` 180 cases × 3 formats, 0 failures.
+- **Reordered:** I moved the eval harness (task 19) after the director (27) and `paper-collage` (22), because it measures that pipeline. This follows the cut order in `tasks.md`.
