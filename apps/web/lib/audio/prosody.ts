@@ -112,8 +112,27 @@ export function prosody(
       run++;
       continue;
     }
-    if (run * FRAME_MS >= PAUSE_MIN_MS)
-      pauses.push({ startMs: (i - run) * FRAME_MS, endMs: i * FRAME_MS });
+    // A silence rarely lines up with the 20 ms grid: the partly quiet frames at both edges are
+    // not counted, so a run one frame short of the minimum may still hold a real pause.
+    if (run * FRAME_MS >= PAUSE_MIN_MS - FRAME_MS) {
+      let startMs = (i - run) * FRAME_MS;
+      let endMs = i * FRAME_MS;
+      // Grow each edge in 1 ms steps into the neighbouring frame while it stays quiet.
+      while (
+        startMs > 0 &&
+        startMs > (i - run - 1) * FRAME_MS &&
+        rms(pcm, at(startMs - 1), at(startMs)) < quiet
+      )
+        startMs--;
+      while (
+        endMs < i * FRAME_MS + FRAME_MS &&
+        at(endMs + 1) <= pcm.length &&
+        rms(pcm, at(endMs), at(endMs + 1)) < quiet
+      )
+        endMs++;
+      if (endMs - startMs >= PAUSE_MIN_MS && startMs >= (pauses.at(-1)?.endMs ?? 0))
+        pauses.push({ startMs, endMs });
+    }
     run = 0;
   }
 
