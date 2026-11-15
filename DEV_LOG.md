@@ -285,3 +285,10 @@ Template:
   - `tasks.md` renumbered: 37 tasks, 28 in the Nov 30 scope (was 21), with a stated cut order. Logged as D-029.
   - D-009 already chose HyperFrames, with its spike confirmed on Nov 14. I added a note that the research agrees on licence grounds; nothing reopened.
   - Not verified by me: the research file's figures (MoVer 93.6 % after repair, the BiRefNet lite size, the structured-output limits). Each is re-checked in the task that depends on it.
+- **Spec 07 task 1: cutout and image-style spike (Claude Code, Fable 5.2).** 22 images generated with the founder's go-ahead (about $0.90 at list price). Result in D-030:
+  - Colour keying wins once it estimates the key colour, unmixes the backdrop from edge pixels and the prompt asks for neutral light. Hair, spokes and glass are clean at 100 %.
+  - My first keying pass had three faults the sheets exposed: it failed portraits that touch the bottom edge, left an olive halo on hair, and could not fix a green-tinted white mug. The first two were code fixes; the third needed a prompt line.
+  - BiRefNet lite was worse on hair and spokes, is 114–224 MB (the research file said 47 MB), and has an unresolved training-data question. Not adopted.
+  - Text recipes held the look without reference images.
+  - Parallel image calls hit a 429 rate limit, so generation will be sequential. A call takes 12–18 s.
+  - Limits: BiRefNet was run in Node on CPU, not in a browser, and I stopped it after 9 of 12 images. Prices are list prices from token counts, not a bill.

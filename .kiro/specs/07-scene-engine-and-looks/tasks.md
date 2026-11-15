@@ -8,7 +8,7 @@ One task at a time. Each ends with typecheck, lint and tests green; motion work 
 
 ## A. Foundations
 
-- [ ] 1. **Spike (day one): cutouts and image style.** Generate about 12 hard test images across `field-notes`, `paper-collage` and one token-level look. Compare at 100 % on light and dark surfaces: colour keying alone; keying plus on-device **BiRefNet** (transformers.js); a second edit pass. For BiRefNet record the exact weights repository, its licence file and training-data terms (the code licence is not enough), plus download size, first-run time and per-image time. RMBG-2.0 and RMBG-1.4 are excluded. Also test style locking: text recipe alone against recipe plus 2–3 reference images, on `gemini-nano-banana-2.1` and `gemini-3.1-flash-image`. Confirm the image call shape against the installed SDK types, and the real price on our backend if the console shows it. Record results and the chosen pipeline in `docs/decisions.md`. — R4.1, R4.2, R4.3, R9.7
+- [x] 1. **Spike (day one): cutouts and image style.** Done 2026-11-15, D-030: colour keying with backdrop unmixing and a neutral-light prompt line; BiRefNet and the second edit pass rejected; text recipes hold the look, so reference images stay at task 32; real token counts, latency and the rate limit recorded. Evidence in `docs/research/experiments/cutout-spike/`. — R4.1, R4.2, R4.3, R9.7
 - [ ] 2. Library evaluation: `roughjs`, `perfect-freehand`, `d3-shape`, `d3-scale` for licence, size and determinism under our seeded RNG. Adopt or reject each; record in `docs/third-party.md` and `tech.md`. — NFR
 - [ ] 3. Schemas: `score.ts` (score, energy), `look.ts` (extends `StylePackSchema`, all new blocks optional), `asset.ts`, `plan.ts`, `gate.ts` (gate report), the optional `prosody` block on the transcript. Remote Config keys `imagesPerVideoMax`, `imageCredits`, `modelImage`, `planFreeCloudPerDay`. — R1.1, R3.1, R4.5, R6.1, R9.1, R9.2
 - [ ] 4. **[kiro]** Property tests for the task 3 schemas: every existing style pack parses as a look; random valid scores round-trip; out-of-range values are rejected; a transcript without prosody still parses. — R1.1, R3.1
@@ -53,7 +53,7 @@ One task at a time. Each ends with typecheck, lint and tests green; motion work 
 
 ## H. Images
 
-- [ ] 25. `image.generate` in `packages/ai` (cloud only, kill switch, usage event, cost), prompt from the look recipe, subject validation; the cutout pipeline chosen in task 1, in a worker; asset store (Storage, IndexedDB in local mode) with hash reuse. — R4.1, R4.2, R4.3, R4.5
+- [ ] 25. `image.generate` in `packages/ai` (cloud only, kill switch, usage event, cost), prompt from the look recipe, subject validation; the colour-key cutout from D-030 in a worker (key estimate, matte, unmix, despill, guard); sequential generation with backoff; asset store (Storage, IndexedDB in local mode) with hash reuse. — R4.1, R4.2, R4.3, R4.5
 - [ ] 26. `photo-evidence` scene with exemplars, plus image roles on `stat-punch` and `versus`; in-look placeholder and swap-in; one confirm card per video with the cloud chip and total; retry and upload; `canRender` gate and the compiler's render-mode guard. **[kiro]** properties: `canRender` false while any asset is pending; cap never exceeded; cutout function deterministic with alpha in [0, 1]. — R4.4, R4.5, R4.6, R4.7
 
 ## I. Direction and wiring

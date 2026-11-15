@@ -113,3 +113,18 @@ Source: `docs/research/motion-engine-research.md` (research run outside this rep
 - **Pitch rule:** no retention numbers from marketing blogs. The energy setting is the answer, calibrated with our own tests.
 - **Evidence limits:** the prosody experiment used a synthetic voice (6 of 6 pauses, 3 of 4 stressed words, one false hit). Real recordings are untested until the end-to-end task.
 
+## D-030 · 2026-11-15 · decided (spike) — Cutouts by colour keying; no segmentation model; no reference images yet
+Spec 07 task 1. 22 test images (about $0.90 at list price), evidence in `docs/research/experiments/cutout-spike/`. Subjects: curly hair, a glass bottle, bicycle spokes, a white mug, in three look recipes.
+- **Chosen pipeline:** the prompt asks for a flat chroma-green backdrop; the cutout estimates the key colour from the border, builds a soft matte, **unmixes the backdrop out of edge pixels**, then despills. 11 of 12 were clean at 100 % on light and dark surfaces, including hair and spokes; the twelfth was the green-tinted mug below. About 50–150 ms per 1K image in the NumPy prototype.
+- **What the spike changed:**
+  - The model does not paint exactly #00FF00 (it ranged from (8, 237, 5) to (60, 174, 57), duller in desaturated looks), so the key colour is always estimated, never assumed.
+  - Head-and-shoulders subjects touch the bottom edge, so the border estimate must be robust (use the border pixels that agree, and require 55 % agreement).
+  - Clamping the green channel alone left an olive halo on fine hair. Unmixing fixed it.
+  - A white mug came out green-tinted: the model lights the subject with the backdrop. Despill could not fix it. Adding one prompt line ("lit only by neutral white light, no green tint or reflection on the subject") did.
+- **Rejected:**
+  - **BiRefNet lite** as a matte on these images: a magenta halo on hair and broken bicycle spokes, so worse than keying on both hard cases. It also costs a 114 MB (fp16) or 224 MB (fp32) download, not the 47 MB the research file quoted, and took over a minute per image on CPU in Node (browser WebGPU not measured). Licence check: the weights repositories (`ZhengPeng7/BiRefNet_lite`, `onnx-community/BiRefNet_lite-ONNX`) are tagged MIT; the weights were trained on DIS5K, whose terms, as reported by a web search I could not confirm against the PDF, ask commercial users to sign separate terms. Unresolved, and moot while it is not used. It may return later for user uploads on non-uniform backgrounds.
+  - **A second "same subject on white" edit pass:** it kept the green tint and fringe and costs another image.
+- **Style locking:** the text recipe alone held the `paper-collage` look across 6 subjects (the model even drew the cut-out paper border). Two reference images made the palette slightly more uniform; `gemini-3.1-flash-image` looked no better than `gemini-nano-banana-2.1` at twice the price. Reference images stay after Nov 30 (task 32).
+- **Measured on our backend:** 1,120 image output tokens per 1K image, as the pricing page says, plus about 900–1,100 thinking tokens per call. At list prices that is roughly $0.04 per image, not $0.034. One call takes 12–18 s. **Rate limit:** 6 parallel calls returned 429 for 4 of 12, and 2 parallel still hit some. Generation must be sequential with backoff, so 6 images take about 1.5–3 minutes.
+- **Not checked:** the Agent Platform price list (only the token counts), and browser timings.
+
