@@ -93,7 +93,7 @@ _As a creator, I want the result to be good every single time._
 
 _As a viewer, I want the video to feel like one piece with rhythm, not a slideshow._
 
-1. **R6.1** THE SYSTEM SHALL plan the whole video with one cheap AI call (`direct.plan`, on-device first, cloud fallback): an energy curve, the peak, scene and variant per slot, recurring motifs, and which slots get images. Code SHALL then enforce the hard rules on any plan (no repeats, image cap, candidates only); beat budget and read time are enforced by the engine. IF the call fails THEN a code-only plan is used. _(Founder change 2026-11-15: the AI plans, the code enforces.)_
+1. **R6.1** THE SYSTEM SHALL plan the whole video with one cheap AI call (`direct.plan`, on-device first, cloud fallback): an energy curve, the peak, scene and variant per slot, recurring motifs, and which slots get images. Code SHALL then enforce the hard rules on any plan (no repeats, image cap, candidates only); beat budget and read time are enforced by the engine. IF the call fails THEN a code-only plan is used. Free cloud plan calls SHALL be limited per user per day (Remote Config, default 10), enforced by the server; on-device plans are unlimited. _(Founder change 2026-11-15: the AI plans, the code enforces.)_
 2. **R6.2** THE SYSTEM SHALL connect neighbouring slots with the look's transitions when they touch, and keep the camera alive across a slot.
 3. **R6.3** THE SYSTEM SHALL add look-defined sound cues at beats (synthesized, deterministic; mixing is spec 12).
 4. **R6.4** Director skills in `skills/` SHALL keep working: a skill maps to preferred scenes, variants and beat patterns.
