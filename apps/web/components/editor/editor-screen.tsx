@@ -1,5 +1,6 @@
 'use client';
 
+import { useAutoFill } from '@/lib/slots/use-auto-fill';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Pip } from '@/components/pip/pip';
@@ -47,6 +48,7 @@ export function EditorScreen({
   const rejection = useEditor((s) => s.rejection);
 
   useEditorKeys(clock);
+  useAutoFill();
 
   useEffect(() => {
     let cancelled = false;

@@ -10,4 +10,4 @@ Tasks marked **[kiro]** are executed by Kiro CLI (`motionpop-builder`) and logge
 - [x] 6. Pipeline integration: moments and suggest steps, `slots` event, dashed slot cards in the word strip, versions for ready slots; Pip bubble "N slots ready". — R4, R5.2
 - [x] 7. **[kiro]** Update the e2e and perf tests: the sample yields its suggested slots in the editor; tagger + detect + post-pass < 50 ms on 3,000 words. — R4, NFR
 - [x] 8. `slots.detect` through the router with prompt v1, repair and fallback to `detectLocal`. — R2.3
-- [ ] 9. `useAutoFill` with `component.fill` on-device. — R5.1, R5.3
+- [x] 9. `useAutoFill` with `component.fill` on-device. — R5.1, R5.3 _(Nano not measured yet: headless Chrome has none)_

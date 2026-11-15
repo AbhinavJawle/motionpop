@@ -72,6 +72,14 @@ The 400 ms gap is a suggestion rule only. Users can still place slots edge to ed
 ## Auto-fill (blocked part)
 `useAutoFill(projectId)` in the editor walks suggested slots in order. For each: set `generating`, call `component.fill` on-device through the router, validate, then add a version and set `ready`. It stops on unmount and skips slots edited since load. It ships behind `autoFill` in Remote Config (spec 01).
 
+**As built (task 9, 2026-11-15, Claude Code):**
+- `component.fill` (`packages/ai/src/tasks/component-fill.ts`) is built per component schema. Its check parses the params, and a failure gets one repair. Purpose `autofill` uses **ONLY_ON_DEVICE**, not PREFER_ON_DEVICE as R5.1 says: without Nano, PREFER would quietly run in the cloud, which breaks "free" and "no surprise spend" (ai-tasks.md §3). Purpose `generate` is ONLY_IN_CLOUD for 3 credits.
+- `runAutoFill` / `useAutoFill` (`apps/web/lib/slots/use-auto-fill.ts`), mounted in the editor:
+  - It snapshots the slots at load. Then it walks `autoFillQueue` (suggested, renderable, untried, unchanged since load) in timeline order.
+  - The `generating` look is a UI-only store field (`autoFilling`), so autosave never persists it.
+  - Each result is one undoable `applyAutoFill` command with an `ai-device` version, which is rejected if the slot changed mid-fill.
+  - It is gated by `flag_auto_fill`. Any failure leaves the slot suggested.
+
 ## Testing
 - **Tables:**
   - `numbers.test.ts`, at least 40 cases: "forty percent", "forty-two", "a hundred and five", "two point five million dollars", "$2.5M", "1,200", "£3bn", "doubled", "three times", "twenty twenty", "2020.", "nineteen ninety-nine", "zero". Also rejections: "the", "one of the", "first", where it should stay unparsed or be a list ordinal.

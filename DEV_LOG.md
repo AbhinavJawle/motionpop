@@ -255,3 +255,14 @@ Template:
   - **Checked in headless Chromium, local mode:** the sample shows "Found 3 moments", "1 slot found" and the Big number card. The editor opens with the ready big-number slot (40 %, "Our revenue grew") over "Our revenue grew forty percent".
   - **Tests:** 3 new pipeline tests (sample → ready slot + version + `timelineIssues` clean; detector gets the cleaned words and spans; a detector failure fails the suggest card and saves nothing), plus validator tests.
   - **Known break:** `e2e/processing.spec.ts` still expects moments and suggest to be `skipped`. Updating it is spec 06 task 7, which goes to Kiro next. CI doesn't run e2e.
+- **Spec 06 task 7 (Kiro run 29), reviewed:** the processing e2e now covers real slot detection, from the strip card and Pip bubble to the ready Big number card over "Our … percent" in the editor, before and after a reload. Kiro added a browser-path perf test (16 ms on 3,000 words). I reran the chromium e2e after my later changes: 8 passed, 1 skipped.
+- **Spec 06 task 9: auto-fill (Claude Code):**
+  - **What was built:**
+    - The `component.fill` task.
+    - `runAutoFill` + `useAutoFill` in the editor, behind `flag_auto_fill`.
+    - A UI-only `autoFilling` store field, so the card shows generating without ever persisting it.
+    - An undoable `applyAutoFill` command.
+  - **Deviation from R5.1:** auto-fill uses ONLY_ON_DEVICE, not PREFER_ON_DEVICE. PREFER would fall back to the cloud without Nano, so it would no longer be free.
+  - **Tests:** 4 task tests, 8 queue and command tests, and 5 `runAutoFill` tests. The `runAutoFill` tests cover a device fill with undo, no router or flag off, no Nano leaving the slot suggested, edits made while the fill waits or runs being skipped with no rejection toast, and cancel.
+  - **Test mistake I made:** my first "edited before" test edited the slot before auto-fill took its load snapshot, which can't happen in the app. I rewrote it to edit while the router is loading.
+  - **Not verified live:** headless Chrome has no Nano, so on-device auto-fill is untested against the real model. With the flag on and no Nano, slots stay suggested and nothing goes to the cloud.

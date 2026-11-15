@@ -19,6 +19,7 @@ export function SlotsTrack() {
   const selectedId = useEditor((s) => s.selectedSlotId);
   const select = useEditor((s) => s.select);
   const preview = useEditor((s) => s.dragPreview);
+  const autoFilling = useEditor((s) => s.autoFilling);
   const still = useStill();
 
   if (slots.length === 0) {
@@ -39,7 +40,7 @@ export function SlotsTrack() {
         return (
           <SlotCard
             key={slot.id}
-            entry={slot}
+            entry={slot.id === autoFilling ? { ...slot, status: 'generating' } : slot}
             selected={slot.id === selectedId}
             width={width}
             className={dragged ? 'z-[3]' : 'z-[2]'}

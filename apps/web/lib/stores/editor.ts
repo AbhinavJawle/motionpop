@@ -48,6 +48,11 @@ export interface EditorState {
   saveStatus: SaveStatus;
   /** The last rejected command's reason, for a toast. */
   rejection: { label: string; reason: string; at: number } | null;
+  /**
+   * The slot auto-fill is working on (spec 06 R5.1). UI-only: the card shows `generating`, but
+   * the project keeps `suggested`, so a reload or an autosave mid-fill never strands a slot.
+   */
+  autoFilling: string | null;
 
   load(project: EditorProject): void;
   /** Runs a command. Returns false (and records `rejection`) if the command was rejected. */
@@ -65,6 +70,7 @@ export interface EditorState {
   toggleSafeZone(): void;
   setDragPreview(preview: DragPreview | null): void;
   setSaveStatus(status: SaveStatus): void;
+  setAutoFilling(slotId: string | null): void;
 }
 
 export type EditorStore = StoreApi<EditorState>;
@@ -100,6 +106,7 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         dragPreview: null,
         saveStatus: 'idle',
         rejection: null,
+        autoFilling: null,
 
         load: (project) =>
           set((s) => {
@@ -112,6 +119,7 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
             s.dragPreview = null;
             s.saveStatus = 'saved';
             s.rejection = null;
+            s.autoFilling = null;
           }),
 
         exec: (cmd) => {
@@ -184,6 +192,10 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         setSaveStatus: (status) =>
           set((s) => {
             s.saveStatus = status;
+          }),
+        setAutoFilling: (slotId) =>
+          set((s) => {
+            s.autoFilling = slotId;
           }),
       };
     }),

@@ -525,3 +525,24 @@ Template:
   - It had to copy the filler list from `apps/web`. Claude Code then moved `isFiller` into `@motionpop/schemas`, so on-device and cloud transcription share one list.
   - One `pnpm typecheck` failed on `apps/web` while Claude Code was mid-edit there; its re-run passed. It didn't touch `apps/web` or `tasks.md`, as asked.
 <!-- /kiro-session:sess_c38eabb7-03f4-4f27-a37a-eeb4b63a1e41 -->
+
+<!-- kiro-session:sess_a46a246a-8df3-41d0-b49b-05725ec869d8 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T09:18:57.880Z · last stop: 2026-11-15T09:22:03.175Z · session: sess_a46a246a-8df3-41d0-b49b-05725ec869d8
+- commits since start: 
+  - dd793a5 test(06-slot-detection-and-autofill): task 7 e2e and perf
+- uncommitted changes: 
+  - `M packages/ai/src/index.ts`
+  - `?? apps/web/lib/commands/auto-fill.ts`
+  - `?? apps/web/lib/slots/auto-fill-plan.test.ts`
+  - `?? apps/web/lib/slots/auto-fill-plan.ts`
+  - `?? packages/ai/src/prompts/component-fill.v1.ts`
+  - `?? packages/ai/src/tasks/component-fill.test.ts`
+  - `?? packages/ai/src/tasks/component-fill.ts`
+- Summary (added in Claude Code after reviewing `run29.log` and commit dd793a5):
+  - Task: spec 06 task 7. It updated `e2e/processing.spec.ts` for real slot detection: all four steps `done`, "Found 3 moments" and "1 slot found", one strip card, Pip's "1 slot ready" bubble, and in the editor exactly one ready "Big number · 40%" card positioned over "Our … percent" by bounding boxes, before and after a reload.
+  - Results: chromium e2e 8 passed, 1 skipped (pre-existing). The spec printed steps done after 489 ms and the editor reached after 1,764 ms. Web unit tests 288.
+  - Perf: it saw that run 27's post-pass test already covers tagger + detect + post-pass, so it didn't duplicate it. It added `detect-perf.test.ts` for the browser path with the real `validateParams`: 16.0 ms on 3,000 words (asserting < 150 ms).
+  - Honest notes it gave: its first e2e run failed on a 0.3 px slot overrun because its own assertion was too strict, and it loosened it to the word's right edge. After a final unused-import fix it reran only lint, typecheck and prettier, not the e2e. Nothing enforces 50 ms; the tests assert 150 ms against CI flakiness.
+  - It left Claude Code's uncommitted auto-fill and `component.fill` work alone.
+<!-- /kiro-session:sess_a46a246a-8df3-41d0-b49b-05725ec869d8 -->
