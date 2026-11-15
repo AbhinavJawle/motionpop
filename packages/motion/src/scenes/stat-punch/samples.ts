@@ -1,4 +1,5 @@
 import fc from 'fast-check';
+import { statPunchExemplars } from './exemplars';
 import type { SceneScore } from '../define';
 import type { StatPunchContent } from './index';
 
@@ -86,4 +87,6 @@ export const edgeCases: Record<string, Score> = {
   'show-stack': score('stack', SHOW),
   'show-hero': score('hero', SHOW),
   'show-side': score('side', SHOW),
+  // The example library doubles as motion:check samples (spec 07 R9.3).
+  ...Object.fromEntries(statPunchExemplars.map((e) => [`ex-${e.id}`, { ...e.score, beats: [] }])),
 };

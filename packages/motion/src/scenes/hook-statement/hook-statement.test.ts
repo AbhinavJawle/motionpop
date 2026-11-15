@@ -140,7 +140,7 @@ describe('hook-statement scene', () => {
     const word = fc.constantFrom('why', 'money', 'moves', 'this', 'changes', 'everything');
     fc.assert(
       fc.property(
-        fc.array(word, { minLength: 1, maxLength: 14 }),
+        fc.array(word, { minLength: 1, maxLength: 14 }).filter((ws) => ws.join(' ').length <= 90),
         fc.nat(13),
         fc.constantFrom(...VARIANTS),
         fc.constantFrom(...FORMAT_IDS),

@@ -11,7 +11,14 @@ export const ComponentFillInputSchema = z.object({
    * Scenes only: the scene's variants and cues (one catalogue entry) and the slot's words with
    * their indexes, so beats can name the word each cue lands on.
    */
-  scene: z.object({ brief: z.string().max(1500), indexedWords: z.string().max(3000) }).optional(),
+  scene: z
+    .object({
+      brief: z.string().max(1500),
+      indexedWords: z.string().max(3000),
+      /** The 2 closest hand-approved examples, as input → output lines (R9.3). */
+      examples: z.array(z.string().max(700)).max(2).optional(),
+    })
+    .optional(),
   prompt: z.string().max(500),
   currentParams: z.record(z.string(), z.unknown()).optional(),
   styleId: z.string().min(1),

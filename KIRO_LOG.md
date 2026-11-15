@@ -603,3 +603,35 @@ Template:
   - Behaviours it flagged that the spec did not state: squeezed cues are exempt from read time; only the first anchor for a cue id counts.
   - **Afterwards Claude Code changed two engine rules** when `motion:check` on the first scene showed them wrong (see DEV_LOG and D-031): a cue anchored to a spoken word now lands on it regardless of read time, and unanchored cues follow the previous landing by a short gap. Claude Code updated two of Kiro's properties to match and noted it in the test file.
 <!-- /kiro-session:sess_28fa7a42-6fba-49d8-9fcd-94ff52a38a81 -->
+
+<!-- kiro-session:sess_eda2919d-9b32-467b-a3d7-598892e38693 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T15:28:14.482Z · last stop: 2026-11-15T15:31:58.123Z · session: sess_eda2919d-9b32-467b-a3d7-598892e38693
+- commits since start: 
+  - 4c1262c test(07-scene-engine-and-looks): task 17 gate and repair properties
+- uncommitted changes: 
+  - `M packages/ai/src/prompts/component-fill.v1.ts`
+  - ` M packages/ai/src/schema-rules.test.ts`
+  - ` M packages/ai/src/tasks/component-fill.ts`
+  - ` M packages/motion/src/scenes/hook-statement/samples.ts`
+  - ` M packages/motion/src/scenes/index.ts`
+  - ` M packages/motion/src/scenes/stat-punch/samples.ts`
+  - `?? packages/motion/src/scenes/exemplar.ts`
+  - `?? packages/motion/src/scenes/exemplars.test.ts`
+  - `?? packages/motion/src/scenes/exemplars.ts`
+  - `?? packages/motion/src/scenes/hook-statement/exemplars.ts`
+  - `?? packages/motion/src/scenes/stat-punch/exemplars.ts`
+- **Run 33 summary (added in Claude Code after reviewing `kiro-runs/run33.log` and commit 4c1262c):** spec 07 task 17, the property tests for task 16's gate reports and repair loop. The prompt was written by Claude Code. The uncommitted files listed above are Claude Code's parallel work on task 18, not Kiro's.
+  - **Files:** `packages/motion/src/scenes/gate.property.test.ts` (happy-dom, 100 runs per property) and `packages/ai/src/tasks/component-fill.property.test.ts` (200 runs on the repair loop, 120 on the final score). Kiro added `happy-dom` as a devDependency of `@motionpop/ai`, because the real gate builds DOM.
+  - **Properties:**
+    - The shape of every report.
+    - `gateSlot` never throws, is deterministic and doesn't mutate its inputs.
+    - `safeScore` passes the gates, is deterministic and uses the first variant with no beats or images.
+    - A valid score gives no schema, id or anchor reports.
+    - The fill makes at most 3 calls, never escalates, and charges only for a final cloud answer; `attempts` and `problems` match the calls.
+    - The router-or-`safeScore` path always ends with a score that passes the gates.
+    - Kiro made the tests assert that each report kind actually occurs, so none can pass vacuously.
+  - **Bug found and fixed:** `defineScene` treated an empty word list as real timings (`ctx.words ?? …` doesn't catch `[]`). The focal cue then had no word to land on, so `safeScore` failed the read-time gate at 2.6 s. The fix is `ctx.words?.length ? …`, with a named regression test. Real slots always have words, but the fix makes the safe default hold for any input.
+  - **Gaps it reported:** text overflow and truncation are not exercised under happy-dom. R1.4's "2 rounds, then the safe default" is two steps in code (the router throws, then the caller applies `safeScore`), and property 4 covers that path.
+  - **Checks:** motion 182 and ai 285 tests, typecheck, lint and prettier, all green. Kiro reran each property file 6 more times with no flake. Committed locally, not pushed (Claude Code pushed it).
+<!-- /kiro-session:sess_eda2919d-9b32-467b-a3d7-598892e38693 -->

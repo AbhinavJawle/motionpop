@@ -171,7 +171,10 @@ describe('gate reports (properties)', () => {
     );
     // The generators must actually produce failures, or the property proves nothing.
     expect(reported).toBeGreaterThan(20);
-    for (const rule of ['content-invalid', 'unknown-id', 'anchor-out-of-range'])
+    // Changed by Claude Code: anchor-out-of-range needs both word timings and a beat mutation,
+    // so in some seeds 100 runs never produce one and this failed at random (seen in the full
+    // run). The two frequent rules stay required; the rare one is checked in gate.test.ts.
+    for (const rule of ['content-invalid', 'unknown-id'])
       expect(seen, `no ${rule} report was generated`).toContain(rule);
   });
 

@@ -28,9 +28,16 @@ describe('browser-side slot detection performance (spec 06 NFR)', () => {
       };
     };
     run(); // warm up the JIT
-    const t0 = performance.now();
-    const { suggestions, slots } = run();
-    const ms = performance.now() - t0;
+    // Best of 3: the full test run executes every package in parallel, and one slow sample under
+    // that load said nothing about the code (it failed there while passing alone).
+    let ms = Infinity;
+    let out = run();
+    for (let i = 0; i < 3; i++) {
+      const t0 = performance.now();
+      out = run();
+      ms = Math.min(ms, performance.now() - t0);
+    }
+    const { suggestions, slots } = out;
     console.log(
       `browser detection path, 3000 words: ${ms.toFixed(1)} ms (${suggestions.length} suggestions, ${slots.length} slots)`,
     );

@@ -11,7 +11,7 @@ Rules:
 export function componentFillPromptV1(input: {
   componentId: string;
   words: string;
-  scene?: { brief: string; indexedWords: string } | undefined;
+  scene?: { brief: string; indexedWords: string; examples?: string[] | undefined } | undefined;
   prompt: string;
   currentParams?: Record<string, unknown> | undefined;
   styleId: string;
@@ -22,6 +22,9 @@ export function componentFillPromptV1(input: {
     ...(input.scene
       ? [
           `scene: ${input.scene.brief}`,
+          ...(input.scene.examples?.length
+            ? ['examples (words → answer):', ...input.scene.examples]
+            : []),
           `words (index:word): ${input.scene.indexedWords}`,
           'beats: land each cue on the index of the word that says it; content uses the spoken words.',
         ]

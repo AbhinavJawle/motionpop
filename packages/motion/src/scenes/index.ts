@@ -3,6 +3,8 @@ import { statPunch } from './stat-punch';
 
 export * from './catalogue';
 export * from './define';
+export * from './exemplar';
+export * from './exemplars';
 export * from './gate';
 export { hookStatement, statPunch };
 

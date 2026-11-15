@@ -1,4 +1,11 @@
-import { catalogueSummary, components, scenes } from '@motionpop/motion';
+import {
+  catalogueSummary,
+  components,
+  exemplarText,
+  exemplars,
+  pickExemplars,
+  scenes,
+} from '@motionpop/motion';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { TaskDef } from './router';
@@ -172,6 +179,9 @@ const CASES: Case[] = [
         scene: {
           brief: catalogueSummary([scenes[id] as never]),
           indexedWords: TEXT.map((t, i) => `${i}:${t}`).join(' '),
+          examples: pickExemplars(exemplars[id]!, { kind: 'number', wordCount: TEXT.length }).map(
+            exemplarText,
+          ),
         },
         prompt: 'A bold number with an editorial feel.',
         styleId: 'field-notes',

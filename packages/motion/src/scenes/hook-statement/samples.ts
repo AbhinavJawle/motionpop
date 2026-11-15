@@ -1,4 +1,5 @@
 import fc from 'fast-check';
+import { hookStatementExemplars } from './exemplars';
 import type { SceneScore } from '../define';
 import type { HookStatementContent } from './index';
 
@@ -81,4 +82,8 @@ export const edgeCases: Record<string, Score> = {
   'show-center': score('center', SHOW),
   'show-left': score('left', SHOW),
   'show-punch': score('punch', PUNCH),
+  // The example library doubles as motion:check samples (spec 07 R9.3).
+  ...Object.fromEntries(
+    hookStatementExemplars.map((e) => [`ex-${e.id}`, { ...e.score, beats: [] }]),
+  ),
 };
