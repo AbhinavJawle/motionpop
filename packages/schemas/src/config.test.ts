@@ -25,6 +25,10 @@ describe('parseRemoteConfig', () => {
       model_fast: 'fast-x',
       model_strong: 'strong-x',
       model_tts: 'tts-x',
+      model_image: 'img-x',
+      images_per_video_max: '4',
+      image_credits: '3',
+      plan_free_cloud_per_day: '7',
     });
     expect(cfg).toEqual({
       routingSlotsDetectDeviceMaxWords: 250,
@@ -39,6 +43,10 @@ describe('parseRemoteConfig', () => {
       modelFast: 'fast-x',
       modelStrong: 'strong-x',
       modelTts: 'tts-x',
+      modelImage: 'img-x',
+      imagesPerVideoMax: 4,
+      imageCredits: 3,
+      planFreeCloudPerDay: 7,
     });
   });
 
