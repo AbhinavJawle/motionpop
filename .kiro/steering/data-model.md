@@ -18,7 +18,7 @@ projects/{id}/transcript/main    words: [{ i, text, startMs, endMs, conf, filler
 projects/{id}/transcript/original same shape, timings of the original audio (spec 05)
 projects/{id}/slots/{slotId}     startMs, endMs, wordStart, wordEnd, reason, componentId, skillId, params,
                                  status: suggested|generating|ready|failed, currentVersionId, notes[]
-projects/{id}/versions/{vid}     slotId, componentId, params, customHtmlPath?, source: ai-device|ai-cloud|ai-claude|user|plan, createdAt
+projects/{id}/versions/{vid}     slotId, componentId, params, customHtmlPath?, source: ai-device|ai-cloud|ai-claude|user|plan|default, createdAt
 renders/{renderId}               projectId, ownerId, format, resolution, transparent, status, progress, outputPath, error
 ```
 
@@ -85,7 +85,7 @@ interface Version {
   id: string;                     // = Firestore doc id; target of Slot.currentVersionId (spec 04)
   slotId: string; componentId: string; params: Record<string, unknown>;
   customPath?: string;            // tier-2 composition bundle in Storage
-  source: "ai-device" | "ai-cloud" | "ai-claude" | "user" | "plan";
+  source: "ai-device" | "ai-cloud" | "ai-claude" | "user" | "plan" | "default"; // default: a scene's safe default, written by code (spec 07 R1.4)
   model?: string; costCredits: number; createdAt: Timestamp; label?: string;
 }
 

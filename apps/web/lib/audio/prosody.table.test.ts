@@ -239,7 +239,9 @@ describe('prosody: properties', () => {
         const copy = Float32Array.from(pcm);
         const a = prosody(pcm, rate, words);
         expect(prosody(pcm, rate, words)).toEqual(a);
-        expect(pcm).toEqual(copy);
+        // Byte compare: the same check as toEqual, without a deep walk over up to 120,000
+        // samples (this property took 5.4 s under the full forced suite on 2026-11-15).
+        expect(Buffer.from(pcm.buffer).equals(Buffer.from(copy.buffer))).toBe(true);
         expect(a.v).toBe(1);
         expect(a.stress).toHaveLength(words.length);
         for (const s of a.stress) expect(Number.isInteger(s) && s >= 0 && s <= 100).toBe(true);

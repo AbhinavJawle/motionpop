@@ -28,11 +28,14 @@ test.describe('Processing screen', () => {
     console.log(`processing: steps ${states.join(',')} after ${Date.now() - t0} ms`);
     expect(states).toEqual(['done', 'done', 'done', 'done']);
     await expect(steps).toContainText('Found 3 moments');
-    await expect(steps).toContainText('1 slot found');
+    // Changed by spec 07 task 27: the opening line is a hook-statement draft (suggested) and the
+    // number a ready stat-punch (was one ready big-number).
+    await expect(steps).toContainText('2 slots found');
     const stripCards = page.getByTestId('strip-slots').locator('span[data-status]');
-    await expect(stripCards).toHaveCount(1);
-    await expect(stripCards.first()).toHaveAttribute('data-status', 'ready');
-    await expect(page.getByTestId('pip-bubble')).toHaveText(/1 slot ready/);
+    await expect(stripCards).toHaveCount(2);
+    await expect(stripCards.first()).toHaveAttribute('data-status', 'suggested');
+    await expect(stripCards.nth(1)).toHaveAttribute('data-status', 'ready');
+    await expect(page.getByTestId('pip-bubble')).toHaveText(/2 slots ready/);
 
     await page.waitForURL(/\/editor\/p-[a-z0-9]+/, { timeout: 15_000 });
     console.log(`processing: editor reached after ${Date.now() - t0} ms`);
@@ -54,25 +57,33 @@ test.describe('Processing screen', () => {
   });
 });
 
-/** Editor shows the voiceover, 22 words and exactly one ready slot over "Our … percent". */
+/**
+ * Editor shows the voiceover, 22 words, the opening hook (filled with its safe default by
+ * auto-fill when no device model answers) and the ready stat-punch over "revenue … percent".
+ */
 async function expectSuggestedSlot(page: Page): Promise<void> {
   await expect(page.getByText('Voiceover · 14.3s')).toBeVisible({ timeout: 30_000 });
   await expect(wordsTrack(page).getByRole('button')).toHaveCount(22);
-  await expect(page.locator('[data-slot-id]')).toHaveCount(1, { timeout: 30_000 });
-  const id = await page.locator('[data-slot-id]').first().getAttribute('data-slot-id');
-  const card = slotCard(page, id as string);
-  await expect(card).toHaveAttribute('data-status', 'ready');
-  await expect(card).toContainText('Big number');
-  await expect(card).toContainText('40%');
+  await expect(page.locator('[data-slot-id]')).toHaveCount(2, { timeout: 30_000 });
+  const ids = await page
+    .locator('[data-slot-id]')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('data-slot-id') as string));
+  const hook = slotCard(page, ids[0] as string);
+  const stat = slotCard(page, ids[1] as string);
+  await expect(hook).toContainText('Hook statement');
+  await expect(hook).toHaveAttribute('data-status', 'ready', { timeout: 30_000 });
+  await expect(stat).toHaveAttribute('data-status', 'ready');
+  await expect(stat).toContainText('Stat punch');
+  await expect(stat).toContainText('40%');
 
   const words = wordsTrack(page);
   const our = await boxOf(words.getByRole('button', { name: 'Our', exact: true }));
+  const revenue = await boxOf(words.getByRole('button', { name: 'revenue', exact: true }));
   const percent = await boxOf(words.getByRole('button', { name: 'percent', exact: true }));
-  const since = await boxOf(words.getByRole('button', { name: 'since', exact: true }));
-  const slot = await boxOf(card);
+  const slot = await boxOf(stat);
   const centre = (b: { x: number; width: number }) => b.x + b.width / 2;
-  // Starts at "Our" (not after its centre), covers "percent", stops within "since" (never reaches the word after).
-  expect(slot.x).toBeLessThanOrEqual(centre(our));
+  // Leads in from "revenue" (the first word 0.9 s before "forty"), not "Our", and covers "percent".
+  expect(slot.x).toBeGreaterThan(centre(our));
+  expect(slot.x).toBeLessThanOrEqual(centre(revenue));
   expect(slot.x + slot.width).toBeGreaterThanOrEqual(centre(percent));
-  expect(slot.x + slot.width).toBeLessThanOrEqual(since.x + since.width);
 }

@@ -242,7 +242,6 @@ export function safeScore<C>(
   words: readonly string[],
   o: GateOptions,
 ): SceneScore<C> {
-  const variant = scene.variants[0]?.id;
   const fromWords = scene.safe?.(words) ?? null;
   const small = minimal(scene.content, scene.defaultContent);
   const candidates: C[] = [
@@ -252,15 +251,47 @@ export function safeScore<C>(
     shorten(scene.content, small, 2),
     shorten(scene.content, small, 1),
   ];
-  const scoreOf = (content: C): SceneScore<C> => ({
-    ...(variant ? { variant } : {}),
-    content,
-    beats: [],
-    images: [],
-  });
-  for (const c of candidates) {
-    const score = scoreOf(c);
+  return firstPassing(scene, candidates, o) ?? safeOf(scene, candidates.at(-1) as C);
+}
+
+/**
+ * The safe default from the slot's own words only (spec 07 task 27): what the app shows when no
+ * model could fill a slot. The same ladder as `safeScore` without the scene's example content,
+ * so a viewer never sees a number or a line the narrator didn't say. `beats` (the detector's
+ * anchors) are kept when given. Null when the words give no content that passes the gates.
+ */
+export function safeScoreFromWords<C>(
+  scene: Scene<C>,
+  words: readonly string[],
+  o: GateOptions,
+  beats: SceneScore<C>['beats'] = [],
+): SceneScore<C> | null {
+  const fromWords = scene.safe?.(words) ?? null;
+  if (!fromWords) return null;
+  const small = minimal(scene.content, fromWords);
+  return firstPassing(
+    scene,
+    [fromWords, small, shorten(scene.content, small, 2), shorten(scene.content, small, 1)],
+    o,
+    beats,
+  );
+}
+
+const safeOf = <C>(scene: Scene<C>, content: C, beats: SceneScore<C>['beats'] = []) => {
+  const variant = scene.variants[0]?.id;
+  return { ...(variant ? { variant } : {}), content, beats, images: [] } as SceneScore<C>;
+};
+
+/** The first content (safest variant, no images) that passes the repairable gates. */
+function firstPassing<C>(
+  scene: Scene<C>,
+  contents: readonly C[],
+  o: GateOptions,
+  beats: SceneScore<C>['beats'] = [],
+): SceneScore<C> | null {
+  for (const c of contents) {
+    const score = safeOf(scene, c, beats);
     if (!gateSlot(scene, score, o).some(repairable)) return score;
   }
-  return scoreOf(candidates[candidates.length - 1] as C);
+  return null;
 }

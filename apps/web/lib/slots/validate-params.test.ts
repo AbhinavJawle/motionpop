@@ -23,4 +23,15 @@ describe('validateParams', () => {
   it('passes unbuilt components through untouched', () => {
     expect(validateParams('bar-chart', { a: 1 })).toEqual({ params: { a: 1 }, needsInput: [] });
   });
+  it('parses a scene score and applies its defaults (spec 07 task 27)', () => {
+    const r = validateParams('hook-statement', { content: { line: 'Nobody tells you this' } });
+    expect(r).toEqual({
+      params: { content: { line: 'Nobody tells you this' }, beats: [], images: [] },
+      needsInput: [],
+    });
+  });
+  it("never fills a scene's example content: invalid scene params stay as given", () => {
+    const r = validateParams('stat-punch', { content: { value: 40 }, beats: [] });
+    expect(r).toEqual({ params: { content: { value: 40 }, beats: [] }, needsInput: ['content'] });
+  });
 });

@@ -1,4 +1,4 @@
-import { components } from '@motionpop/motion';
+import { componentFor } from '../motion/registry';
 
 /** Move/resize constraints: neighbours, bounds and duration limits. Integer ms. */
 
@@ -11,8 +11,7 @@ type DurationInfo = { durationMs: { min: number; max: number } };
 
 /** Global limits intersected with the component's own duration range (unknown id: global). */
 export function limitsFor(componentId: string): Limits {
-  const registry = components as unknown as Record<string, DurationInfo | undefined>;
-  const info = Object.hasOwn(registry, componentId) ? registry[componentId] : undefined;
+  const info: DurationInfo | undefined = componentFor(componentId);
   if (!info) return GLOBAL_LIMITS;
   const minMs = Math.max(GLOBAL_LIMITS.minMs, info.durationMs.min);
   const maxMs = Math.min(GLOBAL_LIMITS.maxMs, info.durationMs.max);

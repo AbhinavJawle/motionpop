@@ -2,8 +2,15 @@ import { z } from 'zod';
 import { SlotSuggestionSchema, type SlotSuggestion } from '@motionpop/schemas';
 import { SLOTS_DETECT_SYSTEM_V1, slotsDetectPromptV1 } from '../prompts/slots-detect.v1';
 import type { Router, RunResult, TaskDef } from '../router';
-import { CATALOGUE, catalogueEntry, SKILLS, skillEntry } from '../slots/catalogue';
-import { detectLocal, slotBudget } from '../slots/detect-local';
+import {
+  DETECT_CATALOGUE,
+  detectWorksWith,
+  isDetectable,
+  SKILLS,
+  skillEntry,
+  skillWorksWith,
+} from '../slots/catalogue';
+import { detectLocal, sceneDraft, slotBudget } from '../slots/detect-local';
 import type { SlotWord, TaggedSpan } from '../slots/types';
 
 const CandidateSchema = z.object({
@@ -72,24 +79,27 @@ export function slotsDetectInput(
       number,
     ][],
     candidates: spans.map((s) => ({ ...s })),
-    components: CATALOGUE.map((c) => ({ id: c.id, useWhen: c.useWhen, built: c.built })),
-    skills: SKILLS.map((s) => ({ id: s.id, useWhen: s.useWhen, worksWith: [...s.worksWith] })),
+    // Scenes first, then the planned components no scene replaces (spec 07 task 27).
+    components: DETECT_CATALOGUE.map((c) => ({ id: c.id, useWhen: c.useWhen, built: c.built })),
+    skills: SKILLS.map((s) => ({ id: s.id, useWhen: s.useWhen, worksWith: detectWorksWith(s) })),
     maxSlots: Math.max(1, opts.maxSlots ?? slotBudget(words)),
     language: opts.language ?? 'en',
   };
 }
 
 /**
- * R2.4: keep only suggestions with a catalogue component, a skill that works with it, and word
- * indices inside the transcript. Overlaps, gaps and durations are the post-pass's job.
+ * R2.4: keep only suggestions with a component detection offers (scenes and the components no
+ * scene replaces), a skill that works with it, and word indices inside the transcript.
+ * Overlaps, gaps and durations are the post-pass's job.
  */
 export function keepKnown(slots: readonly SlotSuggestion[], wordCount: number): SlotSuggestion[] {
   return slots.filter((s) => {
     const skill = skillEntry(s.skillId);
     return (
-      catalogueEntry(s.componentId) !== undefined &&
+      isDetectable(s.componentId) &&
       skill !== undefined &&
-      skill.worksWith.includes(s.componentId) &&
+      skillWorksWith(skill, s.componentId) &&
+      s.wordStart <= s.wordEnd &&
       s.wordEnd < wordCount
     );
   });
@@ -121,7 +131,11 @@ export async function detectSlots(
   if (!router || words.length === 0) return local();
   try {
     const { output, ...run } = await router.run(slotsDetect, slotsDetectInput(words, spans, opts));
-    const slots = keepKnown(output.slots, words.length);
+    // Scene params are written by code from the words (sceneDraft), never taken from the model.
+    const slots = keepKnown(output.slots, words.length).flatMap((s) => {
+      const d = sceneDraft(s, words, spans);
+      return d ? [d] : [];
+    });
     return slots.length > 0 ? { source: 'ai', slots, run } : local('no usable AI suggestions');
   } catch (err) {
     return local(err instanceof Error ? err.message : String(err));

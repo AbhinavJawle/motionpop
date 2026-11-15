@@ -7,7 +7,8 @@ Rules:
 - componentId must be one of the given components, skillId one of the given skills, and the skill must work with the component.
 - reason quotes the exact spoken words: "You said '<words>'".
 - Extract values exactly as spoken ("forty percent" -> value 40, suffix "%"). Never invent numbers, names or dates; list anything missing in needsInput.
-- big-number params: { value, prefix?, suffix?, decimals, label (<= 48 chars, words from just before the number) }. Other components: params {} and needsInput with what they still need.
+- Scenes (stat-punch, hook-statement): params {}. Code writes them from the words. A stat-punch spans a spoken number; a hook-statement spans one short sentence (3 to 14 words).
+- Other components: params {} and needsInput with what they still need.
 - score is 0..1: how strongly the moment deserves a graphic.`;
 
 export function slotsDetectPromptV1(input: {

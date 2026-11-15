@@ -1,10 +1,10 @@
 import fc from 'fast-check';
-import { components } from '@motionpop/motion';
+import { components, scenes } from '@motionpop/motion';
 import { SlotSchema, timelineIssues, wordsInRange, type SlotSuggestion } from '@motionpop/schemas';
 import { describe, expect, it } from 'vitest';
-import { CATALOGUE, componentLimits } from './catalogue';
+import { CATALOGUE, SCENES, componentLimits } from './catalogue';
 import { detectLocal } from './detect-local';
-import { postPass, SUGGESTION_GAP_MS, type ValidatedParams } from './post-pass';
+import { postPass, rebaseBeats, SUGGESTION_GAP_MS, type ValidatedParams } from './post-pass';
 import { tagSpans } from './tagger';
 import type { SlotWord } from './types';
 
@@ -61,10 +61,13 @@ const DEMO: SlotWord[] = [
   ['next.', 15300, 15740],
 ].map(([t, s, e]) => sw(t as string, s as number, e as number));
 
-/** Real validation from the motion registry (big-number only; others pass through). */
+/**
+ * Real validation from the motion registry (components and scenes; unknown ids pass through).
+ * Scenes keep their params on failure, as the app's validateParams does (spec 07 task 27).
+ */
 function motionValidate(componentId: string, params: Record<string, unknown>): ValidatedParams {
   const comp = (
-    components as Record<
+    { ...components, ...scenes } as unknown as Record<
       string,
       {
         params: {
@@ -84,6 +87,7 @@ function motionValidate(componentId: string, params: Record<string, unknown>): V
   const missing = [
     ...new Set((first.error?.issues ?? []).map((i) => String(i.path[0])).filter(Boolean)),
   ];
+  if (componentId in scenes) return { params: { ...params }, needsInput: missing };
   const filled = { ...params };
   for (const k of missing) filled[k] = comp.defaults[k];
   const second = comp.params.safeParse(filled);
@@ -97,30 +101,75 @@ function motionValidate(componentId: string, params: Record<string, unknown>): V
 }
 
 describe('postPass table', () => {
-  it('turns the demo big-number suggestion into one ready slot', () => {
-    const [s] = detectLocal(DEMO, tagSpans(DEMO));
-    expect(s).toBeDefined();
+  it('turns the demo into an opening hook and a ready stat-punch', () => {
+    // Changed by spec 07 task 27: the number is a stat-punch (was one big-number slot) and the
+    // opening line a hook-statement draft for auto-fill. "Here's what comes next" ends the
+    // transcript too soon to be read, so it is not a hook.
     const out = postPass({
       words: DEMO,
-      suggestions: [s as SlotSuggestion],
+      suggestions: detectLocal(DEMO, tagSpans(DEMO)),
       validate: motionValidate,
     });
-    expect(out).toHaveLength(1);
-    const slot = out[0];
-    expect(slot).toMatchObject({
-      id: 's-1',
-      componentId: 'big-number',
-      status: 'ready',
-      prompt: '',
-      notes: [],
-      startMs: 3550,
-      endMs: 7150,
-      wordStart: 5,
-      wordEnd: 10,
+    expect(
+      out.map((s) => [s.id, s.componentId, s.status, s.startMs, s.endMs, s.wordStart, s.wordEnd]),
+    ).toEqual([
+      // Grows at its end up to the gap before the stat, so it overlaps "Our" (3550–3980).
+      ['s-1', 'hook-statement', 'suggested', 0, 3800, 0, 5],
+      // Leads in from "revenue" (900 ms before "forty") and reaches its ideal at the end only:
+      // 4200 + 4600.
+      ['s-2', 'stat-punch', 'ready', 4200, 8800, 6, 12],
+    ]);
+    for (const slot of out) expect(SlotSchema.safeParse(slot).success).toBe(true);
+    const stat = out[1];
+    expect(stat?.needsInput).toBeUndefined();
+    expect(stat?.params).toMatchObject({
+      content: { value: 40, suffix: '%', decimals: 0, label: 'Our revenue grew', countFrom: 0 },
+      beats: [{ cue: 'number', word: 2 }],
+      images: [],
     });
-    expect(slot?.needsInput).toBeUndefined();
-    expect(SlotSchema.safeParse(slot).success).toBe(true);
-    expect(slot?.params).toMatchObject({ value: 40, suffix: '%', decimals: 0, countFrom: 0 });
+    expect(out[0]?.params).toMatchObject({
+      content: { line: "Let's look at the numbers" },
+      beats: [{ cue: 'line', word: 0 }],
+    });
+    expect(out[0]?.needsInput).toEqual(['content']);
+  });
+
+  it('rebases scene beats when a slot starts earlier than its suggestion', () => {
+    // The suggestion starts at word 9 (the end of the transcript), so reaching the 2400 ms
+    // minimum moves the start back to 1500 ms (word 4 is the first word it overlaps); the beat
+    // keeps naming word 9.
+    const w = evenWords(10); // word 9: 3600..3900
+    const [slot] = postPass({
+      words: w,
+      suggestions: [
+        sug(9, 9, 0.9, 'hook-statement', {
+          skillId: 'calm-explanation',
+          params: { content: { line: 'a b c' }, beats: [{ cue: 'line', word: 0 }] },
+        }),
+      ],
+    });
+    expect(slot?.wordStart).toBe(4);
+    expect(slot?.params.beats).toEqual([{ cue: 'line', word: 5 }]);
+  });
+
+  it('rebaseBeats shifts word beats, drops the ones that leave the slot, keeps the rest', () => {
+    const params = {
+      content: {},
+      beats: [
+        { cue: 'a', word: 0 },
+        { cue: 'b', word: 3 },
+        { cue: 'c', word: 9 },
+      ],
+    };
+    expect(rebaseBeats(params, 2, 6).beats).toEqual([
+      { cue: 'a', word: 2 },
+      { cue: 'b', word: 5 },
+    ]);
+    expect(rebaseBeats(params, -1, 10).beats).toEqual([
+      { cue: 'b', word: 2 },
+      { cue: 'c', word: 8 },
+    ]);
+    expect(rebaseBeats({ value: 1 }, 3, 4)).toEqual({ value: 1 });
   });
 
   it('fills defaults and records needsInput with the real big-number schema', () => {
@@ -271,7 +320,7 @@ describe('postPass table', () => {
 });
 
 describe('postPass properties (R3.3)', () => {
-  const ids = [...CATALOGUE.map((c) => c.id), 'nope'];
+  const ids = [...CATALOGUE.map((c) => c.id), ...SCENES.map((c) => c.id), 'nope'];
   const arbWords = fc
     .array(
       fc.record({
@@ -375,6 +424,56 @@ describe('postPass properties (R3.3)', () => {
     expect(nonEmpty).toBeGreaterThan(40);
     console.log(`post-pass property runs: ${runs}, with slots: ${nonEmpty}`);
   });
+
+  it('keeps every scene beat on the same spoken word, or drops it (spec 07 task 27)', () => {
+    let moved = 0;
+    const arbBeats = arbWords.chain((words) => {
+      const n = words.length;
+      const arbSug = fc
+        .record({
+          wordStart: fc.integer({ min: 0, max: n - 1 }),
+          len: fc.integer({ min: 0, max: 20 }),
+          sceneId: fc.constantFrom(...SCENES.map((c) => c.id)),
+          score: fc.integer({ min: 0, max: 20 }).map((x) => x / 20),
+          beats: fc.array(fc.integer({ min: 0, max: 25 }), { maxLength: 4 }),
+        })
+        .map((r) => ({
+          wordStart: r.wordStart,
+          wordEnd: Math.min(n - 1, r.wordStart + r.len),
+          componentId: r.sceneId,
+          skillId: 'calm-explanation',
+          score: r.score,
+          params: { content: {}, beats: r.beats.map((word, k) => ({ cue: `c${k}`, word })) },
+        }));
+      return fc.tuple(
+        fc.constant(words),
+        fc
+          .array(arbSug, { maxLength: 8 })
+          .map((list) => list.map((x, i): SlotSuggestion => ({ ...x, reason: `r${i}` }))),
+      );
+    });
+    fc.assert(
+      fc.property(arbBeats, ([words, suggestions]) => {
+        for (const s of postPass({ words, suggestions })) {
+          const sg = suggestions.find((x) => x.reason === s.reason) as SlotSuggestion;
+          const count = s.wordEnd - s.wordStart + 1;
+          const before = sg.params.beats as { cue: string; word: number }[];
+          const after = s.params.beats as { cue: string; word: number }[];
+          if (s.wordStart !== sg.wordStart) moved++;
+          // Same absolute word for every kept beat; a beat is dropped only when it leaves.
+          expect(after).toEqual(
+            before
+              .map((b) => ({ ...b, word: b.word + sg.wordStart - s.wordStart }))
+              .filter((b) => b.word >= 0 && b.word < count),
+          );
+          for (const b of after) expect(b.word).toBeLessThan(count);
+        }
+      }),
+      { numRuns: 300 },
+    );
+    // Not vacuous: some slots must actually start on a different word than their suggestion.
+    expect(moved).toBeGreaterThan(10);
+  });
 });
 
 describe('postPass performance', () => {
@@ -405,12 +504,24 @@ describe('postPass performance', () => {
     );
     // Warm up the JIT once so the number reflects steady state.
     postPass({ words, suggestions: detectLocal(words, tagSpans(words)) });
-    const t0 = performance.now();
-    const suggestions = detectLocal(words, tagSpans(words));
-    const out = postPass({ words, suggestions, validate: motionValidate });
-    const ms = performance.now() - t0;
+    // Changed by spec 07 task 27: the budget is on this process's CPU time, best of 3. Wall time
+    // measured the scheduler, not this code: 11–28 ms alone, but 165–219 ms in the full forced
+    // suite on 2026-11-15 with every package testing at once. Wall time is still logged.
+    let ms = Infinity;
+    let wall = Infinity;
+    let suggestions: SlotSuggestion[] = [];
+    let out: ReturnType<typeof postPass> = [];
+    for (let k = 0; k < 3; k++) {
+      const t0 = performance.now();
+      const c0 = process.cpuUsage();
+      suggestions = detectLocal(words, tagSpans(words));
+      out = postPass({ words, suggestions, validate: motionValidate });
+      const cpu = process.cpuUsage(c0);
+      ms = Math.min(ms, (cpu.user + cpu.system) / 1000);
+      wall = Math.min(wall, performance.now() - t0);
+    }
     console.log(
-      `detect + post-pass, 3000 words: ${ms.toFixed(1)} ms (${suggestions.length} suggestions, ${out.length} slots)`,
+      `detect + post-pass, 3000 words: ${ms.toFixed(1)} ms CPU, ${wall.toFixed(1)} ms wall (${suggestions.length} suggestions, ${out.length} slots)`,
     );
     expect(out.length).toBeGreaterThan(0);
     expect(

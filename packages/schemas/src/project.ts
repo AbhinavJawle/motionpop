@@ -58,7 +58,8 @@ export const VersionSchema = z.object({
   componentId: z.string().min(1),
   params: z.record(z.string(), z.unknown()),
   customPath: z.string().optional(),
-  source: z.enum(['ai-device', 'ai-cloud', 'ai-claude', 'user', 'plan']),
+  /** `default`: a scene's safe default, written by code when no model could fill it (spec 07 R1.4). */
+  source: z.enum(['ai-device', 'ai-cloud', 'ai-claude', 'user', 'plan', 'default']),
   model: z.string().optional(),
   costCredits: z.number().nonnegative(),
   /** Epoch ms (Firestore Timestamps are converted at the adapter). */

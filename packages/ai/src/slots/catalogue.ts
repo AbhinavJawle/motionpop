@@ -134,11 +134,78 @@ export const SKILLS: readonly SkillEntry[] = [
   },
 ];
 
-const byId = new Map(CATALOGUE.map((c) => [c.id, c]));
+export interface SceneEntry extends CatalogueEntry {
+  /**
+   * Components this scene supersedes for new detections (spec 07 task 27). They stay in the
+   * motion registry so saved projects keep rendering; detection offers the scene instead, and
+   * a skill that works with a replaced component works with its scene.
+   */
+  replaces: readonly string[];
+}
+
+/**
+ * Scenes (spec 07): mirror the `scenes` registry in `@motionpop/motion` (catalogue.test.ts checks
+ * ids, names, "use when" lines and durations), so the detector and `slots.detect` can pick them.
+ */
+export const SCENES: readonly SceneEntry[] = [
+  {
+    id: 'stat-punch',
+    name: 'Stat punch',
+    useWhen: 'the narration states one striking number, percentage, money amount or count',
+    minMs: 2600,
+    idealMs: 4600,
+    maxMs: 8000,
+    built: true,
+    replaces: ['big-number'],
+  },
+  {
+    id: 'hook-statement',
+    name: 'Hook statement',
+    useWhen: 'an opening line, a bold claim, a question to the viewer or a new chapter',
+    minMs: 2400,
+    idealMs: 8400,
+    maxMs: 12000,
+    built: true,
+    replaces: ['kinetic-headline'],
+  },
+];
+
+const replacedBy = new Map(SCENES.flatMap((s) => s.replaces.map((r) => [r, s.id] as const)));
+
+/**
+ * What detection offers (the deterministic detector and `slots.detect`): every scene, then the
+ * planned components no scene replaces yet.
+ */
+export const DETECT_CATALOGUE: readonly CatalogueEntry[] = [
+  ...SCENES,
+  ...CATALOGUE.filter((c) => !replacedBy.has(c.id)),
+];
+
+const byId = new Map<string, CatalogueEntry>([
+  ...CATALOGUE.map((c) => [c.id, c] as const),
+  ...SCENES.map((s) => [s.id, s] as const),
+]);
+const sceneById = new Map(SCENES.map((s) => [s.id, s]));
+const detectIds = new Set(DETECT_CATALOGUE.map((c) => c.id));
 const skillById = new Map(SKILLS.map((s) => [s.id, s]));
 
+/** A component or scene by id (legacy components included, for saved projects). */
 export const catalogueEntry = (id: string): CatalogueEntry | undefined => byId.get(id);
+export const sceneEntry = (id: string): SceneEntry | undefined => sceneById.get(id);
+/** Whether detection may suggest this id (scenes and not-yet-replaced components). */
+export const isDetectable = (id: string): boolean => detectIds.has(id);
 export const skillEntry = (id: string): SkillEntry | undefined => skillById.get(id);
+
+/** A skill works with a component it lists, or with the scene that replaces one it lists. */
+export function skillWorksWith(skill: SkillEntry, componentId: string): boolean {
+  if (skill.worksWith.includes(componentId)) return true;
+  return sceneEntry(componentId)?.replaces.some((r) => skill.worksWith.includes(r)) ?? false;
+}
+
+/** A skill's `worksWith` in detection ids: replaced components become their scene. */
+export function detectWorksWith(skill: SkillEntry): string[] {
+  return [...new Set(skill.worksWith.map((id) => replacedBy.get(id) ?? id))];
+}
 
 /** Duration limits for the post-pass; unknown ids get null (the suggestion is dropped). */
 export function componentLimits(

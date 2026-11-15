@@ -1,8 +1,16 @@
 import fc from 'fast-check';
 import { SlotSuggestionsSchema } from '@motionpop/schemas';
 import { describe, expect, it } from 'vitest';
-import { catalogueEntry, skillEntry } from './catalogue';
-import { bigNumberParams, detectLocal, reasonFor, sentenceIndex, slotBudget } from './detect-local';
+import { catalogueEntry, isDetectable, skillEntry, skillWorksWith } from './catalogue';
+import {
+  bigNumberParams,
+  detectLocal,
+  hookLine,
+  reasonFor,
+  sceneDraft,
+  sentenceIndex,
+  slotBudget,
+} from './detect-local';
 import { tagSpans } from './tagger';
 import type { SlotWord, TaggedSpan } from './types';
 
@@ -52,25 +60,56 @@ const DEMO_SPANS: TaggedSpan[] = [
 describe('detectLocal on the demo transcript', () => {
   const out = detectLocal(DEMO, DEMO_SPANS);
 
-  it('suggests the 40 % moment as a ready-to-render big number', () => {
-    expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({
-      componentId: 'big-number',
+  // Changed by spec 07 task 27: the number is a stat-punch scene (was big-number) and the
+  // opening line a hook-statement draft. The stat leads in only as far as "revenue", the first
+  // word 900 ms before "forty" (was back to "Our"), so it doesn't open on an empty frame.
+  it('suggests the 40 % moment as a ready-to-render stat-punch, anchored on "forty"', () => {
+    expect(out).toHaveLength(2);
+    expect(out[1]).toMatchObject({
+      componentId: 'stat-punch',
       skillId: 'shocking-stat-reveal',
       score: 0.95,
-      wordStart: 5,
+      wordStart: 6,
       wordEnd: 9,
-      params: { value: 40, suffix: '%', decimals: 0, label: 'Our revenue grew' },
-      reason: "You said 'Our revenue grew forty percent'",
+      params: {
+        content: { value: 40, suffix: '%', decimals: 0, label: 'Our revenue grew', countFrom: 0 },
+        beats: [{ cue: 'number', word: 2 }],
+        images: [],
+      },
+      reason: "You said 'revenue grew forty percent'",
     });
-    expect(out[0]?.needsInput).toBeUndefined();
+    expect(out[1]?.needsInput).toBeUndefined();
+  });
+
+  it('drafts a hook for the opening line, line cue on its first word', () => {
+    expect(out[0]).toMatchObject({
+      componentId: 'hook-statement',
+      skillId: 'brand-sting',
+      wordStart: 0,
+      wordEnd: 4,
+      params: { content: { line: "Let's look at the numbers" }, beats: [{ cue: 'line', word: 0 }] },
+      needsInput: ['content'],
+    });
+    // "And this is only the beginning." opens with no claim word, and the claim "Here's what
+    // comes next." starts its last word 440 ms before the transcript ends (a hook needs 1.3 s).
+    expect(out.some((s) => s.wordStart >= 12)).toBe(false);
+  });
+
+  it('makes the closing claim a hook when the voice leaves time to read it', () => {
+    const longer = [...DEMO, { text: 'Stay', startMs: 16200, endMs: 16600, filler: false }];
+    const hooks = detectLocal(longer, DEMO_SPANS, { maxSlots: 5 }).filter((s) => s.wordStart >= 18);
+    expect(hooks).toMatchObject([
+      { componentId: 'hook-statement', skillId: 'calm-explanation', score: 0.55, wordEnd: 21 },
+    ]);
   });
 
   it('passes the SlotSuggestion schema and uses catalogue ids only', () => {
     expect(SlotSuggestionsSchema.safeParse(out).success).toBe(true);
     for (const s of out) {
       expect(catalogueEntry(s.componentId)).toBeDefined();
-      expect(skillEntry(s.skillId)).toBeDefined();
+      expect(isDetectable(s.componentId)).toBe(true);
+      const skill = skillEntry(s.skillId);
+      expect(skill && skillWorksWith(skill, s.componentId)).toBe(true);
     }
   });
 });
@@ -138,7 +177,7 @@ describe('scoring and mapping', () => {
   });
 
   it('needs at least three list items', () => {
-    const l = words('Apples,', 'pears', 'and', 'plums.');
+    const l = words('Apples,', 'pears', 'and', 'plums.', 'Then', 'more', 'came', 'later.');
     const span = (items: number): TaggedSpan => ({
       wordStart: 0,
       wordEnd: 3,
@@ -146,8 +185,17 @@ describe('scoring and mapping', () => {
       text: 'x',
       items,
     });
-    expect(detectLocal(l, [span(2)])).toEqual([]);
-    expect(detectLocal(l, [span(3)])[0]?.componentId).toBe('kinetic-headline');
+    // Changed by spec 07 task 27: a list of 3 is a countdown hook-statement over its sentence
+    // (was kinetic-headline). With 2 items, the sentence is still the opening line's hook.
+    expect(detectLocal(l, [span(2)]).map((s) => [s.componentId, s.skillId, s.score])).toEqual([
+      ['hook-statement', 'brand-sting', 0.58],
+    ]);
+    expect(detectLocal(l, [span(3)])[0]).toMatchObject({
+      componentId: 'hook-statement',
+      skillId: 'countdown-ranking',
+      score: 0.7,
+      params: { content: { line: 'Apples, pears and plums' } },
+    });
   });
 
   it('never picks overlapping candidates', () => {
@@ -162,11 +210,16 @@ describe('scoring and mapping', () => {
     );
     expect(out).toHaveLength(1);
     expect(out[0]?.params).toEqual({
-      value: 2.5,
-      prefix: '$',
-      suffix: 'M',
-      decimals: 1,
-      label: 'Profit hit',
+      content: {
+        value: 2.5,
+        prefix: '$',
+        suffix: 'M',
+        decimals: 1,
+        label: 'Profit hit',
+        countFrom: 0,
+      },
+      images: [],
+      beats: [{ cue: 'number', word: 2 }],
     });
     expect(out[0]?.score).toBe(0.85);
   });
@@ -198,6 +251,117 @@ describe('helpers', () => {
     );
     expect(r.needsInput).toEqual(['label']);
     expect(r.params).not.toHaveProperty('label');
+  });
+});
+
+describe('hook lines and scene drafts (spec 07 task 27)', () => {
+  it('keeps hook lines inside the scene limits: 3 to 14 words, at most 90 characters', () => {
+    expect(hookLine(words('Too', 'short.'), 0, 1)).toBeNull();
+    const fifteen = words(...Array.from({ length: 15 }, (_, i) => `w${i}`));
+    expect(hookLine(fifteen, 0, 14)).toBeNull();
+    expect(hookLine(fifteen, 0, 13)).toBe(
+      fifteen
+        .slice(0, 14)
+        .map((w) => w.text)
+        .join(' '),
+    );
+    // 6 words of exactly 90 characters fit; one more word does not.
+    const long = words(
+      'Extraordinarily',
+      'uncharacteristically',
+      'incomprehensible',
+      'circumstances',
+      'surrounding',
+      'everything',
+      'today.',
+    );
+    expect(hookLine(long, 0, 5)).toHaveLength(90);
+    expect(hookLine(long, 0, 6)).toBeNull();
+  });
+
+  it('drops fillers and trailing punctuation, keeps a question mark', () => {
+    const w = words('So', 'um', 'what', 'happens', 'next?');
+    (w[1] as SlotWord).filler = true;
+    expect(hookLine(w, 0, 4)).toBe('So what happens next?');
+    expect(hookLine(words('Here', 'we', 'go.'), 0, 2)).toBe('Here we go');
+  });
+
+  it('turns a question into a hook', () => {
+    const w = words(
+      'Prices',
+      'rose.',
+      'But',
+      'who',
+      'pays',
+      'for',
+      'it?',
+      'Nobody',
+      'really',
+      'knows',
+      'yet.',
+    );
+    const hooks = detectLocal(w, [], { maxSlots: 5 }).filter((s) => s.wordStart === 2);
+    expect(hooks).toMatchObject([{ componentId: 'hook-statement', score: 0.56 }]);
+  });
+
+  it('writes scene params for AI suggestions from the words, and drops what it cannot back', () => {
+    const base = { reason: 'r', score: 0.9, params: { anything: true } } as const;
+    const stat = sceneDraft(
+      {
+        ...base,
+        wordStart: 5,
+        wordEnd: 11,
+        componentId: 'stat-punch',
+        skillId: 'shocking-stat-reveal',
+      },
+      DEMO,
+      DEMO_SPANS,
+    );
+    expect(stat?.params).toEqual({
+      content: { value: 40, suffix: '%', decimals: 0, label: 'Our revenue grew', countFrom: 0 },
+      images: [],
+      beats: [{ cue: 'number', word: 3 }],
+    });
+    // No tagged number inside: never invent one.
+    expect(
+      sceneDraft(
+        {
+          ...base,
+          wordStart: 12,
+          wordEnd: 17,
+          componentId: 'stat-punch',
+          skillId: 'shocking-stat-reveal',
+        },
+        DEMO,
+        DEMO_SPANS,
+      ),
+    ).toBeNull();
+    const hook = sceneDraft(
+      {
+        ...base,
+        wordStart: 12,
+        wordEnd: 17,
+        componentId: 'hook-statement',
+        skillId: 'calm-explanation',
+      },
+      DEMO,
+      DEMO_SPANS,
+    );
+    expect(hook).toMatchObject({
+      params: {
+        content: { line: 'And this is only the beginning' },
+        beats: [{ cue: 'line', word: 0 }],
+      },
+      needsInput: ['content'],
+    });
+    const other = {
+      ...base,
+      wordStart: 0,
+      wordEnd: 3,
+      componentId: 'map-zoom',
+      skillId: 'zoom-from-world-to-place',
+    };
+    expect(sceneDraft(other, DEMO, DEMO_SPANS)).toBe(other);
   });
 });
 
@@ -257,16 +421,9 @@ describe('detectLocal with the real tagger', () => {
     expect(tagSpans(DEMO)).toEqual(DEMO_SPANS);
   });
 
-  it('gives the same single big-number suggestion', () => {
+  it('gives the same suggestions as the hand-made spans', () => {
     const out = detectLocal(DEMO, tagSpans(DEMO));
     expect(out).toEqual(detectLocal(DEMO, DEMO_SPANS));
-    expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({
-      componentId: 'big-number',
-      score: 0.95,
-      wordStart: 5,
-      wordEnd: 9,
-      params: { value: 40, suffix: '%', decimals: 0, label: 'Our revenue grew' },
-    });
+    expect(out.map((s) => s.componentId)).toEqual(['hook-statement', 'stat-punch']);
   });
 });

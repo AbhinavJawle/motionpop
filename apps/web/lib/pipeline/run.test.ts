@@ -147,8 +147,19 @@ describe('runPipeline: normal upload', () => {
       { type: 'step', step: 'moments', state: 'active' },
       { type: 'step', step: 'moments', state: 'done', detail: 'No moments found' },
       { type: 'step', step: 'suggest', state: 'active' },
-      { type: 'slots', slots: [] },
-      { type: 'step', step: 'suggest', state: 'done', detail: 'No slots this time' },
+      // Changed by spec 07 task 27: the opening line is a hook-statement draft.
+      {
+        type: 'slots',
+        slots: [
+          expect.objectContaining({
+            componentId: 'hook-statement',
+            status: 'suggested',
+            startMs: 500,
+            endMs: 3400,
+          }),
+        ],
+      },
+      { type: 'step', step: 'suggest', state: 'done', detail: '1 slot found' },
       { type: 'done', projectId: PROJECT_ID },
     ]);
   });
@@ -163,7 +174,17 @@ describe('runPipeline: normal upload', () => {
     if (!loaded.ok) return;
     const p = loaded.project;
     expect(EditorProjectSchema.safeParse(p).success).toBe(true);
-    expect(p.slots).toEqual([]);
+    // Changed by spec 07 task 27: the opening line is a suggested hook-statement (no version
+    // until auto-fill writes one).
+    expect(p.slots).toMatchObject([
+      {
+        componentId: 'hook-statement',
+        status: 'suggested',
+        params: { content: { line: 'hello world again' }, beats: [{ cue: 'line', word: 0 }] },
+        needsInput: ['content'],
+      },
+    ]);
+    expect(p.versions).toEqual([]);
     expect(p.title).toBe('my voice');
     expect(p.durationMs).toBe(CLEANED_DURATION);
 
@@ -548,28 +569,39 @@ describe('runPipeline: slot detection (spec 06)', () => {
     return { h, result };
   };
 
-  it('tags, detects and saves the sample big-number as a ready slot with a v1 version', async () => {
+  // Changed by spec 07 task 27: the sample's number is a ready stat-punch (was big-number) and
+  // its opening line a suggested hook-statement for auto-fill. The closing claim ends the
+  // transcript too soon to be read, so it is not a hook.
+  it('tags, detects and saves the sample stat-punch as a ready slot with a v1 version', async () => {
     const { h, result } = await runSample();
     await result;
     const step = (name: string) =>
       h.events.find((e) => e.type === 'step' && e.step === name && e.state === 'done');
     expect(step('moments')).toMatchObject({ detail: 'Found 3 moments' });
-    expect(step('suggest')).toMatchObject({ detail: '1 slot found' });
+    expect(step('suggest')).toMatchObject({ detail: '2 slots found' });
     const slotsEvent = h.events.find((e) => e.type === 'slots');
-    expect(slotsEvent).toMatchObject({ slots: [{ componentId: 'big-number', status: 'ready' }] });
+    expect(slotsEvent).toMatchObject({
+      slots: [
+        { componentId: 'hook-statement', status: 'suggested' },
+        { componentId: 'stat-punch', status: 'ready' },
+      ],
+    });
 
     const loaded = await h.repo.load(PROJECT_ID);
     if (!loaded.ok) throw new Error('not saved');
-    const [slot] = loaded.project.slots;
+    const slot = loaded.project.slots[1];
     expect(slot).toMatchObject({
-      id: 's-1',
-      componentId: 'big-number',
+      id: 's-2',
+      componentId: 'stat-punch',
       status: 'ready',
-      params: { value: 40, suffix: '%', label: 'Our revenue grew' },
-      currentVersionId: 'v-s-1-1',
+      params: {
+        content: { value: 40, suffix: '%', label: 'Our revenue grew' },
+        beats: [{ cue: 'number', word: 2 }],
+      },
+      currentVersionId: 'v-s-2-1',
     });
     expect(loaded.project.versions).toEqual([
-      expect.objectContaining({ id: 'v-s-1-1', slotId: 's-1', source: 'user', label: 'v1' }),
+      expect.objectContaining({ id: 'v-s-2-1', slotId: 's-2', source: 'user', label: 'v1' }),
     ]);
     expect(timelineIssues(loaded.project)).toEqual([]);
   });

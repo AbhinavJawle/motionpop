@@ -1,9 +1,21 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { components } from '@motionpop/motion';
+import { components, scenes } from '@motionpop/motion';
 import { describe, expect, it } from 'vitest';
-import { CATALOGUE, SKILLS, catalogueEntry, componentLimits, skillEntry } from './catalogue';
+import {
+  CATALOGUE,
+  DETECT_CATALOGUE,
+  SCENES,
+  SKILLS,
+  catalogueEntry,
+  componentLimits,
+  detectWorksWith,
+  isDetectable,
+  sceneEntry,
+  skillEntry,
+  skillWorksWith,
+} from './catalogue';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '../../../..');
 
@@ -92,5 +104,56 @@ describe('skill catalogue', () => {
   it('only works with components in the catalogue', () => {
     for (const s of SKILLS)
       for (const id of s.worksWith) expect(catalogueEntry(id), `${s.id} → ${id}`).toBeDefined();
+  });
+});
+
+describe('scene catalogue (spec 07 task 27)', () => {
+  const registry = scenes as unknown as Record<
+    string,
+    { name: string; useWhen: string; durationMs: { min: number; ideal: number; max: number } }
+  >;
+
+  it('mirrors the motion scenes registry: ids, names, "use when" lines and durations', () => {
+    expect(SCENES.map((s) => s.id).sort()).toEqual(Object.keys(registry).sort());
+    for (const s of SCENES) {
+      const r = registry[s.id];
+      expect({ name: s.name, useWhen: s.useWhen }, s.id).toEqual({
+        name: r?.name,
+        useWhen: r?.useWhen,
+      });
+      expect({ min: s.minMs, ideal: s.idealMs, max: s.maxMs }, s.id).toEqual(r?.durationMs);
+      expect(s.built).toBe(true);
+    }
+  });
+
+  it('replaces only catalogue components, which detection then stops offering', () => {
+    for (const s of SCENES)
+      for (const r of s.replaces) {
+        expect(catalogueEntry(r), `${s.id} replaces ${r}`).toBeDefined();
+        expect(isDetectable(r)).toBe(false);
+      }
+    expect(DETECT_CATALOGUE.slice(0, SCENES.length)).toEqual(SCENES);
+    expect(new Set(DETECT_CATALOGUE.map((c) => c.id)).size).toBe(DETECT_CATALOGUE.length);
+    // Legacy ids still resolve, so saved projects keep their limits.
+    expect(componentLimits('big-number')).toEqual({ minMs: 2600, idealMs: 3600, maxMs: 8000 });
+    expect(componentLimits('stat-punch')).toEqual({ minMs: 2600, idealMs: 4600, maxMs: 8000 });
+  });
+
+  it('lets a skill that works with a replaced component work with its scene', () => {
+    const stat = skillEntry('shocking-stat-reveal');
+    const trend = skillEntry('slow-build-trend');
+    expect(stat && skillWorksWith(stat, 'stat-punch')).toBe(true);
+    expect(stat && skillWorksWith(stat, 'hook-statement')).toBe(true);
+    expect(trend && skillWorksWith(trend, 'stat-punch')).toBe(false);
+    expect(stat && detectWorksWith(stat)).toEqual(['stat-punch', 'hook-statement']);
+    expect(sceneEntry('big-number')).toBeUndefined();
+  });
+
+  it('pairs every scene with at least one skill', () => {
+    for (const s of SCENES)
+      expect(
+        SKILLS.some((k) => skillWorksWith(k, s.id)),
+        s.id,
+      ).toBe(true);
   });
 });

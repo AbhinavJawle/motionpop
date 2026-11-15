@@ -168,11 +168,17 @@ describe('cameraTrack properties', () => {
         const track = cameraTrack(plan.quiet, juice.beats, opts);
         const again = cameraTrack(plan.quiet, juice.beats, opts);
         expect(track(0)).toBe(Math.min(a, b));
+        // Plain comparisons in the loop, one expect per run: the same checks, but ~20x fewer
+        // expect calls, so the property stays well under the timeout on a loaded runner (it took
+        // 6.1 s in the full forced suite on 2026-11-15, 0.8 s alone).
+        const bad: string[] = [];
         for (let t = 0; t <= opts.durationMs; t += 25) {
-          expect(track(t)).toBeGreaterThanOrEqual(Math.min(a, b) - 1e-9);
-          expect(track(t)).toBeLessThanOrEqual(Math.max(a, b) + snap + 1e-9);
-          expect(track(t)).toBe(again(t));
+          const v = track(t);
+          if (v < Math.min(a, b) - 1e-9) bad.push(`t=${t}: ${v} below min`);
+          if (v > Math.max(a, b) + snap + 1e-9) bad.push(`t=${t}: ${v} above max + snap`);
+          if (v !== again(t)) bad.push(`t=${t}: not deterministic`);
         }
+        expect(bad).toEqual([]);
       }),
       RUNS,
     );

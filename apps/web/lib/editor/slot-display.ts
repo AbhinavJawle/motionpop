@@ -1,5 +1,6 @@
-import { components, formatCount } from '@motionpop/motion';
+import { formatCount } from '@motionpop/motion';
 import type { Slot } from '@motionpop/schemas';
+import { componentFor } from '../motion/registry';
 
 /**
  * Display text for slots on the timeline and in the inspector (editor.png). Names for
@@ -20,35 +21,45 @@ const SKILL_NAMES: Record<string, string> = {
 };
 
 export function componentName(componentId: string): string {
-  const c = (components as Record<string, { name: string } | undefined>)[componentId];
-  return c?.name ?? PLANNED_NAMES[componentId] ?? componentId;
+  return componentFor(componentId)?.name ?? PLANNED_NAMES[componentId] ?? componentId;
+}
+
+/**
+ * The fields a summary reads: a component's params, or a scene score's `content` (spec 07),
+ * so a stat-punch reads like a big-number.
+ */
+function fields(slot: Slot): Record<string, unknown> {
+  const c = slot.params.content;
+  return typeof c === 'object' && c !== null && !Array.isArray(c)
+    ? (c as Record<string, unknown>)
+    : slot.params;
+}
+
+const NUMBER_IDS = new Set(['big-number', 'stat-punch']);
+
+function numberText(p: Record<string, unknown>): string | null {
+  if (typeof p.value !== 'number') return null;
+  return formatCount(p.value, {
+    prefix: typeof p.prefix === 'string' ? p.prefix : undefined,
+    suffix: typeof p.suffix === 'string' ? p.suffix : undefined,
+    decimals: typeof p.decimals === 'number' ? p.decimals : undefined,
+  });
 }
 
 /** A short summary of what the graphic shows, from its params. */
 export function paramsSummary(slot: Slot): string | null {
-  const p = slot.params;
-  if (slot.componentId === 'big-number' && typeof p.value === 'number') {
-    const value = formatCount(p.value, {
-      prefix: typeof p.prefix === 'string' ? p.prefix : undefined,
-      suffix: typeof p.suffix === 'string' ? p.suffix : undefined,
-      decimals: typeof p.decimals === 'number' ? p.decimals : undefined,
-    });
-    return typeof p.label === 'string' ? `${p.label} ${value}` : value;
-  }
+  const p = fields(slot);
+  const value = NUMBER_IDS.has(slot.componentId) ? numberText(p) : null;
+  if (value) return typeof p.label === 'string' ? `${p.label} ${value}` : value;
   if (typeof p.title === 'string') return p.title;
+  if (typeof p.line === 'string') return p.line;
   if (typeof p.label === 'string') return p.label;
   return null;
 }
 
 /** The value shown on a ready card's thumbnail tile ("40%"), if the graphic has one. */
 export function thumbnailValue(slot: Slot): string | null {
-  const p = slot.params;
-  if (slot.componentId !== 'big-number' || typeof p.value !== 'number') return null;
-  return formatCount(p.value, {
-    prefix: typeof p.prefix === 'string' ? p.prefix : undefined,
-    suffix: typeof p.suffix === 'string' ? p.suffix : undefined,
-    decimals: typeof p.decimals === 'number' ? p.decimals : undefined,
-  });
+  return NUMBER_IDS.has(slot.componentId) ? numberText(fields(slot)) : null;
 }
 
 function firstClause(text: string, max = 28): string {

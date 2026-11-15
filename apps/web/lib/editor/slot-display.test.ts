@@ -22,6 +22,25 @@ describe('slot display', () => {
     expect(thumbnailValue(s4!)).toBe('40%');
   });
 
+  it('reads scene content like a component (spec 07 task 27)', () => {
+    const stat = {
+      ...s2!,
+      componentId: 'stat-punch',
+      params: { content: { value: 40, suffix: '%', decimals: 0, label: 'Revenue grew' } },
+    };
+    expect(slotCardText(stat)).toEqual({ title: 'Stat punch', subtitle: 'Revenue grew 40%' });
+    expect(thumbnailValue(stat)).toBe('40%');
+    const hook = {
+      ...s2!,
+      componentId: 'hook-statement',
+      params: { content: { line: 'Nobody tells you this' } },
+    };
+    expect(slotCardText(hook)).toEqual({
+      title: 'Hook statement',
+      subtitle: 'Nobody tells you this',
+    });
+    expect(thumbnailValue(hook)).toBeNull();
+  });
   it('quotes the linked words without trailing punctuation', () => {
     expect(spokenText(s2!, p.transcript.words)).toBe('revenue grew forty percent since 2020');
   });

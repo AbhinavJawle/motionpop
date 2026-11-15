@@ -3,7 +3,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { Format } from '../contract';
 import { editorialExplainer, fieldNotes } from '../styles';
-import { gateRepairText, gateSlot, repairable, safeScore } from './gate';
+import { gateRepairText, gateSlot, repairable, safeScore, safeScoreFromWords } from './gate';
 import { hookFromWords, hookStatement } from './hook-statement';
 import { statPunch, statPunchFromWords } from './stat-punch';
 
@@ -122,6 +122,29 @@ describe('safe defaults', () => {
         },
       ),
       { numRuns: 60 },
+    );
+  });
+});
+
+describe('safeScoreFromWords (spec 07 task 27)', () => {
+  const o = { ...base, words: words(8) };
+
+  it('builds the safe default from the spoken words and keeps given beats', () => {
+    const text = 'Profit rose 12% this year after cuts'.split(' ');
+    const beats = [{ cue: 'number', word: 2 }];
+    const s = safeScoreFromWords(statPunch, text, o, beats);
+    expect(s).toMatchObject({ variant: 'stack', content: { value: 12, suffix: '%' }, beats });
+    expect(gateSlot(statPunch, s, o).some(repairable)).toBe(false);
+    expect(safeScoreFromWords(hookStatement, text, o)?.content).toEqual(hookFromWords(text));
+  });
+
+  it("returns null instead of the scene's example content when the words give none", () => {
+    // Spelled-out numbers are not parsed here: never fall back to the default "40 %".
+    expect(safeScoreFromWords(statPunch, 'it grew forty percent'.split(' '), o)).toBeNull();
+    expect(safeScoreFromWords(hookStatement, [], o)).toBeNull();
+    // safeScore itself still always answers (property-tested in gate.property.test.ts).
+    expect(safeScore(statPunch, 'it grew forty percent'.split(' '), o).content).toEqual(
+      statPunch.defaultContent,
     );
   });
 });

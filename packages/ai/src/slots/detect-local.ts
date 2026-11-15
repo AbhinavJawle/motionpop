@@ -19,6 +19,8 @@ interface Candidate {
   skillId: string;
   params: Record<string, unknown>;
   needsInput?: string[];
+  /** Scenes: the cue that lands on a known spoken word (absolute word index). */
+  anchor?: { cue: string; word: number };
 }
 
 const CURRENCY: ReadonlySet<NumberUnit> = new Set(['$', '£', '€']);
@@ -26,7 +28,6 @@ const SENTENCE_END = /[.?!]["')\]]*$/;
 const PUNCT_EDGE = /^[^\p{L}\p{N}$£€%]+|[^\p{L}\p{N}%]+$/gu;
 /** Inputs each not-yet-built component will need (spec 07 defines the real schemas). */
 const NEEDS: Record<string, string[]> = {
-  'kinetic-headline': ['headline'],
   'bar-chart': ['data'],
   'line-chart': ['series'],
   callout: ['title'],
@@ -34,6 +35,24 @@ const NEEDS: Record<string, string[]> = {
 };
 /** How far back a slot may start before its span (design: at most 4 words). */
 const LEAD_WORDS = 4;
+/**
+ * Scenes land their anchored cue on its word, and an entrance needs about this long before it
+ * (stat-punch's number lead is 900 ms). A scene's lead-in stops at the first word this far
+ * before its anchor, so it never opens on seconds of empty frame.
+ */
+const SCENE_LEAD_MS = 900;
+/**
+ * Time a hook needs after its last word starts: the 0.8 s read time of word-by-word text plus
+ * an exit. A closing sentence that ends sooner before the transcript does is not a hook.
+ */
+const HOOK_TAIL_MS = 1300;
+/** hook-statement's line limits (its content schema): at most 14 words and 90 characters. */
+const HOOK_MIN_WORDS = 3;
+const HOOK_MAX_WORDS = 14;
+const HOOK_MAX_CHARS = 90;
+/** Sentence openers that make a claim worth a hook-statement (lower case, start of sentence). */
+const CLAIM_OPENERS =
+  /^(here's|here is|this is|that's|that is|the truth|the problem|the secret|the real|the reason|nobody|no one|everyone|most people|what if|imagine|remember|never|think about)\b/i;
 
 /** Sentence index for every word (sentences end at . ? !). */
 export function sentenceIndex(words: readonly SlotWord[]): number[] {
@@ -75,6 +94,79 @@ const decimalsOf = (v: number): number => {
   return dot < 0 ? 0 : Math.min(2, s.length - dot - 1);
 };
 
+/**
+ * The spoken line for a hook-statement over words `ws..we` (spec 07 task 27): fillers dropped,
+ * trailing `. , ; :` stripped (a question mark stays). Null when it doesn't fit the scene's
+ * line limits, so the detector never suggests a line the scene would have to cut.
+ */
+export function hookLine(words: readonly SlotWord[], ws: number, we: number): string | null {
+  const said = words
+    .slice(ws, we + 1)
+    .filter((w) => !w.filler)
+    .map((w) => w.text.trim())
+    .filter(Boolean);
+  if (said.length < HOOK_MIN_WORDS || said.length > HOOK_MAX_WORDS) return null;
+  const line = said.join(' ').replace(/[.,;:]+$/, '');
+  return line.length <= HOOK_MAX_CHARS ? line : null;
+}
+
+/** First and last word index of every sentence. */
+function sentenceRanges(sentence: readonly number[]): { start: number; end: number }[] {
+  const out: { start: number; end: number }[] = [];
+  sentence.forEach((s, i) => {
+    const last = out[out.length - 1];
+    if (last && sentence[last.start] === s) last.end = i;
+    else out.push({ start: i, end: i });
+  });
+  return out;
+}
+
+/**
+ * A hook-statement draft (spec 07 task 27): the line as spoken, the line cue on its first word.
+ * The slot stays suggested (`needsInput: ['content']`) so auto-fill writes the full score
+ * (emphasis, eyebrow, variant); the draft is what the fill keeps when the model can't do better.
+ */
+function hookCandidate(
+  words: readonly SlotWord[],
+  range: { start: number; end: number },
+  score: number,
+  skillId: string,
+): Candidate | null {
+  const line = hookLine(words, range.start, range.end);
+  if (!line) return null;
+  const endMs = words[words.length - 1]?.endMs ?? 0;
+  if ((words[range.end]?.startMs ?? 0) + HOOK_TAIL_MS > endMs) return null;
+  let first = range.start;
+  while (first < range.end && words[first]?.filler) first++;
+  return {
+    wordStart: first,
+    wordEnd: range.end,
+    score,
+    componentId: 'hook-statement',
+    skillId,
+    params: { content: { line }, images: [] },
+    needsInput: ['content'],
+    anchor: { cue: 'line', word: first },
+  };
+}
+
+/**
+ * stat-punch content for a number span (spec 07 task 27): big-number's fields as the scene's
+ * `content`, the number cue anchored on the word that says it. Ready to render when the label
+ * is known; otherwise suggested with `needsInput: ['label']`.
+ */
+export function statPunchParams(
+  span: TaggedSpan,
+  words: readonly SlotWord[],
+  sentence: readonly number[],
+): { params: Record<string, unknown>; needsInput?: string[] } {
+  const b = bigNumberParams(span, words, sentence);
+  return {
+    params: { content: { ...b.params, countFrom: 0 }, images: [] },
+    ...(b.needsInput ? { needsInput: b.needsInput } : {}),
+  };
+}
+
 /** big-number params for a number span (R2.1): `{ value, prefix?, suffix?, decimals, label }`. */
 export function bigNumberParams(
   span: TaggedSpan,
@@ -108,6 +200,30 @@ function candidates(
   const out: Candidate[] = [];
   const comparisons = spans.filter((s) => s.kind === 'comparison');
   const years = spans.filter((s) => s.kind === 'year');
+  const ranges = sentenceRanges(sentence);
+
+  // Sentence openers and claims (spec 07 task 27): the opening line, questions to the viewer
+  // and sentences that open with a claim become hook-statements. Ranked below every data moment
+  // (numbers, comparisons, lists, places, year sequences) and above names, so a sentence with
+  // something to show keeps that graphic and a hook fills the plain stretches.
+  ranges.forEach((r, k) => {
+    const text = words
+      .slice(r.start, r.end + 1)
+      .filter((w) => !w.filler)
+      .map((w) => clean(w.text))
+      .join(' ');
+    const question = /\?["')\]]*$/.test(words[r.end]?.text ?? '');
+    const kind =
+      k === 0
+        ? { score: 0.58, skill: 'brand-sting' }
+        : question
+          ? { score: 0.56, skill: 'calm-explanation' }
+          : CLAIM_OPENERS.test(text)
+            ? { score: 0.55, skill: 'calm-explanation' }
+            : null;
+    const hook = kind ? hookCandidate(words, r, kind.score, kind.skill) : null;
+    if (hook) out.push(hook);
+  });
 
   for (const span of spans) {
     const base = { wordStart: span.wordStart, wordEnd: span.wordEnd };
@@ -116,12 +232,15 @@ function candidates(
         const money = span.unit !== undefined && span.unit !== 'x';
         const compared = comparisons.some((c) => overlaps(c, span) || touches(c, span, sentence));
         const score = money ? (compared ? 0.95 : 0.85) : 0.5;
+        // Changed by spec 07 task 27: numbers map to the stat-punch scene (big-number stays
+        // registered for saved projects).
         out.push({
           ...base,
           score,
-          componentId: 'big-number',
+          componentId: 'stat-punch',
           skillId: 'shocking-stat-reveal',
-          ...bigNumberParams(span, words, sentence),
+          ...statPunchParams(span, words, sentence),
+          anchor: { cue: 'number', word: span.wordStart },
         });
         break;
       }
@@ -138,15 +257,12 @@ function candidates(
         }
         break;
       case 'list':
+        // Changed by spec 07 task 27: a list of 3 or more is a hook-statement over the list's
+        // sentence (kinetic-headline is replaced by the scene), when the sentence fits a line.
         if ((span.items ?? 0) >= 3) {
-          out.push({
-            ...base,
-            score: 0.7,
-            componentId: 'kinetic-headline',
-            skillId: 'countdown-ranking',
-            params: {},
-            needsInput: NEEDS['kinetic-headline'],
-          });
+          const s = ranges[sentence[span.wordStart] ?? -1];
+          const hook = s ? hookCandidate(words, s, 0.7, 'countdown-ranking') : null;
+          if (hook) out.push(hook);
         }
         break;
       case 'place':
@@ -200,11 +316,17 @@ function touches(c: TaggedSpan, n: TaggedSpan, sentence: readonly number[]): boo
   );
 }
 
-/** Widen a candidate back to the sentence's first content word, at most LEAD_WORDS back. */
+/**
+ * Widen a candidate back to the sentence's first content word, at most LEAD_WORDS back. A scene
+ * (anchored cue) stops at the first word SCENE_LEAD_MS before its anchor (spec 07 task 27).
+ */
 function leadIn(c: Candidate, words: readonly SlotWord[], sentence: readonly number[]): number {
   let start = c.wordStart;
+  const anchorMs = c.anchor ? words[c.anchor.word]?.startMs : undefined;
   for (let i = c.wordStart - 1; i >= Math.max(0, c.wordStart - LEAD_WORDS); i--) {
     if (sentence[i] !== sentence[c.wordStart]) break;
+    if (anchorMs !== undefined && anchorMs - (words[start]?.startMs ?? anchorMs) >= SCENE_LEAD_MS)
+      break;
     start = i;
   }
   while (start < c.wordStart && words[start]?.filler) start++;
@@ -220,6 +342,52 @@ export function reasonFor(words: readonly SlotWord[], wordStart: number, wordEnd
     .join(' ')
     .replace(/[.,;:!?]+$/, '');
   return `You said '${said}'`;
+}
+
+/**
+ * Scene params for a suggestion the AI made (spec 07 task 27, "the AI plans, code enforces"):
+ * `slots.detect` picks the moment and the scene, code writes the draft from the words, exactly
+ * as the deterministic detector does. A stat-punch needs a tagged number inside its words and a
+ * hook-statement a line that fits; otherwise the suggestion is dropped (null), so no number is
+ * ever invented. Other components come back unchanged.
+ */
+export function sceneDraft(
+  s: SlotSuggestion,
+  words: readonly SlotWord[],
+  spans: readonly TaggedSpan[],
+): SlotSuggestion | null {
+  const withBeat = (
+    p: { params: Record<string, unknown>; needsInput?: string[] },
+    cue: string,
+    word: number,
+  ): SlotSuggestion => {
+    const rest: SlotSuggestion = { ...s };
+    delete rest.needsInput;
+    return {
+      ...rest,
+      params: { ...p.params, beats: [{ cue, word: word - s.wordStart }] },
+      ...(p.needsInput ? { needsInput: p.needsInput } : {}),
+    };
+  };
+  if (s.componentId === 'stat-punch') {
+    const span = spans.find(
+      (x) => x.kind === 'number' && x.wordStart >= s.wordStart && x.wordStart <= s.wordEnd,
+    );
+    if (!span) return null;
+    return withBeat(statPunchParams(span, words, sentenceIndex(words)), 'number', span.wordStart);
+  }
+  if (s.componentId === 'hook-statement') {
+    const line = hookLine(words, s.wordStart, s.wordEnd);
+    if (!line) return null;
+    let first = s.wordStart;
+    while (first < s.wordEnd && words[first]?.filler) first++;
+    return withBeat(
+      { params: { content: { line }, images: [] }, needsInput: ['content'] },
+      'line',
+      first,
+    );
+  }
+  return s;
 }
 
 export function slotBudget(words: readonly SlotWord[]): number {
@@ -271,7 +439,10 @@ export function detectLocal(
     skillId: c.skillId,
     reason: reasonFor(words, c.wordStart, c.wordEnd),
     score: c.score,
-    params: c.params,
+    // Scene beats index the slot's own words (the post-pass rebases them if the slot moves).
+    params: c.anchor
+      ? { ...c.params, beats: [{ cue: c.anchor.cue, word: c.anchor.word - c.wordStart }] }
+      : c.params,
     ...(c.needsInput ? { needsInput: c.needsInput } : {}),
   }));
 }

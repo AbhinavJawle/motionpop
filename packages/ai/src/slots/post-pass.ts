@@ -34,6 +34,31 @@ interface Placed {
   endMs: number;
   suggestion: SlotSuggestion;
   limits: ComponentLimits;
+  /** The suggestion's first word (clamped), the origin of its scene beats. */
+  ws: number;
+}
+
+/**
+ * Scene scores index their beats into the slot's own words (spec 07). When the post-pass moves
+ * a slot's first word, each beat is shifted by `shift` so it keeps naming the same spoken word;
+ * beats that leave the slot's `count` words are dropped. Params without beats come back as they
+ * are. Pure.
+ */
+export function rebaseBeats(
+  params: Record<string, unknown>,
+  shift: number,
+  count: number,
+): Record<string, unknown> {
+  const beats = params.beats;
+  if (!Array.isArray(beats)) return params;
+  const moved = beats.flatMap((b: unknown) => {
+    if (typeof b !== 'object' || b === null) return [];
+    const word = (b as { word?: unknown }).word;
+    if (typeof word !== 'number') return [b];
+    const w = word + shift;
+    return w >= 0 && w < count ? [{ ...(b as object), word: w }] : [];
+  });
+  return { ...params, beats: moved };
 }
 
 const defaultValidate = (_id: string, params: Record<string, unknown>): ValidatedParams => ({
@@ -124,16 +149,28 @@ export function postPass(input: PostPassInput): Slot[] {
     if (gapHi - gapLo < c.limits.minMs) continue;
     [s, e] = widen(s, e, c.limits.minMs, gapLo, gapHi);
     if (e - s > c.limits.maxMs) e = s + c.limits.maxMs;
-    kept.push({ startMs: s, endMs: e, suggestion: c.suggestion, limits: c.limits });
+    kept.push({ startMs: s, endMs: e, suggestion: c.suggestion, limits: c.limits, ws: c.ws });
   }
 
   // Second pass, in score order: widen towards the ideal duration in the space that is left.
   // Doing this only after every slot has its minimum means a high-score slot never takes the
   // room a lower-score neighbour needed to exist at all.
+  // Changed by spec 07 task 27: a scene whose cues are anchored to spoken words (`params.beats`)
+  // only grows its end towards the ideal. Starting it earlier would add an empty lead before
+  // its first cue, since the cue still waits for its word. Reaching the minimum may still move
+  // the start (the first pass).
   for (const k of kept) {
     const others = kept.filter((o) => o !== k);
     const [gapLo, gapHi] = freeGap(others, k.startMs, lo, hi);
-    [k.startMs, k.endMs] = widen(k.startMs, k.endMs, k.limits.idealMs, gapLo, gapHi);
+    const anchored =
+      Array.isArray(k.suggestion.params.beats) && k.suggestion.params.beats.length > 0;
+    [k.startMs, k.endMs] = widen(
+      k.startMs,
+      k.endMs,
+      k.limits.idealMs,
+      anchored ? k.startMs : gapLo,
+      gapHi,
+    );
     if (k.endMs - k.startMs > k.limits.maxMs) k.endMs = k.startMs + k.limits.maxMs;
   }
 
@@ -154,7 +191,12 @@ export function postPass(input: PostPassInput): Slot[] {
     const range = wordsInRange(words, k.startMs, k.endMs);
     if (!range) continue;
     const sg = k.suggestion;
-    const v = validate(sg.componentId, sg.params);
+    const params = rebaseBeats(
+      sg.params,
+      k.ws - range.wordStart,
+      range.wordEnd - range.wordStart + 1,
+    );
+    const v = validate(sg.componentId, params);
     const needsInput = [...new Set([...(sg.needsInput ?? []), ...v.needsInput])];
     slots.push({
       id: nextId(),

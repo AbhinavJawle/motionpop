@@ -1,19 +1,31 @@
-import { components } from '@motionpop/motion';
-import type { CompileInput } from '@motionpop/motion/compiler';
+import { sceneTiming, type CompileInput, type CompileSlot } from '@motionpop/motion/compiler';
 import { editorialExplainer, stylePacks } from '@motionpop/motion/styles';
 import type { EditorProject, Slot } from '@motionpop/schemas';
+import { componentFor, isScene } from '../motion/registry';
 
-/** A ready slot whose component exists and whose params parse is rendered in the preview. */
+/** A ready slot whose component (or scene) exists and whose params parse is rendered. */
 export function isRenderable(slot: Slot): boolean {
   if (slot.status !== 'ready') return false;
-  const c = (components as Record<string, (typeof components)[string] | undefined>)[
-    slot.componentId
-  ];
+  const c = componentFor(slot.componentId);
   return c !== undefined && c.params.safeParse(slot.params).success;
 }
 
 export function styleFor(project: Pick<EditorProject, 'styleId'>) {
   return stylePacks[project.styleId] ?? editorialExplainer;
+}
+
+/** One slot for the compiler. Scenes also get the voice: words, stress and pauses (spec 07). */
+export function compileSlot(slot: Slot, transcript: EditorProject['transcript']): CompileSlot {
+  const base: CompileSlot = {
+    id: slot.id,
+    startMs: slot.startMs,
+    endMs: slot.endMs,
+    componentId: slot.componentId,
+    params: slot.params,
+  };
+  if (!isScene(slot.componentId)) return base;
+  const { text: _text, ...timing } = sceneTiming(slot, transcript);
+  return { ...base, ...timing };
 }
 
 /**
@@ -26,12 +38,6 @@ export function previewCompileInput(project: EditorProject): CompileInput {
     durationMs: project.durationMs,
     style: styleFor(project),
     mode: 'preview',
-    slots: project.slots.filter(isRenderable).map((s) => ({
-      id: s.id,
-      startMs: s.startMs,
-      endMs: s.endMs,
-      componentId: s.componentId,
-      params: s.params,
-    })),
+    slots: project.slots.filter(isRenderable).map((s) => compileSlot(s, project.transcript)),
   };
 }
