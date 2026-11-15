@@ -635,3 +635,69 @@ Template:
   - **Gaps it reported:** text overflow and truncation are not exercised under happy-dom. R1.4's "2 rounds, then the safe default" is two steps in code (the router throws, then the caller applies `safeScore`), and property 4 covers that path.
   - **Checks:** motion 182 and ai 285 tests, typecheck, lint and prettier, all green. Kiro reran each property file 6 more times with no flake. Committed locally, not pushed (Claude Code pushed it).
 <!-- /kiro-session:sess_eda2919d-9b32-467b-a3d7-598892e38693 -->
+
+<!-- kiro-session:sess_66c87b39-2333-46f3-811d-3ba08bf7f23f -->
+### 2026-11-15 · Kiro IDE · agent: default IDE chat (Claude Opus 5.5), with 2 runs of the `motionpop-builder` custom agent as IDE sub-agents
+- **Context:** first day-to-day session in the Kiro IDE after the Claude Code handoff (`.kiro/steering/handoff.md`). Written by the IDE session from its own work; nothing here was done in Claude Code.
+- **Spec / task:** spec 07 task 27 (handoff section 3, item 1), done in full: catalogue wiring first, then the director.
+- **Commits (local, in order):**
+  - `1e34d97` catalogue wiring: detection and auto-fill use scenes.
+  - `c3fbe99` fix: highlighter stays inside the frame.
+  - `c37c067` director core: `direct.plan`, `enforcePlan`, `fallbackPlan`, `planVideo`.
+  - `d696061` (builder agent) plan-allowance route, limits schema, rules and rules test.
+  - `e605823` (builder agent) enforcer properties.
+  - `b5e0d78` director in Processing, per-slot energy, plan applied; task 27 checked; D-032.
+- **What was built:** see the task 27 note in `tasks.md` and D-032. In short:
+  - Detection now suggests `stat-punch` (ready, from the tagger's number, cue anchored on the word) and `hook-statement` drafts (opening line, questions, claim openers).
+  - The editor knows scenes: validation, limits, names and the preview, which now gets each scene slot's words, stress and pauses.
+  - Auto-fill fills scenes on the device with the gate and 2 repairs. Otherwise it uses the safe default from the spoken words, never the scene's example content.
+  - The director plans variants, energy and the peak (device first, then a server-granted free cloud plan, else rules). It shows in a fifth Processing step with a route chip.
+- **Kiro features used:**
+  - Steering: the handoff, plus the always-on and fileMatch rules.
+  - The spec: tasks.md notes and design sections.
+  - The custom agent `motionpop-builder`, run twice in parallel as IDE sub-agents.
+  - Property-based tests: the enforcer properties by the agent; the beat-rebasing and highlighter properties by the IDE chat.
+- **Builder agent run A (enforcer properties):**
+  - 8 properties at 300 runs each, over random valid plans, garbage and the fallback.
+  - **Bug it found and fixed:** scene lookups used a bare `ctx.scenes[id]`, so a candidate named `toString` passed as a scene and crashed the enforcer. A regression test was added.
+  - It mutation-checked its properties by removing one rule at a time.
+  - Its review notes on `fallback.ts` were fixed by the IDE chat in `b5e0d78`.
+  - Its coverage floors flaked once in the full forced suite ("plan scene dropped" 111 of 300 against a floor of 115). The IDE chat lowered all floors to 0.6 of their value and said so in the test file. Wrong-floor cause: the floors were set from means measured over only 8 runs.
+- **Builder agent run B (server half):**
+  - `POST /api/ai/plan-allowance` (ID token + App Check, one transaction on `users/{uid}/limits/{utc day}`).
+  - `DailyLimitsSchema`, the client helper, the rules, a rules test and an extra emulator test of the transaction.
+  - The IDE chat reran the rules tests independently: 4 files, 49 tests passed.
+  - It also caught a lint warning the IDE chat had committed in `1e34d97` (an unused `_text`). That was the IDE chat's miss: it had read lint through `--output-logs=errors-only`, which hides warnings. Fixed in `b5e0d78`; lint now reads with full output.
+- **What failed or went wrong (honest):**
+  - **Kiro CLI headless did not start:** `kiro-cli chat --agent motionpop-builder --no-interactive` (CLI 3.3.0, auto-updated since run 33) answered "Mode 'motionpop-builder' not found", with and without `--trust-workspace`. `kiro-cli agent list` shows the agent ("v3 format"), and `agent upgrade --dry-run` calls it "v3-only". Not resolved; the agent ran as an IDE sub-agent instead. This needs a look before the next headless run.
+  - **Push blocked:** pushing to `origin main` was blocked by Kiro's safety check, because the founder's message did not say to push. All 6 commits are local only. CI was not checked.
+  - **IDE chat mistakes:**
+    - A scripted text replace with an empty match corrupted `post-pass.test.ts`. It was undone exactly by removing the inserted block, and the edit was redone with the file-replace tool.
+    - A zsh `rm` glob prompt hung one command for 10 minutes.
+    - The shell tool failed transiently a few times.
+  - **Timing under load:** with every package testing at once, four property tests hit vitest's 5 s default timeout, and the detection budget test measured 165–219 ms wall time (18–28 ms alone).
+    - The camera and prosody property loops were made faster without changing their assertions.
+    - The detection budget is now measured in CPU time.
+    - vitest's timeout is 20 s in ai, motion and web.
+- **Rule changes (each marked "Changed by spec 07 task 27" in its test, and in D-032):**
+  - Beat rebasing in the post-pass.
+  - End-only growth to the ideal for anchored scenes.
+  - A 0.9 s scene lead-in.
+  - A 1.3 s tail for hooks.
+  - Numbers become stat-punch and lists become hook-statement.
+  - Processing has 5 steps, and a failed save shows on the plan card.
+- **Checks run and read:**
+  - prettier, typecheck and lint (0 warnings, full output).
+  - `pnpm -s turbo run test --force`: schemas 98, ai 320, motion 192, web 364 tests passed.
+  - Rules tests: 49 passed.
+  - `motion:check stat-punch` and `hook-statement`: 180 cases × 3 formats each, 0 failures. The warnings are the known "focal already settled early" ones.
+  - Web build passed; Playwright chromium: 8 passed.
+- **Stills reviewed:**
+  - The editor preview of the sample in 16:9, 9:16 and 1:1, and the motion:check contact sheets, plain and `field-notes`.
+  - They showed the plain highlighter's cap touching the frame edge on stat-punch (fixed in `c3fbe99`).
+  - **Seen but not changed (pre-existing, for the founder):**
+    - A one-line hook sits in the upper third, because its box reserves 3 lines.
+    - The centre hook variant can orphan its last word ("up").
+    - Auto-emphasis picked "Let's" on the synthesized sample.
+- **Not verified:** a real Gemini Nano or cloud `direct.plan` and fill (local mode only), and the allowance route against the real project (emulator only).
+<!-- /kiro-session:sess_66c87b39-2333-46f3-811d-3ba08bf7f23f -->
