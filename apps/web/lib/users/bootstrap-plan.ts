@@ -51,7 +51,8 @@ export function planBootstrap(
   const email = (profile.email ?? '').trim();
   const isJudge = profile.emailVerified && email !== '' && judgeEmails.has(email.toLowerCase());
   const credits = isJudge ? config.judgeCredits : config.freeCredits;
-  const fallbackName = email.includes('@') ? email.slice(0, email.indexOf('@')) : 'Creator';
+  // "@example.com" (or a bare "@") has no local part: still fall back to "Creator".
+  const fallbackName = email.split('@')[0]?.trim() || 'Creator';
   return {
     user: {
       displayName: profile.displayName?.trim() || fallbackName,

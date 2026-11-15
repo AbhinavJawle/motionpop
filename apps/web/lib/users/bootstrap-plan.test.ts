@@ -60,6 +60,15 @@ describe('planBootstrap', () => {
     expect(plan.user.photoURL).toBe('https://img.example/a.png');
   });
 
+  it('falls back to "Creator" when the email has no local part (property regression)', () => {
+    // fast-check found { email: "@" } giving an empty displayName (seed -1429429465).
+    for (const email of ['@', '@example.com', '  @x.io']) {
+      expect(
+        planBootstrap(profile({ email, displayName: null }), judges, APP_CONFIG_DEFAULTS).user,
+      ).toMatchObject({ displayName: 'Creator' });
+    }
+  });
+
   it('always yields docs that pass the schemas, with the ledger matching the balance', () => {
     fc.assert(
       fc.property(
