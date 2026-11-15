@@ -112,9 +112,10 @@ describe('bootstrapUser (emulator)', () => {
             expect(again).toEqual({ created: false, plan: first.plan, credits: first.credits });
           }
           const after = await readState(uid);
-          const { lastSeenAt: _a, ...beforeRest } = before.user ?? {};
-          const { lastSeenAt: _b, ...afterRest } = after.user ?? {};
-          expect(afterRest).toEqual(beforeRest);
+          // Everything but lastSeenAt is unchanged.
+          const withoutSeen = (u: Record<string, unknown> | undefined) =>
+            Object.fromEntries(Object.entries(u ?? {}).filter(([k]) => k !== 'lastSeenAt'));
+          expect(withoutSeen(after.user)).toEqual(withoutSeen(before.user));
           expect(after.ledger).toEqual(before.ledger);
         }),
         RUNS,

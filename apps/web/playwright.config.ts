@@ -57,6 +57,8 @@ export default defineConfig({
       cwd: '../..',
       url: `http://127.0.0.1:${AUTH_EMULATOR_PORT}/`,
       reuseExistingServer: true,
+      // SIGTERM lets firebase-tools stop its Java emulators; the default hard kill orphaned them.
+      gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
       timeout: 180_000,
       stdout: 'pipe',
       stderr: 'pipe',

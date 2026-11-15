@@ -191,3 +191,17 @@ Template:
   - The web config is read from App Hosting's injected `FIREBASE_WEBAPP_CONFIG` and mapped to `NEXT_PUBLIC_*` in `next.config.ts`, so no API key is committed (gitleaks would flag it). Env vars that are already set win, including blanks.
   - Added the hosted domain to the reCAPTCHA key and the Auth authorized domains.
   - The first `firebase deploy --only apphosting` was blocked by Claude Code's permission check. It's waiting on the founder.
+- **Spec 01 task 10 done: first production deploy.** The founder ran `gcloud auth application-default login`, and I set the quota project. `firebase deploy --only apphosting` built the pnpm monorepo from local source on the first try.
+  - **Production smoke test** in headless Chromium against the hosted URL:
+    - `/dashboard` redirects to `/sign-in?next=%2Fdashboard`;
+    - sign-up lands on the dashboard;
+    - a real reCAPTCHA Enterprise App Check token passes `verifyRequest`;
+    - bootstrap returns 200, and Firestore has `plan: free, credits: 20`.
+  - The throwaway account was deleted afterwards. Dev pages return 404 in production. **Spec 01 is complete.**
+- **Spec 06 tasks 3 and 5 (Claude Code), alongside Kiro run 25 (task 1):**
+  - **Task 3:** `catalogue.ts` lists 6 components and 8 skills. Tests compare it against `component-library.md`, every `skills/*.md` frontmatter, and the motion registry, including built status and big-number's duration limits.
+  - **Task 5:** `detect-local.ts` scores spans per the design table and budgets one slot per 5 s. It picks the best non-overlapping candidates, then widens each slot's start, but never into the previous pick. It builds big-number params with a title-cased label and an M/B scale, and flags `needsInput` instead of inventing a label.
+  - **Results:** the demo transcript gives exactly one slot, big-number 40 % "Our revenue grew", with no `needsInput`. A fast-check property checks determinism, schema validity, order, no overlap and the budget.
+  - **Bug found:** the first lead-in widened the bar-chart slot over the neighbouring place span. Fixed by picking on the spans first and widening afterwards.
+  - Shared `TaggedSpan` types live in `slots/types.ts`, so Kiro's tagger (task 2) and the detector agree.
+- **E2E hygiene:** Playwright's default hard kill orphaned the Firestore emulator's Java process (parent PID 1), which then blocked `test:rules` on port 8080. That happened twice, and once it also blocked Kiro. `gracefulShutdown: SIGTERM` lets firebase-tools stop it; I verified no orphans remain.

@@ -436,3 +436,24 @@ Template:
   - **Friction Kiro solved:** with no credentials, each Admin call spent about 3 s probing the GCE metadata server, and the first 20-run version timed out. `METADATA_SERVER_DETECTION=none` brought a call down to about 0.6 s. Claude Code applied the same variable to the Playwright auth server, which had shown the same 5 s first call. Concurrent bootstraps still take about 3 s from transaction contention retries, which is expected.
   - Claude Code reran `test:rules`: 43/43 pass.
 <!-- /kiro-session:sess_be2fdbe4-44da-46e0-8c20-90b01248f2cd -->
+
+<!-- kiro-session:sess_4e7683c1-5256-4fa7-8bd1-3ce5d05cfdf1 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T08:40:33.512Z · last stop: 2026-11-15T08:44:35.655Z · session: sess_4e7683c1-5256-4fa7-8bd1-3ce5d05cfdf1
+- commits since start: 
+  - 8dbbfbf feat(06-slot-detection-and-autofill): task 1 spoken numbers
+- uncommitted changes: 
+  - `M packages/ai/package.json`
+  - ` M pnpm-lock.yaml`
+  - `?? packages/ai/src/slots/catalogue.test.ts`
+  - `?? packages/ai/src/slots/catalogue.ts`
+  - `?? packages/ai/src/slots/detect-local.test.ts`
+  - `?? packages/ai/src/slots/detect-local.ts`
+  - `?? packages/ai/src/slots/types.ts`
+- Summary (added in Claude Code after reviewing `run25.log` and commit 8dbbfbf): **run 25**, spec 06 task 1, run in parallel with Claude Code's catalogue and detector work in the same folder.
+  - `packages/ai/src/slots/numbers.ts`: `parseSpokenNumber(tokens, from)` returns `{ value, unit?, kind: number|year, end }`.
+  - Tests: an 89-case table plus three fast-check properties (integer round-trip with and without separators, decimal round-trip, never throws and `end` stays in range).
+  - Kiro documented its narrow choices. It rejects ordinals, fractions ("two-thirds"), decades ("2020s"), bare scale words, and a lone "one" before "of". Punctuation ends a number. Only a bare 4-digit token is a year. "two thousand and five" is a year.
+  - It staged only its own files and left Claude Code's untracked files alone.
+  - It reported two lint warnings in its run 24 test. Claude Code fixed them.
+<!-- /kiro-session:sess_4e7683c1-5256-4fa7-8bd1-3ce5d05cfdf1 -->

@@ -11,4 +11,4 @@ Tasks marked **[kiro]** are executed by Kiro CLI and logged in `KIRO_LOG.md`.
 - [x] 7. **[kiro]** `firestore.rules` + `storage.rules` + rules tests on the emulator. — R5
 - [x] 8. **[kiro]** Property test: bootstrap idempotent under concurrent calls (emulator). — R4.3
 - [x] 9. CI: pnpm 11 / Node 24, lint, typecheck, tests, gitleaks, rules-test job. — R6
-- [ ] 10. App Hosting backend + `apphosting.yaml` + first deploy; confirm App Check on the hosted URL. — R7
+- [x] 10. App Hosting backend + `apphosting.yaml` + first deploy; confirm App Check on the hosted URL. — R7
