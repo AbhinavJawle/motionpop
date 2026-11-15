@@ -222,3 +222,17 @@ Template:
     - With thinking `LOW`, it took **3.5 s and 3.0 s**, still valid on the first attempt. Slot choice varies between runs (2–3 slots; once a kinetic-headline first), which is what the post-pass and the local fallback are for.
   - **Bug found by a property test:** `planBootstrap` gave an empty display name for the email `@` (fast-check seed -1429429465, about 1 in 10 runs). It now falls back to "Creator", with a regression test.
   - **Not done yet:** usage events stay in memory; writing `users/{uid}/usage` needs a server route because the rules block client writes (spec 13). On-device Nano is not measured yet: headless Chromium has no Nano, so every live call so far ran in the cloud.
+- **Spec 06 task 4 (Kiro run 27), reviewed and adjusted:** Kiro's post-pass has a 400-run property and runs in 14.7 ms on 3,000 words. Kiro pointed out that greedy one-at-a-time widening could starve a lower-score neighbour. I changed it to two passes (all minimums first, then ideal widening in score order), with a regression test that fails on the old version. `wordsInRange` moved to `@motionpop/schemas` first, so the editor and the post-pass share one implementation.
+- **Spec 00 task 10: `edit.patch` (Claude Code):**
+  - **What was built:**
+    - The router gained a task-level semantic `check`. A failing check counts as an invalid answer, and its message drives the repair.
+    - `editPatchTask(paramsSchema)`: the check applies the patch to a copy and parses it with the component schema. Missing paths and schema breaks are repaired once, then retried in the cloud (1 credit). `escalate` passes without a patch.
+    - `/dev/skeleton` has a quick-edit box. It shows `⚡ device` or `☁ cloud`, the model, latency, credits and attempts, applies the patch and recompiles.
+  - **Tests:** 7, including a 200-run property that a returned patch always applies and keeps big-number params valid (testing.md's quick-edit property).
+  - **Live results** (cloud `gemini-3.5-flash-lite`, thinking `MINIMAL`; headless Chromium, so no Nano):
+    - Correct on the first try: "change 40 to 45", "label: Sales doubled", "show one decimal", "back to percent".
+    - "turn this into a world map" escalated as intended.
+    - "make it dollars instead of percent" first escalated ("cannot determine currency symbol"). After a unit-symbol rule it gave `suffix: "$"` plus `prefix: "$"`, which is schema-valid but wrong. After a "switching a unit replaces it" rule it gave the right `remove /suffix` + `add /prefix "$"`.
+    - Latency was 2.2–5.8 s per edit.
+    - Lesson: schema validation can't catch wrong-but-valid edits, so the prompt rules matter.
+  - **Not verified yet:** on-device Nano for both tasks needs headed Chrome with the Prompt API flag. In the headless run there was no voiceover loaded, so the recompile after a quick edit was a no-op; the code path is wired but wasn't exercised live.

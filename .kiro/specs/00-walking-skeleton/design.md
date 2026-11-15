@@ -66,6 +66,7 @@ run<T extends TaskId>(task: T, input: Input<T>, opts?: { mode?: InferenceMode })
 - Kill switch: `ONLY_IN_CLOUD` tasks throw `kill-switch`; every other mode is pinned to `ONLY_ON_DEVICE`.
 - Per-task cloud thinking level. `slots.detect` uses `LOW`: on the demo, the default took 12 s and `LOW` about 3 s, with the same big-number.
 - The Firebase provider is a separate entry (`@motionpop/ai/firebase`) so server code can import the router without the client SDK. Usage events go to in-memory listeners. Persisting to `users/{uid}/usage` needs a server route (spec 13).
+- `edit.patch` (task 10): `editPatchTask(paramsSchema)` is built per component schema. Its router `check` applies the patch to a copy (`applyParamsPatch`, fast-json-patch) and parses the result with the component's zod schema. A failure is fed back as the repair error, then the cloud retry runs (`cloudFallback: true`, 1 credit). `escalate: true` passes without a patch. Thinking `MINIMAL`, `modelFast`. The params schema goes in the prompt as compact JSON Schema (`paramsSchemaSummary`).
 - Live: `/dev/firebase` step `ai-router` and `/dev/skeleton` "Detect slots" show `ranOn`, model, latency and attempts.
 
 ## Whisper worker

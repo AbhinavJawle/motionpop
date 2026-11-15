@@ -4,3 +4,4 @@
 export * from './slots/index';
 export * from './router';
 export * from './tasks/slots-detect';
+export * from './tasks/edit-patch';

@@ -1,13 +1,26 @@
 'use client';
 
-import { detectSlots, tagSpans, type DetectSlotsResult } from '@motionpop/ai';
+import {
+  applyParamsPatch,
+  detectSlots,
+  editPatchTask,
+  paramsSchemaSummary,
+  tagSpans,
+  type DetectSlotsResult,
+} from '@motionpop/ai';
 import { compileProject, type CompileAssets } from '@motionpop/motion/compiler';
+import { components } from '@motionpop/motion';
 import { editorialExplainer } from '@motionpop/motion/styles';
 import type { Word } from '@motionpop/schemas';
 import { getRouter } from '@/lib/ai/router-client';
 import { decodeTo16kMono } from '@/lib/audio/decode-16k';
 import { transcribeOnDevice } from '@/lib/transcribe/whisper-client';
 import { useEffect, useRef, useState } from 'react';
+import type { z } from 'zod';
+
+const BIG_NUMBER_PARAMS = (components as Record<string, { params: z.ZodType }>)['big-number']!
+  .params;
+const EDIT_PATCH = editPatchTask((id) => (id === 'big-number' ? BIG_NUMBER_PARAMS : undefined));
 
 /** Walking skeleton (spec 00): voiceover → compile → HyperFrames player. Ugly on purpose. */
 export default function SkeletonPage() {
@@ -15,8 +28,17 @@ export default function SkeletonPage() {
   const [voice, setVoice] = useState<{ url: string; durationMs: number; file: File } | null>(null);
   const [words, setWords] = useState<Word[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
-  const [value, setValue] = useState(40);
-  const [label, setLabel] = useState('Revenue growth since 2020');
+  const [params, setParams] = useState<Record<string, unknown>>({
+    value: 40,
+    suffix: '%',
+    label: 'Revenue growth since 2020',
+    context: 'The bigger picture',
+  });
+  const [instruction, setInstruction] = useState('change 40 to 45');
+  const value = typeof params['value'] === 'number' ? params['value'] : 0;
+  const label = typeof params['label'] === 'string' ? params['label'] : '';
+  const setValue = (v: number) => setParams((p) => ({ ...p, value: v }));
+  const setLabel = (l: string) => setParams((p) => ({ ...p, label: l }));
   const [startMs, setStartMs] = useState(500);
   const [log, setLog] = useState<string[]>([]);
   const [detected, setDetected] = useState<DetectSlotsResult | null>(null);
@@ -97,7 +119,40 @@ export default function SkeletonPage() {
     }
   };
 
-  const compile = () => {
+  /** Spec 00 R5: a quick edit becomes an RFC 6902 patch (on-device first), then recompiles. */
+  const quickEdit = async () => {
+    try {
+      setBusy('Editing…');
+      const router = await getRouter().catch(() => null);
+      if (!router) throw new Error('AI router unavailable (Firebase not configured)');
+      const schema = BIG_NUMBER_PARAMS;
+      const res = await router.run(EDIT_PATCH, {
+        componentId: 'big-number',
+        paramsSchemaSummary: paramsSchemaSummary(schema),
+        currentParams: params,
+        instruction,
+      });
+      if (res.output.escalate) {
+        note(
+          `edit.patch escalated on ${res.ranOn}: ${res.output.message ?? 'needs a new graphic'}`,
+        );
+        return;
+      }
+      const applied = applyParamsPatch(params, res.output.patch);
+      if (!applied.ok) throw new Error(applied.error);
+      setParams(applied.params);
+      compile(applied.params);
+      note(
+        `edit.patch ${res.ranOn === 'device' ? '⚡ device' : '☁ cloud'} (${res.model}) in ${res.latencyMs} ms, ${res.costCredits} credits, attempt ${res.attempts}: ${JSON.stringify(res.output.patch)}`,
+      );
+    } catch (e: unknown) {
+      note(`quick edit failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const compile = (slotParams: Record<string, unknown> = params) => {
     if (!assets || !voice || !playerRef.current) return;
     const t0 = performance.now();
     const endMs = Math.min(voice.durationMs, startMs + 3600);
@@ -113,7 +168,7 @@ export default function SkeletonPage() {
             startMs,
             endMs,
             componentId: 'big-number',
-            params: { value, suffix: '%', label, context: 'The bigger picture' },
+            params: slotParams,
           },
         ],
       },
@@ -180,10 +235,32 @@ export default function SkeletonPage() {
         <button
           className="rounded-chip bg-ember px-4 py-2 font-medium text-bg disabled:opacity-40"
           disabled={!assets || !voice}
-          onClick={compile}
+          onClick={() => compile()}
         >
           Compile + preview
         </button>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1">
+          <span className="label-caps">Quick edit</span>
+          <input
+            className="w-96 rounded-chip bg-card px-2 py-1"
+            value={instruction}
+            onChange={(e) => setInstruction(e.target.value)}
+            data-testid="quick-edit-input"
+          />
+        </label>
+        <button
+          className="rounded-chip bg-card-2 px-4 py-2 font-medium disabled:opacity-40"
+          disabled={busy !== null || instruction.trim() === ''}
+          onClick={() => void quickEdit()}
+          data-testid="quick-edit"
+        >
+          Apply edit
+        </button>
+        <code className="font-mono text-xs text-text-3" data-testid="params">
+          {JSON.stringify(params)}
+        </code>
       </div>
       {words.length > 0 && (
         <p className="flex flex-wrap gap-x-1 gap-y-0.5 text-sm leading-6" data-testid="words">

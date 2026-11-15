@@ -480,3 +480,26 @@ Template:
   - It flagged a spec wording mismatch (50 ms vs 20 ms). Claude Code clarified design.md: the tagger budget is 20 ms, detection plus post-pass is 50 ms.
   - It staged only its own files and left Claude Code's uncommitted router work alone.
 <!-- /kiro-session:sess_87ef2778-4510-4c7e-8b9f-80b8a1942339 -->
+
+<!-- kiro-session:sess_c43d1e89-acd7-4b19-8c11-dc439128d235 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T09:04:11.963Z · last stop: 2026-11-15T09:06:47.481Z · session: sess_c43d1e89-acd7-4b19-8c11-dc439128d235
+- commits since start: 
+  - bce5e2a feat(06-slot-detection-and-autofill): task 4 post-pass
+- uncommitted changes: 
+  - `M apps/web/app/dev/skeleton/page.tsx`
+  - ` M packages/ai/src/index.ts`
+  - ` M packages/ai/src/router.ts`
+  - `?? apps/web/qe.tmp.mjs`
+  - `?? packages/ai/src/prompts/edit-patch.v1.ts`
+  - `?? packages/ai/src/tasks/edit-patch.test.ts`
+  - `?? packages/ai/src/tasks/edit-patch.ts`
+- Summary (added in Claude Code after reviewing `run27.log` and commit bce5e2a):
+  - Task: spec 06 task 4, `post-pass.ts` + `post-pass.test.ts`, with injected `limits`, `validate` and `built`.
+  - Result: 234 package tests green, 19 of them new. 18 table cases, including real `@motionpop/motion` validation (defaults filled, `needsInput: ['label']` recorded).
+  - Property test: 400 runs, 239 of them producing slots. It has a guard against passing on empty output. Every run checks `timelineIssues`, `SlotSchema`, bounds, 400 ms gaps, component limits, `wordsInRange` agreement, unique ids, determinism and frozen inputs. No bug found.
+  - Perf: detection plus post-pass on 3,000 words took 14.7 ms (target 50 ms).
+  - Spec ambiguity it resolved and documented: widened edges can land between words, because snapping would break minimum durations or gaps. `wordStart`/`wordEnd` are always re-derived from the final range.
+  - It also flagged that placing and widening one slot at a time can starve a lower-score neighbour. Claude Code changed this to two passes: every slot gets its minimum first, then slots widen towards their ideal in score order. A regression test fails on the old code and passes on the new.
+  - The local `qe.tmp.mjs` in the uncommitted list was a Claude Code scratch script, removed after use.
+<!-- /kiro-session:sess_c43d1e89-acd7-4b19-8c11-dc439128d235 -->

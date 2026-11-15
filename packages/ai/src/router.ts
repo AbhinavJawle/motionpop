@@ -47,6 +47,12 @@ export interface TaskDef<I, O> {
   cloudFallback: boolean;
   /** Cloud thinking level; omit for the model default. */
   thinking?: ThinkingLevel;
+  /**
+   * Semantic check after the schema parse (e.g. "the patch applies and the params stay valid").
+   * Returns an error message, or null when the output is usable. A failure counts as an invalid
+   * answer: it triggers the repair, and the message is fed back to the model.
+   */
+  check?: (output: O, input: I) => string | null;
   image?: (input: I) => ProviderRequest['image'];
 }
 
@@ -163,6 +169,14 @@ export function createRouter(deps: {
       let lastFailure: 'provider' | 'invalid-output' = 'provider';
       const failure = () => lastFailure;
 
+      const check = (value: O): string | null => {
+        try {
+          return task.check?.(value, input.data) ?? null;
+        } catch (err) {
+          return err instanceof Error ? err.message : String(err);
+        }
+      };
+
       const attempt = async (m: InferenceMode, prompt: string) => {
         attempts++;
         let res: ProviderResponse;
@@ -175,8 +189,9 @@ export function createRouter(deps: {
         }
         lastRanOn = res.ranOn;
         const parsed = parseOutput(task.output, res.text);
-        if (parsed.ok) return { value: parsed.value, ranOn: res.ranOn };
-        lastError = parsed.error;
+        const problem = parsed.ok ? check(parsed.value) : parsed.error;
+        if (parsed.ok && problem === null) return { value: parsed.value, ranOn: res.ranOn };
+        lastError = problem ?? 'invalid output';
         lastFailure = 'invalid-output';
         return null;
       };
