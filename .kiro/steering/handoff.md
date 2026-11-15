@@ -193,3 +193,13 @@ Judges score how deeply Kiro is used (specs, steering, hooks, MCP, newer feature
 - **Powers and skills:** install a Firebase power when one exists; the HyperFrames and Firebase skills in `.kiro/skills/` are read before the matching work.
 - **Property-based tests:** every spec has properties written by Kiro.
 - **CI:** every gate the definition of done uses runs in CI (format, typecheck, lint, tests, build, rules tests, gitleaks, `motion:check` for every scene).
+
+## 10. The editor rail panels (founder, 2026-11-15: don't lose these)
+The rail (`apps/web/components/editor/tool-rail.tsx`) has Voice · AI · Styles · Media · Audio · Fonts · Brand · Projects, plus Settings from the account menu. Each panel belongs to a spec and is built for real, matching `design/screens/*.png` and `screens.md`:
+- **Voice:** re-record or replace the voiceover, cleanup toggles (spec 11).
+- **AI:** the Pip panel, whole-video plans with Apply all and undo (spec 10).
+- **Styles:** pick the look for the video, the slot or a scene; the director skills behind it (spec 14, the drawer first).
+- **Media:** uploaded and generated images, drag onto a slot (spec 07 tasks 25–26 plus a Media panel task).
+- **Audio:** music, SFX on or off, ducking and levels (spec 12).
+- **Settings:** account, credits and usage (device vs cloud), AI routing preference (spec 13).
+- **Fonts, Brand:** only after the panels above are done; until then they show the designed "coming soon" state, never a dead click.
