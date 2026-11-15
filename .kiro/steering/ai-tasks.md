@@ -46,10 +46,11 @@ General prompt rules (all tasks):
 - **Output:** `{ prompt: string }` (one sentence, ≤ 140 chars, e.g. "A clean, animated bar chart with warm orange bars and an editorial feel.")
 
 ## 3. `component.fill`
-- **Mode:** PREFER_ON_DEVICE for **auto-fill** after processing (free). ONLY_IN_CLOUD when the user clicks **Generate**: **3 credits** (as in the design's "☁ 3" chip).
-- **Input:** `{ componentId, paramsSchemaSummary, words: string, prompt: string, currentParams?, styleId, skill: { shotSequence, emphasis } }`
-- **Output:** `{ params: object, needsInput?: string[] }` → parsed with the component zod schema.
-- **Fallback:** auto-fill: cloud is NOT used automatically (no surprise spend); fall back to component defaults with `needsInput` flagged. Generate: one repair, then defaults + error state.
+- **Mode:** ONLY_ON_DEVICE for **auto-fill** after processing (free; PREFER would quietly reach the cloud without Nano). ONLY_IN_CLOUD when the user clicks **Generate**: **3 credits** (as in the design's "☁ 3" chip).
+- **Input:** `{ purpose, componentId, words: string, scene?: { brief, indexedWords }, prompt: string, currentParams?, styleId, skill: { shotSequence, emphasis } }`. Scenes send their catalogue entry and the slot's words with indexes, so beats name the word each cue lands on.
+- **Output:** `{ params: object, needsInput?: string[] }`. The structured-output schema is built per call with the component's own params schema (spec 07 task 16), so no schema text goes in the prompt.
+- **Check and repair:** parse with the component zod schema, then (scenes) `gateSlot` builds the slot off-screen and returns code-written reports (actor, rule, hint). Up to **2 repair rounds** with the reports fed back; cloud rounds are inside the Generate price. Failed reasons are logged on the usage event (`problems`).
+- **Fallback:** auto-fill: cloud is NOT used automatically (no surprise spend); fall back to component defaults with `needsInput` flagged, or for scenes `safeScore` (content from the slot's words, safest variant, passes the gates by construction). Generate: two repairs, then the same fallback + error state.
 
 ## 4. `edit.patch` (quick edits + frame notes)
 - **Mode:** PREFER_ON_DEVICE. Free on-device; cloud 1 credit.

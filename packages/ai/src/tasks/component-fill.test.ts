@@ -3,7 +3,6 @@ import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { createRouter, type AIProvider, type ProviderRequest, type RouterConfig } from '../router';
 import { componentFillTask, type ComponentFillInput } from './component-fill';
-import { paramsSchemaSummary } from './edit-patch';
 
 const registry = components as Record<string, { params: z.ZodType }>;
 const task = componentFillTask((id) => registry[id]?.params);
@@ -17,7 +16,6 @@ const CONFIG: RouterConfig = {
 const input = (over: Partial<ComponentFillInput> = {}): ComponentFillInput => ({
   purpose: 'autofill',
   componentId: 'big-number',
-  paramsSchemaSummary: paramsSchemaSummary(registry['big-number']!.params),
   words: 'Our revenue grew forty percent since 2020.',
   prompt: 'A bold number with an editorial feel.',
   currentParams: { value: 40, suffix: '%', label: 'Our revenue grew' },
@@ -70,13 +68,46 @@ describe('component.fill', () => {
     expect((await fixed.result).attempts).toBe(2);
     expect(fixed.provider.calls[1]?.prompt).toContain("params don't match the schema");
 
-    const twice = run([bad, bad]);
-    await expect(twice.result).rejects.toMatchObject({ reason: 'invalid-output' });
-    expect(twice.provider.calls).toHaveLength(2);
+    // Two repair rounds (spec 07 R1.4), then it gives up: 3 calls in all.
+    const thrice = run([bad, bad, bad]);
+    await expect(thrice.result).rejects.toMatchObject({ reason: 'invalid-output' });
+    expect(thrice.provider.calls).toHaveLength(3);
   });
 
   it('rejects unknown components through the check', async () => {
-    const { result } = run([GOOD, GOOD], { componentId: 'mystery' });
+    const { result } = run([GOOD, GOOD, GOOD], { componentId: 'mystery' });
     await expect(result).rejects.toMatchObject({ reason: 'invalid-output' });
+  });
+
+  it("sends the component's own params schema as structured output, not as prompt text", () => {
+    const { provider } = run([GOOD]);
+    const schema = provider.calls[0]!.jsonSchema as { properties: Record<string, unknown> };
+    expect(JSON.stringify(schema.properties['params'])).toContain('"label"');
+    expect(provider.calls[0]!.prompt).not.toContain('"properties"');
+  });
+
+  it('feeds gate reports back as the repair message and logs them', async () => {
+    const provider = scripted([GOOD, GOOD]);
+    const usage: unknown[] = [];
+    let n = 0;
+    const gated = componentFillTask((id) => registry[id]?.params, {
+      gate: () => (n++ === 0 ? '- label (text-overflow): shorten label to 3 words' : null),
+    });
+    const router = createRouter({ provider, config: () => CONFIG, onUsage: (e) => usage.push(e) });
+    expect((await router.run(gated, input())).attempts).toBe(2);
+    expect(provider.calls[1]!.prompt).toContain('shorten label to 3 words');
+    expect(usage[0]).toMatchObject({
+      ok: true,
+      attempts: 2,
+      problems: [expect.stringContaining('text-overflow')],
+    });
+  });
+
+  it('puts indexed words and the scene brief in the prompt for scenes', () => {
+    const { provider } = run([GOOD], {
+      scene: { brief: 'stat-punch: use when …', indexedWords: '0:Our 1:revenue' },
+    });
+    expect(provider.calls[0]!.prompt).toContain('words (index:word): 0:Our 1:revenue');
+    expect(provider.calls[0]!.prompt).not.toContain('spoken words:');
   });
 });

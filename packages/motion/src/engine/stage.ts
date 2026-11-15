@@ -111,6 +111,8 @@ export interface StageReport {
   energy: Energy;
   /** Entrance length used for each cue id. */
   leads: Record<string, number>;
+  /** Actor ids each cue brings on (empty for cues the scene left unused). */
+  cast: Record<string, string[]>;
 }
 
 export interface SoundCue {
@@ -770,7 +772,18 @@ export function stage(
         seek,
         dispose: () => root.replaceChildren(),
         camera,
-        report: { plan, juice, energy, leads },
+        report: {
+          plan,
+          juice,
+          energy,
+          leads,
+          cast: Object.fromEntries(
+            spec.cues.map((c) => [
+              c.id,
+              (cueActions.get(c.id) ?? []).flatMap((x) => (x.type === 'enter' ? [x.actor.id] : [])),
+            ]),
+          ),
+        },
         soundCues,
       };
     },

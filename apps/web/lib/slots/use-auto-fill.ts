@@ -1,6 +1,6 @@
 'use client';
 
-import { componentFillTask, paramsSchemaSummary, skillEntry, type Router } from '@motionpop/ai';
+import { componentFillTask, skillEntry, type Router } from '@motionpop/ai';
 import { components } from '@motionpop/motion';
 import type { AppConfig, Version } from '@motionpop/schemas';
 import { useEffect } from 'react';
@@ -54,7 +54,6 @@ export async function runAutoFill(deps: AutoFillDeps, cancelled: () => boolean):
       const res = await router.run(FILL, {
         purpose: 'autofill',
         componentId: slot.componentId,
-        paramsSchemaSummary: paramsSchemaSummary(schema),
         words: spokenText(slot, p.transcript.words),
         prompt: slot.prompt || slot.reason,
         currentParams: slot.params,

@@ -1,4 +1,4 @@
-import { components } from '@motionpop/motion';
+import { catalogueSummary, components, scenes } from '@motionpop/motion';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { TaskDef } from './router';
@@ -86,7 +86,9 @@ interface Measured {
 }
 
 function measure<I, O>(task: TaskDef<I, O>, sample: I): Measured {
-  const schema = z.toJSONSchema(task.output, { target: 'draft-7' }) as Json;
+  // A task may send a per-input schema (component.fill sends the component's own params).
+  const schema = (task.jsonSchema?.(sample) ??
+    z.toJSONSchema(task.output, { target: 'draft-7' })) as Json;
   const w = walk(schema);
   const prompt = task.prompt(sample);
   const violations: Partial<Record<Rule, string>> = {};
@@ -112,6 +114,7 @@ function measure<I, O>(task: TaskDef<I, O>, sample: I): Measured {
 const registry = components as Record<string, { params: z.ZodType }>;
 const paramsSchema = (id: string) => registry[id]?.params;
 const BIG_NUMBER = registry['big-number']!.params;
+const sceneSchema = (id: string) => (scenes as Record<string, { params: z.ZodType }>)[id]?.params;
 
 const TEXT = ['Um,', 'our', 'revenue', 'grew', 'forty', 'percent', 'since', '2020.'];
 const WORDS: SlotWord[] = TEXT.map((text, i) => ({
@@ -148,7 +151,6 @@ const CASES: Case[] = [
       measure(componentFillTask(paramsSchema), {
         purpose: 'autofill',
         componentId: 'big-number',
-        paramsSchemaSummary: summary,
         words: 'Our revenue grew forty percent since 2020.',
         prompt: 'A bold number with an editorial feel.',
         currentParams: { value: 40, suffix: '%', label: 'Our revenue grew' },
@@ -159,6 +161,23 @@ const CASES: Case[] = [
         },
       }),
   },
+  ...(['stat-punch', 'hook-statement'] as const).map((id) => ({
+    // Scenes are filled through the same task, with their score schema as structured output.
+    id: 'component.fill',
+    run: () =>
+      measure(componentFillTask(sceneSchema), {
+        purpose: 'generate',
+        componentId: id,
+        words: 'Our revenue grew forty percent since 2020.',
+        scene: {
+          brief: catalogueSummary([scenes[id] as never]),
+          indexedWords: TEXT.map((t, i) => `${i}:${t}`).join(' '),
+        },
+        prompt: 'A bold number with an editorial feel.',
+        styleId: 'field-notes',
+        skill: { shotSequence: '', emphasis: '' },
+      }),
+  })),
   {
     id: 'transcribe.cloud',
     run: () =>
@@ -175,7 +194,6 @@ const PARAMS_SCHEMA_IN_PROMPT = 'sample prompt contains schema text';
 const KNOWN_VIOLATIONS: Record<string, Partial<Record<Rule, string>>> = {
   // The prompt pastes `paramsSchemaSummary` (the component params as a JSON Schema) after "params schema:".
   'edit.patch': { 'schema-in-prompt': PARAMS_SCHEMA_IN_PROMPT },
-  'component.fill': { 'schema-in-prompt': PARAMS_SCHEMA_IN_PROMPT },
 };
 
 // --- Tests ------------------------------------------------------------------------------------
@@ -209,7 +227,7 @@ describe('task schema rules (ai-tasks.md)', () => {
   const results = CASES.map((c) => ({ id: c.id, ...c.run() }));
 
   it('covers every task the package exports', () => {
-    expect(results.map((r) => r.id).sort()).toEqual(
+    expect([...new Set(results.map((r) => r.id))].sort()).toEqual(
       ['component.fill', 'edit.patch', 'slots.detect', 'transcribe.cloud'].sort(),
     );
   });

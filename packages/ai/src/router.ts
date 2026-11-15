@@ -69,6 +69,12 @@ export interface TaskDef<I, O> {
    * answer: it triggers the repair, and the message is fed back to the model.
    */
   check?: (output: O, input: I) => string | null;
+  /**
+   * Structured-output schema for this input, when it depends on the input (`component.fill`
+   * sends the component's own params schema, so no schema text goes in the prompt). Defaults
+   * to the JSON Schema of `output`.
+   */
+  jsonSchema?: (input: I) => Record<string, unknown>;
   media?: (input: I) => ProviderRequest['media'];
 }
 
@@ -97,6 +103,10 @@ export interface UsageEvent {
   credits: number;
   latencyMs: number;
   ok: boolean;
+  /** Provider calls made, repairs included. */
+  attempts?: number;
+  /** Why each rejected answer was rejected (gate reports, schema errors), at most 200 chars each. */
+  problems?: string[];
 }
 
 export class RouterError extends Error {
@@ -166,10 +176,9 @@ export function createRouter(deps: {
       }
       const mode: InferenceMode = cfg.killSwitch ? 'ONLY_ON_DEVICE' : chosen;
       const model = task.model(cfg);
-      const jsonSchema = z.toJSONSchema(task.output, { target: 'draft-7' }) as Record<
-        string,
-        unknown
-      >;
+      const jsonSchema =
+        task.jsonSchema?.(input.data) ??
+        (z.toJSONSchema(task.output, { target: 'draft-7' }) as Record<string, unknown>);
       const base = {
         model,
         system: task.system,
@@ -181,6 +190,8 @@ export function createRouter(deps: {
       let attempts = 0;
       let lastRanOn: RanOn = isCloudMode(mode) ? 'cloud' : 'device';
       let lastError = '';
+      // Why each rejected answer was rejected (gate reports, schema errors), for usage logs.
+      const problems: string[] = [];
       // Read through a function: TypeScript doesn't track writes made inside `attempt`.
       let lastFailure: 'provider' | 'invalid-output' = 'provider';
       const failure = () => lastFailure;
@@ -209,6 +220,7 @@ export function createRouter(deps: {
         if (parsed.ok && problem === null) return { value: parsed.value, ranOn: res.ranOn };
         lastError = problem ?? 'invalid output';
         lastFailure = 'invalid-output';
+        problems.push(lastError.slice(0, 200));
         return null;
       };
 
@@ -238,6 +250,8 @@ export function createRouter(deps: {
           credits: 0,
           latencyMs,
           ok: false,
+          attempts,
+          ...(problems.length ? { problems } : {}),
         });
         throw new RouterError(task.id, lastFailure, lastError);
       }
@@ -249,6 +263,8 @@ export function createRouter(deps: {
         credits: costCredits,
         latencyMs,
         ok: true,
+        attempts,
+        ...(problems.length ? { problems } : {}),
       });
       return { output: result.value, ranOn: result.ranOn, model, costCredits, latencyMs, attempts };
     },

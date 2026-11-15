@@ -33,6 +33,17 @@ export const hookStatementContent = z.object({
 });
 export type HookStatementContent = z.infer<typeof hookStatementContent>;
 
+/** Safe default from the slot's words: its first words, at most 8 and 90 characters. */
+export function hookFromWords(words: readonly string[]): HookStatementContent | null {
+  const out: string[] = [];
+  for (const w of words.map((x) => x.trim()).filter(Boolean)) {
+    if (out.length === 8 || [...out, w].join(' ').length > 90) break;
+    out.push(w);
+  }
+  const line = out.join(' ').replace(/[,;:]+$/, '');
+  return line ? { line } : null;
+}
+
 /** A word spoken at least this hard becomes the emphasis when the score names none. */
 export const AUTO_EMPHASIS_STRESS = 70;
 /** Most words the punch variant sets huge (the emphasis and what follows it). */
@@ -134,6 +145,7 @@ export const hookStatement = defineScene<HookStatementContent>({
   ],
   focalCue: 'line',
   imageRoles: [],
+  safe: hookFromWords,
   // ideal: a 14-word line at speaking pace, then the emphasis and an 8-word subline read in full.
   durationMs: { min: 2400, ideal: 8400, max: 12000 },
   formats: ['16:9', '9:16', '1:1'],

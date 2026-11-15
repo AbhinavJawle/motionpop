@@ -6,8 +6,12 @@ export const ComponentFillInputSchema = z.object({
   /** `autofill` runs on the device only (free, no surprise spend); `generate` is the 3-credit cloud call. */
   purpose: z.enum(['autofill', 'generate']),
   componentId: z.string().min(1),
-  paramsSchemaSummary: z.string(),
   words: z.string().max(2000),
+  /**
+   * Scenes only: the scene's variants and cues (one catalogue entry) and the slot's words with
+   * their indexes, so beats can name the word each cue lands on.
+   */
+  scene: z.object({ brief: z.string().max(1500), indexedWords: z.string().max(3000) }).optional(),
   prompt: z.string().max(500),
   currentParams: z.record(z.string(), z.unknown()).optional(),
   styleId: z.string().min(1),
@@ -24,15 +28,29 @@ export type ComponentFillOutput = z.infer<typeof ComponentFillOutputSchema>;
 /** Credits for Generate (the design's "☁ 3" chip). Auto-fill never reaches the cloud. */
 export const GENERATE_COST = 3;
 
+/** Repair rounds for a fill (spec 07 R1.4): the gate's reports go back to the same model. */
+export const FILL_MAX_REPAIRS = 2;
+
+export interface ComponentFillOptions {
+  /**
+   * Quality gate after the schema parse (spec 07 R9.2): builds the slot and returns the
+   * reports as repair text, or null when it passes. Built per slot by the caller, who knows
+   * the format, look, duration and words.
+   */
+  gate?: (componentId: string, params: unknown) => string | null;
+}
+
 /**
- * `component.fill` (ai-tasks.md §3). Built per component schema: the router's check parses the
- * params with the component's zod schema, so an invalid answer is repaired once with the
- * errors fed back. Auto-fill uses ONLY_ON_DEVICE rather than PREFER_ON_DEVICE: without Nano,
+ * `component.fill` (ai-tasks.md §3). Built per component schema: the structured output is the
+ * component's own params schema (no schema text in the prompt), the router's check parses the
+ * params with it and runs the gate, and an invalid answer is repaired up to twice with the
+ * reports fed back. Auto-fill uses ONLY_ON_DEVICE rather than PREFER_ON_DEVICE: without Nano,
  * PREFER would quietly run in the cloud, and auto-fill must stay free (R5.1, "no surprise
  * spend"). Callers fall back to the component defaults with `needsInput` when it fails.
  */
 export function componentFillTask(
   paramsSchema: (componentId: string) => z.ZodType | undefined,
+  opts: ComponentFillOptions = {},
 ): TaskDef<ComponentFillInput, ComponentFillOutput> {
   return {
     id: 'component.fill',
@@ -45,13 +63,30 @@ export function componentFillTask(
     cloudCost: () => GENERATE_COST,
     cloudFallback: false,
     thinking: 'LOW',
+    maxRepairs: FILL_MAX_REPAIRS,
+    jsonSchema: (input) => {
+      const schema = paramsSchema(input.componentId);
+      return {
+        type: 'object',
+        properties: {
+          params: schema
+            ? (z.toJSONSchema(schema, { target: 'draft-7', io: 'input' }) as Record<
+                string,
+                unknown
+              >)
+            : { type: 'object' },
+          needsInput: { type: 'array', items: { type: 'string' }, maxItems: 20 },
+        },
+        required: ['params'],
+      };
+    },
     check: (out, input) => {
       const schema = paramsSchema(input.componentId);
       if (!schema) return `unknown component "${input.componentId}"`;
       const parsed = schema.safeParse(out.params);
-      return parsed.success
-        ? null
-        : `params don't match the schema: ${z.prettifyError(parsed.error).slice(0, 400)}`;
+      if (!parsed.success)
+        return `params don't match the schema: ${z.prettifyError(parsed.error).slice(0, 400)}`;
+      return opts.gate?.(input.componentId, parsed.data) ?? null;
     },
   };
 }

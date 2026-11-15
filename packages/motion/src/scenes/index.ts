@@ -3,6 +3,7 @@ import { statPunch } from './stat-punch';
 
 export * from './catalogue';
 export * from './define';
+export * from './gate';
 export { hookStatement, statPunch };
 
 /** Scene registry (spec 07). Scenes are components; the runtime looks ids up in both maps. */

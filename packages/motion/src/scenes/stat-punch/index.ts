@@ -23,6 +23,44 @@ export type StatPunchContent = z.infer<typeof statPunchContent>;
 
 type Slots = { context?: TextSlot; number: TextSlot; label: TextSlot };
 
+const FILLERS = new Set(['um', 'uh', 'erm', 'like']);
+const bare = (w: string) => w.replace(/^[^\p{L}\p{N}$€£]+|[^\p{L}\p{N}%]+$/gu, '');
+
+/**
+ * Safe default from the slot's words: the first written number (with its currency, % or
+ * k/M/bn) and the few words after it as the label. Null when no number is written in digits.
+ */
+export function statPunchFromWords(words: readonly string[]): StatPunchContent | null {
+  const clean = words.map(bare);
+  const i = clean.findIndex((w) => /^[$€£]?\d[\d,]*(\.\d+)?(%|k|m|bn|b)?$/i.test(w));
+  if (i < 0) return null;
+  const m = /^([$€£]?)([\d,]+(?:\.\d+)?)(%|k|m|bn|b)?$/i.exec(clean[i] as string);
+  if (!m) return null;
+  const digits = (m[2] as string).replace(/,/g, '');
+  const value = Number(digits);
+  if (!Number.isFinite(value)) return null;
+  const decimals = Math.min(2, digits.split('.')[1]?.length ?? 0);
+  const unit = m[3] ? (m[3].toLowerCase() === 'm' ? 'M' : m[3].toLowerCase()) : undefined;
+  const pick = (from: number, to: number) =>
+    clean.slice(from, to).filter((w) => w && !FILLERS.has(w.toLowerCase()));
+  let label = pick(i + 1, i + 5);
+  if (unit === undefined && /^percent$/i.test(label[0] ?? '')) label = label.slice(1);
+  // "grew 40% since 2020": the words before say what the number is.
+  if (label.length === 0 || /^(since|in|from|by|over|to|at|on)$/i.test(label[0] ?? ''))
+    label = pick(Math.max(0, i - 4), i).length ? pick(Math.max(0, i - 4), i) : label;
+  const text = label.join(' ').slice(0, 48).trim();
+  if (!text) return null;
+  const pct = unit === undefined && /^percent$/i.test(clean[i + 1] ?? '');
+  return {
+    value,
+    ...(m[1] ? { prefix: m[1] } : {}),
+    ...(unit || pct ? { suffix: pct ? '%' : unit } : {}),
+    decimals,
+    label: text,
+    countFrom: 0,
+  };
+}
+
 /** Per-format layout of each variant, in frame pixels inside the camera-safe area. */
 export function layoutStatPunch(
   variant: string,
@@ -141,6 +179,7 @@ export const statPunch = defineScene<StatPunchContent>({
   ],
   focalCue: 'number',
   imageRoles: [],
+  safe: statPunchFromWords,
   // ideal: the longest label allowed (9 words) still gets its full read time after a default key moment.
   durationMs: { min: 2600, ideal: 4600, max: 8000 },
   formats: ['16:9', '9:16', '1:1'],

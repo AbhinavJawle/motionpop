@@ -47,6 +47,11 @@ export interface SceneDef<C> {
   imageRoles: readonly ImageRoleDef[];
   durationMs: { min: number; ideal: number; max: number };
   formats: Format[];
+  /**
+   * Safe-default content from the slot's own words (spec 07 R1.4), or null when the words don't
+   * give it (then `defaultContent` is used). Deterministic, no AI.
+   */
+  safe?: (words: readonly string[]) => C | null;
   /** When the focal element lands with no word timings. Default: 35 % in, at most 1.2 s. */
   keyMomentMs?: (durationMs: number) => number;
   build: (ctx: SceneContext, score: SceneScore<C>, variant: string) => StageComposition;
@@ -59,6 +64,8 @@ export interface Scene<C> extends MotionComponent<SceneScore<C>> {
   cues: readonly SceneCue[];
   focalCue: string;
   imageRoles: readonly ImageRoleDef[];
+  defaultContent: C;
+  safe?: (words: readonly string[]) => C | null;
   build: (ctx: SceneContext, score: SceneScore<C>) => StageComposition;
 }
 
@@ -117,6 +124,8 @@ export function defineScene<C>(def: SceneDef<C>): Scene<C> {
     cues: def.cues,
     focalCue: def.focalCue,
     imageRoles: def.imageRoles,
+    defaultContent: def.defaultContent,
+    ...(def.safe ? { safe: def.safe } : {}),
     params,
     defaults: { content: def.defaultContent, beats: [], images: [] },
     durationMs: def.durationMs,

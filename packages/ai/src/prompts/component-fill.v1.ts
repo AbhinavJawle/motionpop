@@ -2,7 +2,7 @@
 export const COMPONENT_FILL_SYSTEM_V1 = `You fill the params of one motion graphic from what the narrator said.
 Answer with JSON only: { "params": {...}, "needsInput"?: ["field", ...] }. No prose.
 Rules:
-- params must match the params schema exactly (types, max lengths, ranges).
+- params must match the response schema exactly (types, max lengths, ranges).
 - Use only facts from the spoken words or the current params. Never invent numbers, names or dates.
 - If a required value isn't in the words, keep the current value and list the field in needsInput.
 - Labels are short (at most 6 words), in the narrator's own words, no trailing period.
@@ -10,8 +10,8 @@ Rules:
 
 export function componentFillPromptV1(input: {
   componentId: string;
-  paramsSchemaSummary: string;
   words: string;
+  scene?: { brief: string; indexedWords: string } | undefined;
   prompt: string;
   currentParams?: Record<string, unknown> | undefined;
   styleId: string;
@@ -19,8 +19,13 @@ export function componentFillPromptV1(input: {
 }): string {
   return [
     `component: ${input.componentId}`,
-    `params schema: ${input.paramsSchemaSummary}`,
-    `spoken words: "${input.words}"`,
+    ...(input.scene
+      ? [
+          `scene: ${input.scene.brief}`,
+          `words (index:word): ${input.scene.indexedWords}`,
+          'beats: land each cue on the index of the word that says it; content uses the spoken words.',
+        ]
+      : [`spoken words: "${input.words}"`]),
     `direction: ${input.prompt}`,
     `style: ${input.styleId}`,
     `emphasis: ${input.skill.emphasis}`,
