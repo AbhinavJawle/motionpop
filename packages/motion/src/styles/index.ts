@@ -2,6 +2,7 @@ import { LookSchema, StylePackSchema, type Look, type StylePack } from '@motionp
 import { BUNDLED_FONTS } from '../fonts/font-faces';
 import editorialExplainerJson from './editorial-explainer.json' with { type: 'json' };
 import fieldNotesJson from './field-notes.json' with { type: 'json' };
+import paperCollageJson from './paper-collage.json' with { type: 'json' };
 import testInvertedJson from './test-inverted.json' with { type: 'json' };
 
 /** Parses a pack and checks that every font family it names is bundled (spec 03, review F3). */
@@ -39,5 +40,14 @@ export function parseLook(raw: unknown): Look {
 /** Field Notes: a reporter's desk. Paper, ink, red marker, handwritten labels. */
 export const fieldNotes: Look = parseLook(fieldNotesJson);
 
+/**
+ * Paper Collage: cut paper on kraft, torn coral and cream strips, tape, cut-out words and a
+ * 12 fps stop-motion step (spec 07 task 22; provenance in README.md).
+ */
+export const paperCollage: Look = parseLook(paperCollageJson);
+
 /** Polished looks (spec 07 R3.4). */
-export const looks: Readonly<Record<string, Look>> = { [fieldNotes.id]: fieldNotes };
+export const looks: Readonly<Record<string, Look>> = {
+  [fieldNotes.id]: fieldNotes,
+  [paperCollage.id]: paperCollage,
+};

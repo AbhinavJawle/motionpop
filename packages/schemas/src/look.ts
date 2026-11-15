@@ -37,6 +37,8 @@ export const DecorIdSchema = z.enum([
   'rule',
   'arrow',
   'chip',
+  // Cut paper behind each emphasised word (paper-collage, spec 07 task 22).
+  'cutout',
 ]);
 export type DecorId = z.infer<typeof DecorIdSchema>;
 

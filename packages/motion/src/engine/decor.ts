@@ -21,6 +21,10 @@ export interface DecorOptions {
   frame: Box;
   /** Boxes of the other actors: a mark never crosses them. */
   keepClear: readonly Box[];
+  /** The marked words, one box each, for marks that treat words one by one (`cutout`). */
+  words?: readonly Box[];
+  /** Second fill for marks that alternate colours (`cutout`). */
+  alt?: string;
 }
 
 export interface Decor {
@@ -137,6 +141,46 @@ export function buildDecor(
       );
       strokePaths(doc, el, shape, o, w);
       return { el, reveal: 'draw', layer: 'over' };
+    }
+    case 'cutout': {
+      // Cut paper (paper-collage): one patch behind each word, or behind the whole text, with
+      // straight scissor cuts at seeded corners, alternating the main and the second colour,
+      // each turned a little. Behind the text, inside the frame by 2.5 % of its width.
+      const el = svg(doc, 'grow');
+      el.dataset.mark = 'cutout';
+      const boxes = o.words?.length ? o.words : [text];
+      const inset = o.frame.width * 0.025;
+      const j = o.size * 0.06;
+      boxes.forEach((b, i) => {
+        const r = (k: number) => (seedOf(o.seed, 40 + i * 9 + k) % 1000) / 1000;
+        const x0 = Math.max(o.frame.x + inset + j, b.x - o.size * 0.12);
+        const x1 = Math.min(o.frame.x + o.frame.width - inset - j, b.x + b.width + o.size * 0.12);
+        const y0 = b.y - o.size * 0.04;
+        const y1 = b.y + b.height + o.size * 0.02;
+        const pts = [
+          [x0 - r(0) * j, y0 + r(1) * j],
+          [x1 + r(2) * j, y0 - r(3) * j * 0.5],
+          [x1 - r(4) * j * 0.5, y1 + r(5) * j * 0.5],
+          [x0 + r(6) * j * 0.5, y1 - r(7) * j * 0.5],
+        ];
+        const poly = doc.createElementNS(SVG_NS, 'polygon');
+        poly.setAttribute(
+          'points',
+          pts
+            .map(([px, py]) => `${(px as number).toFixed(1)},${(py as number).toFixed(1)}`)
+            .join(' '),
+        );
+        poly.setAttribute('fill', i % 2 === 0 ? o.color : (o.alt ?? o.color));
+        const rot = (r(8) - 0.5) * 5;
+        poly.setAttribute(
+          'transform',
+          `rotate(${rot.toFixed(2)} ${((x0 + x1) / 2).toFixed(1)} ${((y0 + y1) / 2).toFixed(1)})`,
+        );
+        el.append(poly);
+      });
+      const left = Math.min(...boxes.map((b) => b.x));
+      el.style.transformOrigin = `${left}px ${text.y + text.height / 2}px`;
+      return { el, reveal: 'grow', layer: 'under' };
     }
     case 'highlighter': {
       // A felt-tip pass behind the text: one freehand stroke through its middle.

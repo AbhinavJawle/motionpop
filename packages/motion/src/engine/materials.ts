@@ -19,6 +19,8 @@ export interface Surface {
   el: HTMLElement;
   /** Resting rotation in degrees (the `tilt` material), applied by the stage on every seek. */
   tilt: number;
+  /** The surface's fill: paper, or the accent for a colour strip (text on it is recoloured). */
+  fill: string;
 }
 
 const hex = (c: string) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
@@ -96,5 +98,5 @@ export function buildSurface(
     el.append(tape);
   }
   const tilt = has('tilt') ? (rnd() < 0.5 ? -1 : 1) * (0.8 + rnd() * 1.6) : 0;
-  return { el, tilt };
+  return { el, tilt, fill };
 }

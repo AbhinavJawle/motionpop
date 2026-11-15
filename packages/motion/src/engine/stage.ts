@@ -13,12 +13,12 @@ import { countAt, formatCount, type CountFormat } from '../core/count';
 import { eases } from '../core/ease';
 import { fitText } from '../core/fit-text';
 import { progress } from '../core/interp';
-import { insetForCamera, safeArea, type Box } from '../core/safe-area';
-import { readTimeMs } from '@motionpop/schemas';
+import { contains, insetForCamera, safeArea, type Box } from '../core/safe-area';
+import { contrastRatio, readTimeMs } from '@motionpop/schemas';
 import { fontStack } from '../fonts/font-faces';
 import { scheduleBeats, type BeatPlan, type CueSpec, type SlotWordTime } from './beats';
 import { buildDecor } from './decor';
-import { buildSurface } from './materials';
+import { buildSurface, mix } from './materials';
 import { cameraTrack, planJuice, type JuiceBeat, type JuicePlan } from './juice';
 
 /**
@@ -90,6 +90,25 @@ export interface Actor {
   focusIdx?: number[];
   /** Runs after the actor's props are written on each seek (styles the word spans). */
   post?: (tMs: number) => void;
+  /** Set when a tilted surface carries the actor: its marks turn with it about (cx, cy). */
+  carry?: { rot: number; cx: number; cy: number };
+}
+
+const overlapsBox = (a: Box, b: Box) =>
+  a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+/**
+ * The fixed offset that turns an element about (cx, cy) when it rotates by `rot` degrees about
+ * its own transform origin (ox, oy): R(o - c) + c - o.
+ */
+function turnAbout(ox: number, oy: number, c: { rot: number; cx: number; cy: number }) {
+  const th = (c.rot * Math.PI) / 180;
+  const dx = ox - c.cx;
+  const dy = oy - c.cy;
+  return {
+    tx: dx * Math.cos(th) - dy * Math.sin(th) + c.cx - ox,
+    ty: dx * Math.sin(th) + dy * Math.cos(th) + c.cy - oy,
+  };
 }
 
 export type Action =
@@ -351,10 +370,38 @@ export function stage(
     return { x, y: a.box.y + size * 0.08, width: tw, height: size * 1.02 };
   };
 
+  /** An element's box in frame px (the root may be scaled in the preview). */
+  const frameRect = (el: Element): Box => {
+    const r0 = root.getBoundingClientRect();
+    const k = r0.width > 0 ? w / r0.width : 1;
+    const r = el.getBoundingClientRect();
+    return {
+      x: (r.left - r0.left) * k,
+      y: (r.top - r0.top) * k,
+      width: r.width * k,
+      height: r.height * k,
+    };
+  };
+
+  /** Ink or bg, whichever reads better on `fill` (text laid on a colour strip or cut piece). */
+  const readableOn = (fill: string) =>
+    contrastRatio(style.colors.ink, fill) >= contrastRatio(style.colors.bg, fill)
+      ? style.colors.ink
+      : style.colors.bg;
+
   const addMark = (a: Actor, decor: DecorId, atMs: number, durMs: number, focus = false) => {
-    const fill = decor === 'highlighter';
+    const cut = decor === 'cutout';
+    const fill = decor === 'highlighter' || cut;
+    // Cut paper behind each emphasised word, else one piece behind the whole text.
+    const words =
+      cut && focus && a.parts
+        ? (a.focusIdx ?? []).map((i) => frameRect(a.parts![i]!)).filter((b) => b.width > 0)
+        : [];
     const d = buildDecor(doc, decor, textRect(a, focus), {
-      color: fill ? style.colors.highlight : style.colors.accent,
+      color: cut ? style.colors.accent : fill ? style.colors.highlight : style.colors.accent,
+      // Cut pieces alternate the accent and a darker kraft (paper on paper would vanish).
+      ...(cut ? { alt: mix(style.colors.bg, style.colors.ink, 0.12) } : {}),
+      ...(words.length ? { words } : {}),
       size: a.size || h * 0.05,
       stroke: style.shape.stroke,
       seed: ctx.seed + a.id.length,
@@ -386,10 +433,14 @@ export function stage(
     });
     if (d.layer === 'under') a.el.before(d.el);
     else a.el.after(d.el);
-    if (fill && !focus) a.el.dataset.on = 'highlight';
-    // Highlighted words keep the ink colour: accent on the highlight colour reads poorly.
+    if (fill && !focus) a.el.dataset.on = cut ? 'accent' : 'highlight';
+    // A whole text on one cut piece (the accent) takes the colour that reads on it.
+    if (cut && !focus) a.el.style.color = readableOn(style.colors.accent);
+    // Highlighted words keep the ink colour: accent on the highlight colour reads poorly. Cut
+    // pieces alternate the accent and the highlight, so their words take what reads on both.
     if (fill && focus)
-      for (const i of a.focusIdx ?? []) a.parts![i]!.style.color = style.colors.ink;
+      for (const i of a.focusIdx ?? [])
+        a.parts![i]!.style.color = cut ? readableOn(style.colors.accent) : style.colors.ink;
     const mark = {
       el: d.el,
       reveal: d.reveal,
@@ -407,6 +458,18 @@ export function stage(
         },
       ] as Effect[],
     };
+    if (a.carry) {
+      // The mark turns with its tilted text. Its origin: the decor's own, else the frame centre
+      // (decor SVGs cover the whole frame).
+      const m = /(-?[\d.]+)px\s+(-?[\d.]+)px/.exec(d.el.style.transformOrigin);
+      const { tx, ty } = turnAbout(m ? Number(m[1]) : w / 2, m ? Number(m[2]) : h / 2, a.carry);
+      const rot = a.carry.rot;
+      mark.effects.push((_t: number, p: Props) => {
+        p.rot += rot;
+        p.tx += tx;
+        p.ty += ty;
+      });
+    }
     marks.push(mark);
     return mark;
   };
@@ -596,7 +659,71 @@ export function stage(
         align: 'left',
         depth: 1,
       });
-      if (sf.tilt) actor.effects.push((_t, p) => (p.rot += sf.tilt));
+      // A colour strip (the accent, no paper): the text it carries takes the colour that reads
+      // on it, emphasised words included, and the contrast check measures it on the accent.
+      if (sf.fill === style.colors.accent) {
+        const c = readableOn(sf.fill);
+        for (const a of list) {
+          a.el.style.color = c;
+          a.el.dataset.on = 'accent';
+          for (const part of a.parts ?? []) part.style.color = c;
+        }
+      }
+      // The look's tilt, as much of it as keeps the turned text inside the safe area and clear
+      // of other text (a wide line in 9:16 has no room to turn).
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 2;
+      const others = actors
+        .filter(
+          (o) =>
+            !list.includes(o) &&
+            (o.kind === 'text' || o.kind === 'number') &&
+            o.el.style.display !== 'none',
+        )
+        .map(rectOf);
+      const turned = (r: Box, deg: number): Box => {
+        const th = (deg * Math.PI) / 180;
+        const corners = [
+          [r.x, r.y],
+          [r.x + r.width, r.y],
+          [r.x, r.y + r.height],
+          [r.x + r.width, r.y + r.height],
+        ].map(([x, y]) => [
+          ((x as number) - cx) * Math.cos(th) - ((y as number) - cy) * Math.sin(th) + cx,
+          ((x as number) - cx) * Math.sin(th) + ((y as number) - cy) * Math.cos(th) + cy,
+        ]);
+        const xs = corners.map((c) => c[0] as number);
+        const ys = corners.map((c) => c[1] as number);
+        const x0 = Math.min(...xs);
+        const y0 = Math.min(...ys);
+        return { x: x0, y: y0, width: Math.max(...xs) - x0, height: Math.max(...ys) - y0 };
+      };
+      const fits = (deg: number) =>
+        rs.every((r) => {
+          const b = turned(r, deg);
+          return contains(safe, b, 0) && others.every((o) => !overlapsBox(b, o));
+        });
+      const tilt = sf.tilt ? ([1, 0.6, 0.3].map((k) => sf.tilt * k).find(fits) ?? 0) : 0;
+      if (tilt) {
+        actor.effects.push((_t, p) => (p.rot += tilt));
+        // The text turns with its paper, about the surface's centre (a fixed offset, not
+        // motion), and so do the marks drawn on it later (see addMark).
+        const carry = { rot: tilt, cx, cy };
+        for (const a of list) {
+          // Its transform origin: the element as set (no fixed height), left or centre.
+          const eh = a.el.offsetHeight > 0 ? a.el.offsetHeight : a.box.height;
+          const ox = a.align === 'left' ? a.box.x : a.box.x + a.box.width / 2;
+          const { tx, ty } = turnAbout(ox, a.box.y + eh / 2, carry);
+          a.carry = carry;
+          // Texts on one tilted surface turn together, so their spacing is the untilted layout's.
+          a.el.dataset.carriedBy = id;
+          a.effects.push((_t: number, p: Props) => {
+            p.rot += carry.rot;
+            p.tx += tx;
+            p.ty += ty;
+          });
+        }
+      }
       return actor;
     },
     on(cue, ...actions) {
@@ -643,6 +770,15 @@ export function stage(
       const sound = look?.sound ?? {};
       const q = (t: number, land: number) =>
         stepMs > 0 && t < land ? Math.floor(t / stepMs) * stepMs : t;
+      /** Stop-motion wobble for stepped looks: a seeded turn in [-1, 1) per actor and step. */
+      const wobble = (a: Actor, step: number) => {
+        let x =
+          (ctx.seed ^ Math.imul(step + 1, 0x9e3779b1) ^ Math.imul(a.id.length + 7, 0x85ebca6b)) >>>
+          0;
+        x = Math.imul(x ^ (x >>> 15), 0x2c1b3c6d) >>> 0;
+        x = (x ^ (x >>> 13)) >>> 0;
+        return (x % 2000) / 1000 - 1;
+      };
 
       for (const cue of plan.cues) {
         const lead = Math.max(1, cue.landMs - cue.startMs);
@@ -748,6 +884,9 @@ export function stage(
                   p.ty += (1 - b) * lift * 1.5;
                   if (a.kind === 'number') p.scale *= 0.96 + 0.04 * b;
               }
+              // Stepped looks: paper pieces arrive with a seeded wobble per step, gone on landing.
+              if (stepMs > 0 && x > 0 && tMs < cue.landMs)
+                p.rot += wobble(a, Math.floor(tMs / stepMs)) * 1.6 * (1 - e);
               if (a.count) {
                 p.text = countAt(
                   t,

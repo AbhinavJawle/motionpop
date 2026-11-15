@@ -51,6 +51,10 @@ interface TextProbe {
   orphan: boolean;
   /** The text as set (its line boxes), not its element's full-width box. */
   ink: Box;
+  /** Each set line's box (axis-aligned; a tilted line's box includes its slant). */
+  lines: Box[];
+  /** The tilted surface that carries it, if any. */
+  carriedBy: string | null;
 }
 
 interface Probe {
@@ -269,6 +273,14 @@ async function probeAt(page: Page, slotId: string, rawMs: number, direct = false
           const r = range.getBoundingClientRect();
           return { x: r.x, y: r.y, width: r.width, height: r.height };
         })(),
+        carriedBy: el.dataset.carriedBy ?? null,
+        lines: (() => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          return [...range.getClientRects()]
+            .filter((r) => r.width > 0 && r.height > 0)
+            .map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height }));
+        })(),
         // Balanced text (motion principle 11): one word alone on the last of 2+ lines.
         orphan: (() => {
           // `unavoidable`: the stage tried, and the last two words don't fit on one line.
@@ -471,11 +483,16 @@ async function main() {
             const p = await probeAt(page, s.id, s.startMs + t);
             let bad = false;
             const live = p.texts.filter((x) => x.visible && x.opacity >= 0.05 && x.text.length > 0);
+            // Changed by spec 07 task 22: safe area and overlap are measured on the lines as set
+            // (Range client rects), not on the element's full-width box. Paper that tilts its text
+            // grew those invisible boxes until neighbours collided while their glyphs were apart.
+            const setLines = (x: TextProbe) => (x.lines.length ? x.lines : [x.rect]);
             for (const x of live) {
-              if (!contains(safe, x.rect)) {
+              const out = setLines(x).find((r) => !contains(safe, r));
+              if (out) {
                 fail(
                   'safe area',
-                  `"${x.text.slice(0, 24)}" at ${JSON.stringify(x.rect)} outside ${JSON.stringify(safe)}`,
+                  `"${x.text.slice(0, 24)}" at ${JSON.stringify(out)} outside ${JSON.stringify(safe)}`,
                   t,
                 );
                 bad = true;
@@ -485,7 +502,12 @@ async function main() {
               for (let j = i + 1; j < live.length; j++) {
                 const a = live[i]!,
                   b = live[j]!;
-                if (!a.nested && !b.nested && overlap(a.rect, b.rect)) {
+                if (a.nested || b.nested) continue;
+                // Two texts on one tilted surface turn together about its centre, so their
+                // spacing is the untilted layout's (checked in every other look). Their slanted
+                // line boxes would collide while the glyphs stay apart.
+                if (a.carriedBy !== null && a.carriedBy === b.carriedBy) continue;
+                if (setLines(a).some((ra) => setLines(b).some((rb) => overlap(ra, rb)))) {
                   fail('overlap', `"${a.text.slice(0, 16)}" × "${b.text.slice(0, 16)}"`, t);
                   bad = true;
                 }
