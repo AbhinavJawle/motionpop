@@ -203,3 +203,11 @@ The rail (`apps/web/components/editor/tool-rail.tsx`) has Voice · AI · Styles 
 - **Audio:** music, SFX on or off, ducking and levels (spec 12).
 - **Settings:** account, credits and usage (device vs cloud), AI routing preference (spec 13).
 - **Fonts, Brand:** only after the panels above are done; until then they show the designed "coming soon" state, never a dead click.
+
+## 11. Testing cadence: ship (founder, 2026-11-16, overrides slower habits above)
+The founder wants shipping speed. The quality bar stays; the number of full runs drops.
+- While working: run only the tests of the package you touch (`pnpm --filter <pkg> test`, cached, no `--force`) and `pnpm motion:check <id> --samples 20` for a scene you touch.
+- Once, right before the commit: prettier, typecheck, lint, `pnpm -s turbo run test` (cached; `--force` only when a shared package such as schemas or motion core changed) and the full `motion:check` for the scenes you touched. Not after every small fix.
+- Don't rerun checks for scenes or packages you didn't touch. CI on GitHub runs everything after the push and is the safety net.
+- Contact sheets: one review pass per variant set, fix, one confirming look. No endless loops.
+- Prefer finishing a whole task to polishing one detail; write leftovers as known issues in the log.
