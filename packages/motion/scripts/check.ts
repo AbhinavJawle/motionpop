@@ -47,10 +47,16 @@ interface TextProbe {
   on: string | null;
   nested: boolean;
   text: string;
+  /** Balanced text with one word alone on its last line. */
+  orphan: boolean;
+  /** The text as set (its line boxes), not its element's full-width box. */
+  ink: Box;
 }
 
 interface Probe {
   texts: TextProbe[];
+  /** The look's surfaces (cards, strips) on screen. */
+  surfaces: { kind: string; rect: Box }[];
   focal: { text: string; opacity: number; rect: Box } | null;
   rootBgAlpha: number;
 }
@@ -257,7 +263,28 @@ async function probeAt(page: Page, slotId: string, rawMs: number, direct = false
         on: el.dataset.on ?? null,
         nested: el.parentElement?.closest('[data-text]') !== null,
         text: el.textContent ?? '',
+        ink: (() => {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const r = range.getBoundingClientRect();
+          return { x: r.x, y: r.y, width: r.width, height: r.height };
+        })(),
+        // Balanced text (motion principle 11): one word alone on the last of 2+ lines.
+        orphan: (() => {
+          // `unavoidable`: the stage tried, and the last two words don't fit on one line.
+          if (el.dataset.balance === undefined || el.dataset.orphan === 'unavoidable') return false;
+          // Word spans (a glued pair sits in a [data-glue] wrapper).
+          const tops = [...el.querySelectorAll<HTMLElement>('span:not([data-glue])')].map((x) =>
+            Math.round(x.offsetTop),
+          );
+          if (tops.length < 3 || new Set(tops).size < 2) return false;
+          const last = Math.max(...tops);
+          return tops.filter((t) => t === last).length === 1;
+        })(),
       }));
+      const surfaces = [...(host?.querySelectorAll<HTMLElement>('[data-surface]') ?? [])]
+        .filter((el) => visible(el) && effOpacity(el) >= 0.05)
+        .map((el) => ({ kind: el.dataset.surface ?? 'surface', rect: rectOf(el) }));
       const f = host?.querySelector<HTMLElement>('[data-focal]');
       // Focal state is compared in slot space: switch the camera push-in off while measuring.
       const cam = host?.querySelector<HTMLElement>('.mp-cam');
@@ -271,7 +298,7 @@ async function probeAt(page: Page, slotId: string, rawMs: number, direct = false
       const m = /rgba?\(([^)]+)\)/.exec(bg);
       const parts = m?.[1]?.split(',').map((s) => Number(s.trim())) ?? [0, 0, 0, 0];
       const rootBgAlpha = parts.length === 4 ? (parts[3] ?? 0) : bg === 'transparent' ? 0 : 1;
-      return { texts, focal, rootBgAlpha };
+      return { texts, surfaces, focal, rootBgAlpha };
     },
     { slotId, tMs, tSec, direct },
   );
@@ -481,6 +508,26 @@ async function main() {
                   );
                   bad = true;
                 }
+              }
+            }
+            if (label === 'hold-end') {
+              // A surface holds the text it carries; it never cuts through other text. "Through"
+              // means the glyph core (the middle 60 % of the set lines): a font's content area
+              // runs past the glyphs, so a strip just under a big number only touches air.
+              for (const sf of p.surfaces)
+                for (const x of live) {
+                  const core = {
+                    ...x.ink,
+                    y: x.ink.y + x.ink.height * 0.2,
+                    height: x.ink.height * 0.6,
+                  };
+                  if (!overlap(sf.rect, core) || contains(sf.rect, x.ink, 1)) continue;
+                  fail('surface', `${sf.kind} cuts through "${x.text.slice(0, 24)}"`, t);
+                  bad = true;
+                }
+              for (const x of live.filter((y) => y.orphan)) {
+                fail('orphan', `"${x.text.slice(0, 32)}" leaves one word on its last line`, t);
+                bad = true;
               }
             }
             if (label === 'key') {

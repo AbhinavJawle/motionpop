@@ -146,6 +146,14 @@ export interface Stage {
     around: Actor | readonly Actor[],
     opts?: SurfaceOpts,
   ): Actor | null;
+  /**
+   * Re-stack text actors top to bottom by the height their text actually set (fitText often
+   * needs fewer lines than a box reserves), keeping the gaps between their boxes, and put the
+   * block at `bias` of `area`'s free height (0.45 is the optical centre). Call it after the
+   * texts and before surfaces, marks and shapes that follow them. Without layout (no measured
+   * height, as in happy-dom) nothing moves.
+   */
+  restack(actors: readonly (Actor | null)[], area: Box, bias?: number): void;
   on(cue: string, ...actions: Action[]): void;
   compile(): StageComposition;
 }
@@ -159,6 +167,11 @@ export interface TextOptions {
   byWord?: boolean;
   /** Words of the text to emphasise (accent colour; `mark` goes around them). */
   emphasis?: string;
+  /**
+   * Balance the lines (CSS `text-wrap: balance`): even line lengths, so a headline never
+   * leaves one word alone on its last line (motion principle 11).
+   */
+  balance?: boolean;
 }
 export interface NumberOptions {
   countFrom?: number;
@@ -400,6 +413,25 @@ export function stage(
 
   const api: Stage = {
     safe,
+    restack(list, area, bias = 0.45) {
+      const items = list.filter((a): a is Actor => a !== null && a.el.style.display !== 'none');
+      const heights = items.map((a) => a.el.offsetHeight);
+      if (items.length === 0 || heights.some((h) => !(h > 0))) return;
+      const sorted = items
+        .map((a, i) => ({ a, h: heights[i] as number }))
+        .sort((x, y) => x.a.box.y - y.a.box.y);
+      const gaps = sorted.slice(1).map((x, i) => {
+        const prev = sorted[i] as { a: Actor };
+        return Math.max(0, x.a.box.y - (prev.a.box.y + prev.a.box.height));
+      });
+      const total = sorted.reduce((n, x) => n + x.h, 0) + gaps.reduce((n, g) => n + g, 0);
+      let y = area.y + Math.floor(Math.max(0, area.height - total) * bias);
+      sorted.forEach((x, i) => {
+        x.a.box = { ...x.a.box, y, height: Math.min(x.a.box.height, x.h) };
+        x.a.el.style.top = `${y}px`;
+        y += x.h + (gaps[i] ?? 0);
+      });
+    },
     text(id, content, slot, opts = {}) {
       if (opts.role === 'label' && look?.fonts.hand) {
         // Handwriting faces have small letters for their em size.
@@ -413,13 +445,14 @@ export function stage(
       const parts: HTMLElement[] = [];
       const tokens = content.trim().split(/\s+/).filter(Boolean);
       const focusIdx = opts.emphasis ? findPhrase(tokens, opts.emphasis) : [];
-      const { el, size } = place(
+      const truncatable = opts.byWord ? false : (opts.truncatable ?? true);
+      const placed = place(
         id,
         slot,
-        fontFor(opts.role ?? 'body'),
+        fontFor(opts.role ?? 'body') + (opts.balance ? 'text-wrap:balance;' : ''),
         content,
         // Word-by-word text is never truncated: every word has a spoken time.
-        opts.byWord ? false : (opts.truncatable ?? true),
+        truncatable,
         opts.byWord || focusIdx.length
           ? (box) => {
               box.replaceChildren();
@@ -438,8 +471,16 @@ export function stage(
             }
           : undefined,
       );
+      const el = placed.el;
+      let size = placed.size;
+      if (opts.balance && parts.length >= 3) {
+        size = deOrphan(el, parts, slot, truncatable) ?? size;
+        if (el.dataset.orphan === 'unavoidable')
+          ctx.warn(`${id} leaves one word on its last line: the last two words don't fit together`);
+      }
       if (opts.focal) el.dataset.focal = '';
       if (opts.byWord) el.dataset.byWord = '';
+      if (opts.balance) el.dataset.balance = '';
       return add({
         id,
         kind: 'text',
@@ -913,3 +954,56 @@ function isByWord(a: Actor): boolean {
 }
 
 export type { JuiceBeat };
+
+/** Rounded line tops of word spans; one entry per span. */
+const lineTops = (parts: readonly HTMLElement[]) => parts.map((p) => Math.round(p.offsetTop));
+
+/** True when the last of 2+ lines holds a single word. */
+export function hasOrphan(parts: readonly HTMLElement[]): boolean {
+  const tops = lineTops(parts);
+  if (tops.length < 3 || new Set(tops).size < 2) return false;
+  const last = Math.max(...tops);
+  return tops.filter((t) => t === last).length === 1;
+}
+
+/**
+ * Balanced text can still leave one word alone on its last line (a long word, a 3-word line on
+ * 2 lines). Then the last two words are glued in a `nowrap` span and the text is fitted again;
+ * if the pair can't fit, the glue comes off. Returns the new font size, or null when nothing
+ * changed. Build time only (it reads layout); without layout it does nothing.
+ */
+function deOrphan(
+  el: HTMLElement,
+  parts: readonly HTMLElement[],
+  slot: TextSlot,
+  truncatable: boolean,
+): number | null {
+  if (!hasOrphan(parts)) return null;
+  const a = parts[parts.length - 2] as HTMLElement;
+  const b = parts[parts.length - 1] as HTMLElement;
+  const space = a.nextSibling;
+  const glue = el.ownerDocument.createElement('span');
+  glue.dataset.glue = '';
+  glue.style.whiteSpace = 'nowrap';
+  a.before(glue);
+  glue.append(a, ...(space && space !== b ? [space] : []), b);
+  const refit = () =>
+    fitText(
+      el,
+      { width: slot.box.width, height: slot.box.height },
+      {
+        max: slot.max,
+        min: slot.min,
+        lineHeight: slot.lineHeight,
+        maxLines: slot.maxLines,
+        truncatable,
+      },
+    );
+  const fit = refit();
+  if (!fit.overflow && !fit.truncated) return fit.size;
+  // The pair doesn't fit on one line even at the minimum size (a very long word): take the glue
+  // off, fit as before, and say so, so the check reports it as a warning, not a failure.
+  glue.replaceWith(...Array.from(glue.childNodes));
+  el.dataset.orphan = 'unavoidable';
+  return refit().size;
+}

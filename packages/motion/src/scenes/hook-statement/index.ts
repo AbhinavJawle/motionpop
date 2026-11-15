@@ -46,10 +46,46 @@ export function hookFromWords(words: readonly string[]): HookStatementContent | 
 
 /** A word spoken at least this hard becomes the emphasis when the score names none. */
 export const AUTO_EMPHASIS_STRESS = 70;
+
+/**
+ * Words that carry grammar, not meaning: auto-emphasis never picks them, however hard they are
+ * spoken ("Let's look at the numbers" emphasises "numbers", not "Let's"). Lower case, curly
+ * apostrophes folded to straight ones.
+ */
+const FUNCTION_WORDS = new Set(
+  (
+    'a an the and or but nor so yet if then than as of at by for from in into on onto to up ' +
+    'with without about over under after before since until via per off out ' +
+    'i me my mine we us our ours you your yours he him his she her hers it its they them ' +
+    'their theirs this that these those there here who whom whose which what when where why how ' +
+    'is am are was were be been being do does did done have has had having will would shall ' +
+    "should can could may might must let let's lets it's that's there's here's what's who's " +
+    "i'm you're we're they're i've you've we've they've i'll you'll we'll they'll i'd you'd " +
+    "he's she's isn't aren't wasn't weren't don't doesn't didn't won't can't just very really " +
+    'also too not no all any some each every much many more most such own same other only'
+  ).split(' '),
+);
+
+/** Whether a line token can carry the emphasis: it has a letter or digit and isn't grammar. */
+export function isContentWord(token: string): boolean {
+  const w = token
+    .toLowerCase()
+    .replace(/[‘’]/g, "'")
+    .replace(/^[^\p{L}\p{N}$€£]+|[^\p{L}\p{N}%']+$/gu, '')
+    .replace(/'+$/, '');
+  return /[\p{L}\p{N}]/u.test(w) && !FUNCTION_WORDS.has(w);
+}
 /** Most words the punch variant sets huge (the emphasis and what follows it). */
 export const PUNCH_MAX = 4;
 
-type Slots = { eyebrow?: TextSlot; line: TextSlot; big?: TextSlot; subline?: TextSlot };
+type Slots = {
+  eyebrow?: TextSlot;
+  line: TextSlot;
+  big?: TextSlot;
+  subline?: TextSlot;
+  /** The column the rows were stacked in: the build re-stacks them by what they really set. */
+  area: Box;
+};
 
 export function layoutHookStatement(
   variant: string,
@@ -65,27 +101,32 @@ export function layoutHookStatement(
   const subline = has.subline
     ? [{ id: 'subline', size: by(0.04, 0.03, 0.038), lines: 2, min: 0.7 }]
     : [];
-  const pick = (s: Record<string, TextSlot>): Slots => ({
+  const pick = (s: Record<string, TextSlot>, area: Box): Slots => ({
     ...(s['eyebrow'] ? { eyebrow: s['eyebrow'] } : {}),
     line: s['line'] as TextSlot,
     ...(s['big'] ? { big: s['big'] } : {}),
     ...(s['subline'] ? { subline: s['subline'] } : {}),
+    area,
   });
 
   if (variant === 'punch') {
     // A smaller lead-in, then the emphasised words as large as the frame allows.
+    const area = column(safe, by(0.9, 1, 1));
     return pick(
       stack(
-        column(safe, by(0.9, 1, 1)),
+        area,
         frameH,
         [
           ...eyebrow,
-          { id: 'line', size: by(0.05, 0.036, 0.046), lines: 2, min: 0.6, gap: 0.2 },
-          { id: 'big', size: by(0.2, 0.11, 0.16), lines: by(2, 3, 2), min: 0.3, gap: 0.18 },
+          // Gaps clear the look's strip under the big words (its pad is 0.22 of their size),
+          // so it never covers the lead-in or the subline once the rows are re-stacked.
+          { id: 'line', size: by(0.05, 0.036, 0.046), lines: 2, min: 0.6, gap: 1.2 },
+          { id: 'big', size: by(0.2, 0.11, 0.16), lines: by(2, 3, 2), min: 0.3, gap: 0.34 },
           ...subline,
         ],
         { align: tall ? 'left' : 'center', bias: 0.45 },
       ),
+      area,
     );
   }
 
@@ -99,14 +140,16 @@ export function layoutHookStatement(
     // Left-aligned with an accent bar that draws down beside the line.
     const barW = Math.max(4, Math.round(frameH * 0.008));
     const gutter = Math.round(frameH * 0.03);
-    const area = { ...safe, x: safe.x + barW + gutter, width: safe.width - barW - gutter };
-    const s = pick(stack(by(column(area, 0.92), area, area), frameH, rows, { align: 'left' }));
+    const inner = { ...safe, x: safe.x + barW + gutter, width: safe.width - barW - gutter };
+    const area = by(column(inner, 0.92), inner, inner);
+    const s = pick(stack(area, frameH, rows, { align: 'left' }), area);
     const lb = s.line.box;
     return { ...s, bar: { x: safe.x, y: lb.y, width: barW, height: lb.height } };
   }
 
   // 'center': the safe default.
-  return pick(stack(column(safe, by(0.84, 1, 1)), frameH, rows, { align: 'center', bias: 0.45 }));
+  const area = column(safe, by(0.84, 1, 1));
+  return pick(stack(area, frameH, rows, { align: 'center', bias: 0.45 }), area);
 }
 
 /**
@@ -160,8 +203,9 @@ export const hookStatement = defineScene<HookStatementContent>({
     let emphasis = c.emphasis && findPhrase(tokens, c.emphasis).length ? c.emphasis : undefined;
     if (!emphasis && lineWord !== undefined && ctx.stress) {
       let best = -1;
-      tokens.forEach((_, k) => {
+      tokens.forEach((t, k) => {
         const s = ctx.stress?.[lineWord + k] ?? 0;
+        if (!isContentWord(t)) return;
         if (s >= AUTO_EMPHASIS_STRESS && (best < 0 || s > (ctx.stress?.[lineWord + best] ?? 0)))
           best = k;
       });
@@ -200,12 +244,15 @@ export const hookStatement = defineScene<HookStatementContent>({
         role: 'body',
         byWord: true,
         focal: true,
+        balance: true,
       });
       const big = st.text('big', tokens.slice(cut).join(' '), slots.big, {
         role: 'display',
         emphasis,
         truncatable: false,
+        balance: true,
       });
+      st.restack([eyebrow, lead, big, subline], slots.area);
       if (eyebrow) st.on('eyebrow', enter(eyebrow));
       st.on('line', enter(lead));
       // The look's strip under the punch words (a cut colour strip, a torn clipping), if any.
@@ -216,15 +263,23 @@ export const hookStatement = defineScene<HookStatementContent>({
         role: 'display',
         byWord: true,
         focal: true,
+        balance: true,
         ...(emphasis ? { emphasis } : {}),
       });
+      // A short line sets fewer lines than its box reserves: re-stack by what it set, so the
+      // block sits at the optical centre instead of in the upper third.
+      st.restack([eyebrow, line, subline], slots.area);
       // The look's card under the whole statement (paper on the desk). It arrives with the line,
       // and the eyebrow rides in on it, so nothing floats before its card lands.
       const carried = [eyebrow, line, subline].filter((a): a is Actor => a !== null);
       const card = st.surface('card', 'card', carried, { pad: { x: 0.04, y: 0.035 } });
       if (eyebrow) st.on(card ? 'line' : 'eyebrow', enter(eyebrow));
       if (card) st.on('line', enter(card, 'slam'));
-      if (slots.bar) st.on('line', enter(st.shape('bar', slots.bar, { color: 'accent' }), 'mask'));
+      if (slots.bar) {
+        // The bar runs beside the line as it is set (after the re-stack).
+        const bar = { ...slots.bar, y: line.box.y, height: line.box.height };
+        st.on('line', enter(st.shape('bar', bar, { color: 'accent' }), 'mask'));
+      }
       st.on('line', enter(line));
       if (focus.length) st.on('emphasis', mark(line, 'emphasis'));
     }

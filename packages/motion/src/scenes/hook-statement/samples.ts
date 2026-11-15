@@ -82,6 +82,19 @@ export const edgeCases: Record<string, Score> = {
   'show-center': score('center', SHOW),
   'show-left': score('left', SHOW),
   'show-punch': score('punch', PUNCH),
+  // A one-line hook sits at the optical centre; a line that greedy wrapping would orphan is
+  // balanced (kept as stills, 2026-11-15).
+  'show-oneline': score('center', { line: "Let's look at the numbers" }),
+  'show-punch-subline': score('punch', {
+    ...PUNCH,
+    eyebrow: 'Part one',
+    subline: 'And nobody saw it',
+  }),
+  'show-oneline-left': score('left', { eyebrow: 'Chapter three', line: "Here's what comes next" }),
+  'show-balance': score('center', {
+    line: 'More data does not always mean better decisions for anyone',
+    subline: 'Here is why',
+  }),
   // The example library doubles as motion:check samples (spec 07 R9.3).
   ...Object.fromEntries(
     hookStatementExemplars.map((e) => [`ex-${e.id}`, { ...e.score, beats: [] }]),

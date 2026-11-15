@@ -7,7 +7,12 @@ import { contains, insetForCamera, safeArea, type Box } from '../../core/safe-ar
 import { findPhrase, revealTimes, WORD_PACE_MS } from '../../engine/stage';
 import { editorialExplainer, fieldNotes } from '../../styles';
 import { assertSeekPure } from '../../testing/seek-pure';
-import { hookStatement, layoutHookStatement, type HookStatementContent } from './index';
+import {
+  hookStatement,
+  isContentWord,
+  layoutHookStatement,
+  type HookStatementContent,
+} from './index';
 
 const FORMAT_IDS: Format[] = ['16:9', '9:16', '1:1'];
 const VARIANTS = hookStatement.variants.map((v) => v.id);
@@ -70,11 +75,14 @@ describe('hook-statement layout', () => {
       const safe = insetForCamera(safeArea(format, width, height), width, height, 1.14);
       for (const variant of VARIANTS) {
         for (const eyebrow of [true, false]) {
-          const { bar, ...slots } = layoutHookStatement(variant, format, height, safe, {
+          const { bar, area, ...slots } = layoutHookStatement(variant, format, height, safe, {
             eyebrow,
             subline: true,
           });
           const boxes = Object.values(slots).map((s) => s.box);
+          // The stack's column (re-stacking moves rows inside it) is inside the safe area too.
+          expect(contains(safe, area, 1), `${variant} ${format} area`).toBe(true);
+          for (const b of boxes) expect(contains(area, b, 1)).toBe(true);
           if (bar) boxes.push(bar);
           for (const b of boxes) expect(contains(safe, b, 1), `${variant} ${format}`).toBe(true);
           boxes.forEach((a, i) =>
@@ -129,6 +137,30 @@ describe('hook-statement scene', () => {
     root.remove();
   });
 
+  it('never auto-emphasises a function word, however hard it is spoken', () => {
+    // Seen in the editor on the sample: "Let's" was the most stressed word and got the mark.
+    const line = "Let's look at the numbers";
+    const words = WORDS.slice(0, 5);
+    const at = (s: number[]) => build({ line }, 'center', { words, stress: s });
+    const a = at([95, 50, 60, 90, 80]);
+    const marked = [...a.root.querySelectorAll<HTMLElement>('[data-by-word] span')].filter(
+      (el) => el.dataset.emphasis !== undefined,
+    );
+    expect(marked.map((el) => el.textContent)).toEqual(['numbers']);
+    a.comp.dispose();
+    a.root.remove();
+    // Only grammar was spoken hard: no emphasis rather than the wrong one.
+    const b = at([95, 50, 60, 90, 50]);
+    expect(b.root.querySelector('[data-emphasis]')).toBeNull();
+    b.comp.dispose();
+    b.root.remove();
+  });
+  it('tells content words from function words', () => {
+    for (const w of ["Let's", 'let’s', 'the', 'And', 'of,', "it's", 'Here’s', 'is', '—', '...'])
+      expect(isContentWord(w), w).toBe(false);
+    for (const w of ['numbers.', 'Revenue', '40%', '2020', 'forty', 'nobody’s', 'Paris,'])
+      expect(isContentWord(w), w).toBe(true);
+  });
   it('falls back from punch to center when the emphasis opens the line', () => {
     const { root, comp } = build({ line: LINE, emphasis: 'Nobody' }, 'punch');
     expect(root.querySelector('[data-actor="big"]')).toBeNull();
