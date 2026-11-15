@@ -756,3 +756,56 @@ Template:
   - ` M .kiro/agents/motionpop-builder.json`
   - ` M KIRO_LOG.md`
 <!-- /kiro-session:10dccd65-0543-445f-acd9-17cfb2f3be7f -->
+<!-- kiro-ide:2026-11-15-request-2 -->
+### 2026-11-15 · Kiro IDE · agent: default IDE chat (Claude Opus 5.5), second request of the session above
+- **Context:** the same Kiro IDE session as the entry for task 27 (`sess_66c87b39…`), after the founder's second request. The conversation was summarised once to fit the context window. Written by the IDE session from its own work; nothing here was done in Claude Code.
+- **Prompt (short):** "Do these in order, one commit each": fix the three hook-statement issues seen in the stills; fix the rare flaky big-number property with a fixed-seed loop; fix headless kiro-cli 3.3.0 ("Mode 'motionpop-builder' not found") and prove it with a headless run; then spec 07 task 22, the `paper-collage` look. Show the contact sheets and check results before each commit; push after the full definition of done; check CI.
+- **Commits (pushed to `origin main`):**
+  - `a8aee68` hook-statement at the optical centre, balanced lines, content-word emphasis. CI success.
+  - `d88c1d0` counter never shows its final value early on rounding halves. CI success.
+  - `7939531` agents load headless on Kiro CLI 3.3.0 (universal format). CI success.
+  - Task 22, the `paper-collage` look, and this entry: the two commits after `7939531`.
+- **1. Hook-statement (`a8aee68`):**
+  - `stage.restack` re-stacks text rows by the lines they set, keeping their gaps, so a one-line hook sits at 0.45 of the free height instead of the top of a 3–5 line box.
+  - Balanced lines (`text-wrap: balance`); a word still alone is glued to the one before it in a nowrap span and refitted. Two cases with "internationalisation" in 9:16 can't fit the pair and are reported as warnings.
+  - Auto-emphasis skips function words ("Let's", "the", "and") and picks no emphasis rather than one.
+  - **Regression caught by a new check:** re-stacking moved the punch words up, and in `field-notes` their strip then covered the lead-in line. The two new hold-end assertions in `motion:check` (no orphan in balanced text; no surface through the glyphs of text it doesn't carry) were added for this. Reverting the gap fix makes the surface check fail 10 cases.
+- **2. Flaky big-number property (`d88c1d0`):**
+  - Reproduced with a fixed-seed loop over the property as written: seeds 511, 536 and 566 of 6,000 failed, all shrinking to `{ value: -0.05, decimals: 1, label: "Revenue", countFrom: 0 }` in 16:9.
+  - **The code was wrong, not the test.** `countAt` rounded the target with `Math.round` (half up) while the display rounds half away from zero, so the counter showed "-0.1" from its first frame instead of landing on the spoken word. Fixed in core, so `stage.number` (stat-punch) is fixed too.
+  - The test almost never generated a rounding half, so the samples now include halves, and core has a new property and a named regression test. Both fail on the old code; 1,500 seeds pass on the new one.
+- **3. Headless Kiro CLI (`7939531`):**
+  - The built-in `introspect` sub-agent read the Kiro docs: a headless run with no engine named uses the V2 engine, which can't load V3-only agent files.
+  - `--trust-workspace` had no effect. `--v3` loaded the agent, but there the builder's catch-all `ask` (a deny when headless) refused `git log`, because on V3 the most restrictive matching rule wins.
+  - Fix: V2 sources converted with `kiro-cli agent upgrade .kiro/agents` into universal files; the generated V3 rules exclude the allowed commands from the catch-all.
+  - Proof, headless: the builder answered `d88c1d0` from `git log` on both engines; `git push --dry-run` was refused; motion-qa ran `ls .kiro/agents` and answered 2. These runs are the six auto-logged entries above.
+  - The Stop hook (`log-run.mjs`) guessed "1 h ago" when a run left no start time and credited two probe runs with the IDE's commits. It now writes the start as unknown; the two entries carry labelled notes.
+- **4. Task 22, `paper-collage`:** see the task 22 note in `tasks.md`, D-033 and the provenance in `packages/motion/src/styles/README.md`. In short:
+  - Kraft, cream and coral sampled from the design thumbnail; stepped motion at 12 fps with a seeded wobble that is gone on landing; text slams in.
+  - New `cutout` emphasis decor (one scissor-cut piece per word, alternating coral and a darker kraft); coral colour strips; cream cards, torn, taped and tilted.
+  - Carried text and its marks turn with their paper, with the tilt fitted to the safe area and the other text.
+  - The parity test now renders one stat-punch + hook-statement project per polished look.
+- **What failed or went wrong along the way (task 22):**
+  - The design's ink (`#352F29`) is 3.7:1 on its coral and its cream text 3.3:1, so `motion:check` failed contrast; ink and muted were darkened and text on coral is ink (D-033).
+  - Cream cut pieces vanished on cream cards; the second piece colour became a darker kraft.
+  - The design's -4°/+5° rotation pushed 9:16 lines out of the safe area, so the tilt is smaller and fitted.
+  - Turned text made the check's element boxes grow and collide while the glyphs were apart. The check now measures set lines and skips texts on the same surface; the rule change is marked "Changed by spec 07 task 22" in `scripts/check.ts`.
+  - Shell: a zsh `rm` glob prompt hung a command again, and the shell tool sometimes returned exit -1 with no output (retried).
+- **Kiro features used:**
+  - Steering: the handoff and the always-on rules; the motion and style-pack rules when touching `packages/motion`.
+  - The spec: `tasks.md` notes for tasks 20, 21 and 22.
+  - Custom agents `motionpop-builder` and `motion-qa`, run headless on Kiro CLI 3.3.0 to prove the fix.
+  - The built-in `introspect` sub-agent for the Kiro CLI agent-format docs.
+  - Hooks: the CLI spawn and Stop hooks wrote the probe entries; one hook bug was fixed.
+  - Property-based tests: the countAt half-value property and the samples' halves; `assertSeekPure` over random content in the new look.
+- **Checks run and read for task 22:**
+  - prettier; typecheck and lint, 10 tasks, 0 warnings (full output).
+  - `pnpm -s turbo run test --force`: schemas 99, ai 320, motion 205, web 364 tests passed.
+  - `motion:check stat-punch`: 204 cases × 3 formats, 0 failures, 39 warnings. `motion:check hook-statement`: 248 cases × 3 formats, 0 failures, 746 warnings (the known "focal already settled" ones and the 2 unavoidable orphans).
+  - Parity (preview vs MP4 at 5 frames, tile limit 10 %): big-number worst tile 3.18 %, field-notes 3.77 %, paper-collage 2.97 %.
+  - Contact sheets of the hold-end stills in 16:9, 9:16 and 1:1, plain, `field-notes` and `paper-collage`, for both scenes, reviewed before the commit.
+  - Web build passed; Playwright chromium: 8 passed, 1 skipped (the opt-in Whisper test).
+  - Not rerun: the rules tests (no rules changed).
+- **Seen in the stills but not changed (pre-existing, for the founder):** the stat-punch `side` variant in 9:16 leaves "day" alone on the label's second line ("of trade sat still every / day") in every look. Labels are not balanced text, so the orphan check doesn't cover them.
+- **Not done:** task 21's Field Notes provenance section (a placeholder in the styles README).
+<!-- /kiro-ide:2026-11-15-request-2 -->
