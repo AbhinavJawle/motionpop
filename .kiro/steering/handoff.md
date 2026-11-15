@@ -183,3 +183,13 @@ export PATH="$HOME/.nvm/versions/node/v24.22.3/bin:$PATH"
   - `InferenceMode` values are lowercase in the SDK (map with `InferenceMode[mode]`), and `response.inferenceSource` gives `on_device` or `in_cloud`.
   - On-device ignores `systemInstruction`: use `onDeviceParams.createOptions.initialPrompts`.
   - Structured output: cloud uses `responseJsonSchema`; on-device uses `promptOptions.responseConstraint`.
+
+## 9. Kiro features: use them for real (judges score the process)
+Judges score how deeply Kiro is used (specs, steering, hooks, MCP, newer features), engineering quality (tests, CI gates on every step, clear docs) and one complete solution without feature bloat. Use each feature where it does real work, and log it in KIRO_LOG:
+- **Specs:** every new feature starts as a Kiro spec (EARS requirements → design → tasks). Kiro writes specs 08 onwards; Claude Code reviews them.
+- **Custom agents:** `motionpop-builder` implements; `motion-qa` reviews the stills of every scene change (contact sheets in 3 formats × the looks) and its findings go back to the builder; a read-only `spec-reviewer` checks each new spec against steering before implementation.
+- **Hooks:** agent hooks (spawn context, typecheck of touched packages after writes, the stop-hook log) and IDE hooks in `.kiro/hooks/` for real triggers (a scene file saved → its `motion:check`; a `tasks.md` box checked → the definition-of-done reminder).
+- **MCP:** Context7 before coding against fast-moving APIs (HyperFrames producer, Firebase AI Logic); Chrome DevTools MCP to screenshot UI screens at 1440×900 and compare them with `design/screens/*.png`; Firebase MCP for emulator and rules work (never deploys).
+- **Powers and skills:** install a Firebase power when one exists; the HyperFrames and Firebase skills in `.kiro/skills/` are read before the matching work.
+- **Property-based tests:** every spec has properties written by Kiro.
+- **CI:** every gate the definition of done uses runs in CI (format, typecheck, lint, tests, build, rules tests, gitleaks, `motion:check` for every scene).
