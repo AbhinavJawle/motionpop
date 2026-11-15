@@ -186,7 +186,9 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       const local = tMs - s.startMs;
       // Only active slots are rendered; HyperFrames hides the others.
       if (local < 0 || local > s.durationMs) continue;
-      s.cam.style.transform = `scale(${pushIn(local, s.durationMs, pushAmount)})`;
+      // Stage scenes plan their own camera (push capped during read time, snap-zooms).
+      const scale = s.composition.camera?.(local) ?? pushIn(local, s.durationMs, pushAmount);
+      s.cam.style.transform = `scale(${scale})`;
       try {
         s.composition.seek(local);
       } catch (e) {

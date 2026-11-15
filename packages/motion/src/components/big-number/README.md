@@ -13,20 +13,21 @@ One number that counts up and lands exactly on the spoken word, with a highlight
   6. Everything exits in 60 % of the entrance time.
 
   All timings and eases come from `style.motion`. On short slots the entrance compresses so the hold survives.
+
 - **Layout:** 16:9 is a left-aligned column; 9:16 and 1:1 are centred stacks. Boxes sit inside `insetForCamera(safeArea(...))` and are sized for their maximum font size, so fitting only ever shrinks text.
 - **Text fitting:** the number never truncates. If even the minimum size overflows, `ctx.warn` is called and motion:check fails. The context and label truncate with "…" and warn.
 - **Hooks:** `data-text` on every text element, `data-focal` on the number, `data-on="highlight"` on the number for the contrast check. The root is transparent; the runtime owns the background and camera.
 
 ## Params
 
-| Field | Type | Notes |
-|---|---|---|
-| `value` | number | The number to land on, exactly as spoken |
-| `prefix` / `suffix` | string ≤ 4 | e.g. `$`, `%`, `M`, `bn` |
-| `decimals` | 0–2 | Decimal places shown |
-| `label` | 1–48 chars | Short line under the number, at most 6 words |
-| `context` | ≤ 60 chars, optional | Eyebrow line above the number |
-| `countFrom` | number, default 0 | Where the count starts |
+| Field               | Type                 | Notes                                        |
+| ------------------- | -------------------- | -------------------------------------------- |
+| `value`             | number               | The number to land on, exactly as spoken     |
+| `prefix` / `suffix` | string ≤ 4           | e.g. `$`, `%`, `M`, `bn`                     |
+| `decimals`          | 0–2                  | Decimal places shown                         |
+| `label`             | 1–48 chars           | Short line under the number, at most 6 words |
+| `context`           | ≤ 60 chars, optional | Eyebrow line above the number                |
+| `countFrom`         | number, default 0    | Where the count starts                       |
 
 ## Examples
 

@@ -26,6 +26,11 @@ export interface Composition {
   /** Pure: renders the state at `tMs` (slot-local) with no dependency on earlier seeks. */
   seek: (tMs: number) => void;
   dispose: () => void;
+  /**
+   * Camera scale at `tMs` for compositions that plan their own camera (stage scenes). Without
+   * it the runtime applies the style pack's plain push-in.
+   */
+  camera?: (tMs: number) => number;
 }
 
 export interface MotionComponent<P> {

@@ -565,3 +565,20 @@ Template:
   - Spots it reported that stay for code to enforce: `beats[].word` has no upper bound in the schema (the gate's `anchor-out-of-range` rule covers it); the plan schema does not check that `peak` is in `arc` or that slots are unique (the enforcer's job).
   - It found the look example in design.md disagreed with the schema in four places (motion block shape, tint, the label surface, missing fields). Claude Code corrected the example to match the schema.
 <!-- /kiro-session:sess_4fcfbd91-a4fe-4fd1-8d9c-4e4036d7194a -->
+
+<!-- kiro-session:sess_9ca1ce2c-84c3-4751-8b73-c199ea4aab45 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T14:09:45.458Z · last stop: 2026-11-15T14:12:50.143Z · session: sess_9ca1ce2c-84c3-4751-8b73-c199ea4aab45
+- commits since start: 
+  - 1d23e4d test(07-scene-engine-and-looks): task 5 schema rules test
+  - 81e7df6 test(07-scene-engine-and-looks): task 7 prosody table and properties
+- uncommitted changes: 
+  - `?? packages/motion/src/engine/`
+- Summary (added in Claude Code after reviewing `run31.log` and commits "task 7 prosody table and properties" and 1d23e4d):
+  - Task 7 (prosody tests): a table on synthesized signals plus fast-check properties across 8–48 kHz sample rates.
+  - **Bug it found in Claude Code's `prosody.ts`:** a real 300 ms pause was missed whenever it did not line up with the 20 ms frame grid, because the partly quiet frames at each edge were not counted (it measured about 280 ms). Kiro fixed it by accepting runs one frame short and refining each edge in 1 ms steps; edges are accurate to within 40 ms.
+  - Timing: 181 s of 24 kHz audio with 450 words took 104–106 ms, so prosody stays inline (no worker).
+  - Task 5, Kiro half: `schema-rules.test.ts` (10 tests) checks every exported task against the ai-tasks.md rules. Two known violations are pinned in the test so the list cannot go stale: `edit.patch` and `component.fill` paste the component's params JSON Schema into the prompt. Claude Code will replace that with per-scene schemas and a compact field list when scenes are wired in.
+  - It noted that the four numeric rules do not catch `slots.detect`'s free-form `params` record, and that an "ids are enums" rule would. It did not add rules it was not asked for.
+  - Prompt sizes it logged (system + sample prompt): 962 to 3,219 characters; the `slots.detect` sample was only 8 words.
+<!-- /kiro-session:sess_9ca1ce2c-84c3-4751-8b73-c199ea4aab45 -->

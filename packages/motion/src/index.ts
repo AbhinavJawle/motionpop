@@ -3,5 +3,6 @@ export * from './core';
 export * from './contract';
 export * from './components';
 export * from './compiler';
+export * from './engine';
 export * from './styles';
 export { fontStack } from './fonts/font-faces';
