@@ -21,6 +21,8 @@ const USER_DOC = {
   lastSeenAt: 1,
 };
 const PROJECT = { ownerId: 'alice', title: 'Demo', format: '16:9', fps: 30 };
+const DAY = '2026-11-15';
+const LIMITS = { schemaVersion: 1, planCloud: 3, updatedAt: 1 };
 
 beforeAll(async () => {
   env = await createEnv({ firestore: true });
@@ -35,6 +37,7 @@ beforeEach(async () => {
     await setDoc(doc(db, 'users/alice'), USER_DOC);
     await setDoc(doc(db, 'users/alice/credits/signup'), { delta: 20, balanceAfter: 20 });
     await setDoc(doc(db, 'users/alice/usage/e1'), { task: 'edit.patch' });
+    await setDoc(doc(db, `users/alice/limits/${DAY}`), LIMITS);
     await setDoc(doc(db, 'users/alice/brandKits/b1'), { name: 'Kit' });
     await setDoc(doc(db, 'projects/p1'), PROJECT);
     await setDoc(doc(db, 'projects/p1/slots/s1'), { startMs: 0, endMs: 1000 });
@@ -134,6 +137,22 @@ describe('server-only owner subcollections', () => {
     await assertFails(setDoc(doc(anon(), 'users/alice/styles/s2'), { name: 'x' }));
   });
 
+  it('owner reads daily limits; other and anonymous cannot', async () => {
+    await assertSucceeds(getDoc(doc(alice(), `users/alice/limits/${DAY}`)));
+    await assertFails(getDoc(doc(bob(), `users/alice/limits/${DAY}`)));
+    await assertFails(getDoc(doc(anon(), `users/alice/limits/${DAY}`)));
+  });
+  it('nobody creates, updates or deletes daily limits from the client', async () => {
+    const fresh = { ...LIMITS, planCloud: 0 };
+    await assertFails(setDoc(doc(alice(), 'users/alice/limits/2026-11-16'), fresh));
+    await assertFails(setDoc(doc(alice(), `users/alice/limits/${DAY}`), fresh));
+    await assertFails(updateDoc(doc(alice(), `users/alice/limits/${DAY}`), { planCloud: 0 }));
+    await assertFails(deleteDoc(doc(alice(), `users/alice/limits/${DAY}`)));
+    await assertFails(setDoc(doc(bob(), 'users/alice/limits/2026-11-16'), fresh));
+    await assertFails(setDoc(doc(bob(), 'users/bob/limits/2026-11-16'), fresh));
+    await assertFails(deleteDoc(doc(bob(), `users/alice/limits/${DAY}`)));
+    await assertFails(setDoc(doc(anon(), 'users/alice/limits/2026-11-16'), fresh));
+  });
   it('unknown subcollections are denied', async () => {
     await assertFails(setDoc(doc(alice(), 'users/alice/secrets/x'), { a: 1 }));
   });
