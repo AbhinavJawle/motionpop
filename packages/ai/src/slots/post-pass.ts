@@ -33,6 +33,7 @@ interface Placed {
   startMs: number;
   endMs: number;
   suggestion: SlotSuggestion;
+  limits: ComponentLimits;
 }
 
 const defaultValidate = (_id: string, params: Record<string, unknown>): ValidatedParams => ({
@@ -41,6 +42,38 @@ const defaultValidate = (_id: string, params: Record<string, unknown>): Validate
 });
 
 const defaultBuilt = (id: string): boolean => catalogueEntry(id)?.built === true;
+
+/** The free span around `startMs` given the placed slots, keeping the gap to each of them. */
+function freeGap(
+  placed: readonly Placed[],
+  startMs: number,
+  lo: number,
+  hi: number,
+): [number, number] {
+  let gapLo = lo;
+  let gapHi = hi;
+  for (const k of placed) {
+    if (k.endMs + SUGGESTION_GAP_MS <= startMs) {
+      gapLo = Math.max(gapLo, k.endMs + SUGGESTION_GAP_MS);
+    } else gapHi = Math.min(gapHi, k.startMs - SUGGESTION_GAP_MS);
+  }
+  return [gapLo, gapHi];
+}
+
+/** Widen [s, e] to `target` ms: end first, then start, inside [gapLo, gapHi]. */
+function widen(
+  s: number,
+  e: number,
+  target: number,
+  gapLo: number,
+  gapHi: number,
+): [number, number] {
+  let need = target - (e - s);
+  if (need <= 0) return [s, e];
+  const grow = Math.max(0, Math.min(need, gapHi - e));
+  need -= grow;
+  return [s - Math.max(0, Math.min(need, s - gapLo)), e + grow];
+}
 
 /**
  * Turns detector suggestions into timeline-valid slots (spec 06 R3, design.md "Post-pass").
@@ -87,28 +120,21 @@ export function postPass(input: PostPassInput): Slot[] {
     if (kept.some((k) => k.startMs < e + SUGGESTION_GAP_MS && k.endMs + SUGGESTION_GAP_MS > s)) {
       continue;
     }
-    let gapLo = lo;
-    let gapHi = hi;
-    for (const k of kept) {
-      if (k.endMs + SUGGESTION_GAP_MS <= s) gapLo = Math.max(gapLo, k.endMs + SUGGESTION_GAP_MS);
-      else gapHi = Math.min(gapHi, k.startMs - SUGGESTION_GAP_MS);
-    }
+    const [gapLo, gapHi] = freeGap(kept, s, lo, hi);
     if (gapHi - gapLo < c.limits.minMs) continue;
-
-    // Widen to a target length: end first, then start, inside [gapLo, gapHi].
-    const widen = (target: number): void => {
-      let need = target - (e - s);
-      if (need <= 0) return;
-      const grow = Math.min(need, gapHi - e);
-      e += grow;
-      need -= grow;
-      s -= Math.min(need, s - gapLo);
-    };
-    widen(c.limits.minMs);
-    widen(c.limits.idealMs);
+    [s, e] = widen(s, e, c.limits.minMs, gapLo, gapHi);
     if (e - s > c.limits.maxMs) e = s + c.limits.maxMs;
+    kept.push({ startMs: s, endMs: e, suggestion: c.suggestion, limits: c.limits });
+  }
 
-    kept.push({ startMs: s, endMs: e, suggestion: c.suggestion });
+  // Second pass, in score order: widen towards the ideal duration in the space that is left.
+  // Doing this only after every slot has its minimum means a high-score slot never takes the
+  // room a lower-score neighbour needed to exist at all.
+  for (const k of kept) {
+    const others = kept.filter((o) => o !== k);
+    const [gapLo, gapHi] = freeGap(others, k.startMs, lo, hi);
+    [k.startMs, k.endMs] = widen(k.startMs, k.endMs, k.limits.idealMs, gapLo, gapHi);
+    if (k.endMs - k.startMs > k.limits.maxMs) k.endMs = k.startMs + k.limits.maxMs;
   }
 
   kept.sort((a, b) => a.startMs - b.startMs);

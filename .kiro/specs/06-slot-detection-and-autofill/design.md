@@ -51,6 +51,8 @@ Each span is scored, then mapped to a component and skill:
 6. Assign ids `s-<n>`, unique against the existing project slots. Status is `ready` when the component is built and the params are complete (R5.2), otherwise `suggested`.
 7. Return the slots in timeline order. They satisfy `timelineIssues`; a property test checks this.
 
+**As built (Kiro run 27 + Claude Code review):** widened edges may land between words (snapping would break minimums or gaps); `wordStart`/`wordEnd` are always re-derived with `wordsInRange` (now in `@motionpop/schemas`). Steps 2 and 3 run as two passes, so a high-score slot never widens into the room a lower-score slot needed to exist.
+
 The 400 ms gap is a suggestion rule only. Users can still place slots edge to edge in the editor (spec 04 R2.2 allows touching slots).
 
 ## Pipeline integration (spec 05 run.ts)

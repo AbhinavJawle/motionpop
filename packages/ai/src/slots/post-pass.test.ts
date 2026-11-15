@@ -188,9 +188,20 @@ describe('postPass table', () => {
       words: w,
       suggestions: [sug(0, 7, 0.95), sug(15, 22, 0.9), sug(12, 12, 0.8)],
     });
-    // Slot 0 widens to 0..3600 and the word-15 slot starts at 6000, so word 12 (4800) has the
-    // free gap [4000, 5600] = 1600 ms < the 2600 ms minimum and is dropped.
+    // Slot 0 covers 0..3100 and the word-15 slot starts at 6000, so word 12 (4800) has the
+    // free gap [3500, 5600] = 2100 ms < the 2600 ms minimum and is dropped.
     expect(out.map((s) => s.reason)).toEqual(["You said 'x0'", "You said 'x15'"]);
+  });
+
+  it('gives every slot its minimum before widening any slot to its ideal (no starving)', () => {
+    // Regression (Claude Code review of Kiro run 27): placing and widening one slot at a time
+    // let the 0.9 slot grow to its 3600 ms ideal and take the room the 0.8 slot needed.
+    const w = evenWords(40, 400);
+    const out = postPass({ words: w, suggestions: [sug(0, 0, 0.9), sug(8, 8, 0.8)] });
+    expect(out.map((s) => s.reason)).toEqual(["You said 'x0'", "You said 'x8'"]);
+    const [a, b] = out;
+    expect((b?.startMs ?? 0) - (a?.endMs ?? 0)).toBeGreaterThanOrEqual(SUGGESTION_GAP_MS);
+    for (const s of out) expect(s.endMs - s.startMs).toBeGreaterThanOrEqual(2600);
   });
 
   it('widens a short suggestion to its ideal duration when there is room', () => {
