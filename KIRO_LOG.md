@@ -701,3 +701,58 @@ Template:
     - Auto-emphasis picked "Let's" on the synthesized sample.
 - **Not verified:** a real Gemini Nano or cloud `direct.plan` and fill (local mode only), and the allowance route against the real project (emulator only).
 <!-- /kiro-session:sess_66c87b39-2333-46f3-811d-3ba08bf7f23f -->
+
+<!-- kiro-session:sess_f779d07c-be56-4de8-8943-fa8a49e77bd1 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T20:32:10.028Z · last stop: 2026-11-15T20:32:13.033Z · session: sess_f779d07c-be56-4de8-8943-fa8a49e77bd1
+- commits since start: none
+- uncommitted changes: none
+<!-- /kiro-session:sess_f779d07c-be56-4de8-8943-fa8a49e77bd1 -->
+
+<!-- kiro-session:sess_156c0184-65c6-4187-99fd-e98d7cc4d9f3 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T20:32:51.892Z · last stop: 2026-11-15T20:32:56.323Z · session: sess_156c0184-65c6-4187-99fd-e98d7cc4d9f3
+- commits since start: none
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+<!-- /kiro-session:sess_156c0184-65c6-4187-99fd-e98d7cc4d9f3 -->
+
+<!-- kiro-session:7972b391-4970-4eea-b079-c195e948c489 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T19:37:44.854Z · last stop: 2026-11-15T20:37:44.854Z · session: 7972b391-4970-4eea-b079-c195e948c489
+- commits since start: none. _(Note added in the Kiro IDE: this was a one-command headless probe on the V2 engine. Its spawn hook left no start time, so the Stop hook fell back to "1 h ago" and listed the IDE commits `a8aee68` and `d88c1d0` here. Removed; `log-run.mjs` no longer guesses a start time.)_
+- uncommitted changes: 
+  - `M .kiro/agents/motion-qa.json`
+  - ` M .kiro/agents/motionpop-builder.json`
+  - ` M KIRO_LOG.md`
+<!-- /kiro-session:7972b391-4970-4eea-b079-c195e948c489 -->
+
+<!-- kiro-session:sess_28be74f3-1d05-4d5e-8810-d655de3202f5 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T20:37:51.539Z · last stop: 2026-11-15T20:37:55.545Z · session: sess_28be74f3-1d05-4d5e-8810-d655de3202f5
+- commits since start: none
+- uncommitted changes: 
+  - `M .kiro/agents/motion-qa.json`
+  - ` M .kiro/agents/motionpop-builder.json`
+  - ` M KIRO_LOG.md`
+<!-- /kiro-session:sess_28be74f3-1d05-4d5e-8810-d655de3202f5 -->
+
+<!-- kiro-session:sess_d00757c6-64eb-4b30-98a6-389ed78dce45 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T20:38:25.460Z · last stop: 2026-11-15T20:38:29.192Z · session: sess_d00757c6-64eb-4b30-98a6-389ed78dce45
+- commits since start: none
+- uncommitted changes: 
+  - `M .kiro/agents/motion-qa.json`
+  - ` M .kiro/agents/motionpop-builder.json`
+  - ` M KIRO_LOG.md`
+<!-- /kiro-session:sess_d00757c6-64eb-4b30-98a6-389ed78dce45 -->
+
+<!-- kiro-session:10dccd65-0543-445f-acd9-17cfb2f3be7f -->
+### 2026-11-15 · Kiro CLI · agent: motion-qa (auto-logged by Stop hook)
+- started: 2026-11-15T19:38:34.019Z · last stop: 2026-11-15T20:38:34.019Z · session: 10dccd65-0543-445f-acd9-17cfb2f3be7f
+- commits since start: none. _(Note added in the Kiro IDE: this was a one-command headless probe on the V2 engine. Its spawn hook left no start time, so the Stop hook fell back to "1 h ago" and listed the IDE commits `a8aee68` and `d88c1d0` here. Removed; `log-run.mjs` no longer guesses a start time.)_
+- uncommitted changes: 
+  - `M .kiro/agents/motion-qa.json`
+  - ` M .kiro/agents/motionpop-builder.json`
+  - ` M KIRO_LOG.md`
+<!-- /kiro-session:10dccd65-0543-445f-acd9-17cfb2f3be7f -->

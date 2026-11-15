@@ -31,27 +31,36 @@ const now = new Date();
 const marker = `<!-- kiro-session:${sessionId} -->`;
 let log = existsSync(logPath) ? readFileSync(logPath, 'utf8') : '# Kiro log\n';
 
-// Start time: written by the SessionStart hook; else kept from an earlier stop; else 1 h ago.
+// Start time: written by the SessionStart hook; else kept from an earlier stop; else unknown.
+// (It used to fall back to "1 h ago", which credited a V2-engine run, whose spawn hook leaves no
+// start record, with commits made in the Kiro IDE during that hour. Unknown lists no commits.)
 const startFile = join(
   tmpdir(),
   'motionpop-kiro-sessions',
   `${sessionId.replace(/[^\w-]/g, '_')}.start`,
 );
 const prev = log.match(new RegExp(`${marker}\\n[^]*?started: (\\S+)`));
-const started = existsSync(startFile)
+const known = existsSync(startFile)
   ? readFileSync(startFile, 'utf8').trim()
-  : (prev?.[1] ?? new Date(now.getTime() - 3_600_000).toISOString());
-const commits = sh(`git log --since="${started}" --pretty=format:"%h %s" --author-date-order`)
-  .split('\n')
-  .filter(Boolean)
-  .slice(0, 15);
+  : prev?.[1] && prev[1] !== 'unknown'
+    ? prev[1]
+    : null;
+const started = known ?? 'unknown';
+const commits = known
+  ? sh(`git log --since="${known}" --pretty=format:"%h %s" --author-date-order`)
+      .split('\n')
+      .filter(Boolean)
+      .slice(0, 15)
+  : [];
 const changed = sh('git status --porcelain').split('\n').filter(Boolean).slice(0, 25);
 
 const block = [
   marker,
-  `### ${started.slice(0, 10)} · Kiro CLI · agent: ${agent} (auto-logged by Stop hook)`,
+  `### ${(known ?? now.toISOString()).slice(0, 10)} · Kiro CLI · agent: ${agent} (auto-logged by Stop hook)`,
   `- started: ${started} · last stop: ${now.toISOString()} · session: ${sessionId}`,
-  `- commits since start: ${commits.length ? '\n' + commits.map((c) => `  - ${c}`).join('\n') : 'none'}`,
+  known
+    ? `- commits since start: ${commits.length ? '\n' + commits.map((c) => `  - ${c}`).join('\n') : 'none'}`
+    : '- commits since start: unknown (no start time recorded; see git log)',
   `- uncommitted changes: ${changed.length ? '\n' + changed.map((c) => `  - \`${c}\``).join('\n') : 'none'}`,
   `<!-- /kiro-session:${sessionId} -->`,
 ].join('\n');

@@ -3,27 +3,43 @@
   "description": "Reviews a motion component against the contract and motion principles, runs motion:check, writes QA.md. Never edits product code.",
   "prompt": "file://./prompts/motion-qa.md",
   "welcomeMessage": "motion-qa ready. Which component should I review?",
-  "tools": ["read", "write", "shell"],
-  "includeMcpJson": false,
+  "tools": ["read", "shell", "write"],
+  "allowedTools": ["fs_read"],
+  "toolsSettings": {
+    "fs_write": {
+      "allowedPaths": ["packages/motion/src/components/*/QA.md"]
+    },
+    "execute_bash": {
+      "allowedCommands": [
+        "pnpm motion:check.*",
+        "pnpm --filter @motionpop/motion test.*",
+        "ls.*",
+        "cat.*",
+        "git diff.*",
+        "git log.*"
+      ],
+      "denyByDefault": true
+    }
+  },
   "resources": [
     "file://../steering/motion-principles.md",
     "file://../steering/component-contract.md",
     "file://../steering/component-library.md"
   ],
+  "includeMcpJson": false,
+  "hooks": [
+    {
+      "name": "stop-0",
+      "trigger": "stop",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/hooks/scripts/node.sh log-run.mjs motion-qa"
+      },
+      "timeout": 10
+    }
+  ],
   "permissions": {
     "rules": [
-      { "capability": "fs_read", "match": ["**"], "effect": "allow" },
-      {
-        "capability": "fs_write",
-        "match": ["packages/motion/src/components/*/QA.md"],
-        "effect": "allow"
-      },
-      {
-        "capability": "fs_write",
-        "match": ["**"],
-        "exclude": ["packages/motion/src/components/*/QA.md"],
-        "effect": "deny"
-      },
       {
         "capability": "shell",
         "match": [
@@ -36,17 +52,37 @@
         ],
         "effect": "allow"
       },
-      { "capability": "shell", "match": ["*"], "effect": "deny" }
+      {
+        "capability": "shell",
+        "match": ["*"],
+        "exclude": [
+          "cat*",
+          "git diff*",
+          "git log*",
+          "ls*",
+          "pnpm --filter @motionpop/motion test*",
+          "pnpm motion:check*"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "fs_write",
+        "match": ["packages/motion/src/components/*/QA.md"],
+        "effect": "allow"
+      },
+      {
+        "capability": "fs_read",
+        "effect": "allow"
+      },
+      {
+        "capability": "skill",
+        "effect": "allow"
+      }
     ]
   },
-  "hooks": [
-    {
-      "name": "log-run",
-      "trigger": "Stop",
-      "action": {
-        "type": "command",
-        "command": "bash .kiro/hooks/scripts/node.sh log-run.mjs motion-qa"
-      }
-    }
-  ]
+  "kiroUpgrade": {
+    "revision": 3,
+    "fingerprint": "sha256:785a4eefca664dbde6da3e768d37727cb7f55c61b4c61f3211b1904e16727f0e",
+    "source": "sha256:62b6d6da858c03bf47e8f0d0e7d5e62835ee2e610222280c1c758c50140977b1"
+  }
 }

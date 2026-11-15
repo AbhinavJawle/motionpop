@@ -126,6 +126,14 @@ export PATH="$HOME/.nvm/versions/node/v24.22.3/bin:$PATH"
   ```
   For failure details, find the check-run id with `.../commits/<sha>/check-runs`, then read `.../check-runs/<id>/annotations`.
 - **Firebase CLI:** only `npx -y firebase-tools@latest …`. The project is `motionpop-48409`.
+- **Kiro CLI headless runs** (added in the Kiro IDE, 2026-11-15):
+  ```
+  kiro-cli chat --v3 --no-interactive --agent motionpop-builder "$(cat prompt.md)" > run.log 2>&1
+  ```
+  - The agents in `.kiro/agents/` are in the universal format (V2 fields plus V3 `permissions`), so both engines load them. A headless run with no engine named uses V2; name it anyway (`--v3`), as the Kiro docs advise for scripts.
+  - The universal files are generated: edit the V2 fields (`tools`, `allowedTools`, `toolsSettings`, `hooks`), then run `kiro-cli agent upgrade .kiro/agents` and `kiro-cli agent validate --path <file>`. Hand edits to the generated `permissions` mark the file out of sync.
+  - Headless, every "ask" is a deny. On V3 the most restrictive matching rule wins, so a catch-all rule must `exclude` the allowed commands. The upgrader writes it that way.
+  - Kiro CLI 3.3.0 (auto-updated after run 33) failed with "Mode 'motionpop-builder' not found" because the files were V3-only and a headless run defaults to V2.
 - **zsh gotcha:** always brace variables followed by `:`, e.g. `${M}:generateContent`. A bare `$M:g…` is a zsh modifier and silently corrupts URLs.
 - **Python HTTPS:** use `ssl.create_default_context(cafile='/etc/ssl/cert.pem')`.
 - **Gemini image calls:** must be sequential (parallel calls return 429). Each call takes 12–18 s and costs about $0.04.

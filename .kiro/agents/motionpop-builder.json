@@ -3,46 +3,111 @@
   "description": "Implements one Motionpop spec task at a time: small diff, tests, typecheck/lint green, task box checked, local commit.",
   "prompt": "file://./prompts/builder.md",
   "welcomeMessage": "motionpop-builder ready. Give me a spec and a task number.",
-  "tools": ["read", "write", "shell", "@context7"],
-  "includeMcpJson": true,
+  "tools": ["@context7", "read", "shell", "write"],
+  "allowedTools": ["fs_read", "@context7"],
+  "toolsSettings": {
+    "fs_write": {
+      "allowedPaths": [
+        "apps/**",
+        "packages/**",
+        "services/**",
+        "skills/**",
+        ".kiro/specs/**",
+        "firestore.rules",
+        "storage.rules",
+        "firebase.json",
+        "vitest.workspace.ts",
+        "package.json",
+        "pnpm-workspace.yaml"
+      ],
+      "deniedPaths": [
+        ".env*",
+        "**/*.pem",
+        "**/service-account*.json",
+        ".github/**",
+        ".kiro/agents/**",
+        ".kiro/steering/**",
+        "LICENSE"
+      ]
+    },
+    "execute_bash": {
+      "allowedCommands": [
+        "pnpm install.*",
+        "pnpm add.*",
+        "pnpm --filter.*",
+        "pnpm typecheck.*",
+        "pnpm lint.*",
+        "pnpm test.*",
+        "pnpm exec.*",
+        "npx vitest.*",
+        "npx tsc.*",
+        "node .*",
+        "git status.*",
+        "git diff.*",
+        "git log.*",
+        "git add.*",
+        "git commit.*",
+        "ls.*",
+        "cat.*",
+        "grep.*",
+        "rg.*",
+        "find.*",
+        "head.*",
+        "tail.*",
+        "wc.*",
+        "sort.*",
+        "diff.*",
+        "npx prettier.*",
+        "pnpm motion:check.*"
+      ],
+      "deniedCommands": [
+        "git push.*",
+        "git reset --hard.*",
+        "rm -rf.*",
+        "firebase deploy.*",
+        "npx firebase-tools deploy.*",
+        "gcloud.*",
+        "npx hyperframes events.*",
+        "hyperframes events.*",
+        "curl.*",
+        "sudo.*"
+      ]
+    }
+  },
   "resources": ["file://../../CLAUDE.md", "file://../../docs/plan.md"],
+  "includeMcpJson": true,
+  "hooks": [
+    {
+      "name": "agentSpawn-0",
+      "trigger": "agentSpawn",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/hooks/scripts/node.sh session-start.mjs"
+      },
+      "timeout": 10
+    },
+    {
+      "name": "postToolUse-0",
+      "trigger": "postToolUse",
+      "matcher": "write",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/hooks/scripts/node.sh check-touched.mjs"
+      },
+      "timeout": 10
+    },
+    {
+      "name": "stop-0",
+      "trigger": "stop",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/hooks/scripts/node.sh log-run.mjs motionpop-builder"
+      },
+      "timeout": 10
+    }
+  ],
   "permissions": {
     "rules": [
-      {
-        "capability": "fs_read",
-        "match": ["**"],
-        "effect": "allow"
-      },
-      {
-        "capability": "fs_write",
-        "match": [
-          "apps/**",
-          "packages/**",
-          "services/**",
-          "skills/**",
-          ".kiro/specs/**",
-          "firestore.rules",
-          "storage.rules",
-          "firebase.json",
-          "vitest.workspace.ts",
-          "package.json",
-          "pnpm-workspace.yaml"
-        ],
-        "effect": "allow"
-      },
-      {
-        "capability": "fs_write",
-        "match": [
-          ".env*",
-          "**/*.pem",
-          "**/service-account*.json",
-          ".github/**",
-          ".kiro/agents/**",
-          ".kiro/steering/**",
-          "LICENSE"
-        ],
-        "effect": "deny"
-      },
       {
         "capability": "shell",
         "match": [
@@ -93,37 +158,53 @@
         "effect": "deny"
       },
       {
-        "capability": "shell",
-        "match": ["*"],
-        "effect": "ask"
+        "capability": "fs_write",
+        "match": [
+          "apps/**",
+          "packages/**",
+          "services/**",
+          "skills/**",
+          ".kiro/specs/**",
+          "firestore.rules",
+          "storage.rules",
+          "firebase.json",
+          "vitest.workspace.ts",
+          "package.json",
+          "pnpm-workspace.yaml"
+        ],
+        "effect": "allow"
+      },
+      {
+        "capability": "fs_write",
+        "match": [
+          ".env*",
+          "**/*.pem",
+          "**/service-account*.json",
+          ".github/**",
+          ".kiro/agents/**",
+          ".kiro/steering/**",
+          "LICENSE"
+        ],
+        "effect": "deny"
+      },
+      {
+        "capability": "fs_read",
+        "effect": "allow"
+      },
+      {
+        "capability": "mcp",
+        "match": ["context7/*"],
+        "effect": "allow"
+      },
+      {
+        "capability": "skill",
+        "effect": "allow"
       }
     ]
   },
-  "hooks": [
-    {
-      "name": "session-context",
-      "trigger": "SessionStart",
-      "action": {
-        "type": "command",
-        "command": "bash .kiro/hooks/scripts/node.sh session-start.mjs"
-      }
-    },
-    {
-      "name": "check-touched-package",
-      "trigger": "PostToolUse",
-      "matcher": "write",
-      "action": {
-        "type": "command",
-        "command": "bash .kiro/hooks/scripts/node.sh check-touched.mjs"
-      }
-    },
-    {
-      "name": "log-run",
-      "trigger": "Stop",
-      "action": {
-        "type": "command",
-        "command": "bash .kiro/hooks/scripts/node.sh log-run.mjs motionpop-builder"
-      }
-    }
-  ]
+  "kiroUpgrade": {
+    "revision": 3,
+    "fingerprint": "sha256:efe0e412416de3d3ec7f7a1b9816ce9d4b3a67fb2eb71be24a84d1a20f666e33",
+    "source": "sha256:993b0e23cf59efd3335b75edd637414cb3eb567ab57652b7c7cc413e67e84989"
+  }
 }
