@@ -266,3 +266,8 @@ Template:
   - **Tests:** 4 task tests, 8 queue and command tests, and 5 `runAutoFill` tests. The `runAutoFill` tests cover a device fill with undo, no router or flag off, no Nano leaving the slot suggested, edits made while the fill waits or runs being skipped with no rejection toast, and cancel.
   - **Test mistake I made:** my first "edited before" test edited the slot before auto-fill took its load snapshot, which can't happen in the app. I rewrote it to edit while the router is loading.
   - **Not verified live:** headless Chrome has no Nano, so on-device auto-fill is untested against the real model. With the flag on and no Nano, slots stay suggested and nothing goes to the cloud.
+
+## 2026-11-15 · Claude Code (Fable 5.2), spec 07 requirements
+- The founder redefined spec 07: looks and scene quality are the product, not a list of small components. A cheap model must give excellent, dynamic results every time, with generated images.
+- Researched generation approaches (web search): free-form generated animation code is unreliable; constrained catalogues plus verification hold quality. Checked the Firebase AI Logic image docs (Gemini image models, web SDK shape, sizes, reference-image limits).
+- Wrote `.kiro/specs/07-scene-engine-and-looks/requirements.md` (draft, written in Claude Code, not Kiro): the AI writes a small JSON score; scenes, looks, beats, image treatment and quality gates carry the craft. Stopped for approval with four open decisions (original look names, scope by Nov 30, image cost cap, loosening two motion principles). No design, tasks or code yet.
