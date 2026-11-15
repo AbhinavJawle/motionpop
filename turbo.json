@@ -14,6 +14,10 @@
     "dev": {
       "cache": false,
       "persistent": true
+    },
+    "@motionpop/schemas#test": {
+      "outputs": [],
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/motion/src/styles/**"]
     }
   }
 }

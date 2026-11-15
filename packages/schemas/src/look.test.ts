@@ -93,12 +93,14 @@ describe('LookSchema: existing style packs', () => {
     expect(packFiles.length).toBeGreaterThanOrEqual(2);
   });
   for (const file of packFiles) {
-    it(`${file} parses as a style pack and as a look`, () => {
+    it(`${file} parses as a look (and, if it uses no look blocks, as a style pack)`, () => {
       const json: unknown = JSON.parse(readFileSync(new URL(file, `file://${stylesDir}`), 'utf8'));
-      expect(StylePackSchema.safeParse(json).success).toBe(true);
       const look = LookSchema.safeParse(json);
       expect(look.success).toBe(true);
-      expect(look.data?.personality).toBeUndefined();
+      // Changed by Claude Code: polished looks (field-notes) live in the same folder and use
+      // look-only blocks, so only the plain packs must still parse as style packs.
+      if (look.data?.personality === undefined)
+        expect(StylePackSchema.safeParse(json).success).toBe(true);
     });
   }
 });
