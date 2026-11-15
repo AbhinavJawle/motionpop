@@ -1,6 +1,6 @@
 # 07 · Scene engine and looks — requirements
 
-_Written in a Claude Code session (2026-11-15). Status: **draft, waiting for approval.** Replaces the earlier plan line "6 components, 5 packs, 8 skills"._
+_Written in a Claude Code session (2026-11-15). Status: **approved by the founder on 2026-11-15, with the changes marked below.** Replaces the earlier plan line "6 components, 5 packs, 8 skills"._
 
 ## Why this spec changed
 
@@ -8,7 +8,7 @@ The founder's brief: the product is not "a bar chart and a title". It is **style
 
 Research behind the approach (2026-11-15):
 
-- Free-form generation is unreliable. One practitioner report puts single-call generated animation code at about 90 % runnable but only about 20 % visually acceptable. MoVer (arXiv 2502.13372) got 58.8 % correct without a verify-and-correct loop.
+- Free-form generation is unreliable. MoVer (arXiv 2502.13372) reports 58.8 % of prompts correct without its verify-and-correct loop. (An earlier draft also quoted a 90 % / 20 % figure from a secondary write-up I had not read in full; it is dropped.)
 - Constrained catalogues work. Pipelines where the model can only pick and fill typed, pre-built scenes hold quality, because the model cannot output anything that was not designed.
 - Retention guidance for short and explainer video is a visual change every 1–4 s, with varied interrupt types, tied to the voice. This is practitioner advice, not measured research; we treat it as a tunable default.
 
@@ -40,7 +40,7 @@ _As a creator, I want great results from a cheap, fast model, so I don't wait or
 _As a viewer, I want every graphic to feel directed, and no two to feel the same._
 
 1. **R2.1** THE SYSTEM SHALL ship these scenes (build order; the first six are the hackathon minimum): `hook-statement`, `stat-punch`, `chart-story` (bar and line), `versus`, `map-journey`, `photo-evidence` (image cutout with annotations), then `list-stack`, `timeline`, `quote`, `concept-diagram`, `document-highlight`, `product-hero`.
-2. **R2.2** Each scene SHALL have at least 3 layout variants and at least 2 entrance choreographies per format, selected by the score or, if absent, by a seeded choice that avoids repeating the previous slot's variant.
+2. **R2.2** Each scene that can use images SHALL have, for every variant, an image-free form that looks finished, so the free on-device path and failed generations still look good. Each scene SHALL have at least 3 layout variants and at least 2 entrance choreographies per format, selected by the score or, if absent, by a seeded choice that avoids repeating the previous slot's variant.
 3. **R2.3** Each scene SHALL be multi-beat: at least one visible change per beat window (R5.1), each pinned to a word in the slot. The focal beat lands on its spoken word within ± 80 ms.
 4. **R2.4** Scenes SHALL follow the existing contract: a pure function of time, per-format layout (16:9, 9:16, 1:1), text fitting, safe areas, transparent root, `data-text` / `data-focal` hooks.
 5. **R2.5** Data scenes SHALL stay honest: geometry proportional to the data from a zero baseline, final strings equal to the formatted values.
@@ -64,18 +64,18 @@ _As a creator, I want to pick a look and get a whole visual language, not a colo
    | `dark-money`, `neon-data`, `clean-minimal` | In the designs. Ship as token-level looks on the same scenes; full materials later. |
 
 3. **R3.3** Every scene SHALL render in every look without look-specific scene code: looks change materials, motion, decor and image treatment through the engine. A look may opt a scene variant out.
-4. **R3.4** Two looks SHALL get full polish first (`editorial-explainer`, `field-notes`); the rest follow in the order above.
+4. **R3.4** Two looks SHALL get full polish first: `field-notes` and `paper-collage` (they share paper, tape and torn-edge materials, so this costs no more than the first proposal). `editorial-explainer` stays the default token-level look until its upgrade; the rest follow in the order above.
 5. **R3.5** Fonts and assets SHALL be bundled, OFL or similarly licensed, and recorded in `docs/third-party.md`.
 
 ## R4 Images: generated, treated, consistent
 
 _As a creator, I want real imagery in my graphics without leaving the app._
 
-1. **R4.1** WHEN a score requests an image THE SYSTEM SHALL generate it through Firebase AI Logic with a Gemini image model (default `gemini-3.1-flash-lite-image`, hero images `gemini-nano-banana-2.1`; names from Remote Config; verified against the docs on 2026-11-15, re-verify before coding).
+1. **R4.1** WHEN a score requests an image THE SYSTEM SHALL generate it through Firebase AI Logic with a Gemini image model (default `gemini-nano-banana-2.1` at 1K; name and size from Remote Config; verified against the docs on 2026-11-15, re-verify before coding). Image generation always runs in the cloud, and the UI shows the cloud route and the cost before it starts.
 2. **R4.2** THE SYSTEM SHALL build the image prompt from the look's recipe plus the AI's subject, not from free text alone, so images match the look. Looks may supply reference images for consistency.
 3. **R4.3** THE SYSTEM SHALL turn generated images into look-treated actors: subject cutout (keyed background, with a matting fallback), then the look's treatment (white stroke and shadow, duotone, halftone, tape, torn edge).
-4. **R4.4** THE SYSTEM SHALL never block the preview on images: the scene plays immediately with an in-look placeholder, and the image swaps in when ready.
-5. **R4.5** THE SYSTEM SHALL show the cost before generating images, cache them in Storage per project, reuse identical requests, and cap images per video (Remote Config).
+4. **R4.4** THE SYSTEM SHALL never block the preview on images: the scene plays immediately with an in-look placeholder, and the image swaps in when ready. Final renders SHALL wait until every image has settled (ready, replaced, or failed and switched to the image-free form); a placeholder never reaches an export.
+5. **R4.5** THE SYSTEM SHALL show the cost before generating images, cache them in Storage per project, reuse identical requests, and cap images per video (Remote Config, default 6). Price checked on Google's pricing page on 2026-11-15: $0.0336 per 1K image for `gemini-nano-banana-2.1` (1,120 output tokens at $30 per 1M), so a full video of 6 images costs about $0.20. That page is the Gemini Developer API list; our calls go through the Agent Platform backend, whose page could not be read, so confirm on the first bill.
 6. **R4.6** Users SHALL be able to replace any generated image with an upload.
 7. **R4.7** IF image generation fails or is blocked THEN THE SYSTEM SHALL keep the placeholder variant, which must look finished on its own.
 
@@ -83,7 +83,8 @@ _As a creator, I want real imagery in my graphics without leaving the app._
 
 _As a creator, I want the result to be good every single time._
 
-1. **R5.1** THE SYSTEM SHALL enforce a beat budget per look energy: by default a visible change at least every 2.5 s (calm), 1.8 s (medium), 1.2 s (high). A scene below budget gets engine-added beats (camera move, decor, emphasis), never empty holds.
+1. **R5.1** THE SYSTEM SHALL enforce a beat budget set by an **energy** setting with four steps, calm → steady → lively → hype (defaults: a visible change at least every 3.0 / 2.2 / 1.6 / 1.1 s). Energy comes from the project (user setting), defaulting to the look's energy; calm lessons get slower beats. A scene below budget gets engine-added beats (camera move, decor, emphasis), never empty holds.
+2. **R5.1b** Text SHALL stay still long enough to be read: after a text block lands, nothing moves or covers it for its read time (at least 0.8 s, longer for more words), and no fast camera move happens during that time. Engine-added beats respect this.
 2. **R5.2** THE SYSTEM SHALL extend `motion:check` to every scene × look × format with random and edge-case content: no overflow, no overlap, contrast ≥ 4.5:1, focal visible at its beat, beat budget met, no two consecutive slots with the same scene variant.
 3. **R5.3** THE SYSTEM SHALL prove with fast-check that any schema-valid score compiles to a composition that is seek-pure and passes the layout checks.
 4. **R5.4** WHERE the cloud is available THE SYSTEM MAY run a cheap vision check on three stills of a generated slot and apply a JSON patch for problems the layout checks cannot see. It is optional, costed and off by default.
@@ -106,7 +107,7 @@ _As a viewer, I want the video to feel like one piece with rhythm, not a slidesh
 ## R8 Build-time craft transfer (how the quality gets in)
 
 1. **R8.1** For each look, reference animations MAY be produced with a top model outside the product. Timings, eases, layout ratios, type scale and decoration rules are then extracted by hand into the look and scenes. The provenance goes in each README. No reference output ships.
-2. **R8.2** Motion principles SHALL be revised for this spec: "at most 2–3 things moving" becomes "one focal point; secondary motion allowed within the look's energy", and "no idle wobble" becomes "no meaningless loops; purposeful secondary motion (parallax, follow-through, settle) is allowed". Logged in `docs/decisions.md`.
+2. **R8.2** Motion principles are revised (approved): one focal point per frame, purposeful secondary motion allowed, and text stays still long enough to be read. Logged as D-028.
 
 ## Non-functional
 
@@ -119,9 +120,11 @@ _As a viewer, I want the video to feel like one piece with rhythm, not a slidesh
 
 Tier-2 free-form generation (spec 15, now the escape hatch), 3D scenes, character animation, video footage, music.
 
-## Open decisions for the founder
+## Decisions (founder, 2026-11-15)
 
-1. **Names.** The references you gave are real creators and brands. They can guide the craft, but both rulebooks forbid them in the repo, UI and demo, so looks have original names (R3.2).
-2. **Scope by Nov 30.** Proposed: engine + 6 scenes + 2 polished looks + images first; the remaining scenes and looks follow before Dec 4. Specs 08 (export) and 13 (credits) still have to fit.
-3. **Image cost.** Roughly a few cents per image on Blaze. Proposed cap: 6 images per video by default.
-4. **Motion principles.** R8.2 loosens two existing rules to allow the dynamic feel you asked for.
+1. Looks have original names; the references guide the craft only.
+2. Nov 30 scope: engine + 6 scenes + 2 polished looks (`field-notes`, `paper-collage`) + images. Export (spec 08) and the hybrid path must work by then. The rest lands before Dec 4.
+3. At most 6 images per video; every scene works without images; real price recorded in R4.5; images always show the cloud route and cost first.
+4. Motion rules loosened as in R8.2, with the read-time rule (R5.1b).
+5. Beat interval follows the energy setting (R5.1).
+6. Final renders wait for every image; only the preview uses placeholders (R4.4).

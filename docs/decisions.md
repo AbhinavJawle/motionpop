@@ -93,3 +93,12 @@ The AI Logic models page (checked 2026-11-14) lists `gemini-3.1-flash-tts-previe
 - **Kill switch:** cloud-only tasks stop; every other task is pinned to the device.
 - **Prompts:** versioned `.ts` string modules rather than `.md`, so Next, Vitest and Cloud Run need no loader.
 - **Usage events:** in memory for now. Writing them to Firestore needs a server route (spec 13), because the rules block client writes.
+
+## D-028 · 2026-11-15 · decided — Scene engine and looks: the AI scores, the engine animates
+- **Decision:** spec 07 becomes "scene engine and looks". At run time a cheap model writes a small, enum-heavy JSON score per slot (scene, variant, content, beat anchors, image subjects). All craft (layout, timing, easing, materials, camera, decorations, sound cues) is authored in scenes and looks. Deterministic checks gate the result. Free-form generation (spec 15) is the escape hatch.
+- **Why:** the founder wants excellent, dynamic results every time, in seconds, from a cheap model. Evidence that unconstrained generation is unreliable: MoVer (arXiv 2502.13372, https://www.arxiv.org/pdf/2502.13372) reports 58.8 % of test prompts correct without its correction loop. A 90 % / 20 % figure quoted in the first draft is dropped, because I had only seen it in a search summary of a secondary write-up.
+- **Looks:** original names only (`field-notes`, `paper-collage`, `ink-essay`, `bright-science`, `launch-day`, plus the designed packs). `field-notes` and `paper-collage` get full polish first.
+- **Motion principles changed:** rule 6 allows purposeful secondary motion around one focal point; rule 14 bans meaningless loops rather than all secondary motion; new rule 16 (read time) and rule 17 (beats follow a four-step energy setting, calm to hype).
+- **Images:** Gemini image model through Firebase AI Logic, cloud only, route and cost shown first, at most 6 per video. Price on Google's pricing page (https://aistudio.google.com/docs/pricing, read 2026-11-15): $0.0336 per 1K image for `gemini-nano-banana-2.1`. That is the Gemini Developer API list; the Agent Platform price is unconfirmed until the first bill. Every scene has an image-free form. Previews use placeholders; final renders wait for every image to settle.
+- **Scope by Nov 30:** engine, 6 scenes, 2 polished looks, images, with export (spec 08) and the hybrid path working.
+

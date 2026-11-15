@@ -271,3 +271,9 @@ Template:
 - The founder redefined spec 07: looks and scene quality are the product, not a list of small components. A cheap model must give excellent, dynamic results every time, with generated images.
 - Researched generation approaches (web search): free-form generated animation code is unreliable; constrained catalogues plus verification hold quality. Checked the Firebase AI Logic image docs (Gemini image models, web SDK shape, sizes, reference-image limits).
 - Wrote `.kiro/specs/07-scene-engine-and-looks/requirements.md` (draft, written in Claude Code, not Kiro): the AI writes a small JSON score; scenes, looks, beats, image treatment and quality gates carry the craft. Stopped for approval with four open decisions (original look names, scope by Nov 30, image cost cap, loosening two motion principles). No design, tasks or code yet.
+- **Spec 07 requirements approved with changes; design drafted (Claude Code, Fable 5.2):**
+  - Applied the founder's changes: polished looks are `field-notes` and `paper-collage`; every scene has an image-free form; four-step energy setting drives the beat interval; a read-time rule for text; final renders wait for images.
+  - Image price read from Google's pricing page: $0.0336 per 1K image for `gemini-nano-banana-2.1`. That is the Gemini Developer API list. I could not read the Agent Platform pricing page (the fetch came back truncated), so the price on our backend is unconfirmed.
+  - Dropped the 90 % / 20 % figure: I had it only from a search summary, not from the source.
+  - Updated `motion-principles.md` (rules 6, 14, new 16 and 17), `docs/decisions.md` (D-028) and the plan row.
+  - Wrote `design.md` (draft): scenes are `MotionComponent`s whose params are the score; stage engine with beat scheduling, quiet windows for read time and look-driven juice; looks map semantic surfaces and marks to materials; image pipeline with keying, caching, cap and an export gate. Stopped for approval. No code yet.

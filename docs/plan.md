@@ -230,7 +230,7 @@ App Check enforced (AI Logic, Firestore, Storage, API routes) · owner-only rule
 | 04 | editor-shell-and-timeline | Nov 20 |
 | 05 | audio-pipeline (record, upload, TTS, Whisper, cleanup, processing) | Nov 21 |
 | 06 | slot-detection-and-autofill | Nov 21 |
-| 07 | components-and-style-packs (6 components, 5 packs, 8 skills) | Nov 24 |
+| 07 | scene-engine-and-looks (D-028: scenes, looks, images; was components-and-style-packs) | Nov 24 |
 | 08 | render-and-export (Cloud Run producer, export/ready modals) | Nov 22 |
 | 09 | inspector-quick-edits-and-notes (hybrid showcase) | Nov 23 |
 | 10 | pip-panel | Nov 24 |
