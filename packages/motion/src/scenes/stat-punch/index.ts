@@ -193,7 +193,10 @@ export const statPunch = defineScene<StatPunchContent>({
     }
     const num = st.number('number', c.value, fmt, slots.number, { countFrom: c.countFrom });
     st.on('number', enter(num), mark(num, 'emphasis'));
-    st.on('label', enter(st.text('label', c.label, slots.label, { role: 'label' })));
+    const label = st.text('label', c.label, slots.label, { role: 'label' });
+    // The look's strip under the label (a torn paper clipping, a cut colour strip), if any.
+    const strip = st.surface('label-strip', 'strip', label);
+    st.on('label', ...(strip ? [enter(strip, 'wipe')] : []), enter(label));
     return st.compile();
   },
 });

@@ -1,6 +1,7 @@
 import type {
   DecorId,
   Energy,
+  SurfaceKind,
   EnterBehaviour,
   JuiceId,
   Look,
@@ -17,6 +18,7 @@ import { readTimeMs } from '@motionpop/schemas';
 import { fontStack } from '../fonts/font-faces';
 import { scheduleBeats, type BeatPlan, type CueSpec, type SlotWordTime } from './beats';
 import { buildDecor } from './decor';
+import { buildSurface } from './materials';
 import { cameraTrack, planJuice, type JuiceBeat, type JuicePlan } from './juice';
 
 /**
@@ -134,6 +136,16 @@ export interface Stage {
   text(id: string, content: string, slot: TextSlot, opts?: TextOptions): Actor;
   number(id: string, value: number, fmt: CountFormat, slot: TextSlot, opts?: NumberOptions): Actor;
   shape(id: string, box: Box, opts?: ShapeOptions): Actor;
+  /**
+   * A semantic surface (card, photo, label, strip) behind some actors, built from the look's
+   * materials; null when the look leaves that surface plain (R3.3).
+   */
+  surface(
+    id: string,
+    kind: SurfaceKind,
+    around: Actor | readonly Actor[],
+    opts?: SurfaceOpts,
+  ): Actor | null;
   on(cue: string, ...actions: Action[]): void;
   compile(): StageComposition;
 }
@@ -151,6 +163,10 @@ export interface TextOptions {
 export interface NumberOptions {
   countFrom?: number;
   focal?: boolean;
+}
+export interface SurfaceOpts {
+  /** Padding around the actors, as a share of frame height (default: from the text size). */
+  pad?: { x: number; y: number };
 }
 export interface ShapeOptions {
   /** Colour token from the look. */
@@ -472,6 +488,75 @@ export function stage(
         align: 'left',
         depth: opts.depth ?? 1,
       });
+    },
+    surface(id, kind, around, opts = {}) {
+      const list = Array.isArray(around) ? around : [around as Actor];
+      if (list.length === 0) return null;
+      const r0 = root.getBoundingClientRect();
+      const k = r0.width > 0 ? w / r0.width : 1;
+      // The text as set: word spans when there are any, else the element (box width × lines).
+      const rectOf = (a: Actor): Box => {
+        // Plain text: the line boxes of its content (a Range), not the full-width element.
+        const range = !a.parts?.length && doc.createRange ? doc.createRange() : null;
+        range?.selectNodeContents(a.el);
+        const lineRects = range?.getClientRects ? Array.from(range.getClientRects()) : [];
+        const els = a.parts?.length ? a.parts : [a.el];
+        const rs = (
+          lineRects.length ? lineRects : els.map((e) => e.getBoundingClientRect())
+        ).filter((r) => r.width > 0);
+        if (r0.width <= 0 || rs.length === 0) return a.box;
+        const x0 = Math.min(...rs.map((r) => r.left));
+        const y0 = Math.min(...rs.map((r) => r.top));
+        const x1 = Math.max(...rs.map((r) => r.right));
+        const y1 = Math.max(...rs.map((r) => r.bottom));
+        return {
+          x: (x0 - r0.left) * k,
+          y: (y0 - r0.top) * k,
+          width: (x1 - x0) * k,
+          height: (y1 - y0) * k,
+        };
+      };
+      const rs = list.map(rectOf);
+      const size = Math.max(...list.map((a) => a.size || h * 0.05));
+      const px = (opts.pad?.x ?? (size * 0.4) / h) * h;
+      const py = (opts.pad?.y ?? (size * 0.22) / h) * h;
+      // Never closer to the frame edge than half the safe margin.
+      const mx = safe.x * 0.5;
+      const my = safe.y * 0.5;
+      const x0 = Math.max(mx, Math.min(...rs.map((r) => r.x)) - px);
+      const y0 = Math.max(my, Math.min(...rs.map((r) => r.y)) - py);
+      const x1 = Math.min(w - mx, Math.max(...rs.map((r) => r.x + r.width)) + px);
+      const y1 = Math.min(h - my, Math.max(...rs.map((r) => r.y + r.height)) + py);
+      const box = {
+        x: Math.round(x0),
+        y: Math.round(y0),
+        width: Math.round(x1 - x0),
+        height: Math.round(y1 - y0),
+      };
+      const sf = buildSurface(doc, look?.surfaces?.[kind], box, {
+        kind,
+        colors: style.colors,
+        seed: ctx.seed + id.length * 17,
+        frameH: h,
+      });
+      if (!sf) return null;
+      sf.el.dataset.actor = id;
+      // Behind every actor it carries.
+      const first = list.reduce((m, a) => (m.el.compareDocumentPosition(a.el) & 2 ? a : m));
+      first.el.before(sf.el);
+      // Depth 1, with its text: back-layer parallax would slide the text off its surface.
+      const actor = add({
+        id,
+        kind: 'shape',
+        el: sf.el,
+        box,
+        size: 0,
+        words: 0,
+        align: 'left',
+        depth: 1,
+      });
+      if (sf.tilt) actor.effects.push((_t, p) => (p.rot += sf.tilt));
+      return actor;
     },
     on(cue, ...actions) {
       if (!spec.cues.some((c) => c.id === cue)) throw new Error(`stage: unknown cue "${cue}"`);

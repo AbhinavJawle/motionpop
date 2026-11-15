@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Format } from '../../contract';
 import type { Box } from '../../core/safe-area';
-import { enter, findPhrase, mark, stage, type TextSlot } from '../../engine/stage';
+import { enter, findPhrase, mark, stage, type Actor, type TextSlot } from '../../engine/stage';
 import { defineScene } from '../define';
 import { column, stack } from '../layout';
 
@@ -185,9 +185,14 @@ export const hookStatement = defineScene<HookStatementContent>({
       eyebrow: Boolean(c.eyebrow),
       subline: Boolean(c.subline),
     });
-    if (slots.eyebrow && c.eyebrow) {
-      st.on('eyebrow', enter(st.text('eyebrow', c.eyebrow, slots.eyebrow, { role: 'eyebrow' })));
-    }
+    const eyebrow =
+      slots.eyebrow && c.eyebrow
+        ? st.text('eyebrow', c.eyebrow, slots.eyebrow, { role: 'eyebrow' })
+        : null;
+    const subline =
+      slots.subline && c.subline
+        ? st.text('subline', c.subline, slots.subline, { role: 'label' })
+        : null;
     if (v === 'punch' && slots.big) {
       const cut = focus[0] as number;
       const lead = st.text('line', tokens.slice(0, cut).join(' '), slots.line, {
@@ -200,8 +205,11 @@ export const hookStatement = defineScene<HookStatementContent>({
         emphasis,
         truncatable: false,
       });
+      if (eyebrow) st.on('eyebrow', enter(eyebrow));
       st.on('line', enter(lead));
-      st.on('emphasis', enter(big, 'slam'));
+      // The look's strip under the punch words (a cut colour strip, a torn clipping), if any.
+      const strip = st.surface('big-strip', 'strip', big);
+      st.on('emphasis', ...(strip ? [enter(strip, 'wipe')] : []), enter(big, 'slam'));
     } else {
       const line = st.text('line', c.line, slots.line, {
         role: 'display',
@@ -209,13 +217,17 @@ export const hookStatement = defineScene<HookStatementContent>({
         focal: true,
         ...(emphasis ? { emphasis } : {}),
       });
+      // The look's card under the whole statement (paper on the desk). It arrives with the line,
+      // and the eyebrow rides in on it, so nothing floats before its card lands.
+      const carried = [eyebrow, line, subline].filter((a): a is Actor => a !== null);
+      const card = st.surface('card', 'card', carried, { pad: { x: 0.04, y: 0.035 } });
+      if (eyebrow) st.on(card ? 'line' : 'eyebrow', enter(eyebrow));
+      if (card) st.on('line', enter(card, 'slam'));
       if (slots.bar) st.on('line', enter(st.shape('bar', slots.bar, { color: 'accent' }), 'mask'));
       st.on('line', enter(line));
       if (focus.length) st.on('emphasis', mark(line, 'emphasis'));
     }
-    if (slots.subline && c.subline) {
-      st.on('subline', enter(st.text('subline', c.subline, slots.subline, { role: 'label' })));
-    }
+    if (subline) st.on('subline', enter(subline));
     return st.compile();
   },
 });
