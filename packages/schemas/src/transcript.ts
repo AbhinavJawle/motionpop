@@ -25,8 +25,30 @@ export const TranscriptSchema = z
     ranOn: RanOnSchema,
     timingQuality: z.enum(['word', 'approx']),
     cleaned: z.boolean(),
+    /** On-device delivery analysis (spec 07 R9.1). Optional: old projects have none. */
+    prosody: z
+      .object({
+        v: z.literal(1),
+        /** One value per word, 0 (flat) to 100 (most stressed), from loudness, pitch and length. */
+        stress: z.array(z.number().int().min(0).max(100)),
+        /** Silences of 300 ms or longer. */
+        pauses: z.array(
+          z.object({
+            startMs: z.number().int().nonnegative(),
+            endMs: z.number().int().nonnegative(),
+          }),
+        ),
+      })
+      .optional(),
   })
   .superRefine((t, ctx) => {
+    if (t.prosody && t.prosody.stress.length !== t.words.length) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `prosody.stress has ${t.prosody.stress.length} values for ${t.words.length} words`,
+        path: ['prosody', 'stress'],
+      });
+    }
     t.words.forEach((w, idx) => {
       if (w.i !== idx) {
         ctx.addIssue({

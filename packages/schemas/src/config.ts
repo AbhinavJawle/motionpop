@@ -25,6 +25,12 @@ export const AppConfigSchema = z.object({
   modelFast: z.string().min(1),
   modelStrong: z.string().min(1),
   modelTts: z.string().min(1),
+  /** Gemini image model for generated images (spec 07, D-030). */
+  modelImage: z.string().min(1),
+  imagesPerVideoMax: NonNegInt,
+  imageCredits: NonNegInt,
+  /** Free cloud `direct.plan` calls per user per day; on-device plans are unlimited. */
+  planFreeCloudPerDay: NonNegInt,
 });
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 
@@ -42,6 +48,10 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   // Plans and long slot detection (D-026). Raise to gemini-4-carbon in Remote Config if needed.
   modelStrong: 'gemini-3.8-flash',
   modelTts: 'gemini-3.8-flash-tts',
+  modelImage: 'gemini-nano-banana-2.1',
+  imagesPerVideoMax: 6,
+  imageCredits: 2,
+  planFreeCloudPerDay: 10,
 };
 
 type Decoder = (raw: string) => unknown;
@@ -74,6 +84,10 @@ const KEYS: Record<keyof AppConfig, { key: string; decode: Decoder }> = {
   modelFast: { key: 'model_fast', decode: str },
   modelStrong: { key: 'model_strong', decode: str },
   modelTts: { key: 'model_tts', decode: str },
+  modelImage: { key: 'model_image', decode: str },
+  imagesPerVideoMax: { key: 'images_per_video_max', decode: int },
+  imageCredits: { key: 'image_credits', decode: int },
+  planFreeCloudPerDay: { key: 'plan_free_cloud_per_day', decode: int },
 };
 
 /**

@@ -9,3 +9,8 @@ export * from './format';
 export * from './style';
 export * from './project';
 export * from './user';
+export * from './score';
+export * from './look';
+export * from './asset';
+export * from './plan';
+export * from './gate';
