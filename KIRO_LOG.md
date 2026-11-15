@@ -924,3 +924,14 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - **Kiro features used:** the `motion-qa` custom agent (headless, with images), the session-start and stop hooks (the stop hook auto-logged the `motion-qa` run above), steering (handoff, motion principles, testing), the spec's `tasks.md` done note, property and regression tests.
 - **What helped / what didn't:** extending the check first, then letting it fail across all three scenes, found the engine bug that a label-only fix would have hidden. `motion-qa` confirmed the fix and found a real margin problem the text-only checks cannot see. Its numbers are rough, so I measured one before believing it. Happy-dom tests cannot see line breaks, so the real guard for this class is `motion:check` in a browser; the unit tests only pin the build structure.
 <!-- /kiro-cli:2026-11-16-lone-word-and-task-21 -->
+
+<!-- kiro-session:sess_1e20da40-be37-476e-a977-6975f472f85d -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T23:10:45.552Z · last stop: 2026-11-15T23:54:23.839Z · session: sess_1e20da40-be37-476e-a977-6975f472f85d
+- commits since start: 
+  - bbf945c docs: KIRO_LOG entry for the lone-word fix, task 21 provenance and the motion-qa run
+  - 3285d7b docs(07-scene-engine-and-looks): task 21 Field Notes provenance, task done
+  - bb3a323 docs(kiro): handoff §11 testing cadence for shipping speed
+  - d2e5388 fix(07-scene-engine-and-looks): balance stat-punch labels, lone-last-word check covers all text
+- uncommitted changes: none
+<!-- /kiro-session:sess_1e20da40-be37-476e-a977-6975f472f85d -->
