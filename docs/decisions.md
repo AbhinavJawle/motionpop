@@ -34,6 +34,8 @@ HyperFrames (`@hyperframes/player` for preview, `@hyperframes/producer` for rend
 - Player: seeks exact; during playback `hf-seek` fires every frame and our time tracks `currentTime` within ~2 ms.
 - **Gotcha:** the player only auto-injects the runtime for compositions with GSAP timelines or nested scenes. A pure `hf-seek` composition must include the runtime itself: the compiler embeds `@hyperframes/core/dist/hyperframe.runtime.iife.js` from the pinned package (never the CDN). The producer works the same with it embedded.
 
+**Re-checked 2026-11-15:** the motion-engine research (`docs/research/motion-engine-research.md`, section 5) reaches the same choice on licence grounds: HyperFrames is Apache-2.0 with no team-size or per-render terms, while Remotion needs a paid licence for companies of four or more. The founder confirmed HyperFrames unless a spike finds a blocker. The Nov 14 spike above found none, so D-009 stands.
+
 ## D-010 · 2026-11-14 · decided — Tier-2 provider
 The founder confirmed Claude is allowed in both builds and is the frontier model for tier-2 custom graphics (server route, key in Secret Manager). Gemini stays available behind the `custom_provider` flag.
 
@@ -101,4 +103,13 @@ The AI Logic models page (checked 2026-11-14) lists `gemini-3.1-flash-tts-previe
 - **Motion principles changed:** rule 6 allows purposeful secondary motion around one focal point; rule 14 bans meaningless loops rather than all secondary motion; new rule 16 (read time) and rule 17 (beats follow a four-step energy setting, calm to hype).
 - **Images:** Gemini image model through Firebase AI Logic, cloud only, route and cost shown first, at most 6 per video. Price on Google's pricing page (https://aistudio.google.com/docs/pricing, read 2026-11-15): $0.0336 per 1K image for `gemini-nano-banana-2.1`. That is the Gemini Developer API list; the Agent Platform price is unconfirmed until the first bill. Every scene has an image-free form. Previews use placeholders; final renders wait for every image to settle.
 - **Scope by Nov 30:** engine, 6 scenes, 2 polished looks, images, with export (spec 08) and the hybrid path working.
+
+## D-029 · 2026-11-15 · decided — Research additions to the scene engine
+Source: `docs/research/motion-engine-research.md` (research run outside this repo's sessions, with two small experiments kept in `docs/research/experiments/`). Its figures are its own claims; each task re-checks what it depends on.
+- **Adopted for Nov 30:** an on-device prosody module (the AI decides what matters, the audio refines when and how hard); gate reports that name the actor and rule, with at most 2 repair rounds, then a safe default; a hand-approved example library with code retrieval; schema rules in `ai-tasks.md`; the read-hold rule for juice (only slow, non-covering motion while text is being read); a small eval harness.
+- **Cutout spike:** BiRefNet is a candidate, with a check of the weights' licence, not only the code's. RMBG-2.0 (CC-BY-NC) and RMBG-1.4 are excluded.
+- **After Nov 30:** style-reference images per look (earlier only if the spike shows drift), a larger eval set with a calibrated model judge, offline prompt optimisation. A fine-tuned small model is post-hackathon.
+- **Not adopted for now:** several candidate plans scored by code. The enforcer and fallback already bound the plan.
+- **Pitch rule:** no retention numbers from marketing blogs. The energy setting is the answer, calibrated with our own tests.
+- **Evidence limits:** the prosody experiment used a synthetic voice (6 of 6 pauses, 3 of 4 stressed words, one false hit). Real recordings are untested until the end-to-end task.
 

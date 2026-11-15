@@ -32,7 +32,7 @@ _As a creator, I want great results from a cheap, fast model, so I don't wait or
 1. **R1.1** THE SYSTEM SHALL define a `Score` schema (zod, in `packages/schemas`): `{ sceneId, variant?, content, beats[], images[]?, energy? }`. Every field that can be an enum is an enum. `content` is validated by the scene's own schema.
 2. **R1.2** THE SYSTEM SHALL keep a score small enough for on-device generation: the catalogue summary plus one slot's words and the expected output fit Gemini Nano's context (hybrid-ai.md), so `score.fill` can run on-device for simple scenes and in the cloud for scenes with images.
 3. **R1.3** THE SYSTEM SHALL never accept positions, colours, durations in ms, easing names or code from the AI. The AI chooses among named options only (scene, variant, emphasis word, beat anchors by word index, image subject).
-4. **R1.4** WHEN a score fails validation THE SYSTEM SHALL repair once through the router, then fall back to the scene's deterministic default for that slot (never a blank slot).
+4. **R1.4** WHEN a score fails validation or a quality gate (R9.2) THE SYSTEM SHALL send the failure report back to the same model for at most 2 repair rounds, then fall back to the scene's deterministic safe default for that slot (never a blank slot).
 5. **R1.5** THE SYSTEM SHALL keep existing behaviour working: `big-number` and the current slot params migrate to a scene with no visible change for saved projects.
 
 ## R2 Scenes: authored choreography with variety
@@ -73,7 +73,7 @@ _As a creator, I want real imagery in my graphics without leaving the app._
 
 1. **R4.1** WHEN a score requests an image THE SYSTEM SHALL generate it through Firebase AI Logic with a Gemini image model (default `gemini-nano-banana-2.1` at 1K; name and size from Remote Config; verified against the docs on 2026-11-15, re-verify before coding). Image generation always runs in the cloud, and the UI shows the cloud route and the cost before it starts.
 2. **R4.2** THE SYSTEM SHALL build the image prompt from the look's recipe plus the AI's subject, not from free text alone, so images match the look. Looks may supply reference images for consistency.
-3. **R4.3** THE SYSTEM SHALL turn generated images into look-treated actors: subject cutout (keyed background, with a matting fallback), then the look's treatment (white stroke and shadow, duotone, halftone, tape, torn edge).
+3. **R4.3** THE SYSTEM SHALL turn generated images into look-treated actors: subject cutout (pipeline chosen by the day-one spike; candidates are colour keying, on-device BiRefNet segmentation if its **weights'** licence is permissive, and a second edit pass; RMBG-2.0 and RMBG-1.4 are excluded for their licences), then the look's treatment (white stroke and shadow, duotone, halftone, tape, torn edge).
 4. **R4.4** THE SYSTEM SHALL never block the preview on images: the scene plays immediately with an in-look placeholder, and the image swaps in when ready. Final renders SHALL wait until every image has settled (ready, replaced, or failed and switched to the image-free form); a placeholder never reaches an export.
 5. **R4.5** THE SYSTEM SHALL show the cost before generating images, cache them in Storage per project, reuse identical requests, and cap images per video (Remote Config, default 6). Price checked on Google's pricing page on 2026-11-15: $0.0336 per 1K image for `gemini-nano-banana-2.1` (1,120 output tokens at $30 per 1M), so a full video of 6 images costs about $0.20. That page is the Gemini Developer API list; our calls go through the Agent Platform backend, whose page could not be read, so confirm on the first bill.
 6. **R4.6** Users SHALL be able to replace any generated image with an upload.
@@ -84,7 +84,7 @@ _As a creator, I want real imagery in my graphics without leaving the app._
 _As a creator, I want the result to be good every single time._
 
 1. **R5.1** THE SYSTEM SHALL enforce a beat budget set by an **energy** setting with four steps, calm → steady → lively → hype (defaults: a visible change at least every 3.0 / 2.2 / 1.6 / 1.1 s). Energy comes from the project (user setting), defaulting to the look's energy; calm lessons get slower beats. A scene below budget gets engine-added beats (camera move, decor, emphasis), never empty holds.
-2. **R5.1b** Text SHALL stay still long enough to be read: after a text block lands, nothing moves or covers it for its read time (at least 0.8 s, longer for more words), and no fast camera move happens during that time. Engine-added beats respect this.
+2. **R5.1b** Text SHALL stay still long enough to be read: after a text block lands, nothing moves or covers it for its read time (at least 0.8 s, longer for more words). During read time the only motion allowed anywhere in the frame is slow and non-covering: a camera push of at most 3 %, background parallax and texture drift. No snaps, no overlays, no decoration draws. Engine-added beats respect this, and inside read time that slow motion is what meets the beat budget.
 2. **R5.2** THE SYSTEM SHALL extend `motion:check` to every scene × look × format with random and edge-case content: no overflow, no overlap, contrast ≥ 4.5:1, focal visible at its beat, beat budget met, no two consecutive slots with the same scene variant.
 3. **R5.3** THE SYSTEM SHALL prove with fast-check that any schema-valid score compiles to a composition that is seek-pure and passes the layout checks.
 4. **R5.4** WHERE the cloud is available THE SYSTEM MAY run a cheap vision check on three stills of a generated slot and apply a JSON patch for problems the layout checks cannot see. It is optional, costed and off by default.
@@ -109,6 +109,18 @@ _As a viewer, I want the video to feel like one piece with rhythm, not a slidesh
 1. **R8.1** For each look, reference animations MAY be produced with a top model outside the product. Timings, eases, layout ratios, type scale and decoration rules are then extracted by hand into the look and scenes. The provenance goes in each README. No reference output ships.
 2. **R8.2** Motion principles are revised (approved): one focal point per frame, purposeful secondary motion allowed, and text stays still long enough to be read. Logged as D-028.
 
+## R9 Research additions (docs/research/motion-engine-research.md, section 6)
+
+_Added 2026-11-15 on the founder's instruction. R9.1–R9.6 are in the Nov 30 scope. Figures quoted from the research file are that file's claims; anything we depend on is re-checked in its task._
+
+1. **R9.1 The voice is a signal.** THE SYSTEM SHALL compute, on-device with no AI, per-word loudness, pitch, duration per syllable and a combined stress value, plus pauses of 300 ms or longer, from the cleaned audio and word timings (`audio.prosody`). The AI decides what matters; the audio refines when and how hard: a cue may snap to a more stressed word at most one word away, and the stress of the landing word sets the intensity of its entrance within the look's limits. Cues tied to a specific word (a number, a chart value) never snap. Prosody alone never chooses what to emphasise (the research experiment found 3 of 4 stressed words with one false hit, on a synthetic voice).
+2. **R9.2 Check, then repair.** Quality gates SHALL return structured reports `{ slot, actor, rule, measured, limit, hint }` that name the failing actor and rule. Reports drive the repair rounds in R1.4. Every failure is logged for the eval harness.
+3. **R9.3 Example library.** Each scene variant SHALL ship hand-approved example scores (at least 2 per variant for the six Nov 30 scenes). The 2 closest examples go into each fill prompt. Every example must itself pass the gates in CI.
+4. **R9.4 Schema rules.** All AI tasks SHALL use structured output with string enums for ids, small flat schemas, no schema text repeated in the prompt, zod re-validation, and one slot per fill call. The rules live in `ai-tasks.md`, and a test checks every task's schema against them.
+5. **R9.5 Read-hold rule for juice.** As R5.1b.
+6. **R9.6 Eval harness (small).** THE SYSTEM SHALL have a repeatable dev-time harness: a fixed set of voiceover fixtures × the 2 polished looks × 2 formats, reporting gate pass rate (first try, after repair, fallback), variety, beat-budget compliance, timing error to the stressed word, latency and cost, with keyframe contact sheets. It starts with 6–8 fixtures before Nov 30 and gives real numbers for both write-ups.
+7. **R9.7 After Nov 30.** Style-reference images per look for `image.generate` (tested in the day-one spike; promoted earlier only if the spike shows text recipes drifting); the harness grows to about 20 voiceovers with a model judge calibrated on 30 founder-labelled keyframes; offline prompt optimisation (GEPA) using the harness as the metric. A fine-tuned small model is post-hackathon.
+
 ## Non-functional
 
 - Deterministic: same score + look + format + t → identical frame.
@@ -128,3 +140,4 @@ Tier-2 free-form generation (spec 15, now the escape hatch), 3D scenes, characte
 4. Motion rules loosened as in R8.2, with the read-time rule (R5.1b).
 5. Beat interval follows the energy setting (R5.1).
 6. Final renders wait for every image; only the preview uses placeholders (R4.4).
+7. Research section 6 adopted (R9). Before Nov 30: prosody module, check-and-repair loop, example library, schema rules, read-hold rule for juice, a small eval harness. BiRefNet joins the cutout spike with a weights-licence check. HyperFrames stays the render engine (D-009, confirmed by its Nov 14 spike; no blocker found).

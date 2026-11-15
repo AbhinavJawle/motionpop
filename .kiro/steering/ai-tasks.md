@@ -15,6 +15,15 @@ General prompt rules (all tasks):
 - AI Logic setup is in `tech.md`; Nano limits are in `hybrid-ai.md` (single-turn, text + JPEG/PNG, JSON output, ≤ 9,216 tokens). Use structured output (response schema) where supported; always still validate with zod.
 - Re-check the SDK against current docs (Context7 / `firebase-ai-logic-basics` skill) before changing a provider.
 
+### Schema rules (D-029, apply to every task)
+- Structured output on both routes (`responseJsonSchema` in the cloud, `responseConstraint` on-device), then zod again: constrained decoding guarantees shape, not sense.
+- Ids are **string enums** (scene, variant, cue, role, component, skill). Never free strings for anything the code looks up.
+- Schemas stay small and flat: depth 3 at most, few optional properties, no large enums. Complex schemas can be rejected by the model service.
+- Don't paste the JSON schema into the prompt text. Describe intent and give examples instead.
+- One slot per fill call, in parallel. Only tiny per-row plans go in a single call.
+- Give 2 hand-approved examples (input → output) per call where a library exists.
+- A failed check goes back to the same model as a structured report (actor, rule, measured, limit, hint), for at most the task's repair limit, then the deterministic fallback.
+
 ---
 
 ## 1. `slots.detect`

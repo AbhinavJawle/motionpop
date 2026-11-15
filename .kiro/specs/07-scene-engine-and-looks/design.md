@@ -123,7 +123,7 @@ Single actors (number, headline, chart, callout, map, image) are exposed as one-
 
 `scheduleBeats(cues, anchors, words, durationMs, energy, look)`:
 
-1. Each anchored cue gets `t = word.startMs − lead`, where `lead` is the behaviour's time-to-land (so the element **lands** on the word, ± 80 ms; principle 13).
+1. Each anchored cue first applies the prosody snap (± 1 word, only for `snap: true` cues; see Audio prosody). Then it gets `t = word.startMs − lead`, where `lead` is the behaviour's time-to-land (so the element **lands** on the word, ± 80 ms; principle 13).
 2. Unanchored cues are spread by the scene's default pattern between their neighbours.
 3. Order is forced (cues never swap), and each cue keeps a minimum distance from the previous one: the previous text's **read time** (principle 16: 0.8 s + 0.2 s per word beyond three). If the slot is too short, trailing optional cues are dropped, never squeezed, and `report.dropped` lists them.
 4. **Budget fill.** Let `I` be the energy interval (3.0 / 2.2 / 1.6 / 1.1 s). For every gap longer than `I` with no visible change, the engine inserts juice beats from the look's ordered list until the gap is covered.
@@ -131,22 +131,78 @@ Single actors (number, headline, chart, callout, map, image) are exposed as one-
 
 ### Juice: what fills the gaps
 
-Juice beats come from `look.juice`, an ordered list the engine cycles through with the slot seed, skipping any that are not legal at that moment:
+Juice beats come from `look.juice`, an ordered list the engine cycles through with the slot seed, skipping any that are not legal at that moment.
 
-| Juice | What it does | Blocked when |
+| Juice | What it does | Class |
 |---|---|---|
-| `camera-push` | slow push or pull toward the focal box | never (velocity is capped) |
-| `camera-snap` | quick 6–10 % zoom toward a box, then settle | a text block is inside its read time |
-| `decor-draw` | a scribble, arrow, underline or stamp draws next to a non-focal actor | it would cover text in read time |
-| `parallax-shift` | depth layers slide by small, different amounts | never |
-| `surface-flip` | a card or strip re-tapes, tilts or re-stacks | it holds text in read time |
-| `accent-sweep` | a colour or light sweep across a surface | it holds text in read time |
+| `camera-push` | slow push or pull toward the focal box | slow |
+| `parallax-shift` | depth layers slide by small, different amounts | slow when limited to the background layer |
+| `texture-drift` | the look's grain or paper shifts slightly | slow |
+| `camera-snap` | quick 6–10 % zoom toward a box, then settle | fast |
+| `decor-draw` | a scribble, arrow, underline or stamp draws next to a non-focal actor | fast |
+| `surface-flip` | a card or strip re-tapes, tilts or re-stacks | fast |
+| `accent-sweep` | a colour or light sweep across a surface | fast |
 
-Read time is enforced in one place: a `quietWindows` list (text actor box + time range). A juice beat whose target box intersects a quiet window, or a fast camera move during any quiet window, is rejected and the next candidate is tried. If nothing is legal, the engine uses `camera-push`, which always is.
+**Read-hold rule (R5.1b, research 3.8).** The stage keeps a `quietWindows` list: one time range per text block's read time. While **any** quiet window is open, only slow juice is legal anywhere in the frame: a camera push capped at 3 % total scale change across the window, parallax on the background layer only, and texture drift. Nothing may cover or move a text actor. Fast juice is scheduled only outside quiet windows. Inside a quiet window the beat budget is met by that slow motion, so the engine never has to choose between "keep moving" and "let them read". The research experiment showed why this matters: a naive scheduler put about 11 juice events into 14 s at hype, some during reading.
+
+Pauses from prosody (300 ms or longer) are the preferred moments for fast juice and camera moves outside quiet windows.
 
 ### Camera
 
 The compiler still owns `.mp-cam`. Scenes and juice only emit camera cues ("focus box B at time T"). `camera-track.ts` turns them into one scale-and-translate track using the look's grammar (`push` range, `snap` amount, `whip` allowed or not, parallax depth). Text layout keeps using `insetForCamera`, with the inset taken from the largest zoom the look allows.
+
+## Audio prosody (R9.1)
+
+`apps/web/lib/audio/prosody.ts`: a pure function `prosody(pcm, sampleRate, words) → Prosody`, run in the existing audio worker after cleaning, on the cleaned audio and re-timed words. No AI, no network.
+
+- **Per word:** RMS loudness in dB, median pitch (autocorrelation, 70–400 Hz, unvoiced frames skipped, `null` if none), duration per syllable (vowel-group count). Each feature is z-scored across the transcript; their sum, squashed to 0–100, is `stress`.
+- **Pauses:** runs of low energy of 300 ms or longer, as `{ startMs, endMs }`.
+- **Stored** on the transcript as an optional block (`prosody: { v: 1, stress: number[], pauses: [] }`, one integer per word), so old projects stay valid and nothing recomputes on load.
+- **Used in three places, always as a refinement:**
+  1. `scheduleBeats`: an anchored cue whose scene marks it `snap: true` moves to a neighbouring word (± 1) when that word's stress is clearly higher (margin in the look, default 15 points). Number and chart-value cues are `snap: false`.
+  2. Entrance intensity: the landing word's stress maps to a 0–1 intensity that scales the look's overshoot and scale-pop inside fixed limits (for example a pop of 1.00–1.08). A whisper gets a soft landing, a punched word gets a hit.
+  3. `direct.plan` input: each slot carries its peak stress, which helps the AI (and the code fallback) choose the video's peak.
+- **Processing UI:** the moments card detail gains the count ("Found 3 moments · 5 stressed words"), with the on-device chip.
+- **Known limits:** the research test used a synthetic voice and still produced one false hit on a sibilant. Real recordings are tested in the end-to-end task, and the snap margin is tuned there. If prosody is missing or flat, everything works without it.
+
+## Gate reports and repair (R1.4, R9.2)
+
+```ts
+interface GateReport { slot: string; actor: string; rule: GateRule; measured: number; limit: number; hint: string }
+type GateRule = 'content-invalid' | 'text-overflow' | 'text-truncated' | 'overlap' | 'cue-dropped'
+              | 'anchor-out-of-range' | 'unknown-id' | 'budget' | 'read-time';
+```
+
+- **`gateSlot(scene, score, ctx) → GateReport[]`** builds the slot off-screen in the project's format and collects: schema errors, `fitText` shrink-below-minimum and truncation, box overlaps from the variant layout, cues the scheduler dropped, anchors outside the slot, and the stage report (budget, read time). Hints are written by code from the numbers: "label overflows by 34 px at 9:16; shorten to 4 words or fewer".
+- **Repair loop:** the router gains `maxRepairs` per task (default 1, `component.fill` 2). The fill task's `check` runs `gateSlot` and returns the reports as the repair message, so the same cheap model fixes the named actor. On-device rounds are free; cloud rounds are inside the Generate price, never charged again.
+- **After 2 failed rounds:** the scene's safe default (deterministic content from the tagger span, safest variant, image-free). It must pass the gates by construction, and a test proves it for random spans.
+- **Format switches** re-run the gates without AI; a failing slot is fitted by code (shrink, then the variant with fewer actors).
+- Every report is emitted as a usage event field and collected by the eval harness.
+
+## Example library (R9.3)
+
+- `scenes/<id>/exemplars.ts`: hand-approved `{ words, spans, score }` records, at least 2 per variant, written at build time with a top model and reviewed. A CI test parses, compiles and gates every exemplar in all three formats, so they double as `motion:check` samples.
+- **Retrieval is plain code:** for the slot's scene, rank exemplars by matching span kind, closeness in word count, and image or image-free, then take the top 2 (never two of the same variant). No embeddings.
+- The prompt carries the two exemplars as compact input → output pairs. They are short enough for the on-device context; the schema test in R9.4 also measures prompt size.
+
+## Schema rules (R9.4)
+
+Written into `ai-tasks.md` (done with this spec change). For this spec they mean:
+
+- The fill call uses a **concrete schema per scene**: `scoreSchemaFor(scene)` turns `variant`, `beats[].cue` and `images[].role` into string enums of that scene's ids and types `content` with the scene's own schema. The loose `record` in the stored `ScoreSchema` is only the storage shape.
+- One slot per `component.fill` call, run in parallel. `direct.plan` is one call because its rows are tiny.
+- A test walks every task's JSON Schema and fails on depth over 3, an enum over 40 values, more than 6 optional properties in one object, or schema text pasted into a prompt.
+- The limits themselves come from the research file's reading of Google's structured-output docs; the task re-checks them against the current docs before fixing the numbers.
+
+## Eval harness (R9.6)
+
+`packages/motion/scripts/eval.ts` (dev-time only, not shipped, not in CI's default run):
+
+- **Fixtures:** 6–8 transcripts with word timings and prosody (`eval/fixtures/*.json`: finance, science, history, product, a calm lesson, a hype short), original or synthesized, no third-party content. Each runs in `field-notes` and `paper-collage`, at 16:9 and 9:16.
+- **Run:** tagger → detector → plan → fill → gates → compile → stills at every cue (reusing the `motion:check` renderer).
+- **Providers:** `local` (deterministic detector, code plan, safe defaults: the floor) and `cloud` (a Node-only dev provider that calls the same Gemini models with the developer's own Google credentials). Product code still calls AI only through Firebase AI Logic; the Node provider lives under `scripts/` and is never bundled.
+- **Report** (`eval/out/<date>.json` + a Markdown table): gate pass rate on the first try, after repair, and fallback rate; repair rounds; scene and variant variety; beat-budget and read-time compliance; timing error from each snapped cue to its stressed word; latency and token cost per slot; a contact sheet per video.
+- After Nov 30 the set grows to about 20 and gains a model judge with a fixed rubric (hierarchy, readability, polish, on-look), calibrated against 30 founder-labelled keyframes. It is used offline for regression only, and it is the metric for prompt optimisation.
 
 ## Looks
 
@@ -213,6 +269,8 @@ score.images[] ─► cost chip (☁ N credits) ─► user confirms ─► imag
   1. colour keying alone (plain solid background in the prompt, border-estimated key colour, soft matte, spill removal);
   2. keying plus a segmentation step: an on-device model through transformers.js (already a dependency), only if its licence is permissive (checked in the spike; a non-commercial model is not used);
   3. the image model's own edit call ("same subject on pure white") as a second pass, if 1 and 2 both fail on hard subjects.
+  Segmentation candidate for option 2: **BiRefNet** through transformers.js (WebGPU, WASM fallback; the research file reports a lite variant at about 47 MB quantized). The spike records the exact weights repository, its licence file and any training-data terms: the architecture's MIT licence does not cover the weights. RMBG-2.0 (CC-BY-NC) and RMBG-1.4 are excluded. The spike also measures download size, first-run time and per-image time, because a large one-time download has to be worth it.
+  The same spike tests style locking: the look's text recipe alone against the recipe plus 2–3 fixed reference images, on `gemini-nano-banana-2.1` and `gemini-3.1-flash-image` (twice the price per image on the pricing page: $0.067 against $0.0336 at 1K). Reference images move into the Nov 30 scope only if text recipes visibly drift.
   The spike records edge quality, time and cost per option in `docs/decisions.md` and picks the pipeline. Whatever wins, the guard stays: if the border is not uniform or the matte keeps under 5 % or over 90 % of the pixels, the image is used as a framed rectangle (`keyed: false`), which every image variant supports. Ragged cutouts are also softened by the looks themselves (white border, torn edge), but that is a bonus, not the plan.
 - **Treatment** is applied at build time by the `image` actor from `look.image.treatment`, so switching looks re-treats the same asset without regenerating.
 - **Asset store:** `users/{uid}/projects/{pid}/images/{hash}.png` in Storage (IndexedDB blob store in local mode). `hash = sha256(model, recipe version, subject, aspect)`; a hit skips generation and costs nothing (R4.5). The project keeps `assets: { id, hash, status: 'pending' | 'ready' | 'failed', keyed, w, h }`.
@@ -283,7 +341,11 @@ Build under 40 ms per slot and `seek` under 2 ms per slot on a mid laptop; keyin
 6. Image generation never happens without a shown cloud cost and a confirm, and never more than the cap.
 7. Every scene renders in every look and without images.
 
-## Build order (tasks.md will detail)
+## Research adoption
+
+Section 6 of `docs/research/motion-engine-research.md` is adopted (D-029): prosody, gate reports with repair, the example library, schema rules, the read-hold rule and a small eval harness are in the Nov 30 scope; style-reference images, the calibrated judge and prompt optimisation follow. Candidate plans scored by code (research 3.5) are not adopted for now: the enforcer plus fallback already bound the plan, and it can be added behind `direct.plan` later without changing anything else.
+
+## Build order (see tasks.md, which is authoritative)
 
 1. Schemas (`score`, `look`, `asset`, `plan`) + library evaluation + **the cutout spike** (day one). **[kiro]** property tests for schemas.
 2. Stage engine: actors (text, number, shape), behaviours, `scheduleBeats`, quiet windows. **[kiro]** beat-scheduling properties.
