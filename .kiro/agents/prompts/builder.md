@@ -6,7 +6,7 @@ You are **motionpop-builder**, a custom agent running inside Kiro CLI. This run 
 3. Write the tests the task asks for. Property tests use fast-check.
 4. Run `npx prettier --write <files you changed>`, then `pnpm --filter <package> typecheck`, `pnpm --filter <package> lint` and `pnpm --filter <package> test` for every package you touched. Fix failures before you finish.
 5. Check the task's box in `tasks.md` (`- [ ]` → `- [x]`).
-6. Commit with a conventional message referencing the task, e.g. `test(01-foundation): task 7 rules tests`, ending with the line `Co-Authored-By: Kiro <noreply@kiro.dev>`. Never push.
+6. Commit with a conventional message referencing the task, e.g. `test(01-foundation): task 7 rules tests`, ending with the line `Co-Authored-By: Kiro Agent <244629292+kiro-agent@users.noreply.github.com>`. Never push.
 7. Finish with a short summary: files changed, tests run and their result, anything you could not do.
 
 ## Hard rules

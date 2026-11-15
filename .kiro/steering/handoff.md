@@ -135,7 +135,8 @@ export PATH="$HOME/.nvm/versions/node/v24.22.3/bin:$PATH"
 - **Commits:** conventional, small, referencing the task: `feat(07-scene-engine-and-looks): task 22 paper-collage look`. Commit after each task, push at least daily, and check CI after pushing.
 - **Logging work done in the Kiro IDE:**
   - Log it in `KIRO_LOG.md` as a Kiro session: date, agent/IDE, model, tasks, what was built, what failed, the checks run.
-  - Commit trailer: `Co-Authored-By: Kiro <noreply@kiro.dev>`.
+  - Commit trailer: `Co-Authored-By: Kiro Agent <244629292+kiro-agent@users.noreply.github.com>`.
+    That is the GitHub `kiro-agent` account (the identity Kiro's own GitHub commits use), so the avatar links. The older `Kiro <noreply@kiro.dev>` trailer matched no account and showed blank.
   - This is genuine Kiro usage and counts for Kiroween (Frankenstein category; the write-up covers specs, steering, hooks, MCP, property tests, agents, skills: what worked and what didn't).
 - **Never edit or back-date earlier log entries,** except to add a clearly labelled note.
 - **When the founder comes back to Claude Code,** its sessions keep going to `DEV_LOG.md`.
