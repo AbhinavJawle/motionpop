@@ -3,6 +3,7 @@ import { SlotSuggestionsSchema } from '@motionpop/schemas';
 import { describe, expect, it } from 'vitest';
 import { catalogueEntry, skillEntry } from './catalogue';
 import { bigNumberParams, detectLocal, reasonFor, sentenceIndex, slotBudget } from './detect-local';
+import { tagSpans } from './tagger';
 import type { SlotWord, TaggedSpan } from './types';
 
 /** Words spaced 400 ms apart unless a [text, start, end] tuple is given. */
@@ -248,5 +249,24 @@ describe('properties', () => {
         for (const s of a) expect(s.wordEnd).toBeLessThan(w.length);
       }),
     );
+  });
+});
+
+describe('detectLocal with the real tagger', () => {
+  it('tags the demo transcript exactly like the hand-made spans', () => {
+    expect(tagSpans(DEMO)).toEqual(DEMO_SPANS);
+  });
+
+  it('gives the same single big-number suggestion', () => {
+    const out = detectLocal(DEMO, tagSpans(DEMO));
+    expect(out).toEqual(detectLocal(DEMO, DEMO_SPANS));
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      componentId: 'big-number',
+      score: 0.95,
+      wordStart: 5,
+      wordEnd: 9,
+      params: { value: 40, suffix: '%', decimals: 0, label: 'Our revenue grew' },
+    });
   });
 });
