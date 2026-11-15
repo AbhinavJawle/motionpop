@@ -44,7 +44,11 @@ export default function SkeletonPage() {
   const [detected, setDetected] = useState<DetectSlotsResult | null>(null);
   const playerRef = useRef<HTMLElement | null>(null);
 
-  const note = (line: string) => setLog((l) => [...l, line]);
+  // R6.1: every timing also goes to the console, so a run can be copied into DEV_LOG.
+  const note = (line: string) => {
+    console.info(`[skeleton] ${line}`);
+    setLog((l) => [...l, line]);
+  };
 
   useEffect(() => {
     void import('@hyperframes/player');

@@ -236,3 +236,15 @@ Template:
     - Latency was 2.2–5.8 s per edit.
     - Lesson: schema validation can't catch wrong-but-valid edits, so the prompt rules matter.
   - **Not verified yet:** on-device Nano for both tasks needs headed Chrome with the Prompt API flag. In the headless run there was no voiceover loaded, so the recompile after a quick edit was a no-op; the code path is wired but wasn't exercised live.
+- **Spec 00 task 11: walking skeleton measurements, collected** (all from this log, Nov 14–15). **Spec 00 is complete.**
+
+  | Step | Where | Time |
+  |---|---|---|
+  | Whisper (`whisper-base_timestamped`), 4.8 s of speech | browser worker, headless Chrome | about 1.7 s (one-time model download about 80 s) |
+  | Compile a one-slot project → composition | Node, median of 20 | 0.63 ms (max 1.48 ms) |
+  | `slots.detect` | cloud `gemini-3.8-flash`, thinking LOW | 3.0–3.5 s (12 s with default thinking) |
+  | Deterministic tag + detect + post-pass, 3,000 words | Node | 14.7 ms |
+  | `edit.patch` | cloud `gemini-3.5-flash-lite`, thinking MINIMAL | 2.2–5.8 s |
+  | Render 8 s at 1080p | HyperFrames producer, local | 15.2 s |
+
+  The device column is still missing: Nano timings need headed Chrome with the Prompt API flag. `/dev/skeleton` now mirrors every timing line to the console (R6.1). Router decisions are recorded in D-027.

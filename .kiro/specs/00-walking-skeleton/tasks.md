@@ -12,4 +12,4 @@ Tasks marked **[kiro]** are executed by Kiro CLI (`motionpop-builder` agent) and
 - [x] 8. Whisper worker (transformers.js, WebGPU → WASM) + upload + word list on `/dev/skeleton`. — R1
 - [x] 9. Firebase client + App Check debug + AI Logic; `packages/ai` router with `slots.detect` and repair/fallback; show ranOn. _(live 2026-11-15: cloud gemini-3.8-flash, about 3 s; see design.md as-built)_ — R2
 - [x] 10. `edit.patch` on-device + apply + validate + recompile; show ranOn. _(live in the cloud 2026-11-15; Nano not measured yet, see DEV_LOG)_ — R5
-- [ ] 11. Log timings; write DEV_LOG measurements; update decisions. — R6
+- [x] 11. Log timings; write DEV_LOG measurements; update decisions. _(D-027; measurements in DEV_LOG 2026-11-14/15)_ — R6

@@ -84,3 +84,12 @@ Linking billing (Blaze) moves the Gemini Developer API to its paid tier, which n
 
 ## D-026 · 2026-11-14 · decided — Model defaults
 The AI Logic models page (checked 2026-11-14) lists `gemini-3.1-flash-tts-preview` as shutting down on Nov 17, 2026, so TTS uses `gemini-3.8-flash-tts`. Defaults: fast `gemini-3.5-flash-lite`, strong `gemini-3.8-flash` (plans, long slot detection), TTS `gemini-3.8-flash-tts`. `gemini-4-carbon` is available for heavier reasoning through Remote Config. All four answered live on the global endpoint.
+
+## D-027 · 2026-11-15 · decided — AI router behaviour
+- **Typed tasks:** `run(task, input)` takes a task definition, not a string id, so inputs and outputs are typed from their zod schemas.
+- **No surprise spend:** cloud escalation after a failed device answer is opt-in per task. `edit.patch` opts in (1 credit, as ai-tasks.md says); `slots.detect` and auto-fill don't, and fall back to deterministic code instead.
+- **Semantic checks:** a task can add a `check` after the schema parse (`edit.patch`: the patch applies and the component params stay valid). A failing check is treated as an invalid answer, and its message drives the one repair.
+- **Thinking levels per task:** on the demo, `slots.detect` took 12 s with the model's default thinking and about 3 s with `LOW`, with the same result. Extraction tasks use `LOW` or `MINIMAL`; plans can use more later.
+- **Kill switch:** cloud-only tasks stop; every other task is pinned to the device.
+- **Prompts:** versioned `.ts` string modules rather than `.md`, so Next, Vitest and Cloud Run need no loader.
+- **Usage events:** in memory for now. Writing them to Firestore needs a server route (spec 13), because the rules block client writes.
