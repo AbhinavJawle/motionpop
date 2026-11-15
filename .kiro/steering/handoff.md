@@ -211,3 +211,6 @@ The founder wants shipping speed. The quality bar stays; the number of full runs
 - Don't rerun checks for scenes or packages you didn't touch. CI on GitHub runs everything after the push and is the safety net.
 - Contact sheets: one review pass per variant set, fix, one confirming look. No endless loops.
 - Prefer finishing a whole task to polishing one detail; write leftovers as known issues in the log.
+
+## 12. Screens without a design (founder, 2026-11-16)
+Most panels and screens have no PNG in `design/screens/`. For those, build in the language of what already exists: the same tokens (`apps/web/styles/globals.css`), primitives (`components/ui/`), spacing, type scale, radii, chips, Pip states and motion as the designed editor, dashboard and export screens. Copy the closest designed screen's patterns (panel header, list rows, empty state with Pip, primary button) rather than inventing new ones. The design check for such a screen compares it with the nearest designed screen for consistency.
