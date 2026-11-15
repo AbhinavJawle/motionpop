@@ -146,6 +146,28 @@ export function timelineIssues(project: TimelineInput): string[] {
   return issues;
 }
 
+export type WordRange = { wordStart: number; wordEnd: number };
+
+/**
+ * Indices of the first and last words overlapping [startMs, endMs), or null if none. Shared by
+ * the editor commands (spec 04) and the slot post-pass (spec 06), so both snap the same way.
+ */
+export function wordsInRange(
+  words: ReadonlyArray<{ startMs: number; endMs: number }>,
+  startMs: number,
+  endMs: number,
+): WordRange | null {
+  let first = -1;
+  let last = -1;
+  words.forEach((w, i) => {
+    if (w.endMs > startMs && w.startMs < endMs) {
+      if (first < 0) first = i;
+      last = i;
+    }
+  });
+  return first < 0 ? null : { wordStart: first, wordEnd: last };
+}
+
 export const EditorProjectSchema = z
   .object({
     schemaVersion: z.literal(1),
