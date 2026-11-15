@@ -41,6 +41,8 @@ export interface SceneDef<C> {
   defaultContent: C;
   /** At least 3. The first is the safe default. */
   variants: readonly [VariantDef, VariantDef, VariantDef, ...VariantDef[]];
+  /** The variant for the video's peak moment (the director gives it to the peak slot). */
+  peakVariant: string;
   cues: readonly SceneCue[];
   /** The cue that lands on the spoken word when the score gives no anchors. */
   focalCue: string;
@@ -61,6 +63,7 @@ export interface Scene<C> extends MotionComponent<SceneScore<C>> {
   useWhen: string;
   content: z.ZodType<C>;
   variants: readonly VariantDef[];
+  peakVariant: string;
   cues: readonly SceneCue[];
   focalCue: string;
   imageRoles: readonly ImageRoleDef[];
@@ -121,6 +124,9 @@ export function defineScene<C>(def: SceneDef<C>): Scene<C> {
     useWhen: def.useWhen,
     content: def.content,
     variants: def.variants,
+    peakVariant: def.variants.some((v) => v.id === def.peakVariant)
+      ? def.peakVariant
+      : def.variants[0].id,
     cues: def.cues,
     focalCue: def.focalCue,
     imageRoles: def.imageRoles,

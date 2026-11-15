@@ -45,6 +45,7 @@ export function sceneGate(
     look: style,
     durationMs: slot.endMs - slot.startMs,
     ...timing,
+    ...((slot.energy ?? project.energy) ? { energy: slot.energy ?? project.energy } : {}),
     ...(doc ? { doc } : {}),
   };
   return {

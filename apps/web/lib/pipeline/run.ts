@@ -1,7 +1,16 @@
-import { postPass, tagSpans, type TaggedSpan, type ValidatedParams } from '@motionpop/ai';
 import {
+  planVideo,
+  postPass,
+  tagSpans,
+  type PlannedVideo,
+  type TaggedSpan,
+  type ValidatedParams,
+} from '@motionpop/ai';
+import {
+  APP_CONFIG_DEFAULTS,
   EditorProjectSchema,
   type EditorProject,
+  type Look,
   type Slot,
   type SlotSuggestion,
   type Transcript,
@@ -13,6 +22,13 @@ import { isSilent, OUTPUT_SAMPLE_RATE, type DecodedAudio } from '../audio/decode
 import { buildEdl, cleanedDuration, retimeWords } from '../audio/edl';
 import { checkDuration, validateIntake } from '../audio/intake';
 import { prosody as analyseProsody, stressedCount, type Prosody } from '../audio/prosody';
+import { styleFor } from '../composition/project-to-compile';
+import {
+  applyPlan,
+  directorRequest,
+  planSummary,
+  type DirectorRequest,
+} from '../director/director';
 import type { ProjectRepository } from '../projects/repository';
 import {
   cleanupSummary,
@@ -61,7 +77,21 @@ export interface PipelineDeps {
   detect(words: Word[], spans: TaggedSpan[]): Promise<SlotSuggestion[]>;
   /** Component param validation for the post-pass (fills defaults, lists `needsInput`). */
   validateParams(componentId: string, params: Record<string, unknown>): ValidatedParams;
+  /**
+   * The director (spec 07 R6.1): `direct.plan` device first, then a free cloud plan if the
+   * server allows one, else the built-in rules. Default: the built-in rules only.
+   */
+  direct?(req: DirectorRequest): Promise<PlannedVideo>;
+  /** `imagesPerVideoMax` (Remote Config). */
+  imagesMax?: number;
 }
+
+/** The director without a model: the code-only plan, enforced (never throws). */
+export const rulesOnly = (req: DirectorRequest): Promise<PlannedVideo> =>
+  planVideo(null, req.input, {
+    cloudAllowed: () => Promise.resolve({ allowed: false, reason: 'unavailable' }),
+    seed: req.seed,
+  });
 
 /** A first version for every ready slot, so the inspector history works (spec 06 design). */
 export function firstVersions(
@@ -209,9 +239,37 @@ export async function runPipeline(
       validate: deps.validateParams,
     });
     onEvent({ type: 'slots', slots: placed });
+    onEvent({ type: 'step', step, state: 'done', detail: slotsSummary(placed.length) });
+
+    // Plan (spec 07 R6.1): one call plans the whole video, on the device first. Free, and it
+    // never stops processing: any failure plans with the built-in rules.
+    step = 'plan';
+    onEvent({ type: 'step', step, state: 'active', detail: 'Device first', route: 'device' });
+    const style = styleFor({ styleId: deps.styleId });
+    const req = directorRequest({
+      slots: placed,
+      suggestions,
+      transcript: { words: cleanedWords, ...(delivery ? { prosody: delivery } : {}) },
+      spans,
+      style,
+      energy: (style as Look).energy ?? 'steady',
+      imagesMax: deps.imagesMax ?? APP_CONFIG_DEFAULTS.imagesPerVideoMax,
+    });
+    let slots = placed;
+    let planned: { detail: string; route?: 'device' | 'cloud' } = { detail: 'Nothing to plan' };
+    if (req) {
+      const r = await (deps.direct ?? rulesOnly)(req).catch(() => rulesOnly(req));
+      checkAbort();
+      slots = applyPlan(placed, req.indices, r.plan);
+      const peak = slots[req.indices[r.plan.peak] ?? -1];
+      planned = {
+        detail: planSummary(r, peak?.startMs),
+        ...(r.source === 'rules' ? {} : { route: r.source }),
+      };
+    }
 
     // Store (spec 05 R4). Last chance to cancel before anything is written. A failure here
-    // shows on the suggest card, which stays active until the project is saved.
+    // shows on the plan card, which stays active until the project is saved.
     checkAbort();
     const written: string[] = [];
     try {
@@ -259,12 +317,12 @@ export async function runPipeline(
           ...(delivery ? { prosody: delivery } : {}),
         },
         originalTranscript: transcript(t.words, false),
-        ...firstVersions(placed, now),
+        ...firstVersions(slots, now),
         createdAt: now,
         updatedAt: now,
       });
       await deps.repo.save(project);
-      onEvent({ type: 'step', step, state: 'done', detail: slotsSummary(placed.length) });
+      onEvent({ type: 'step', step, state: 'done', ...planned });
       onEvent({ type: 'done', projectId: id });
       return { projectId: id };
     } catch (err) {

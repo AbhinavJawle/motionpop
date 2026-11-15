@@ -15,6 +15,11 @@ const step = (e: Energy, by: number): Energy =>
  */
 export function fallbackPlan(ctx: PlanContext): DirectorPlan {
   const n = ctx.slots.length;
+  // Own keys only (an id such as "toString" is not a scene), and each slot's first known one,
+  // the scene the enforcer will keep.
+  const known = (id: string) => (Object.hasOwn(ctx.scenes, id) ? ctx.scenes[id] : undefined);
+  const firstKnown = (i: number) =>
+    ctx.slots[i]?.candidates.find((c) => known(c) !== undefined) ?? ctx.slots[i]?.candidates[0];
   const peak = scorePeak(ctx.slots);
   const arc = ctx.slots.map((_, i) => ({
     slot: i,
@@ -26,12 +31,13 @@ export function fallbackPlan(ctx: PlanContext): DirectorPlan {
           ? step(ctx.energy, -1)
           : ctx.energy,
   }));
-  const scenes = ctx.slots.flatMap((s, i) =>
-    s.candidates[0] !== undefined ? [{ slot: i, sceneId: s.candidates[0] }] : [],
-  );
+  const scenes = ctx.slots.flatMap((_, i) => {
+    const sceneId = firstKnown(i);
+    return sceneId !== undefined ? [{ slot: i, sceneId }] : [];
+  });
   // Best score first (earlier on ties), never two neighbours while others are left.
   const capable = ctx.slots
-    .map((s, i) => ({ i, score: s.score, ok: ctx.scenes[s.candidates[0] ?? '']?.imageRole }))
+    .map((s, i) => ({ i, score: s.score, ok: known(firstKnown(i) ?? '')?.imageRole }))
     .filter((x) => x.ok)
     .sort((a, b) => b.score - a.score || a.i - b.i);
   const images: number[] = [];

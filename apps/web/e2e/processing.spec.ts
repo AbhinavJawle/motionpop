@@ -24,9 +24,12 @@ test.describe('Processing screen', () => {
     const steps = page.getByRole('list', { name: 'Processing steps' });
     await expect(steps).toContainText('Sample transcript · 22 words · 18.0s', { timeout: 15_000 });
     await expect(steps).toContainText('Removed 4 long pauses', { timeout: 15_000 });
+    await expect(steps).toContainText('Planned with built-in rules', { timeout: 15_000 });
     const states = await steps.locator('li').evaluateAll((els) => els.map((e) => e.dataset.state));
     console.log(`processing: steps ${states.join(',')} after ${Date.now() - t0} ms`);
-    expect(states).toEqual(['done', 'done', 'done', 'done']);
+    // Changed by spec 07 task 27: a fifth step, the director ("Planning the video"). Local mode
+    // has no model, so the built-in rules plan it.
+    expect(states).toEqual(['done', 'done', 'done', 'done', 'done']);
     await expect(steps).toContainText('Found 3 moments');
     // Changed by spec 07 task 27: the opening line is a hook-statement draft (suggested) and the
     // number a ready stat-punch (was one ready big-number).

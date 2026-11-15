@@ -24,8 +24,14 @@ export function compileSlot(slot: Slot, transcript: EditorProject['transcript'])
     params: slot.params,
   };
   if (!isScene(slot.componentId)) return base;
-  const { text: _text, ...timing } = sceneTiming(slot, transcript);
-  return { ...base, ...timing };
+  const t = sceneTiming(slot, transcript);
+  return {
+    ...base,
+    ...(t.words ? { words: t.words } : {}),
+    ...(t.stress ? { stress: t.stress } : {}),
+    ...(t.pauses ? { pauses: t.pauses } : {}),
+    ...(slot.energy ? { energy: slot.energy } : {}),
+  };
 }
 
 /**
@@ -37,6 +43,7 @@ export function previewCompileInput(project: EditorProject): CompileInput {
     format: project.format,
     durationMs: project.durationMs,
     style: styleFor(project),
+    ...(project.energy ? { energy: project.energy } : {}),
     mode: 'preview',
     slots: project.slots.filter(isRenderable).map((s) => compileSlot(s, project.transcript)),
   };

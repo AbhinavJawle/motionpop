@@ -3,7 +3,7 @@ import { PIPELINE_STEPS, type PipelineEvent, type PipelineStep, type StepState }
 
 /** What the Processing screen shows, folded from pipeline events (spec 05 R5). Pure. */
 export interface ProcessingState {
-  steps: Record<PipelineStep, { state: StepState; detail?: string }>;
+  steps: Record<PipelineStep, { state: StepState; detail?: string; route?: 'device' | 'cloud' }>;
   words: Word[];
   /** Stable key per word: its index in the first (original) word list, so re-timed words glide. */
   wordKeys: number[];
@@ -21,6 +21,7 @@ export const STEP_TITLES: Record<PipelineStep, string> = {
   clean: 'Cleaning audio',
   moments: 'Finding moments',
   suggest: 'Suggesting graphics',
+  plan: 'Planning the video',
 };
 
 export function initialProcessing(): ProcessingState {
@@ -53,7 +54,10 @@ export function reduceProcessing(s: ProcessingState, e: PipelineEvent): Processi
               : s.announcement;
       return {
         ...s,
-        steps: { ...s.steps, [e.step]: { state: e.state, detail: e.detail } },
+        steps: {
+          ...s.steps,
+          [e.step]: { state: e.state, detail: e.detail, ...(e.route ? { route: e.route } : {}) },
+        },
         announcement,
       };
     }

@@ -1,13 +1,20 @@
 import type { Slot, Word } from '@motionpop/schemas';
 
 /** The Processing screen's steps, in pipeline order (D-024: transcribe before cleaning). */
-export const PIPELINE_STEPS = ['transcribe', 'clean', 'moments', 'suggest'] as const;
+export const PIPELINE_STEPS = ['transcribe', 'clean', 'moments', 'suggest', 'plan'] as const;
 export type PipelineStep = (typeof PIPELINE_STEPS)[number];
 export type StepState = 'pending' | 'active' | 'done' | 'skipped' | 'failed';
 
 /** Events from `runPipeline` (internal, typed; nothing here crosses a trust boundary). */
 export type PipelineEvent =
-  | { type: 'step'; step: PipelineStep; state: Exclude<StepState, 'pending'>; detail?: string }
+  | {
+      type: 'step';
+      step: PipelineStep;
+      state: Exclude<StepState, 'pending'>;
+      detail?: string;
+      /** Where an AI step runs, for its route chip (hybrid-ai.md: show the route first). */
+      route?: 'device' | 'cloud';
+    }
   | { type: 'progress'; step: 'transcribe'; stage: 'loading' | 'transcribing'; percent?: number }
   | { type: 'words'; words: Word[]; durationMs: number }
   | { type: 'peaks'; peaks: Float32Array; bucketMs: number; durationMs: number }

@@ -1,6 +1,8 @@
 'use client';
 
 import { motion } from 'motion/react';
+import { Cloud, Zap } from 'lucide-react';
+import { Chip } from '@/components/ui/chip';
 import { Shimmer } from '@/components/ui/shimmer';
 import { cn } from '@/lib/cn';
 import type { StepState } from '@/lib/pipeline/events';
@@ -16,11 +18,14 @@ export function StepCard({
   title,
   state,
   detail,
+  route,
 }: {
   index: number;
   title: string;
   state: StepState;
   detail?: string;
+  /** An AI step's route (hybrid-ai.md: users always see where an action runs). */
+  route?: 'device' | 'cloud';
 }) {
   return (
     <motion.li
@@ -74,6 +79,20 @@ export function StepCard({
           >
             {detail}
           </motion.span>
+        )}
+        {route && state !== 'skipped' && state !== 'pending' && (
+          <Chip
+            tone={route === 'device' ? 'mint' : 'violet'}
+            icon={
+              route === 'device' ? (
+                <Zap strokeWidth={1.5} aria-hidden />
+              ) : (
+                <Cloud strokeWidth={1.5} aria-hidden />
+              )
+            }
+          >
+            {route === 'device' ? 'on-device' : 'cloud · free'}
+          </Chip>
         )}
         {state === 'skipped' && (
           <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] leading-[13px] text-text-3">

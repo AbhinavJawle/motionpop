@@ -7,7 +7,13 @@ import { INTAKE_LIMITS, INTAKE_MESSAGES } from '../audio/intake';
 import { MemoryProjectRepository, type ProjectRepository } from '../projects/repository';
 import { validateParams } from '../slots/validate-params';
 import { cleanupSummary, PipelineError, transcriptSummary, type PipelineEvent } from './events';
-import { runPipeline, type PipelineDeps, type PipelineInput, type TranscribeOutput } from './run';
+import {
+  rulesOnly,
+  runPipeline,
+  type PipelineDeps,
+  type PipelineInput,
+  type TranscribeOutput,
+} from './run';
 import { sampleInput } from './sample';
 
 const PROJECT_ID = 'p-test';
@@ -160,6 +166,14 @@ describe('runPipeline: normal upload', () => {
         ],
       },
       { type: 'step', step: 'suggest', state: 'done', detail: '1 slot found' },
+      // Spec 07 task 27: the director plans the video (no model here: the built-in rules).
+      { type: 'step', step: 'plan', state: 'active', detail: 'Device first', route: 'device' },
+      {
+        type: 'step',
+        step: 'plan',
+        state: 'done',
+        detail: 'Planned with built-in rules · peak at 0.5s',
+      },
       { type: 'done', projectId: PROJECT_ID },
     ]);
   });
@@ -456,6 +470,8 @@ describe('runPipeline: cancel', () => {
 });
 
 describe('runPipeline: store failures', () => {
+  // Changed by spec 07 task 27: the plan card is the last step now, so a failed save shows there
+  // (it was the suggest card).
   it('deletes the audio already written when repo.save fails', async () => {
     const h = makeHarness();
     const failing: ProjectRepository = {
@@ -468,18 +484,18 @@ describe('runPipeline: store failures', () => {
     h.deps.repo = failing;
     await expect(runPipeline(makeInput(), h.deps, h.onEvent)).rejects.toMatchObject({
       name: 'PipelineError',
-      step: 'suggest',
+      step: 'plan',
       message: "Couldn't save the project in this browser.",
     });
     expect(h.audioStore.size).toBe(0);
     expect(h.events.slice(-2)).toEqual([
       {
         type: 'step',
-        step: 'suggest',
+        step: 'plan',
         state: 'failed',
         detail: "Couldn't save the project in this browser.",
       },
-      { type: 'error', step: 'suggest', message: "Couldn't save the project in this browser." },
+      { type: 'error', step: 'plan', message: "Couldn't save the project in this browser." },
     ]);
     expect(h.events.some((e) => e.type === 'done')).toBe(false);
     expect(await h.repo.load(PROJECT_ID)).toEqual({ ok: false, error: 'not-found' });
@@ -500,7 +516,7 @@ describe('runPipeline: store failures', () => {
     const h = makeHarness({ audioStore: inner });
     h.deps.audioStore = flaky;
     await expect(runPipeline(makeInput(), h.deps, h.onEvent)).rejects.toMatchObject({
-      step: 'suggest',
+      step: 'plan',
     });
     expect(inner.size).toBe(0);
     expect(await h.repo.load(PROJECT_ID)).toEqual({ ok: false, error: 'not-found' });
@@ -524,7 +540,7 @@ describe('runPipeline: store failures', () => {
       },
     };
     await expect(runPipeline(makeInput(), h.deps, h.onEvent)).rejects.toMatchObject({
-      step: 'suggest',
+      step: 'plan',
       message: "Couldn't save the project in this browser.",
     });
   });
@@ -604,6 +620,41 @@ describe('runPipeline: slot detection (spec 06)', () => {
       expect.objectContaining({ id: 'v-s-2-1', slotId: 's-2', source: 'user', label: 'v1' }),
     ]);
     expect(timelineIssues(loaded.project)).toEqual([]);
+  });
+
+  it('plans the sample with the built-in rules: the stat is the peak, energy rises to it', async () => {
+    const { h, result } = await runSample();
+    await result;
+    const done = h.events.find((e) => e.type === 'step' && e.step === 'plan' && e.state === 'done');
+    expect(done).toMatchObject({
+      detail: expect.stringMatching(/^Planned with built-in rules · peak at \d/),
+    });
+    expect(done).not.toHaveProperty('route');
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    const [hook, stat] = loaded.project.slots;
+    expect(stat).toMatchObject({ params: { variant: 'hero' }, energy: 'lively' });
+    expect(hook).toMatchObject({ energy: 'steady' });
+    expect(['center', 'left', 'punch']).toContain(hook?.params.variant);
+    // The v1 version carries the planned score.
+    expect(loaded.project.versions[0]?.params).toMatchObject({ variant: 'hero' });
+  });
+
+  it("shows the model's route and falls back to the rules when the director throws", async () => {
+    const device = await runSample({
+      direct: (req) =>
+        rulesOnly(req).then((r) => ({ ...r, source: 'device' as const, model: 'nano' })),
+    });
+    await device.result;
+    expect(
+      device.h.events.find((e) => e.type === 'step' && e.step === 'plan' && e.state === 'done'),
+    ).toMatchObject({ detail: expect.stringMatching(/^Planned on your device/), route: 'device' });
+
+    const broken = await runSample({ direct: () => Promise.reject(new Error('boom')) });
+    await broken.result;
+    expect(
+      broken.h.events.find((e) => e.type === 'step' && e.step === 'plan' && e.state === 'done'),
+    ).toMatchObject({ detail: expect.stringMatching(/^Planned with built-in rules/) });
   });
 
   it('stores on-device prosody with one stress value per cleaned word', async () => {

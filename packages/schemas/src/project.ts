@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FormatSchema } from './format';
+import { EnergySchema } from './score';
 import { TranscriptSchema } from './transcript';
 
 const IntMsSchema = z.number().int().nonnegative();
@@ -45,6 +46,8 @@ export const SlotSchema = z
     currentVersionId: z.string().min(1).optional(),
     notes: z.array(FrameNoteSchema).default([]),
     sfx: z.array(z.object({ id: z.string().min(1), atMs: IntMsSchema })).optional(),
+    /** Scenes: this slot's energy from the director's curve (spec 07 R6.1); else the project's. */
+    energy: EnergySchema.optional(),
   })
   .refine((s) => s.endMs > s.startMs, {
     message: 'endMs must be greater than startMs',
@@ -177,6 +180,8 @@ export const EditorProjectSchema = z
     format: FormatSchema,
     fps: z.literal(30),
     styleId: z.string().min(1),
+    /** Beat energy for the whole video (spec 07); defaults to the look's. Slots may override. */
+    energy: EnergySchema.optional(),
     durationMs: z.number().int().positive(),
     voiceover: VoiceoverSchema,
     transcript: TranscriptSchema,

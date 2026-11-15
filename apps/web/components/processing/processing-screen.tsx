@@ -176,6 +176,7 @@ export function ProcessingScreen({ id }: { id: string }) {
                       title={STEP_TITLES[step]}
                       state={state.steps[step].state}
                       detail={state.steps[step].detail}
+                      {...(state.steps[step].route ? { route: state.steps[step].route } : {})}
                     />
                   ))}
                 </ol>

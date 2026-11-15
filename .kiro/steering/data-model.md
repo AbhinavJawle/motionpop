@@ -10,6 +10,7 @@ users/{uid}                      profile, credits (int), plan, settings { prefer
 users/{uid}/brandKits/{id}       name, logoPath, colors[], fonts { display, body }, sourceUrl
 users/{uid}/styles/{id}          user style packs + saved director skills (copies with edits)
 users/{uid}/usage/{eventId}      task, ranOn, model, credits, latencyMs, at
+users/{uid}/limits/{yyyy-mm-dd}  planCloud (free cloud director plans that UTC day), updatedAt; server-written only (spec 07)
 projects/{projectId}             ownerId, title, format, fps, durationMs, status, styleId, brandKitId,
                                  voiceover { src (active), durationMs, source: record|upload|tts|sample,
                                              originalSrc, originalDurationMs, cleanup },
@@ -59,6 +60,7 @@ interface Project {
   ownerId: string; title: string; format: Format; fps: 30;
   status: "draft" | "processing" | "ready" | "rendering" | "exported";
   styleId: string; brandKitId?: string;
+  energy?: "calm" | "steady" | "lively" | "hype";     // beat energy (spec 07); default: the look's
   voiceover?: Voiceover;
   captions: { enabled: boolean; presetId: "pop" | "clean" | "boxed" };
   audio: { musicId?: string; musicGainDb: number; ducking: boolean; autoSfx: boolean };
@@ -77,6 +79,7 @@ interface Slot {
   currentVersionId?: string;
   notes: FrameNote[];
   sfx?: { id: string; atMs: number }[];
+  energy?: "calm" | "steady" | "lively" | "hype";     // scenes: from the director's curve (spec 07)
 }
 
 interface FrameNote { id: string; tMs: number; shape: { kind: "circle" | "path"; points: number[] }; text: string; status: "open" | "fixed" }
@@ -111,7 +114,7 @@ Additional collections: `users/{uid}/credits/{txId}` (ledger), `projects/{id}/ch
 ## Security rules (sketch; real files `firestore.rules`, `storage.rules`)
 ```
 match /users/{uid} { allow read: if isOwner(uid); allow update: if isOwner(uid) && changedKeys().hasOnly(['displayName','photoURL','settings','lastSeenAt']); allow create, delete: if false; }
-match /users/{uid}/credits/{tx} | /usage/{e} { allow read: if isOwner(uid); allow write: if false; }
+match /users/{uid}/credits/{tx} | /usage/{e} | /limits/{day} { allow read: if isOwner(uid); allow write: if false; }
 match /users/{uid}/brandKits/{id} | /styles/{id} { allow read, write: if isOwner(uid); }
 // Never a generic users/{uid}/{sub=**} write rule: Firestore ORs matches, so it would open the ledger.
 match /projects/{pid} { allow read, write: if resource == null ? request.resource.data.ownerId == auth.uid : resource.data.ownerId == auth.uid; }

@@ -163,7 +163,7 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
             ...(slot.words ? { words: slot.words } : {}),
             ...(slot.stress ? { stress: slot.stress } : {}),
             ...(slot.pauses ? { pauses: slot.pauses } : {}),
-            ...(project.energy ? { energy: project.energy } : {}),
+            ...((slot.energy ?? project.energy) ? { energy: slot.energy ?? project.energy } : {}),
           } as SceneContext,
           parsed.data,
         );

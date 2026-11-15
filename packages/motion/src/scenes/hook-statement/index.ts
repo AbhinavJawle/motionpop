@@ -131,6 +131,7 @@ export const hookStatement = defineScene<HookStatementContent>({
       about: 'a small lead-in, then the emphasis words huge; best when the line ends on them',
     },
   ],
+  peakVariant: 'punch',
   cues: [
     { id: 'eyebrow', about: 'the tiny label above appears', optional: true, snap: true },
     { id: 'line', about: 'the line starts, on its first spoken word' },

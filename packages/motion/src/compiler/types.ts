@@ -16,6 +16,8 @@ export interface CompileSlot {
   stress?: number[];
   /** Scenes only: pauses in the delivery, relative to the slot start. */
   pauses?: { startMs: number; endMs: number }[];
+  /** Scenes only: this slot's energy from the director (spec 07 R6.1); else the project's. */
+  energy?: Energy;
 }
 
 export interface CompileInput {

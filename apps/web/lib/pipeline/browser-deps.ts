@@ -1,4 +1,6 @@
-import { detectLocal } from '@motionpop/ai';
+import { detectLocal, planVideo } from '@motionpop/ai';
+import { requestPlanAllowance } from '../ai/plan-allowance';
+import { getRouter } from '../ai/router-client';
 import { audioStore } from '../audio/audio-store';
 import { decodeForPipeline } from '../audio/decode';
 import { renderCleaned } from '../audio/render-cleaned';
@@ -43,5 +45,12 @@ export function browserPipelineDeps(): PipelineDeps {
     // on-device availability check, so processing never spends cloud credits unasked (R2.3).
     detect: (words, spans) => Promise.resolve(detectLocal(words, spans)),
     validateParams,
+    // Device first (free, unlimited), then one of the day's free cloud plans when the server
+    // allows it, else the built-in rules (spec 07 R6.1). Processing never spends credits.
+    direct: async (req) =>
+      planVideo(await getRouter().catch(() => null), req.input, {
+        cloudAllowed: requestPlanAllowance,
+        seed: req.seed,
+      }),
   };
 }

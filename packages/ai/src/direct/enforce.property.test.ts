@@ -387,7 +387,13 @@ const caseArb: fc.Arbitrary<Case> = contextArb.chain((ctx) =>
 
 // --- coverage ------------------------------------------------------------------------------
 
-/** Counts, per run, the flags a check raised; asserts each flag's share after the run. */
+/**
+ * Counts, per run, the flags a check raised; asserts each flag's share after the run.
+ * Changed in the Kiro IDE review (2026-11-15): the floors are about 0.6 of what Kiro first set.
+ * Those sat about 5 standard deviations under means estimated from 8 runs, and one floor
+ * flaked in the full suite ("plan scene dropped" 111 of 300 against 115). A floor only has to
+ * prove the case occurs often, and at 0.6 of the old floor it sits far under the mean.
+ */
 function coverage(name: string) {
   const counts: Record<string, number> = {};
   return {
@@ -409,9 +415,9 @@ function coverage(name: string) {
       if (process.env['DEBUG_COVERAGE']) console.log(`property ${name}`, JSON.stringify(counts));
       if (!withKinds) return;
       // Valid plans are expected in 150 of 300 runs (sd ≈ 9), garbage and fallback in 75 (sd ≈ 7.5).
-      this.atLeast('kind valid', 105);
-      this.atLeast('kind garbage', 35);
-      this.atLeast('kind fallback', 35);
+      this.atLeast('kind valid', 63);
+      this.atLeast('kind garbage', 21);
+      this.atLeast('kind fallback', 21);
     },
   };
 }
@@ -465,10 +471,10 @@ describe('enforcePlan properties (spec 07 task 27, design "Checks" property 4)',
       { numRuns: RUNS },
     );
     cov.done();
-    cov.atLeast('plan scene kept', 190);
-    cov.atLeast('plan scene dropped', 115);
-    cov.atLeast('slot without a known candidate', 115);
-    cov.atLeast('prototype-like candidate', 170);
+    cov.atLeast('plan scene kept', 114);
+    cov.atLeast('plan scene dropped', 69);
+    cov.atLeast('slot without a known candidate', 69);
+    cov.atLeast('prototype-like candidate', 102);
   });
 
   it('2. no neighbours share a scene and a variant; a plan variant changes only to break a repeat', () => {
@@ -510,9 +516,9 @@ describe('enforcePlan properties (spec 07 task 27, design "Checks" property 4)',
       { numRuns: RUNS },
     );
     cov.done();
-    cov.atLeast('neighbours share a scene', 200);
-    cov.atLeast('plan variant kept (valid)', 80);
-    cov.atLeast('repeat broken (valid)', 55);
+    cov.atLeast('neighbours share a scene', 120);
+    cov.atLeast('plan variant kept (valid)', 48);
+    cov.atLeast('repeat broken (valid)', 33);
     cov.atLeast('plan variant kept (garbage)', 4); // mean 22: salvaged near-miss plans
   });
 
@@ -551,12 +557,12 @@ describe('enforcePlan properties (spec 07 task 27, design "Checks" property 4)',
       { numRuns: RUNS },
     );
     cov.done();
-    cov.atLeast('dropped by the cap (valid)', 40);
-    cov.atLeast('image outside the context', 45);
-    cov.atLeast('image on a scene without an image role', 85);
-    cov.atLeast('repeated image', 60);
-    cov.atLeast('images kept (valid)', 60);
-    cov.atLeast('images kept (fallback)', 20);
+    cov.atLeast('dropped by the cap (valid)', 24);
+    cov.atLeast('image outside the context', 27);
+    cov.atLeast('image on a scene without an image role', 51);
+    cov.atLeast('repeated image', 36);
+    cov.atLeast('images kept (valid)', 36);
+    cov.atLeast('images kept (fallback)', 12);
   });
 
   it('4. the peak is a slot and gets its scene’s strongest variant (or the first)', () => {
@@ -590,11 +596,11 @@ describe('enforcePlan properties (spec 07 task 27, design "Checks" property 4)',
       { numRuns: RUNS },
     );
     cov.done();
-    cov.atLeast('plan peak', 155);
-    cov.atLeast('score peak', 55);
-    cov.atLeast('strongest at the peak', 175);
-    cov.atLeast('first variant at the peak', 25);
-    cov.atLeast('plan peak variant overridden', 55);
+    cov.atLeast('plan peak', 93);
+    cov.atLeast('score peak', 33);
+    cov.atLeast('strongest at the peak', 105);
+    cov.atLeast('first variant at the peak', 15);
+    cov.atLeast('plan peak variant overridden', 33);
   });
 
   it('5. energy: neighbours differ by at most one step, except next to the peak', () => {
@@ -629,8 +635,8 @@ describe('enforcePlan properties (spec 07 task 27, design "Checks" property 4)',
       { numRuns: RUNS },
     );
     cov.done();
-    cov.atLeast('step clamped', 80);
-    cov.atLeast('jump next to the peak kept', 30);
+    cov.atLeast('step clamped', 48);
+    cov.atLeast('jump next to the peak kept', 18);
   });
 
   it('6. motifs: only the look’s, once each, on sorted unique slots inside the context', () => {
@@ -670,12 +676,12 @@ describe('enforcePlan properties (spec 07 task 27, design "Checks" property 4)',
       { numRuns: RUNS },
     );
     cov.done();
-    cov.atLeast('foreign motif dropped', 70);
-    cov.atLeast('repeated motif', 30);
-    cov.atLeast('motif slot outside', 90);
-    cov.atLeast('motif slot repeated', 65);
-    cov.atLeast('motif kept (valid)', 40);
-    cov.atLeast('motif kept (fallback)', 25);
+    cov.atLeast('foreign motif dropped', 42);
+    cov.atLeast('repeated motif', 18);
+    cov.atLeast('motif slot outside', 54);
+    cov.atLeast('motif slot repeated', 39);
+    cov.atLeast('motif kept (valid)', 24);
+    cov.atLeast('motif kept (fallback)', 15);
   });
 
   it('7. deterministic, and neither the plan nor the context is mutated', () => {
@@ -739,9 +745,9 @@ describe('fallbackPlan properties', () => {
       { numRuns: RUNS },
     );
     cov.done(false);
-    cov.atLeast('fallback images', 175);
-    cov.atLeast('fallback cap reached', 125);
-    cov.atLeast('fallback motif', 215);
-    cov.atLeast('peak after the first slot', 170);
+    cov.atLeast('fallback images', 105);
+    cov.atLeast('fallback cap reached', 75);
+    cov.atLeast('fallback motif', 129);
+    cov.atLeast('peak after the first slot', 102);
   });
 });

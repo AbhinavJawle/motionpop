@@ -167,6 +167,7 @@ export const statPunch = defineScene<StatPunchContent>({
     { id: 'hero', about: 'number centred and as large as possible; best for the biggest moment' },
     { id: 'side', about: 'number on one side, label beside or under it; best with a longer label' },
   ],
+  peakVariant: 'hero',
   cues: [
     { id: 'context', about: 'the small set-up line appears', optional: true, snap: true },
     { id: 'number', about: 'the number lands, on the word that says it', leadMs: 900 },
