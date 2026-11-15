@@ -1,8 +1,10 @@
 'use client';
 
+import { detectSlots, tagSpans, type DetectSlotsResult } from '@motionpop/ai';
 import { compileProject, type CompileAssets } from '@motionpop/motion/compiler';
 import { editorialExplainer } from '@motionpop/motion/styles';
 import type { Word } from '@motionpop/schemas';
+import { getRouter } from '@/lib/ai/router-client';
 import { decodeTo16kMono } from '@/lib/audio/decode-16k';
 import { transcribeOnDevice } from '@/lib/transcribe/whisper-client';
 import { useEffect, useRef, useState } from 'react';
@@ -17,6 +19,7 @@ export default function SkeletonPage() {
   const [label, setLabel] = useState('Revenue growth since 2020');
   const [startMs, setStartMs] = useState(500);
   const [log, setLog] = useState<string[]>([]);
+  const [detected, setDetected] = useState<DetectSlotsResult | null>(null);
   const playerRef = useRef<HTMLElement | null>(null);
 
   const note = (line: string) => setLog((l) => [...l, line]);
@@ -61,6 +64,34 @@ export default function SkeletonPage() {
       );
     } catch (e: unknown) {
       note(`transcribe failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Spec 00 R2: slots.detect through the router (or the local detector), with ranOn shown. */
+  const detect = async () => {
+    try {
+      setBusy('Detecting…');
+      const spans = tagSpans(words);
+      const router = await getRouter().catch(() => null);
+      const res = await detectSlots(router, words, spans);
+      setDetected(res);
+      note(
+        res.source === 'ai'
+          ? `slots.detect ran on ${res.run.ranOn} (${res.run.model}) in ${res.run.latencyMs} ms, ${res.run.costCredits} credits, attempt ${res.run.attempts}: ${res.slots.length} slots`
+          : `slots.detect local fallback${res.error ? ` (${res.error})` : ''}: ${res.slots.length} slots`,
+      );
+      const first = res.slots[0];
+      const start = first && words[first.wordStart];
+      if (first?.componentId === 'big-number' && start) {
+        const p = first.params;
+        if (typeof p['value'] === 'number') setValue(p['value']);
+        if (typeof p['label'] === 'string') setLabel(p['label']);
+        setStartMs(start.startMs);
+      }
+    } catch (e: unknown) {
+      note(`detect failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(null);
     }
@@ -139,6 +170,14 @@ export default function SkeletonPage() {
           {busy ?? 'Transcribe (on-device)'}
         </button>
         <button
+          className="rounded-chip bg-card-2 px-4 py-2 font-medium disabled:opacity-40"
+          disabled={words.length === 0 || busy !== null}
+          onClick={() => void detect()}
+          data-testid="detect"
+        >
+          Detect slots
+        </button>
+        <button
           className="rounded-chip bg-ember px-4 py-2 font-medium text-bg disabled:opacity-40"
           disabled={!assets || !voice}
           onClick={compile}
@@ -161,6 +200,15 @@ export default function SkeletonPage() {
             </button>
           ))}
         </p>
+      )}
+      {detected && (
+        <pre
+          className="max-h-64 overflow-auto rounded-card bg-card p-3 font-mono text-xs text-text-2"
+          data-testid="detected"
+          data-source={detected.source}
+        >
+          {JSON.stringify(detected, null, 2)}
+        </pre>
       )}
       <hyperframes-player
         ref={playerRef}

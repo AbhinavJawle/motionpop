@@ -76,7 +76,7 @@ importers:
         version: 4.3.2(@types/node@24.19.2)
       '@hyperframes/player':
         specifier: 'catalog:'
-        version: 0.9.46
+        version: 0.9.46(@types/node@24.19.2)
       '@motionpop/ai':
         specifier: workspace:*
         version: link:../../packages/ai
@@ -94,7 +94,7 @@ importers:
         version: 3.1.1
       firebase:
         specifier: 13.3.0
-        version: 13.3.0(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+        version: 13.3.0(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       firebase-admin:
         specifier: 14.5.1
         version: 14.5.1(@firebase/app-compat@0.5.22)(@firebase/app@0.16.6)
@@ -201,6 +201,9 @@ importers:
       fast-json-patch:
         specifier: ^3.1.1
         version: 3.1.1
+      firebase:
+        specifier: 13.3.0
+        version: 13.3.0(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -4452,7 +4455,7 @@ snapshots:
       '@firebase/util': 1.15.3
       tslib: 2.9.1
 
-  '@firebase/crashlytics@0.1.1(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
+  '@firebase/crashlytics@0.1.1(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@firebase/app': 0.16.6
       '@firebase/app-types': 0.9.6
@@ -4667,7 +4670,7 @@ snapshots:
 
   '@firebase/rules-unit-testing@6.0.0(firebase@13.3.0(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1))':
     dependencies:
-      firebase: 13.3.0(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+      firebase: 13.3.0(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
 
   '@firebase/storage-compat@0.4.6(@firebase/app-compat@0.5.22)(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)':
     dependencies:
@@ -4826,7 +4829,7 @@ snapshots:
       - '@types/node'
       - canvas
 
-  '@hyperframes/engine@0.9.46':
+  '@hyperframes/engine@0.9.46(@types/node@24.19.2)':
     dependencies:
       '@hono/node-server': 2.1.8(hono@4.13.18)
       '@hyperframes/core': 0.9.46(@types/node@24.19.2)
@@ -4837,6 +4840,7 @@ snapshots:
       puppeteer-core: 25.17.0
       undici: 7.30.1
     transitivePeerDependencies:
+      - '@types/node'
       - bufferutil
       - canvas
       - proxy-agent
@@ -4868,17 +4872,18 @@ snapshots:
     transitivePeerDependencies:
       - canvas
 
-  '@hyperframes/player@0.9.46':
+  '@hyperframes/player@0.9.46(@types/node@24.19.2)':
     dependencies:
       '@hyperframes/core': 0.9.46(@types/node@24.19.2)
     transitivePeerDependencies:
+      - '@types/node'
       - canvas
 
   '@hyperframes/producer@0.9.46(@types/node@24.19.2)':
     dependencies:
       '@hono/node-server': 2.1.8(hono@4.13.18)
       '@hyperframes/core': 0.9.46(@types/node@24.19.2)
-      '@hyperframes/engine': 0.9.46
+      '@hyperframes/engine': 0.9.46(@types/node@24.19.2)
       '@hyperframes/lint': 0.9.46
       '@hyperframes/parsers': 0.9.46
       '@hyperframes/studio-server': 0.9.46(@types/node@24.19.2)
@@ -6535,7 +6540,7 @@ snapshots:
       - '@firebase/app-compat'
       - supports-color
 
-  firebase@13.3.0(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1):
+  firebase@13.3.0(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1):
     dependencies:
       '@firebase/ai': 3.1.0(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)
       '@firebase/analytics': 0.10.25(@firebase/app@0.16.6)
@@ -6547,7 +6552,7 @@ snapshots:
       '@firebase/app-types': 0.9.6
       '@firebase/auth': 1.13.10(@firebase/app@0.16.6)
       '@firebase/auth-compat': 0.6.15(@firebase/app-compat@0.5.22)(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)
-      '@firebase/crashlytics': 0.1.1(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+      '@firebase/crashlytics': 0.1.1(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@firebase/data-connect': 0.7.4(@firebase/app@0.16.6)
       '@firebase/database': 1.1.6
       '@firebase/database-compat': 2.1.8(@firebase/app-compat@0.5.22)(@firebase/app@0.16.6)

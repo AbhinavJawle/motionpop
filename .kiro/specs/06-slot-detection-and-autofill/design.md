@@ -59,6 +59,12 @@ The 400 ms gap is a suggestion rule only. Users can still place slots edge to ed
 - New event `{ type: 'slots'; slots }`. The word strip draws dashed slot cards above the pills, with a staggered pop-in.
 - `ready` slots get a version `{ source: 'user', costCredits: 0, label: 'v1' }` so the inspector history works.
 
+## AI detection (task 8, as built 2026-11-15)
+- `packages/ai/src/tasks/slots-detect.ts`: the task definition (PREFER_ON_DEVICE ≤ `routingSlotsDetectDeviceMaxWords`, else PREFER_IN_CLOUD; `modelStrong`; thinking `LOW`; cloud cost `max(1, ceil(words / 200))`; `cloudFallback: false`). Output is wrapped as `{ slots: SlotSuggestion[] }`, because some structured-output backends reject a top-level array.
+- `slotsDetectInput(words, spans)` leaves fillers out but keeps their indices. It sends the catalogue, the skills and `maxSlots = slotBudget(words)`.
+- `detectSlots(router | null, words, spans)` never throws. It drops unknown component or skill ids, skills that don't work with the component, and out-of-range words (`keepKnown`, R2.4). It falls back to `detectLocal` without a router, on any router error, or when nothing usable comes back. The caller still runs the post-pass.
+- Prompt v1 lives in `prompts/slots-detect.v1.ts` (a string module, see ai-tasks.md).
+
 ## Auto-fill (blocked part)
 `useAutoFill(projectId)` in the editor walks suggested slots in order. For each: set `generating`, call `component.fill` on-device through the router, validate, then add a version and set `ready`. It stops on unmount and skips slots edited since load. It ships behind `autoFill` in Remote Config (spec 01).
 
@@ -70,4 +76,4 @@ The 400 ms gap is a suggestion rule only. Users can still place slots edge to ed
   - The post-pass (R3.3): no overlaps, inside bounds, word-aligned, ≥ 400 ms gaps, limits respected, ids unique.
   - The tagger never tags fillers and never spans sentences.
   - Detection is deterministic.
-- **Integration:** the sample voiceover gives slots (2020 / 40 % → big-number ready) through the Processing screen. The perf test checks 3,000 words < 50 ms.
+- **Integration:** the sample voiceover gives slots (2020 / 40 % → big-number ready) through the Processing screen. Perf tests check 3,000 words: the tagger < 20 ms (R1.4), detection plus post-pass < 50 ms.

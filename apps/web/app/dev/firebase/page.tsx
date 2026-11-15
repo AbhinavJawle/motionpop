@@ -1,5 +1,6 @@
 'use client';
 
+import { detectSlots, tagSpans } from '@motionpop/ai';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,7 +11,9 @@ import {
   getDb,
   getFirebaseApp,
 } from '@/lib/firebase/client';
+import { getRouter } from '@/lib/ai/router-client';
 import { loadAppConfig } from '@/lib/firebase/remote-config';
+import { demoWords } from '@/lib/projects/fixture';
 
 type Status = 'idle' | 'running' | 'ok' | 'fail';
 interface Check {
@@ -19,7 +22,15 @@ interface Check {
   detail: string;
 }
 
-const CHECKS = ['config', 'app-check', 'remote-config', 'auth', 'firestore', 'ai-cloud'] as const;
+const CHECKS = [
+  'config',
+  'app-check',
+  'remote-config',
+  'auth',
+  'firestore',
+  'ai-cloud',
+  'ai-router',
+] as const;
 type CheckName = (typeof CHECKS)[number];
 
 const message = (err: unknown): string => (err instanceof Error ? err.message : String(err));
@@ -103,6 +114,17 @@ export default function FirebaseCheckPage() {
       const result = await model.generateContent('Reply with the single word: ready');
       const ms = Math.round(performance.now() - started);
       return `${config.modelFast} said "${result.response.text().trim()}" in ${ms} ms`;
+    });
+
+    // Spec 00 R2: slots.detect on the demo transcript through the router (structured output).
+    await step('ai-router', async () => {
+      const router = await getRouter();
+      if (!router) throw new Error('router unavailable');
+      const res = await detectSlots(router, demoWords, tagSpans(demoWords));
+      if (res.source !== 'ai') throw new Error(`fell back to local: ${res.error ?? '?'}`);
+      const s = res.slots[0];
+      const { ranOn, model, latencyMs, attempts } = res.run;
+      return `${res.slots.length} slots on ${ranOn} (${model}) in ${latencyMs} ms, attempt ${attempts}; first: ${s?.componentId} ${JSON.stringify(s?.params)}`;
     });
   }
 

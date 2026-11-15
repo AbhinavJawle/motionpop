@@ -58,6 +58,16 @@ run<T extends TaskId>(task: T, input: Input<T>, opts?: { mode?: InferenceMode })
 - Repair: on parse failure, one retry with the zod error appended; then `PREFER_IN_CLOUD`.
 - Credits are not charged in the skeleton.
 
+**As built (task 9, 2026-11-15, Claude Code):**
+- `run(task, input, opts)` takes the task definition object (`TaskDef`), not a string id, so input and output types flow from the zod schemas. `RunResult` also carries `attempts` (1 = first answer, 2 = repaired, 3 = cloud escalation).
+- `ranOn` comes from the SDK: `response.inferenceSource` (`on_device` | `in_cloud`) in `@firebase/ai` 3.1.0. A `PREFER_ON_DEVICE` call that lands in the cloud (no Nano) reports `cloud`, and the cloud cost applies.
+- The SDK's `InferenceMode` values are lowercase (`prefer_on_device`); our schema keeps the constant names and the provider maps them. On-device ignores `systemInstruction`, so the system text goes in as a `system` initial prompt, and the JSON Schema as `responseConstraint`.
+- Repair runs only after an invalid answer, not after a provider error. Cloud escalation is per task (`cloudFallback`). `slots.detect` sets it to false and falls back to `detectLocal` instead (spec 06 R2.3 supersedes R2.3 here: no surprise spend).
+- Kill switch: `ONLY_IN_CLOUD` tasks throw `kill-switch`; every other mode is pinned to `ONLY_ON_DEVICE`.
+- Per-task cloud thinking level. `slots.detect` uses `LOW`: on the demo, the default took 12 s and `LOW` about 3 s, with the same big-number.
+- The Firebase provider is a separate entry (`@motionpop/ai/firebase`) so server code can import the router without the client SDK. Usage events go to in-memory listeners. Persisting to `users/{uid}/usage` needs a server route (spec 13).
+- Live: `/dev/firebase` step `ai-router` and `/dev/skeleton` "Detect slots" show `ranOn`, model, latency and attempts.
+
 ## Whisper worker
 - `@huggingface/transformers` pipeline `automatic-speech-recognition`, model `onnx-community/whisper-base` (or `tiny.en` if too slow), `return_timestamps: "word"`, `device: "webgpu"` with WASM fallback.
 - Input: decode to 16 kHz mono Float32 with `OfflineAudioContext` on the main thread, transfer the buffer.

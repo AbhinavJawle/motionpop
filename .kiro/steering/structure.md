@@ -23,7 +23,7 @@ packages/motion/src/
   sfx/                    deterministic synthesized SFX
   scripts/check.ts        motion:check (stills + layout/contrast assertions), output in .check/ (gitignored)
   scripts/build-runtime.ts runtime bundle, fonts.json, textures.json → dist/
-packages/ai/src/          router.ts, tasks/*.ts, prompts/*.v1.md, cost.ts, providers/(firebase|claude).ts
+packages/ai/src/          router.ts, tasks/*.ts, prompts/*.v1.ts, cost.ts, providers/(firebase|claude).ts
 services/render/          Cloud Run service: Dockerfile, src/server.ts, src/render.ts, scripts/parity.ts
 skills/                   director skills (*.md)
 design/                   screens/*.png + figma-export.css (read-only)

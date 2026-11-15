@@ -457,3 +457,26 @@ Template:
   - It staged only its own files and left Claude Code's untracked files alone.
   - It reported two lint warnings in its run 24 test. Claude Code fixed them.
 <!-- /kiro-session:sess_4e7683c1-5256-4fa7-8bd1-3ce5d05cfdf1 -->
+
+<!-- kiro-session:sess_87ef2778-4510-4c7e-8b9f-80b8a1942339 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T08:49:23.081Z · last stop: 2026-11-15T08:56:32.501Z · session: sess_87ef2778-4510-4c7e-8b9f-80b8a1942339
+- commits since start: 
+  - 8f6bd65 feat(06-slot-detection-and-autofill): task 2 gazetteer and tagger
+- uncommitted changes: 
+  - `M packages/ai/package.json`
+  - ` M pnpm-lock.yaml`
+  - `?? packages/ai/src/prompts/`
+  - `?? packages/ai/src/providers/`
+  - `?? packages/ai/src/router.test.ts`
+  - `?? packages/ai/src/router.ts`
+  - `?? packages/ai/src/tasks/`
+- Summary (added in Claude Code after reviewing `run26.log` and commit 8f6bd65):
+  - Task: spec 06 task 2, `gazetteer.ts` + `tagger.ts`, plus an end-to-end `detectLocal(tagSpans(DEMO))` test appended to `detect-local.test.ts`.
+  - Result: `@motionpop/ai` 202 tests green. 41 tagger table cases, 17 gazetteer cases, 3 fast-check properties (no filler at a span edge, no span across a sentence, bounds, determinism, no input mutation). The demo transcript tags exactly `grew`, `forty percent` (40 %) and `2020.`, matching the hand-made spans.
+  - Perf: 3,000 words in 4.4 ms best of 5 (R1.4 target < 20 ms; the test asserts < 60 ms).
+  - Decisions it documented where the spec was silent: inner fillers allowed but never at a span edge; sentence-initial names need a second capitalised non-common word; `US` only as written; ambiguous places (turkey, jordan, georgia…) only when capitalised; a lone "one" is not a number; "from 2019 to 2023" stays two years so the trend line chart wins.
+  - Known gaps it reported: "U.S." and "Dr." end a sentence in `sentenceIndex`; ordinal lists across sentences aren't tagged; "Well, yes, and then" can tag as a comma list.
+  - It flagged a spec wording mismatch (50 ms vs 20 ms). Claude Code clarified design.md: the tagger budget is 20 ms, detection plus post-pass is 50 ms.
+  - It staged only its own files and left Claude Code's uncommitted router work alone.
+<!-- /kiro-session:sess_87ef2778-4510-4c7e-8b9f-80b8a1942339 -->

@@ -205,3 +205,20 @@ Template:
   - **Bug found:** the first lead-in widened the bar-chart slot over the neighbouring place span. Fixed by picking on the spans first and widening afterwards.
   - Shared `TaggedSpan` types live in `slots/types.ts`, so Kiro's tagger (task 2) and the detector agree.
 - **E2E hygiene:** Playwright's default hard kill orphaned the Firestore emulator's Java process (parent PID 1), which then blocked `test:rules` on port 8080. That happened twice, and once it also blocked Kiro. `gracefulShutdown: SIGTERM` lets firebase-tools stop it; I verified no orphans remain.
+
+## 2026-11-15 · Claude Code
+- **Spec 06 task 2 (Kiro run 26), reviewed:** the gazetteer and tagger landed with 202 package tests green. The demo transcript tags exactly the hand-made spans. Kiro flagged a 50 ms vs 20 ms wording clash in the spec, which I clarified: the tagger gets 20 ms, detection plus post-pass gets 50 ms.
+- **Spec 00 task 9 + spec 06 task 8: the AI router, live (Claude Code):**
+  - **What was built:**
+    - `packages/ai/src/router.ts`: `createRouter({ provider, config, onUsage })`. It validates input, picks the mode (call option, then Remote Config override, then task default), and asks for structured output (`z.toJSONSchema`). It parses with zod, repairs once after an invalid answer and escalates to the cloud only when the task allows it. The kill switch pins work to the device and blocks cloud-only tasks.
+    - `providers/firebase.ts` (separate `@motionpop/ai/firebase` entry), checked against the installed `@firebase/ai` 3.1.0 types. The SDK's `InferenceMode` values are lowercase strings, unlike our schema. On-device ignores `systemInstruction`, so it goes in as a `system` initial prompt. `ranOn` comes from `response.inferenceSource`.
+    - `tasks/slots-detect.ts` + prompt v1 + `detectSlots(router | null, …)`. That never throws: it filters unknown ids and falls back to `detectLocal`.
+    - Web: `lib/ai/router-client.ts`, a "Detect slots" button on `/dev/skeleton`, and an `ai-router` step on `/dev/firebase`.
+  - **Tests:**
+    - 15 router tests, including a fast-check property (200 runs) that the router never returns schema-invalid output, always reports usage once, and charges only cloud answers.
+    - 5 `slots.detect` tests and 2 provider tests (mocked SDK).
+  - **Live measurement** (cloud, `gemini-3.8-flash`, demo transcript, headless Chromium with no Nano):
+    - The first try was valid and gave big-number 40 % "Our revenue grew", but took **12.0 s** with default thinking.
+    - With thinking `LOW`, it took **3.5 s and 3.0 s**, still valid on the first attempt. Slot choice varies between runs (2–3 slots; once a kinetic-headline first), which is what the post-pass and the local fallback are for.
+  - **Bug found by a property test:** `planBootstrap` gave an empty display name for the email `@` (fast-check seed -1429429465, about 1 in 10 runs). It now falls back to "Creator", with a regression test.
+  - **Not done yet:** usage events stay in memory; writing `users/{uid}/usage` needs a server route because the rules block client writes (spec 13). On-device Nano is not measured yet: headless Chromium has no Nano, so every live call so far ran in the cloud.

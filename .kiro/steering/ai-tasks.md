@@ -11,7 +11,7 @@ General prompt rules (all tasks):
 - Output **JSON only**, matching the schema. No prose, no markdown fences.
 - **Never invent data.** Numbers, names, dates come only from the user's words or inputs. Missing → `needsInput`.
 - Keep outputs small (on-device context is limited). Pass compact inputs (word index + text + ms).
-- Prompts are versioned (`prompts/<task>.v1.md`); active version selectable in Remote Config.
+- Prompts are versioned (`prompts/<task>.v1.ts`, exported string constants, so no bundler loader is needed in Next, Vitest or Cloud Run); active version selectable in Remote Config.
 - AI Logic setup is in `tech.md`; Nano limits are in `hybrid-ai.md` (single-turn, text + JPEG/PNG, JSON output, ≤ 9,216 tokens). Use structured output (response schema) where supported; always still validate with zod.
 - Re-check the SDK against current docs (Context7 / `firebase-ai-logic-basics` skill) before changing a provider.
 

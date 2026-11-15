@@ -9,5 +9,5 @@ Tasks marked **[kiro]** are executed by Kiro CLI (`motionpop-builder`) and logge
 - [x] 5. `detect-local.ts`: deterministic detector (scores, budget, params, reasons) + unit tests. — R2.1, R2.2
 - [ ] 6. Pipeline integration: moments and suggest steps, `slots` event, dashed slot cards in the word strip, versions for ready slots; Pip bubble "N slots ready". — R4, R5.2
 - [ ] 7. **[kiro]** Update the e2e and perf tests: the sample yields its suggested slots in the editor; tagger + detect + post-pass < 50 ms on 3,000 words. — R4, NFR
-- [ ] 8. _(blocked: Firebase)_ `slots.detect` through the router with prompt v1, repair and fallback to `detectLocal`. — R2.3
-- [ ] 9. _(blocked: Firebase)_ `useAutoFill` with `component.fill` on-device. — R5.1, R5.3
+- [x] 8. `slots.detect` through the router with prompt v1, repair and fallback to `detectLocal`. — R2.3
+- [ ] 9. `useAutoFill` with `component.fill` on-device. — R5.1, R5.3

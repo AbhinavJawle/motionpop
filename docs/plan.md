@@ -122,7 +122,7 @@ packages/motion/         motion core (timeline, tweens, eases, stagger, text spl
                          components/<id>/ (params.ts zod, layouts per format, build, README, tests) · styles/<id>.json
                          compiler/ (project JSON → HyperFrames composition) · runtime/ (hf-seek bridge, captions overlay)
                          sfx/ (deterministic synthesized sound effects)
-packages/ai/             router.ts (device vs cloud), tasks/*, prompts/*.v1.md, cost.ts, providers/(firebase|claude)
+packages/ai/             router.ts (device vs cloud), tasks/*, prompts/*.v1.ts, cost.ts, providers/(firebase|claude)
 services/render/         Cloud Run: HyperFrames producer → MP4/WebM → Storage; progress → Firestore
 skills/                  director skills (*.md)
 design/                  screens/*.png + figma-export.css (read-only references)
