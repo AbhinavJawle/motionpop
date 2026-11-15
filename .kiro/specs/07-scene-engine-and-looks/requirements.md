@@ -93,7 +93,7 @@ _As a creator, I want the result to be good every single time._
 
 _As a viewer, I want the video to feel like one piece with rhythm, not a slideshow._
 
-1. **R6.1** THE SYSTEM SHALL run a director pass over all slots (one cloud call, or deterministic rules offline) that assigns scene and variant per slot with variety: no scene twice in a row, an energy curve across the video, and recurring motifs from the look.
+1. **R6.1** THE SYSTEM SHALL plan the whole video with one cheap AI call (`direct.plan`, on-device first, cloud fallback): an energy curve, the peak, scene and variant per slot, recurring motifs, and which slots get images. Code SHALL then enforce the hard rules on any plan (no repeats, image cap, candidates only); beat budget and read time are enforced by the engine. IF the call fails THEN a code-only plan is used. _(Founder change 2026-11-15: the AI plans, the code enforces.)_
 2. **R6.2** THE SYSTEM SHALL connect neighbouring slots with the look's transitions when they touch, and keep the camera alive across a slot.
 3. **R6.3** THE SYSTEM SHALL add look-defined sound cues at beats (synthesized, deterministic; mixing is spec 12).
 4. **R6.4** Director skills in `skills/` SHALL keep working: a skill maps to preferred scenes, variants and beat patterns.
@@ -124,7 +124,7 @@ Tier-2 free-form generation (spec 15, now the escape hatch), 3D scenes, characte
 
 1. Looks have original names; the references guide the craft only.
 2. Nov 30 scope: engine + 6 scenes + 2 polished looks (`field-notes`, `paper-collage`) + images. Export (spec 08) and the hybrid path must work by then. The rest lands before Dec 4.
-3. At most 6 images per video; every scene works without images; real price recorded in R4.5; images always show the cloud route and cost first.
+3. At most 6 images per video, confirmed once per video, not per image; every scene works without images; real price recorded in R4.5; images always show the cloud route and cost first.
 4. Motion rules loosened as in R8.2, with the read-time rule (R5.1b).
 5. Beat interval follows the energy setting (R5.1).
 6. Final renders wait for every image; only the preview uses placeholders (R4.4).

@@ -28,7 +28,7 @@ The design keeps everything that exists. **A scene is a `MotionComponent`.** `sl
 | `packages/motion/src/engine/` | `stage.ts`, `actors/*`, `behaviours/*`, `beats.ts`, `juice.ts`, `camera-track.ts`, `surfaces.ts`, `decor/*`, `materials/*` |
 | `packages/motion/src/scenes/<id>/` | `content.ts` (zod), `variants.ts` (layouts per format), `build.ts`, `samples.ts`, `README.md`, tests |
 | `packages/motion/src/looks/<id>/` | `look.json`, optional `materials.ts` / `decor.ts` overrides, fonts, `README.md` (provenance) |
-| `packages/ai` | `component.fill` gains scene content; `tasks/image-generate.ts`; `direct/variety.ts` (pure) |
+| `packages/ai` | `component.fill` gains scene content; `tasks/image-generate.ts`; `tasks/direct-plan.ts`; `direct/enforce.ts` and `direct/fallback.ts` (pure) |
 | `apps/web` | image pipeline (`lib/images/*`), asset store, export gate, actor drawer in the rail |
 
 `packages/motion/src/components/big-number` stays as an actor; `stat-punch` is the scene built on it. `styles/*.json` move to `looks/` with a re-export so nothing else changes.
@@ -209,10 +209,14 @@ score.images[] ─► cost chip (☁ N credits) ─► user confirms ─► imag
 
 - **Task `image.generate`** in `packages/ai`: ONLY_IN_CLOUD, never on-device, never automatic. It goes through the router's rules (kill switch, usage event, cost) with its own provider method, because the output is an image, not JSON. Firebase AI Logic call: `getGenerativeModel(ai, { model, generationConfig: { responseModalities: [ResponseModality.IMAGE], imageConfig: { aspectRatio, imageSize: '1K' } } })`, reading `response.inlineDataParts()`. Shape checked against the docs on 2026-11-15; re-check against the installed SDK types in the task.
 - **Prompt** = `look.image.recipe` with `{subject}` filled, plus fixed lines: one subject, plain solid background in the key colour, no text, no logos, no real people by name. The AI's `subject` is validated (length, no style words list) before it is used.
-- **Keying** (`apps/web/lib/images/key.ts`, in a worker): estimate the background from the border pixels, build an alpha matte by colour distance with a soft edge, remove spill. If the border is not uniform, or the matte keeps under 5 % or over 90 % of the pixels, keying is skipped and the image is used as a framed rectangle (`keyed: false`), which every image variant supports. No matting model in this spec.
+- **Cutouts: decided by a day-one spike** (build step 1, before any scene depends on it). Generate about 12 test images across `field-notes`, `paper-collage` and one token-level look (hair, glass, thin shapes, white objects), then compare at 100 % zoom on both a light and a dark surface:
+  1. colour keying alone (plain solid background in the prompt, border-estimated key colour, soft matte, spill removal);
+  2. keying plus a segmentation step: an on-device model through transformers.js (already a dependency), only if its licence is permissive (checked in the spike; a non-commercial model is not used);
+  3. the image model's own edit call ("same subject on pure white") as a second pass, if 1 and 2 both fail on hard subjects.
+  The spike records edge quality, time and cost per option in `docs/decisions.md` and picks the pipeline. Whatever wins, the guard stays: if the border is not uniform or the matte keeps under 5 % or over 90 % of the pixels, the image is used as a framed rectangle (`keyed: false`), which every image variant supports. Ragged cutouts are also softened by the looks themselves (white border, torn edge), but that is a bonus, not the plan.
 - **Treatment** is applied at build time by the `image` actor from `look.image.treatment`, so switching looks re-treats the same asset without regenerating.
 - **Asset store:** `users/{uid}/projects/{pid}/images/{hash}.png` in Storage (IndexedDB blob store in local mode). `hash = sha256(model, recipe version, subject, aspect)`; a hit skips generation and costs nothing (R4.5). The project keeps `assets: { id, hash, status: 'pending' | 'ready' | 'failed', keyed, w, h }`.
-- **Cap and cost:** at most `imagesPerVideoMax` (Remote Config, default 6) across the project. Each image costs `imageCredits` (Remote Config, default 2). The chip always reads `☁ N` and the confirm names the count: "Generate 3 images · ☁ 6". Real cost to us: $0.0336 per image (requirements R4.5).
+- **Cap and cost:** at most `imagesPerVideoMax` (Remote Config, default 6) across the project. Each image costs `imageCredits` (Remote Config, default 2). **One confirm per video:** after planning, a single card lists the planned images (slot, subject) with checkboxes and one button, "Generate 6 images · ☁ 12". Later single additions (a retry, one more image on a slot) show their own `☁ N` chip on the button, with no extra dialog. Real cost to us: $0.0336 per image (requirements R4.5).
 - **Preview:** a pending image shows the scene's image-free form with a small in-look shimmer on the spot where the image will land; when the asset is ready the slot recompiles and the image enters with its normal behaviour at its cue.
 - **Failure or block:** the asset becomes `failed`, the slot stays on the image-free form, and the inspector offers Retry and Upload instead.
 - **Export gate (spec 08 hook):** `canRender(project)` is true only when no asset is `pending`. The export modal waits ("Finishing 2 images…") and then renders; `failed` assets render the image-free form. The compiler's render mode throws if it is handed a pending asset, so a placeholder can never be exported.
@@ -222,9 +226,25 @@ score.images[] ─► cost chip (☁ N credits) ─► user confirms ─► imag
 ## AI flow
 
 1. **`slots.detect`** is unchanged in shape. The catalogue it sees is now generated from the scene registry (`id`, `useWhen`, built). The deterministic detector maps span kinds to scenes (number → `stat-punch`, two numbers or a list of values → `chart-story`, place → `map-journey`, comparison words with two subjects → `versus`, a named thing → `photo-evidence`, sentence openers → `hook-statement`).
-2. **Director (`packages/ai/src/direct/variety.ts`, pure code, no model call):** after the post-pass it walks the slots in order and (a) swaps a scene that repeats its neighbour when the span allows another, (b) assigns variants so no two neighbours share one, (c) marks at most `imagesPerVideoMax` slots as image candidates, highest score first, spread across the video. Deterministic from the project seed. An AI director can replace it later behind the same function.
+2. **Director: the AI plans, the code enforces** (founder change, 2026-11-15).
+   - **`direct.plan` task (one call per video).** PREFER_ON_DEVICE: the input is small (one line per slot: index, scene candidates, the spoken words, the tagger's span kinds, plus the look's motif list), so it fits Gemini Nano. Cloud (`modelFast`) is the fallback. It is the hybrid showcase: free, private, run once after slot detection, with the route chip shown on the Processing card ("Planning the video · ⚡ on-device").
+   - **Output (zod, enums and indices only):**
+     ```ts
+     { arc: { slot: number; energy: Energy }[],        // energy curve across the video
+       peak: number,                                     // the slot that is the emotional peak
+       scenes: { slot: number; sceneId: string; variant?: string }[],  // from each slot's candidates only
+       motifs: { motif: string; slots: number[] }[],    // look motifs to bring back (e.g. the red marker circle at the end)
+       images: number[],                                 // slots where an image really helps, best first
+       reasons?: string[] }                              // one short line per choice, shown in the plan card
+     ```
+   - **Enforcer (`packages/ai/src/direct/enforce.ts`, pure code)** runs on every plan, AI or not. It drops unknown ids and scenes that are not candidates for the slot. It breaks repeats (no scene or variant twice in a row). It trims `images` to `imagesPerVideoMax` and to slots whose scene has an image role. It clamps energy steps so neighbours differ by at most one step, except at the peak. It guarantees the peak slot gets the look's strongest variant. Beat budget and read time stay in the stage engine, so no plan can break them.
+   - **Fallback (`direct/fallback.ts`, pure code):** if the call fails, is invalid after one repair, or AI is unavailable, a code-only plan is built: peak = the highest-score slot, a rise-and-release energy curve around it, variants rotated by seed, images on the top-scoring image-capable slots spread across the video. The same enforcer runs on it. The Processing card then reads "Planned with built-in rules".
+   - **Cost:** free on both routes for the automatic run (one small call per processed video; we absorb the cloud fallback, so processing never spends credits unasked). A manual "Re-plan" in the editor costs 1 credit in the cloud and is free on-device.
+   - Per-slot energy from the arc overrides the project energy for that slot; the project setting shifts the whole curve up or down.
 3. **`component.fill`** (exists) now takes the scene's compact content schema, variant list, cue list, image roles and the slot's indexed words. Output is the score. Its router check parses `content` with the scene schema and verifies variant, cue and role ids. Auto-fill stays ONLY_ON_DEVICE and never asks for images; **Generate** stays ONLY_IN_CLOUD for 3 credits and may propose images, which the user confirms with their own cost chip.
-4. **Hybrid path by Nov 30:** on-device auto-fill of text scenes (free, image-free forms) → cloud Generate → cloud images. Each step shows its route chip first.
+4. **Hybrid path by Nov 30:** on-device plan for the whole video → on-device auto-fill of text scenes (free, image-free forms) → cloud Generate → cloud images. Each step shows its route chip first.
+
+**Where the AI is, in one line each:** it finds the moments (`slots.detect`), plans the video (`direct.plan`), writes every scene's score (`component.fill`), makes the images (`image.generate`), and edits by request (`edit.patch`, Pip). The engine, scenes and looks are the infrastructure that makes those small outputs look expensive.
 
 ## Checks
 
@@ -234,7 +254,7 @@ score.images[] ─► cost chip (☁ N credits) ─► user confirms ─► imag
   1. any schema-valid score for any scene compiles and is seek-pure;
   2. for random words, anchors, durations and energies, `scheduleBeats` keeps cue order, lands anchored cues within ± 80 ms when the slot allows it, never overlaps a read window, and leaves no gap longer than the energy interval;
   3. juice never targets a box inside a quiet window;
-  4. the director output never repeats a variant between neighbours and never exceeds the image cap;
+  4. for any plan (random valid, random garbage, or the fallback), the enforcer's output never repeats a scene or variant between neighbours, never exceeds the image cap, only uses each slot's candidates, and is deterministic;
   5. `key()` returns alpha in [0, 1], is deterministic, and reports `keyed: false` for non-uniform borders;
   6. `canRender` is false whenever any asset is pending.
 - **Parity:** the existing preview/render stills test gains one scene per polished look (torn edges and marks must match).
@@ -264,13 +284,13 @@ Build under 40 ms per slot and `seek` under 2 ms per slot on a mid laptop; keyin
 
 ## Build order (tasks.md will detail)
 
-1. Schemas (`score`, `look`, `asset`) + library evaluation. **[kiro]** property tests for schemas.
+1. Schemas (`score`, `look`, `asset`, `plan`) + library evaluation + **the cutout spike** (day one). **[kiro]** property tests for schemas.
 2. Stage engine: actors (text, number, shape), behaviours, `scheduleBeats`, quiet windows. **[kiro]** beat-scheduling properties.
 3. `stat-punch` + `hook-statement` on the engine with the token-level look; migration of `big-number`.
 4. Materials + decor + `field-notes`, then `paper-collage` (reference provenance in the READMEs).
 5. `chart-story`, `versus`.
 6. Images: `image.generate`, keying, asset store, cost UI, `photo-evidence`, export gate hook.
 7. `map-journey` (first to cut if time runs short, as before).
-8. Director variety, catalogue wiring into `slots.detect` / `component.fill`, juice tuning per energy, `motion:check` matrix. **[kiro]** check matrix and director properties.
+8. Director: `direct.plan` task (on-device first), enforcer, code fallback, Processing step and plan card; catalogue wiring into `slots.detect` / `component.fill`; juice tuning per energy; `motion:check` matrix. **[kiro]** check matrix and enforcer properties.
 
 Spec 08 (export) runs in parallel from step 3 on, because the Nov 30 demo needs both.
