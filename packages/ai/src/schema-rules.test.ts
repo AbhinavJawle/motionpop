@@ -11,6 +11,7 @@ import { z } from 'zod';
 import type { TaskDef } from './router';
 import type { SlotWord, TaggedSpan } from './slots/types';
 import { componentFillTask } from './tasks/component-fill';
+import { directPlan } from './tasks/direct-plan';
 import { editPatchTask, paramsSchemaSummary } from './tasks/edit-patch';
 import { slotsDetect, slotsDetectInput } from './tasks/slots-detect';
 import { transcribeCloud } from './tasks/transcribe-cloud';
@@ -189,6 +190,37 @@ const CASES: Case[] = [
       }),
   })),
   {
+    // Spec 07 task 27: one line per slot, 12 slots (about a minute of voiceover).
+    id: 'direct.plan',
+    run: () =>
+      measure(directPlan, {
+        route: 'device',
+        energy: 'steady',
+        slots: Array.from({ length: 12 }, (_, i) => ({
+          words: 'Our revenue grew forty percent since 2020',
+          kinds: i % 2 ? ['number'] : [],
+          candidates: [i % 2 ? 'stat-punch' : 'hook-statement'],
+          stress: 60,
+          score: 0.5,
+        })),
+        scenes: (['stat-punch', 'hook-statement'] as const).map((id) => {
+          const sc = scenes[id] as unknown as {
+            useWhen: string;
+            variants: { id: string; about: string }[];
+          };
+          return {
+            id,
+            about: sc.useWhen,
+            variants: sc.variants,
+            strongest: sc.variants[1]!.id,
+            imageRole: false,
+          };
+        }),
+        motifs: ['marker-circle', 'torn-strip'],
+        imagesMax: 3,
+      }),
+  },
+  {
     id: 'transcribe.cloud',
     run: () =>
       measure(transcribeCloud, {
@@ -238,7 +270,7 @@ describe('task schema rules (ai-tasks.md)', () => {
 
   it('covers every task the package exports', () => {
     expect([...new Set(results.map((r) => r.id))].sort()).toEqual(
-      ['component.fill', 'edit.patch', 'slots.detect', 'transcribe.cloud'].sort(),
+      ['component.fill', 'direct.plan', 'edit.patch', 'slots.detect', 'transcribe.cloud'].sort(),
     );
   });
 
