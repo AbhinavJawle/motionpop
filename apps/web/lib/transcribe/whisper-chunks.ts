@@ -1,39 +1,11 @@
-import type { Word } from '@motionpop/schemas';
+import { isFiller, type Word } from '@motionpop/schemas';
+
+export { isFiller };
 
 /** One word chunk as returned by transformers.js with `return_timestamps: "word"` (seconds; end can be null). */
 export interface WhisperChunk {
   text: string;
   timestamp: readonly [number | null, number | null];
-}
-
-const FILLERS = new Set([
-  'um',
-  'umm',
-  'uh',
-  'uhh',
-  'erm',
-  'er',
-  'ah',
-  'hmm',
-  'mm',
-  'mhm',
-  'uhm',
-  'ehm',
-  'err',
-  'hm',
-  'hmmm',
-  'mmm',
-  'ahh',
-]);
-
-/** True for a lone hesitation sound. Context-dependent fillers ("like", "you know") are spec 05's job. */
-export function isFiller(text: string): boolean {
-  return FILLERS.has(
-    text
-      .toLowerCase()
-      .replace(/[^a-z]/g, '')
-      .trim(),
-  );
 }
 
 /** Minimum word length in ms (R2.3). */

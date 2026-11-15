@@ -38,3 +38,32 @@ export const TranscriptSchema = z
     });
   });
 export type Transcript = z.infer<typeof TranscriptSchema>;
+
+const FILLERS: ReadonlySet<string> = new Set([
+  'um',
+  'umm',
+  'uh',
+  'uhh',
+  'erm',
+  'er',
+  'ah',
+  'hmm',
+  'mm',
+  'mhm',
+  'uhm',
+  'ehm',
+  'err',
+  'hm',
+  'hmmm',
+  'mmm',
+  'ahh',
+]);
+
+/**
+ * True for a lone hesitation sound ("um", "uh", "hmm"), ignoring case and punctuation. Shared by
+ * on-device and cloud transcription. Context-dependent fillers ("like", "you know") are not
+ * flagged here.
+ */
+export function isFiller(text: string): boolean {
+  return FILLERS.has(text.toLowerCase().replace(/[^a-z]/g, ''));
+}

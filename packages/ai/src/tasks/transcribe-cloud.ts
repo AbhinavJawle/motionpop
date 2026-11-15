@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Transcript, Word } from '@motionpop/schemas';
+import { isFiller, type Transcript, type Word } from '@motionpop/schemas';
 import {
   TRANSCRIBE_CLOUD_SYSTEM_V1,
   transcribeCloudPromptV1,
@@ -87,31 +87,8 @@ export const transcribeCloud: TaskDef<TranscribeCloudInput, TranscribeCloudOutpu
   media: (input) => input.audio,
 };
 
-/**
- * Hesitation sounds only. Mirrors `isFiller` in apps/web/lib/transcribe/whisper-chunks.ts, which
- * this package must not import; keep the two lists in step.
- */
-const FILLERS = new Set([
-  'um',
-  'umm',
-  'uh',
-  'uhh',
-  'erm',
-  'er',
-  'ah',
-  'hmm',
-  'mm',
-  'mhm',
-  'uhm',
-  'ehm',
-  'err',
-  'hm',
-  'hmmm',
-  'mmm',
-  'ahh',
-]);
-export const isFillerWord = (text: string): boolean =>
-  FILLERS.has(text.toLowerCase().replace(/[^a-z]/g, ''));
+/** Shared with on-device transcription (`isFiller` in `@motionpop/schemas`). */
+export const isFillerWord = isFiller;
 
 /**
  * Timings are "coarse" (`approx`) when any of these holds, over words with the clamped times:
