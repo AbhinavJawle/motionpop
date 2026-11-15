@@ -866,8 +866,12 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 
 <!-- kiro-session:sess_4ce6f9f4-5332-4d40-8c8b-c04dcf27a272 -->
 ### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
-- started: 2026-11-15T21:46:28.234Z · last stop: 2026-11-15T22:22:18.114Z · session: sess_4ce6f9f4-5332-4d40-8c8b-c04dcf27a272
+- started: 2026-11-15T21:46:28.234Z · last stop: 2026-11-15T23:10:07.801Z · session: sess_4ce6f9f4-5332-4d40-8c8b-c04dcf27a272
 - commits since start: 
+  - 1c33029 fix(07-scene-engine-and-looks): task 23 review, centred and larger versus, composition check
+  - b3d20fa docs(kiro): handoff §10 maps every editor rail panel to its spec
+  - 6f51b17 docs(kiro): handoff §9 lists the Kiro features to use for real
+  - 756893f docs: KIRO_LOG stop-hook entry for the task 23 headless run
   - 6cc042b feat(07-scene-engine-and-looks): task 23 versus scene
 - uncommitted changes: none
 <!-- /kiro-session:sess_4ce6f9f4-5332-4d40-8c8b-c04dcf27a272 -->
