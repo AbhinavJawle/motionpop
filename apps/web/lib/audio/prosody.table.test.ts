@@ -248,7 +248,9 @@ describe('prosody: properties', () => {
         for (const p of a.pauses) {
           expect(p.startMs).toBeGreaterThanOrEqual(prevEnd);
           expect(p.endMs - p.startMs).toBeGreaterThanOrEqual(PAUSE_MIN_MS);
-          expect(p.endMs).toBeLessThanOrEqual(audioMs);
+          // 1e-6: `length / rate * 1000` can come out a hair under a whole ms (1008.9999999999999
+          // for audio that is exactly 1009 ms), which failed this property about one run in ten.
+          expect(p.endMs).toBeLessThanOrEqual(audioMs + 1e-6);
           prevEnd = p.endMs;
         }
       }),

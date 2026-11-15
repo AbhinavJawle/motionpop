@@ -1,0 +1,65 @@
+{
+  "id": "field-notes",
+  "name": "Field Notes",
+  "tagline": "Evidence on the desk. Circle what matters.",
+  "tags": ["Documentary", "Maps", "Evidence"],
+  "description": "A reporter's desk: aged paper, heavy ink, red marker circles and handwritten notes.",
+  "colors": {
+    "bg": "#ECE4D2",
+    "ink": "#1B1916",
+    "muted": "#62594D",
+    "accent": "#D62A1C",
+    "accent2": "#1E5AA8",
+    "highlight": "#FFE04A",
+    "positive": "#2C7A4B",
+    "negative": "#C2261A",
+    "chart": ["#B9AE98", "#877C68", "#D62A1C"]
+  },
+  "fonts": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 800,
+    "hand": "Caveat"
+  },
+  "texture": { "grain": 0.06, "paper": true, "vignette": 0.14 },
+  "motion": {
+    "enterEase": "outExpo",
+    "moveEase": "inOutCubic",
+    "enterMs": 480,
+    "staggerMs": 45,
+    "holdMs": 900,
+    "camera": { "pushIn": 1.05 }
+  },
+  "shape": { "radius": 2, "stroke": 3 },
+  "allowPlayful": false,
+  "energy": "lively",
+  "personality": {
+    "preset": "snappy",
+    "enter": { "text": "mask", "number": "count", "shape": "draw" },
+    "overshoot": 0.05,
+    "popMax": 0.08,
+    "exitRatio": 0.6,
+    "snapMargin": 15
+  },
+  "camera": { "push": [1, 1.05], "snap": 0.06, "whip": false, "parallax": 14 },
+  "surfaces": {
+    "card": ["paper", "torn-edge", "shadow-soft"],
+    "photo": ["white-border", "tape", "tilt"],
+    "label": ["plain"],
+    "strip": ["paper", "torn-edge"]
+  },
+  "marks": {
+    "emphasis": "marker-circle",
+    "pointer": "marker-arrow",
+    "divider": "torn-rule",
+    "badge": "stamp"
+  },
+  "juice": ["decor-draw", "camera-snap", "camera-push"],
+  "image": {
+    "recipe": "{subject}, documentary photograph, soft natural daylight, slightly desaturated, realistic, 35mm film look",
+    "treatment": ["key", "white-border", "shadow-soft", "tilt"]
+  },
+  "sound": { "enter": "paper", "mark": "pen", "focal": "thud", "snap": "whoosh" },
+  "transitions": ["paper-wipe", "push"]
+}

@@ -5,6 +5,7 @@ import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { BUNDLED_FONTS } from '../src/fonts/font-faces.ts';
 import { textureDataUrls } from './textures.ts';
 
 const pkgDir = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -30,10 +31,10 @@ await copyFile(
 );
 // Fonts as base64 for the compiler's @font-face rules (family → woff2 base64).
 const fontDir = join(pkgDir, 'src/fonts');
-const fonts = {
-  Geist: (await readFile(join(fontDir, 'Geist-Variable.woff2'))).toString('base64'),
-  'Geist Mono': (await readFile(join(fontDir, 'GeistMono-Variable.woff2'))).toString('base64'),
-};
+const fonts: Record<string, string> = {};
+for (const [family, file] of Object.entries(BUNDLED_FONTS)) {
+  fonts[family] = (await readFile(join(fontDir, file))).toString('base64');
+}
 await writeFile(join(outDir, 'fonts.json'), JSON.stringify(fonts));
 // Seeded grain + paper tiles as PNG data URLs (see scripts/textures.ts).
 await writeFile(join(outDir, 'textures.json'), JSON.stringify(textureDataUrls()));

@@ -42,8 +42,8 @@ One task at a time. Each ends with typecheck, lint and tests green; motion work 
 
 ## F. Looks
 
-- [ ] 20. Materials (`paper`, `torn-edge`, `tape`, `white-border`, `shadow-soft`, `tilt`, `grain`) and decor (`marker-circle`, `marker-arrow`, `marker-underline`, `highlighter`, `stamp`, `torn-rule`), all seeded and identical in preview and render. Surface and mark resolution with plain fallbacks. — R3.1, R3.3
-- [ ] 21. Look `field-notes`: look.json, fonts (OFL, bundled, recorded), reference provenance in its README, tuned against tasks 13–14 in all three formats. — R3.2, R3.4, R3.5, R8.1
+- [ ] 20. Materials (`paper`, `torn-edge`, `tape`, `white-border`, `shadow-soft`, `tilt`, `grain`) and decor (`marker-circle`, `marker-arrow`, `marker-underline`, `highlighter`, `stamp`, `torn-rule`), all seeded and identical in preview and render. Surface and mark resolution with plain fallbacks. — R3.1, R3.3 _(In progress 2026-11-15. Done: seeded hand-drawn marks (`marker-circle`, `marker-underline`, `highlighter`, plain underline) that never cross text: a circle that would leave the frame or touch another line falls back to an underline. Not done: surface materials (`paper` strips, `torn-edge`, `tape`, `white-border`, `shadow-soft`, `tilt`), `marker-arrow`, `stamp`, `torn-rule`.)_
+- [ ] 21. Look `field-notes`: look.json, fonts (OFL, bundled, recorded), reference provenance in its README, tuned against tasks 13–14 in all three formats. — R3.2, R3.4, R3.5, R8.1 _(In progress 2026-11-15. Done: look file, Caveat hand font bundled (OFL), red marker marks, `stat-punch` passing `motion:check` in this look in all three formats, stills reviewed. Not done: surfaces, reference provenance README, tuning against `hook-statement`.)_
 - [ ] 22. Look `paper-collage`: stepped motion, torn strips, cut-out emphasis; same deliverables as task 21. Parity test gains one scene per polished look. — R3.2, R3.4, R8.1
 
 ## G. More scenes

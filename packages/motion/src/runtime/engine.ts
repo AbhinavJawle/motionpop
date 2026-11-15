@@ -70,7 +70,8 @@ const PLACEHOLDER_TEXT = "Couldn't render";
 /** CSS font shorthands to load: one per family (the bundled files are variable fonts, 100–900). */
 export function fontRequests(project: RuntimeProject): string[] {
   const { display, body, mono } = project.style.fonts;
-  const families = [...new Set([display, body, mono].map(primaryFamily))];
+  const hand = 'hand' in project.style.fonts ? project.style.fonts.hand : undefined;
+  const families = [...new Set([display, body, mono, ...(hand ? [hand] : [])].map(primaryFamily))];
   return families.map((f) => `400 16px "${f}"`);
 }
 

@@ -126,7 +126,8 @@ export function prosody(
         startMs--;
       while (
         endMs < i * FRAME_MS + FRAME_MS &&
-        at(endMs + 1) <= pcm.length &&
+        // Unrounded, so a pause can't end even half a sample past the audio.
+        ((endMs + 1) * sampleRate) / 1000 <= pcm.length &&
         rms(pcm, at(endMs), at(endMs + 1)) < quiet
       )
         endMs++;

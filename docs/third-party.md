@@ -19,6 +19,9 @@ Both hackathons require disclosure of pre-existing code and third-party resource
 | `@huggingface/transformers` 4.3.2 (+ onnxruntime-web) | Apache-2.0 (onnxruntime: MIT) | on-device transcription in a Web Worker |
 | Whisper base weights, ONNX export `onnx-community/whisper-base_timestamped` (from `openai/whisper-base`) | Apache-2.0 (upstream model card; the ONNX export lists no separate licence) | word-timed transcription, downloaded at runtime from the Hugging Face hub |
 | d3-geo, topojson-client | ISC/BSD | maps |
+| roughjs 4.6.6 | MIT | hand-drawn marks in looks (marker circle, underline). Always called with a non-zero seed: without one it uses `Math.random` |
+| perfect-freehand 1.2.3 | MIT | highlighter stroke outline |
+| Caveat variable woff2, latin subset, from `@fontsource-variable/caveat` 5.3.0 (bundled in `packages/motion/src/fonts`) | SIL OFL 1.1 (`OFL-Caveat.txt`) | handwriting font of the `field-notes` look |
 | Natural Earth data | Public domain | map shapes |
 | HyperFrames (`@hyperframes/player`, `producer`, `lint`, `gcp-cloud-run`) | Apache-2.0 | preview + rendering (brings Puppeteer/Chrome and FFmpeg) |
 | fast-check, vitest, playwright | MIT / Apache-2.0 | tests |

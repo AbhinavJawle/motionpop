@@ -20,7 +20,7 @@ import { scenes } from '../src/scenes';
 import { compileProject, type CompileSlot } from '../src/compiler';
 import type { MotionComponent } from '../src/contract';
 import { contains, safeArea, type Box } from '../src/core/safe-area';
-import { editorialExplainer, testInverted } from '../src/styles';
+import { editorialExplainer, looks, testInverted } from '../src/styles';
 
 interface Samples<P> {
   arbitrary: fc.Arbitrary<P>;
@@ -156,6 +156,34 @@ function buildCases(): Case[] {
     style: testInverted,
     keepStills: true,
   });
+  // Scenes also run in every polished look (spec 07 R5.2): the `show-*` cases with stills, and
+  // a share of the random ones.
+  if (id! in scenes) {
+    for (const look of Object.values(looks)) {
+      for (const [name, params] of Object.entries(samplesMod.edgeCases)) {
+        cases.push({
+          name: `${name}-ideal-default-${look.id}`,
+          params,
+          durationMs: ideal,
+          keyLabel: 'default',
+          style: look,
+          keepStills: name.startsWith('show-'),
+        });
+      }
+      fc.sample(samplesMod.arbitrary, { seed: SEED + 1, numRuns: Math.ceil(SAMPLES / 2) }).forEach(
+        (params, i) => {
+          cases.push({
+            name: `random${i}-${look.id}`,
+            params,
+            durationMs: ideal,
+            keyLabel: 'default',
+            style: look,
+            keepStills: false,
+          });
+        },
+      );
+    }
+  }
   fc.sample(samplesMod.arbitrary, { seed: SEED, numRuns: SAMPLES }).forEach((params, i) => {
     cases.push({
       name: `random${i}`,
@@ -306,7 +334,7 @@ async function main() {
       const { width: w, height: h } = FORMATS[format];
       const safe = safeArea(format, w, h);
       // Group cases by style (one composition per format and style).
-      for (const style of [editorialExplainer, testInverted]) {
+      for (const style of [editorialExplainer, testInverted, ...Object.values(looks)]) {
         const group = cases.filter((c) => c.style === style);
         if (group.length === 0) continue;
         let at = 0;

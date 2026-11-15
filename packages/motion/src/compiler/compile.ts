@@ -63,7 +63,13 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
       throw new Error(`slot ${s.id}: times must be integer ms with endMs > startMs`);
     }
   }
-  const families = [style.fonts.display, style.fonts.body, style.fonts.mono];
+  const hand = 'hand' in style.fonts ? style.fonts.hand : undefined;
+  const families = [
+    style.fonts.display,
+    style.fonts.body,
+    style.fonts.mono,
+    ...(hand ? [hand] : []),
+  ];
   for (const family of new Set(families.map(primaryFamily))) {
     if (typeof assets.fonts[family] !== 'string') {
       throw new Error(`font data missing for "${family}" (run build:runtime and pass fonts.json)`);

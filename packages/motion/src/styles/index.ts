@@ -1,6 +1,7 @@
-import { StylePackSchema, type StylePack } from '@motionpop/schemas';
+import { LookSchema, StylePackSchema, type Look, type StylePack } from '@motionpop/schemas';
 import { BUNDLED_FONTS } from '../fonts/font-faces';
 import editorialExplainerJson from './editorial-explainer.json' with { type: 'json' };
+import fieldNotesJson from './field-notes.json' with { type: 'json' };
 import testInvertedJson from './test-inverted.json' with { type: 'json' };
 
 /** Parses a pack and checks that every font family it names is bundled (spec 03, review F3). */
@@ -23,3 +24,20 @@ export const testInverted: StylePack = parseStylePack(testInvertedJson);
 export const stylePacks: Readonly<Record<string, StylePack>> = {
   [editorialExplainer.id]: editorialExplainer,
 };
+
+/** Parses a look (a style pack with the spec 07 craft blocks) and checks its fonts are bundled. */
+export function parseLook(raw: unknown): Look {
+  const look = LookSchema.parse(raw);
+  const { display, body, mono, hand } = look.fonts;
+  for (const family of [display, body, mono, ...(hand ? [hand] : [])]) {
+    if (!(family in BUNDLED_FONTS))
+      throw new Error(`look ${look.id}: font "${family}" is not bundled`);
+  }
+  return look;
+}
+
+/** Field Notes: a reporter's desk. Paper, ink, red marker, handwritten labels. */
+export const fieldNotes: Look = parseLook(fieldNotesJson);
+
+/** Polished looks (spec 07 R3.4). */
+export const looks: Readonly<Record<string, Look>> = { [fieldNotes.id]: fieldNotes };

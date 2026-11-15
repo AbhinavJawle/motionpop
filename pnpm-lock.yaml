@@ -76,7 +76,7 @@ importers:
         version: 4.3.2(@types/node@24.19.2)
       '@hyperframes/player':
         specifier: 'catalog:'
-        version: 0.9.46(@types/node@24.19.2)
+        version: 0.9.46
       '@motionpop/ai':
         specifier: workspace:*
         version: link:../../packages/ai
@@ -94,7 +94,7 @@ importers:
         version: 3.1.1
       firebase:
         specifier: 13.3.0
-        version: 13.3.0(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+        version: 13.3.0(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       firebase-admin:
         specifier: 14.5.1
         version: 14.5.1(@firebase/app-compat@0.5.22)(@firebase/app@0.16.6)
@@ -203,7 +203,7 @@ importers:
         version: 3.1.1
       firebase:
         specifier: 13.3.0
-        version: 13.3.0(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+        version: 13.3.0(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -229,6 +229,12 @@ importers:
       '@motionpop/schemas':
         specifier: workspace:*
         version: link:../schemas
+      perfect-freehand:
+        specifier: 1.2.3
+        version: 1.2.3
+      roughjs:
+        specifier: 4.6.6
+        version: 4.6.6
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -2719,6 +2725,9 @@ packages:
   guid-typescript@1.0.9:
     resolution: {integrity: sha512-Y8T4vYhEfwJOTbouREvG+3XDsjr8E3kIr7uf+JZ0BYloFsttiHU0WfvANVsR7TxNUJa/WpCnw/Ino/p+DeBhBQ==}
 
+  hachure-fill@0.5.2:
+    resolution: {integrity: sha512-3GKBOn+m2LX9iq+JC1064cSFprJY4jL1jCXTcpnfER5HYE2l/4EfWSGzkPa/ZDBmYI0ZOEj5VHV/eKnPGkHuOg==}
+
   happy-dom@21.0.4:
     resolution: {integrity: sha512-tFm+GaLBgo6o0awHnvHaNoraVo27qJ+2tZEtZ+cIa08hXbeitrxAJajLI05hsUy/2/YTKcUjQYzHe5mCcraLBw==}
     engines: {node: '>=20.0.0'}
@@ -3364,6 +3373,9 @@ packages:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
     engines: {node: '>=6'}
 
+  path-data-parser@0.1.0:
+    resolution: {integrity: sha512-NOnmBpt5Y2RWbuv0LMzsayp3lVylAHLPUTut412ZA3l+C4uw4ZVkQbjShYCQ8TCpUMdPapr4YjUqLYD6v68j+w==}
+
   path-exists@4.0.0:
     resolution: {integrity: sha512-ak9Qy5Q7jYb2Wwcey5Fpvg2KoAc/ZIhLSLOSBmRmygPsGwkVVt0fZa0qrtMz+m6tJTAHfZQ8FnmB4MG4LWy7/w==}
     engines: {node: '>=8'}
@@ -3378,6 +3390,9 @@ packages:
 
   path-parse@1.0.7:
     resolution: {integrity: sha512-LDJzPVEEEPR+y48z93A0Ed0yXb8pAByGWo/k5YYdYgpY2/2EsOsksJrq7lOHxryrVOn1ejG6oAp8ahvOIQD8sw==}
+
+  perfect-freehand@1.2.3:
+    resolution: {integrity: sha512-bHZSfqDHGNlPpgH2yxXgPHlQSPpEbo+qg7li0M78J9vNAi2yjwLeA4x79BEQhX44lEWpCLSFCeRZwpw0niiXPA==}
 
   picocolors@1.1.1:
     resolution: {integrity: sha512-xceH2snhtb5M9liqDsmEw56le376mTZkEX/jEb/RxNFyegNul7eNslCXP9FDj/Lcu0X8KEyMceP2ntpaHrDEVA==}
@@ -3410,6 +3425,12 @@ packages:
   pngjs@7.0.0:
     resolution: {integrity: sha512-LKWqWJRhstyYo9pGvgor/ivk2w94eSjE3RGVuzLGlr3NmD8bf7RcYGze1mNdEHRP6TRP6rMuDHk5t44hnTRyow==}
     engines: {node: '>=14.19.0'}
+
+  points-on-curve@0.2.0:
+    resolution: {integrity: sha512-0mYKnYYe9ZcqMCWhUjItv/oHjvgEsfKvnUTg8sAtnHr3GVy7rGkXCb6d5cSyqrWqL4k81b9CPg3urd+T7aop3A==}
+
+  points-on-path@0.2.1:
+    resolution: {integrity: sha512-25ClnWWuw7JbWZcgqY/gJ4FQWadKxGWk+3kR/7kD0tCaDtPPMj7oHu2ToLaVhfpnHrZzYby2w6tUA0eOIuUg8g==}
 
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
@@ -3545,6 +3566,9 @@ packages:
     resolution: {integrity: sha512-QIiV1J9d0pzN4jeeTH4sjPy0AZ6cAy2cG0ExeoE1+U8Rvj+hR3gYkokx0YbeUNGlZqiQJJ2utcETe0oKXwzsuA==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
+
+  roughjs@4.6.6:
+    resolution: {integrity: sha512-ZUz/69+SYpFN/g/lUlo2FXcIjRkSu3nDarreVdGGndHEBJ6cXPdKguS8JGxwj5HA5xIbVKSmLgr5b3AWxtRfvQ==}
 
   run-parallel@1.2.0:
     resolution: {integrity: sha512-5l4VyZR86LZ/lDxZTR6jqL8AFE2S0IFLMP26AbjsLVADxHdhB/c0GUsH+y39UfCi3dzz8OlQuPmnaJOMoDHQBA==}
@@ -4455,7 +4479,7 @@ snapshots:
       '@firebase/util': 1.15.3
       tslib: 2.9.1
 
-  '@firebase/crashlytics@0.1.1(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
+  '@firebase/crashlytics@0.1.1(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@firebase/app': 0.16.6
       '@firebase/app-types': 0.9.6
@@ -4670,7 +4694,7 @@ snapshots:
 
   '@firebase/rules-unit-testing@6.0.0(firebase@13.3.0(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1))':
     dependencies:
-      firebase: 13.3.0(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+      firebase: 13.3.0(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
 
   '@firebase/storage-compat@0.4.6(@firebase/app-compat@0.5.22)(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)':
     dependencies:
@@ -4829,7 +4853,7 @@ snapshots:
       - '@types/node'
       - canvas
 
-  '@hyperframes/engine@0.9.46(@types/node@24.19.2)':
+  '@hyperframes/engine@0.9.46':
     dependencies:
       '@hono/node-server': 2.1.8(hono@4.13.18)
       '@hyperframes/core': 0.9.46(@types/node@24.19.2)
@@ -4840,7 +4864,6 @@ snapshots:
       puppeteer-core: 25.17.0
       undici: 7.30.1
     transitivePeerDependencies:
-      - '@types/node'
       - bufferutil
       - canvas
       - proxy-agent
@@ -4872,18 +4895,17 @@ snapshots:
     transitivePeerDependencies:
       - canvas
 
-  '@hyperframes/player@0.9.46(@types/node@24.19.2)':
+  '@hyperframes/player@0.9.46':
     dependencies:
       '@hyperframes/core': 0.9.46(@types/node@24.19.2)
     transitivePeerDependencies:
-      - '@types/node'
       - canvas
 
   '@hyperframes/producer@0.9.46(@types/node@24.19.2)':
     dependencies:
       '@hono/node-server': 2.1.8(hono@4.13.18)
       '@hyperframes/core': 0.9.46(@types/node@24.19.2)
-      '@hyperframes/engine': 0.9.46(@types/node@24.19.2)
+      '@hyperframes/engine': 0.9.46
       '@hyperframes/lint': 0.9.46
       '@hyperframes/parsers': 0.9.46
       '@hyperframes/studio-server': 0.9.46(@types/node@24.19.2)
@@ -6540,7 +6562,7 @@ snapshots:
       - '@firebase/app-compat'
       - supports-color
 
-  firebase@13.3.0(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1):
+  firebase@13.3.0(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1):
     dependencies:
       '@firebase/ai': 3.1.0(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)
       '@firebase/analytics': 0.10.25(@firebase/app@0.16.6)
@@ -6552,7 +6574,7 @@ snapshots:
       '@firebase/app-types': 0.9.6
       '@firebase/auth': 1.13.10(@firebase/app@0.16.6)
       '@firebase/auth-compat': 0.6.15(@firebase/app-compat@0.5.22)(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)
-      '@firebase/crashlytics': 0.1.1(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)(@types/react@19.3.0)(next@16.4.6(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
+      '@firebase/crashlytics': 0.1.1(@firebase/app-types@0.9.6)(@firebase/app@0.16.6)(@types/react@19.3.0)(next@16.4.6(@babel/core@7.29.13)(@opentelemetry/api@1.9.1)(@playwright/test@1.65.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1))(react@19.3.1)
       '@firebase/data-connect': 0.7.4(@firebase/app@0.16.6)
       '@firebase/database': 1.1.6
       '@firebase/database-compat': 2.1.8(@firebase/app-compat@0.5.22)(@firebase/app@0.16.6)
@@ -6755,6 +6777,8 @@ snapshots:
   graceful-fs@4.2.11: {}
 
   guid-typescript@1.0.9: {}
+
+  hachure-fill@0.5.2: {}
 
   happy-dom@21.0.4:
     dependencies:
@@ -7396,6 +7420,8 @@ snapshots:
     dependencies:
       callsites: 3.1.0
 
+  path-data-parser@0.1.0: {}
+
   path-exists@4.0.0: {}
 
   path-expression-matcher@1.6.2:
@@ -7404,6 +7430,8 @@ snapshots:
   path-key@3.1.1: {}
 
   path-parse@1.0.7: {}
+
+  perfect-freehand@1.2.3: {}
 
   picocolors@1.1.1: {}
 
@@ -7424,6 +7452,13 @@ snapshots:
       playwright-core: 1.65.1
 
   pngjs@7.0.0: {}
+
+  points-on-curve@0.2.0: {}
+
+  points-on-path@0.2.1:
+    dependencies:
+      path-data-parser: 0.1.0
+      points-on-curve: 0.2.0
 
   possible-typed-array-names@1.1.0: {}
 
@@ -7627,6 +7662,13 @@ snapshots:
       '@rolldown/binding-wasm32-wasi': 1.2.19
       '@rolldown/binding-win32-arm64-msvc': 1.2.19
       '@rolldown/binding-win32-x64-msvc': 1.2.19
+
+  roughjs@4.6.6:
+    dependencies:
+      hachure-fill: 0.5.2
+      path-data-parser: 0.1.0
+      points-on-curve: 0.2.0
+      points-on-path: 0.2.1
 
   run-parallel@1.2.0:
     dependencies:

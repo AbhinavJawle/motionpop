@@ -15,6 +15,7 @@ import { progress } from '../core/interp';
 import { insetForCamera, safeArea, type Box } from '../core/safe-area';
 import { fontStack } from '../fonts/font-faces';
 import { scheduleBeats, type BeatPlan, type CueSpec, type SlotWordTime } from './beats';
+import { buildDecor } from './decor';
 import { cameraTrack, planJuice, type JuiceBeat, type JuicePlan } from './juice';
 
 /**
@@ -57,6 +58,8 @@ interface Props {
   /** Share clipped from the right / bottom (mask and wipe reveals). */
   clipR: number;
   clipB: number;
+  /** Share of a hand-drawn mark's stroke that is drawn (1 = complete). */
+  draw: number;
   text: string | null;
 }
 type Effect = (tMs: number, p: Props) => void;
@@ -184,7 +187,8 @@ export function stage(
 
   const actors: Actor[] = [];
   const cueActions = new Map<string, Action[]>();
-  const marks: { el: HTMLElement; effects: Effect[] }[] = [];
+  const marks: { el: HTMLElement | SVGSVGElement; effects: Effect[]; reveal: 'draw' | 'grow' }[] =
+    [];
 
   const fontFor = (role: TextRole): string => {
     const f = style.fonts;
@@ -233,9 +237,69 @@ export function stage(
     return actor;
   };
 
+  /** Rectangle of an actor's final text, in frame px (width is 0 in layout-less test DOMs). */
+  const textRect = (a: Actor): Box => {
+    const probe = doc.createElement('span');
+    probe.textContent = a.count ? formatCount(a.count.to, a.count.fmt) : a.el.textContent;
+    const keep = a.el.textContent;
+    a.el.replaceChildren(probe);
+    const tw = Math.min(a.box.width, probe.getBoundingClientRect().width);
+    a.el.textContent = keep;
+    const size = a.size || h * 0.05;
+    const x = a.align === 'left' ? a.box.x : a.box.x + (a.box.width - tw) / 2;
+    return { x, y: a.box.y + size * 0.08, width: tw, height: size * 1.02 };
+  };
+
+  const addMark = (a: Actor, decor: DecorId, atMs: number, durMs: number) => {
+    const fill = decor === 'highlighter';
+    const d = buildDecor(doc, decor, textRect(a), {
+      color: fill ? style.colors.highlight : style.colors.accent,
+      size: a.size || h * 0.05,
+      stroke: style.shape.stroke,
+      seed: ctx.seed + a.id.length,
+      radius: style.shape.radius,
+      frame: { x: 0, y: 0, width: w, height: h },
+      // Other text, as it is actually set (a short line leaves room beside it).
+      keepClear: actors
+        .filter((x) => x !== a && x.kind !== 'shape' && x.el.style.display !== 'none')
+        .map(textRect),
+    });
+    if (d.layer === 'under') a.el.before(d.el);
+    else a.el.after(d.el);
+    if (fill) a.el.dataset.on = 'highlight';
+    const mark = {
+      el: d.el,
+      reveal: d.reveal,
+      effects: [
+        (tMs: number, p: Props) => {
+          const e = enterEase(
+            progress(
+              stepMs > 0 && tMs < atMs + durMs ? Math.floor(tMs / stepMs) * stepMs : tMs,
+              atMs,
+              durMs,
+            ),
+          );
+          if (d.reveal === 'draw') p.draw *= e;
+          else p.scaleX *= e;
+        },
+      ] as Effect[],
+    };
+    marks.push(mark);
+    return mark;
+  };
+
   const api: Stage = {
     safe,
     text(id, content, slot, opts = {}) {
+      if (opts.role === 'label' && look?.fonts.hand) {
+        // Handwriting faces have small letters for their em size.
+        slot = {
+          ...slot,
+          max: Math.round(slot.max * 1.3),
+          min: Math.round(slot.min * 1.3),
+          lineHeight: 1,
+        };
+      }
       const { el, size } = place(
         id,
         slot,
@@ -410,19 +474,9 @@ export function stage(
                 sound: name,
               });
           } else {
-            const el = buildMark(doc, a, look?.marks?.[action.role], style, h);
-            a.el.before(el);
-            if (el.dataset.mark === 'highlighter') a.el.dataset.on = 'highlight';
+            // A mark is part of the landing: it draws behind or around the text, never over it.
             const dur = Math.max(1, Math.round(enterMs * 0.6));
-            // A mark is part of the landing: it draws behind or under the text, never over it.
-            marks.push({
-              el,
-              effects: [
-                (tMs, p) => {
-                  p.scaleX *= enterEase(progress(q(tMs, cue.landMs + dur), cue.landMs, dur));
-                },
-              ],
-            });
+            addMark(a, look?.marks?.[action.role] ?? 'highlighter', cue.landMs, dur);
             if (sound.mark) soundCues.push({ atMs: cue.landMs, kind: 'mark', sound: sound.mark });
           }
         }
@@ -437,7 +491,7 @@ export function stage(
 
       // Juice: only what this stage can actually show.
       const canSnap = cam.snap > 0;
-      const canDecor = marks.length > 0;
+      const canDecor = actors.some((a) => a.kind === 'text' && a.words > 1);
       const wanted = look?.juice ?? DEFAULT_JUICE;
       const able = wanted.filter(
         (j) =>
@@ -464,16 +518,28 @@ export function stage(
         if (j.id === 'camera-snap' && sound.snap)
           soundCues.push({ atMs: j.atMs, kind: 'snap', sound: sound.snap });
       }
-      const redraws = juice.beats.filter((j) => j.id === 'decor-draw');
-      const lastMark = marks[marks.length - 1];
-      if (lastMark && redraws.length > 0) {
-        // Re-draw the latest mark: it retracts a little and sweeps back in.
-        lastMark.effects.push((tMs, p) => {
-          for (const j of redraws) {
-            const x = progress(tMs, j.atMs, j.durMs);
-            if (x > 0 && x < 1) p.scaleX *= 0.55 + 0.45 * enterEase(x);
-          }
-        });
+      // decor-draw: after a line has been read, the look underlines it by hand.
+      const marked = new Set<Actor>();
+      for (const j of juice.beats.filter((b) => b.id === 'decor-draw')) {
+        const target = [...plan.cues]
+          .reverse()
+          .filter((c) => c.landMs < j.atMs)
+          .flatMap((c) =>
+            (cueActions.get(c.id) ?? []).flatMap((x) => (x.type === 'enter' ? [x.actor] : [])),
+          )
+          .find(
+            (a) =>
+              a.kind === 'text' && a.words > 1 && !marked.has(a) && a.el.style.display !== 'none',
+          );
+        if (!target) continue;
+        marked.add(target);
+        addMark(
+          target,
+          look?.marks?.emphasis === 'marker-circle' ? 'marker-underline' : 'underline',
+          j.atMs,
+          j.durMs,
+        );
+        if (sound.mark) soundCues.push({ atMs: j.atMs, kind: 'mark', sound: sound.mark });
       }
       const drifters = actors.filter((a) => a.kind === 'shape' && a.depth === 0);
       if (cam.parallax > 0) {
@@ -484,7 +550,7 @@ export function stage(
       if (sound.exit) soundCues.push({ atMs: exitStart, kind: 'exit', sound: sound.exit });
       soundCues.sort((x, y) => x.atMs - y.atMs);
 
-      const write = (el: HTMLElement, p: Props) => {
+      const write = (el: HTMLElement | SVGSVGElement, p: Props) => {
         el.style.opacity = String(p.opacity);
         el.style.transform = `translate(${p.tx}px,${p.ty}px) rotate(${p.rot}deg) scale(${p.scale * p.scaleX},${p.scale})`;
         el.style.clipPath =
@@ -503,6 +569,7 @@ export function stage(
           rot: 0,
           clipR: 0,
           clipB: 0,
+          draw: 1,
           text: null,
         });
         for (const a of actors) {
@@ -515,6 +582,10 @@ export function stage(
           const p = fresh();
           for (const fx of m.effects) fx(tMs, p);
           write(m.el, p);
+          if (m.reveal === 'draw') {
+            for (const path of Array.from(m.el.children))
+              (path as SVGElement).style.strokeDashoffset = String(1 - p.draw);
+          }
         }
       };
       seek(0);
@@ -529,36 +600,6 @@ export function stage(
     },
   };
   return api;
-}
-
-/** Plain marks. The hand-drawn ones (marker circle, stamp, torn rule) arrive with the looks. */
-function buildMark(
-  doc: Document,
-  a: Actor,
-  decor: DecorId | undefined,
-  style: BuildContext['style'],
-  frameH: number,
-): HTMLElement {
-  const el = doc.createElement('div');
-  const kind = decor === 'highlighter' || decor === undefined ? 'highlighter' : 'underline';
-  el.dataset.mark = kind;
-  // Width of the final text (0 in layout-less test DOMs).
-  const probe = doc.createElement('span');
-  probe.textContent = a.count ? formatCount(a.count.to, a.count.fmt) : a.el.textContent;
-  const keep = a.el.textContent;
-  a.el.replaceChildren(probe);
-  const textW = probe.getBoundingClientRect().width;
-  a.el.textContent = keep;
-  const size = a.size || frameH * 0.05;
-  const pad = Math.round(size * 0.06);
-  const mw = Math.min(a.box.width, Math.round(textW) + 2 * pad);
-  const x = a.align === 'left' ? a.box.x - pad : Math.round(a.box.x + (a.box.width - mw) / 2);
-  const [top, height, color] =
-    kind === 'highlighter'
-      ? [a.box.y + size * 0.52, size * 0.4, style.colors.highlight]
-      : [a.box.y + size * 1.02, Math.max(style.shape.stroke, size * 0.06), style.colors.accent];
-  el.style.cssText = `position:absolute;left:${x}px;top:${Math.round(top)}px;width:${mw}px;height:${Math.round(height)}px;background:${color};border-radius:${style.shape.radius}px;transform-origin:left center;`;
-  return el;
 }
 
 export type { JuiceBeat };
