@@ -23,9 +23,9 @@ One task at a time. Each ends with typecheck, lint and tests green; motion work 
 
 - [x] 8. Stage core: `stage.ts`, actors `text`, `number`, `shape` (depth layers, `set(props)`), behaviour families resolved from the look's motion personality, entrance intensity from stress, `compile()` returning a pure `seek` and a report. — R2.4, R3.3, R9.1 _(Marks draw behind or under their text at landing, as part of the cue; they are not juice. Plain highlighter and underline for now; hand-drawn marks arrive in task 20.)_
 - [x] 9. `beats.ts`: `scheduleBeats` (prosody snap for `snap: true` cues, land on the word, forced order, read time, optional cues dropped and reported, exit timing) and quiet windows. — R2.3, R5.1, R5.1b, R9.1
-- [ ] 10. **[kiro]** fast-check properties for task 9: order kept; anchored cues within ± 80 ms of their (snapped) word when the slot allows; snap never moves more than one word and never moves a `snap: false` cue; no overlap with a read window; deterministic. — R2.3, R5.1b, R9.1
+- [x] 10. **[kiro]** fast-check properties for task 9: order kept; anchored cues within ± 80 ms of their (snapped) word when the slot allows; snap never moves more than one word and never moves a `snap: false` cue; no overlap with a read window; deterministic. — R2.3, R5.1b, R9.1
 - [x] 11. `juice.ts` + `camera-track.ts`: budget fill per energy from `look.juice`; the read-hold rule (only slow, non-covering motion while any quiet window is open; camera push at most 3 %); fast juice prefers pauses; one camera track from camera cues. — R5.1, R5.1b, R6.2, R9.5 _(The stage only schedules juice it can show: camera push and snap, a mark re-draw, background parallax. `surface-flip` and `accent-sweep` need the materials of task 20. The camera is a scale track on `Composition.camera`, applied by the runtime.)_
-- [ ] 12. **[kiro]** Properties for task 11: no gap longer than the energy interval; no fast juice, cover or text movement inside a quiet window; camera scale change within 3 % across a quiet window; `assertSeekPure` on random stages. — R5.1, R5.3, R9.5
+- [x] 12. **[kiro]** Properties for task 11: no gap longer than the energy interval; no fast juice, cover or text movement inside a quiet window; camera scale change within 3 % across a quiet window; `assertSeekPure` on random stages. — R5.1, R5.3, R9.5
 
 ## D. First scenes
 
