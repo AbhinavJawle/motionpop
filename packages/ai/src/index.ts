@@ -6,3 +6,4 @@ export * from './router';
 export * from './tasks/slots-detect';
 export * from './tasks/edit-patch';
 export * from './tasks/transcribe-cloud';
+export * from './tasks/component-fill';
