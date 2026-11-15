@@ -12,6 +12,8 @@ import { hookStatement } from './hook-statement';
 import * as hookSamples from './hook-statement/samples';
 import { statPunch } from './stat-punch';
 import * as statSamples from './stat-punch/samples';
+import { versus } from './versus';
+import * as versusSamples from './versus/samples';
 import type { Scene } from './define';
 
 type AnyScene = Scene<unknown>;
@@ -24,6 +26,11 @@ const CASES = [
   {
     scene: hookStatement as unknown as AnyScene,
     arbitrary: hookSamples.arbitrary as fc.Arbitrary<unknown>,
+  },
+  // Added by spec 07 task 23: the same report and safe-default properties for versus.
+  {
+    scene: versus as unknown as AnyScene,
+    arbitrary: versusSamples.arbitrary as fc.Arbitrary<unknown>,
   },
 ];
 
@@ -235,6 +242,8 @@ describe('regressions found by the properties', () => {
 
 const token = fc.oneof(
   { arbitrary: fc.constantFrom('the', 'revenue', 'why', 'um', 'uh', 'since', 'grew'), weight: 4 },
+  // Comparison words, so versus reads its sides from the words as well as falling back.
+  { arbitrary: fc.constantFrom('vs', 'versus', 'or', 'against', 'cats', 'Dogs,'), weight: 2 },
   {
     arbitrary: fc.constantFrom(
       '40%',

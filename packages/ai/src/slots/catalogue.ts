@@ -99,7 +99,7 @@ export const SKILLS: readonly SkillEntry[] = [
     id: 'contrast-split',
     useWhen:
       'the narration compares two things (before/after, A vs B, us vs them, expectation vs reality)',
-    worksWith: ['bar-chart', 'big-number', 'kinetic-headline'],
+    worksWith: ['versus', 'bar-chart', 'big-number', 'kinetic-headline'],
     defaultDurationMs: 5000,
   },
   {
@@ -167,6 +167,17 @@ export const SCENES: readonly SceneEntry[] = [
     maxMs: 12000,
     built: true,
     replaces: ['kinetic-headline'],
+  },
+  {
+    id: 'versus',
+    name: 'Versus',
+    useWhen: 'the narration compares two things: A versus B, before and after, this or that',
+    minMs: 3400,
+    idealMs: 5800,
+    maxMs: 10000,
+    built: true,
+    // No component did this before (bar-chart compares values, not two named sides).
+    replaces: [],
   },
 ];
 

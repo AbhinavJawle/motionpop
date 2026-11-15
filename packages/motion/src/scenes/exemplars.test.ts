@@ -67,6 +67,20 @@ describe('example library (every exemplar is gated in CI)', () => {
       const { line, emphasis } = e.score.content;
       if (emphasis) expect(findPhrase(line.split(' '), emphasis).length, e.id).toBeGreaterThan(0);
     }
+    // versus (task 23): every word on screen is one the narration says.
+    const spoken = (s: string) =>
+      s
+        .toLowerCase()
+        .split(/\s+/)
+        .map((w) => w.replace(/[^\p{L}\p{N}']+/gu, ''))
+        .filter(Boolean);
+    for (const e of exemplars['versus'] as Exemplar<Record<string, string | undefined>>[]) {
+      const said = new Set(spoken(e.text));
+      const c = e.score.content;
+      for (const field of ['left', 'leftDetail', 'right', 'rightDetail', 'verdict'])
+        for (const w of spoken(c[field] ?? ''))
+          expect(said.has(w), `${e.id} ${field}: "${w}"`).toBe(true);
+    }
   });
 });
 

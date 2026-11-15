@@ -59,6 +59,7 @@ export function sceneGate(
 /** Which examples fit the slot: a number, a list, or a plain statement. */
 function exemplarKind(slot: Slot): ExemplarKind {
   if (slot.componentId === 'stat-punch') return 'number';
+  if (slot.componentId === 'versus') return 'comparison';
   if (slot.skillId === 'countdown-ranking') return 'list';
   return 'statement';
 }

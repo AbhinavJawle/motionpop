@@ -10,6 +10,7 @@ import {
   sceneDraft,
   sentenceIndex,
   slotBudget,
+  versusSides,
 } from './detect-local';
 import { tagSpans } from './tagger';
 import type { SlotWord, TaggedSpan } from './types';
@@ -362,6 +363,47 @@ describe('hook lines and scene drafts (spec 07 task 27)', () => {
       skillId: 'zoom-from-world-to-place',
     };
     expect(sceneDraft(other, DEMO, DEMO_SPANS)).toBe(other);
+  });
+
+  it('drafts a versus from the two sides as spoken, each cue on its side, or drops it', async () => {
+    // Spec 07 task 23. The draft must be a valid versus score (checked against the scene).
+    const { scenes } = await import('@motionpop/motion');
+    const w = words('So,', 'electric', 'cars', 'versus', 'petrol', 'cars.', 'Which', 'wins?');
+    expect(versusSides(w, 0, 7)).toEqual({
+      left: 'Electric cars',
+      right: 'Petrol cars',
+      leftWord: 1,
+      rightWord: 4,
+    });
+    const base = { reason: 'r', score: 0.7, params: { anything: true } } as const;
+    const vs = sceneDraft(
+      { ...base, wordStart: 1, wordEnd: 7, componentId: 'versus', skillId: 'contrast-split' },
+      w,
+      [],
+    );
+    expect(vs).toMatchObject({
+      params: {
+        content: { left: 'Electric cars', right: 'Petrol cars' },
+        beats: [
+          { cue: 'left', word: 0 },
+          { cue: 'right', word: 3 },
+        ],
+      },
+      needsInput: ['content'],
+    });
+    expect(scenes.versus?.params.safeParse(vs?.params).success).toBe(true);
+    // Grammar and fillers are skipped, "or" is not a separator, and one side alone is nothing.
+    expect(versusSides(words('rent', 'vs', 'buy'), 0, 2)).toMatchObject({ left: 'Rent' });
+    expect(versusSides(words('you', 'vs', 'the', 'rest'), 0, 3)).toBeNull();
+    expect(versusSides(words('more', 'or', 'less'), 0, 2)).toBeNull();
+    expect(versusSides(words('cats', 'versus'), 0, 1)).toBeNull();
+    expect(
+      sceneDraft(
+        { ...base, wordStart: 0, wordEnd: 2, componentId: 'versus', skillId: 'contrast-split' },
+        words('more', 'or', 'less'),
+        [],
+      ),
+    ).toBeNull();
   });
 });
 

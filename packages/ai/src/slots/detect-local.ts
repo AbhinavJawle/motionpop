@@ -110,6 +110,58 @@ export function hookLine(words: readonly SlotWord[], ws: number, we: number): st
   return line.length <= HOOK_MAX_CHARS ? line : null;
 }
 
+/** Words that say "A against B" (spec 07 task 23). "or" is left out: "more or less". */
+const VERSUS_WORDS = new Set(['vs', 'versus', 'against']);
+/** Grammar a versus side never starts or ends with. */
+const VERSUS_STOP = new Set(
+  (
+    'a an the to of for in on at by with and or but so than this that these those it its ' +
+    'i you we they he she is are was were be do does did should would could can will'
+  ).split(' '),
+);
+/** versus's name limits (its content schema): 1 to 3 words, at most 24 characters. */
+const VERSUS_NAME_WORDS = 2;
+const VERSUS_NAME_CHARS = 24;
+
+/**
+ * The two sides of a versus over words `ws..we` (spec 07 task 23): up to 2 spoken words right
+ * before and after the first "vs", "versus" or "against", fillers and grammar skipped, stopping at
+ * punctuation. Each side comes with the index of its first word (its cue lands there). Null when
+ * either side has no word, so the detector never suggests a versus it can't fill.
+ */
+export function versusSides(
+  words: readonly SlotWord[],
+  ws: number,
+  we: number,
+): { left: string; right: string; leftWord: number; rightWord: number } | null {
+  const bare = (t: string) => t.replace(/^[^\p{L}\p{N}$€£]+|[^\p{L}\p{N}%]+$/gu, '');
+  const ok = (w: SlotWord | undefined) =>
+    !!w && !w.filler && bare(w.text).length > 0 && !VERSUS_STOP.has(bare(w.text).toLowerCase());
+  const ends = (w: SlotWord) => /[.,;:!?…]$/.test(w.text.trim());
+  for (let i = ws + 1; i < we; i++) {
+    if (!VERSUS_WORDS.has(bare(words[i]?.text ?? '').toLowerCase())) continue;
+    const before: number[] = [];
+    for (let k = i - 1; k >= ws && before.length < VERSUS_NAME_WORDS; k--) {
+      if (!ok(words[k]) || (k < i - 1 && ends(words[k] as SlotWord))) break;
+      before.unshift(k);
+    }
+    const after: number[] = [];
+    for (let k = i + 1; k <= we && after.length < VERSUS_NAME_WORDS; k++) {
+      if (!ok(words[k])) break;
+      after.push(k);
+      if (ends(words[k] as SlotWord)) break;
+    }
+    const name = (ix: number[]) => {
+      const s = ix.map((k) => bare(words[k]?.text ?? '')).join(' ');
+      return s && s.length <= VERSUS_NAME_CHARS ? s[0]!.toUpperCase() + s.slice(1) : null;
+    };
+    const left = name(before);
+    const right = name(after);
+    if (left && right) return { left, right, leftWord: before[0]!, rightWord: after[0]! };
+  }
+  return null;
+}
+
 /** First and last word index of every sentence. */
 function sentenceRanges(sentence: readonly number[]): { start: number; end: number }[] {
   const out: { start: number; end: number }[] = [];
@@ -386,6 +438,24 @@ export function sceneDraft(
       'line',
       first,
     );
+  }
+  if (s.componentId === 'versus') {
+    // Spec 07 task 23: the two sides as spoken, each cue on its side's first word. Auto-fill
+    // writes the details and the verdict; without both sides there is nothing to compare.
+    const sides = versusSides(words, s.wordStart, s.wordEnd);
+    if (!sides) return null;
+    return {
+      ...s,
+      params: {
+        content: { left: sides.left, right: sides.right },
+        beats: [
+          { cue: 'left', word: sides.leftWord - s.wordStart },
+          { cue: 'right', word: sides.rightWord - s.wordStart },
+        ],
+        images: [],
+      },
+      needsInput: ['content'],
+    };
   }
   return s;
 }

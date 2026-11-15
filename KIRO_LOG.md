@@ -809,3 +809,39 @@ Template:
 - **Seen in the stills but not changed (pre-existing, for the founder):** the stat-punch `side` variant in 9:16 leaves "day" alone on the label's second line ("of trade sat still every / day") in every look. Labels are not balanced text, so the orphan check doesn't cover them.
 - **Not done:** task 21's Field Notes provenance section (a placeholder in the styles README).
 <!-- /kiro-ide:2026-11-15-request-2 -->
+
+<!-- kiro-cli:2026-11-15-task-23 -->
+### 2026-11-15 (night) · Kiro CLI, headless · agent: motionpop-builder · model: claude-opus-5.5 · spec 07 task 23 (`versus`)
+Run overnight without the founder; Claude Code reviews it afterwards. Written from this run's own output.
+- **Built:** the `versus` scene in `packages/motion/src/scenes/versus/` (content schema, layouts for 3 variants × 3 formats, cues and beats, `safe(words)`, samples, 6 exemplars, tests), registered in `scenes` and `exemplars`. Details are in the task 23 note in `tasks.md`.
+- **Decisions taken alone (for the founder to confirm or undo):**
+  - Variants `split` (safe default), `face-off` (peak) and `ledger`. The focal cue is `right`: the comparison is complete when the second side lands.
+  - The image-free tile is an initial letter on the look's `photo` surface (plain looks: a tile in `accent` / `accent2`). Face-off puts the names on the look's `card` instead of tiles.
+  - The VS disc is `ink`, not the accent. The first `motion:check` failed 57 cases: "VS" on the field-notes red reads 3.94:1 with paper and less with ink.
+  - Content is flat (`left`, `leftDetail`, …), not nested objects, so the score stays within depth 3 (ai-tasks.md schema rules).
+  - Exposing `versus` through the `SCENES` mirror makes the AI detector able to pick it, so `sceneDraft` now writes a versus from the spoken sides or drops the suggestion. Model params are never kept. "or" is not a separator there ("more or less"); the motion-side `safe(words)` does accept "or" because the gates check its result. The `contrast-split` skill now lists `versus` (catalogue and `skills/contrast-split.md`), because the catalogue test requires every scene to pair with a skill.
+  - The deterministic detector does not suggest `versus` yet. Wiring comparison spans to it belongs to the catalogue work and needs a product call on which comparisons qualify.
+- **Engine changes in `engine/stage.ts`, additive only:** `nudge(actor, dy)`; `surface(…, { box })` for a fixed tile box; `shape(…, { origin, behind, carries })`. Existing scenes were re-checked (below) and give the same counts as before.
+- **Found in the stills and fixed before committing:**
+  - 9:16 split and ledger were small and lost in the middle of the frame. Names reserved two lines and the stack shrank every row to fit, so names now reserve one line and may set two smaller ones.
+  - 1:1 details orphaned "deposit" (now balanced).
+  - The 1:1 face-off cards crowded the VS disc (wider gutter, smaller names, less card padding).
+  - The 16:9 ledger rule ran across an empty right half (narrower column).
+  - The paper-collage verdict strip touched the divider's end (more gap).
+- **My own mistakes in the run:** the first ledger re-centring code was wrong (a nonsense offset expression). I rewrote it before any test ran. A test expected a 27-letter word to become a truncated name; the scene correctly returns null for it, so the test was wrong and now says so. One parallel image read raced the contact-sheet script and failed; I reread the files.
+- **Checks run and read:**
+  - `npx prettier --check .` clean.
+  - `pnpm typecheck`: 5 tasks green.
+  - `pnpm lint`: 5 tasks, 0 warnings (after fixing one unused variable in my test).
+  - `pnpm -s turbo run test --force`: schemas 99, ai 322, motion 224, web 364 passed.
+  - `motion:check versus`: 237 cases × 3 formats, 0 failures, 711 warnings, all "focal already settled 80 ms before the key moment". That is the out-ease warning class hook-statement also has.
+  - `motion:check stat-punch`: 204 cases, 0 failures, 39 warnings. `motion:check hook-statement`: 248 cases, 0 failures, 746 warnings. Both are unchanged from the last run.
+  - `pnpm --filter @motionpop/web build` passed.
+- **Stills reviewed:** contact sheets of hold-end and key stills for every variant in 16:9, 9:16 and 1:1, in plain, `field-notes` and `paper-collage`.
+- **Not run:** Playwright (no UI flow changed) and the rules tests (no rules changed).
+- **Known issues left:**
+  - The `divider` mark role (`torn-rule`) is still unbuilt, so the divider is a plain muted line in every look.
+  - In 9:16 face-off without cards (plain look), the gap between a name and its detail is wide, because it is sized to clear the cards.
+  - Very long single-word names break mid-word at the minimum size (the same behaviour as hook-statement).
+- **Kiro features used:** the custom agent `motionpop-builder` headless on Kiro CLI; steering (handoff, motion principles, component contract, style-pack format, ai-tasks); the spec's `tasks.md` notes; property-based tests (versus joins the gate-report and safe-default properties; seek purity over random scores).
+<!-- /kiro-cli:2026-11-15-task-23 -->

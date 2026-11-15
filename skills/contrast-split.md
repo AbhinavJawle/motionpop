@@ -3,7 +3,7 @@ id: contrast-split
 name: Contrast Split
 version: 1
 use_when: the narration compares two things (before/after, A vs B, us vs them, expectation vs reality)
-works_with: [bar-chart, big-number, kinetic-headline]
+works_with: [versus, bar-chart, big-number, kinetic-headline]
 energy: medium
 default_duration: 5
 ---

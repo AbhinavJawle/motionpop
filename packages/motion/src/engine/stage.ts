@@ -173,6 +173,11 @@ export interface Stage {
    * height, as in happy-dom) nothing moves.
    */
   restack(actors: readonly (Actor | null)[], area: Box, bias?: number): void;
+  /**
+   * Move a placed actor down by `dy` px (up when negative). Layout only: call it after
+   * measuring and before surfaces, marks and shapes that follow the actor.
+   */
+  nudge(actor: Actor, dy: number): void;
   on(cue: string, ...actions: Action[]): void;
   compile(): StageComposition;
 }
@@ -199,12 +204,27 @@ export interface NumberOptions {
 export interface SurfaceOpts {
   /** Padding around the actors, as a share of frame height (default: from the text size). */
   pad?: { x: number; y: number };
+  /**
+   * A fixed box for the surface instead of one measured around the actors (a tile or a photo
+   * frame that holds a glyph). The actors still decide what the tilt must keep clear.
+   */
+  box?: Box;
 }
+export type ShapeColor = 'accent' | 'accent2' | 'highlight' | 'ink' | 'muted';
 export interface ShapeOptions {
   /** Colour token from the look. */
-  color?: 'accent' | 'accent2' | 'highlight' | 'ink' | 'muted';
+  color?: ShapeColor;
   radius?: number;
   depth?: 0 | 1 | 2;
+  /** Transform origin for scale entrances: the left edge (default, bars grow) or the centre. */
+  origin?: 'left' | 'center';
+  /** Put the shape behind this actor instead of on top of everything placed so far. */
+  behind?: Actor;
+  /**
+   * The `behind` text sits on the shape: it takes ink or bg, whichever reads better on the
+   * shape's colour, and the contrast check measures it there (`data-on`).
+   */
+  carries?: boolean;
 }
 
 const DEFAULT_JUICE: readonly JuiceId[] = ['camera-push', 'camera-snap'];
@@ -495,6 +515,11 @@ export function stage(
         y += x.h + (gaps[i] ?? 0);
       });
     },
+    nudge(a, dy) {
+      if (!dy) return;
+      a.box = { ...a.box, y: a.box.y + dy };
+      a.el.style.top = `${a.box.y}px`;
+    },
     text(id, content, slot, opts = {}) {
       if (opts.role === 'label' && look?.fonts.hand) {
         // Handwriting faces have small letters for their em size.
@@ -580,8 +605,16 @@ export function stage(
     shape(id, box, opts = {}) {
       const el = doc.createElement('div');
       el.dataset.actor = id;
-      el.style.cssText = `position:absolute;left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px;background:${style.colors[opts.color ?? 'accent']};border-radius:${opts.radius ?? style.shape.radius}px;transform-origin:left center;`;
-      root.append(el);
+      const color = style.colors[opts.color ?? 'accent'];
+      el.style.cssText = `position:absolute;left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px;background:${color};border-radius:${opts.radius ?? style.shape.radius}px;transform-origin:${opts.origin === 'center' ? 'center center' : 'left center'};`;
+      if (opts.behind) opts.behind.el.before(el);
+      else root.append(el);
+      if (opts.behind && opts.carries) {
+        const c = readableOn(color);
+        opts.behind.el.style.color = c;
+        opts.behind.el.dataset.on = opts.color ?? 'accent';
+        for (const part of opts.behind.parts ?? []) part.style.color = c;
+      }
       return add({
         id,
         kind: 'shape',
@@ -631,12 +664,19 @@ export function stage(
       const y0 = Math.max(my, Math.min(...rs.map((r) => r.y)) - py);
       const x1 = Math.min(w - mx, Math.max(...rs.map((r) => r.x + r.width)) + px);
       const y1 = Math.min(h - my, Math.max(...rs.map((r) => r.y + r.height)) + py);
-      const box = {
-        x: Math.round(x0),
-        y: Math.round(y0),
-        width: Math.round(x1 - x0),
-        height: Math.round(y1 - y0),
-      };
+      const box = opts.box
+        ? {
+            x: Math.round(opts.box.x),
+            y: Math.round(opts.box.y),
+            width: Math.round(opts.box.width),
+            height: Math.round(opts.box.height),
+          }
+        : {
+            x: Math.round(x0),
+            y: Math.round(y0),
+            width: Math.round(x1 - x0),
+            height: Math.round(y1 - y0),
+          };
       const sf = buildSurface(doc, look?.surfaces?.[kind], box, {
         kind,
         colors: style.colors,

@@ -169,7 +169,7 @@ const CASES: Case[] = [
         },
       }),
   },
-  ...(['stat-punch', 'hook-statement'] as const).map((id) => ({
+  ...(['stat-punch', 'hook-statement', 'versus'] as const).map((id) => ({
     // Scenes are filled through the same task, with their score schema as structured output.
     id: 'component.fill',
     run: () =>
