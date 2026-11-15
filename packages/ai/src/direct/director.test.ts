@@ -190,6 +190,38 @@ describe('enforcePlan (spec 07 R6.1)', () => {
     expect(out.motifs).toEqual([{ motif: 'torn-strip', slots: [2] }]);
   });
 
+  it('treats ids named like object properties as unknown (regression: "toString" crashed)', () => {
+    // Found by enforce.property.test.ts: `ctx.scenes[id]` also finds Object.prototype members,
+    // so a candidate such as "toString" passed as a known scene and its missing variants threw.
+    const ctx: PlanContext = {
+      ...CTX,
+      slots: [
+        { candidates: ['constructor', 'stat-punch'], score: 0.9 },
+        { candidates: ['toString'], score: 0.4 },
+        { candidates: ['__proto__', 'photo-evidence'], score: 0.2 },
+      ],
+    };
+    const out = enforcePlan(
+      {
+        arc: [],
+        peak: 0,
+        scenes: [
+          { slot: 0, sceneId: 'constructor', variant: 'x' },
+          { slot: 1, sceneId: 'toString' },
+        ],
+        motifs: [],
+        images: [1, 2],
+      },
+      ctx,
+    );
+    expect(out.slots.map((s) => [s.sceneId, s.variant])).toEqual([
+      ['stat-punch', 'hero'],
+      ['', ''],
+      ['photo-evidence', expect.any(String) as string],
+    ]);
+    expect(out.images).toEqual([2]);
+  });
+
   it('salvages what parses from a broken plan, and plans an empty video as empty', () => {
     const broken = {
       arc: [{ slot: 1, energy: 'hype' }, { slot: 'x' }],

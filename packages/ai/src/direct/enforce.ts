@@ -102,6 +102,14 @@ export function scorePeak(slots: readonly PlanSlotInfo[]): number {
   return best;
 }
 
+/**
+ * The scene with this id, by own key only: a bare `ctx.scenes[id]` also finds Object.prototype
+ * members, so an unknown id such as "toString" or "constructor" would pass as a scene.
+ */
+function sceneById(ctx: PlanContext, id: string): PlanScene | undefined {
+  return Object.hasOwn(ctx.scenes, id) ? ctx.scenes[id] : undefined;
+}
+
 /** First variant of `scene` that differs from every id in `avoid`, starting at `from`. */
 function differing(scene: PlanScene, from: number, avoid: readonly string[]): string | undefined {
   const n = scene.variants.length;
@@ -119,13 +127,13 @@ export function enforcePlan(raw: unknown, ctx: PlanContext): EnforcedPlan {
 
   // 1. Scene per slot: the plan's first pick that is one of the slot's known candidates.
   const sceneOf = (i: number): string => {
-    const cands = ctx.slots[i]?.candidates.filter((c) => ctx.scenes[c] !== undefined) ?? [];
+    const cands = ctx.slots[i]?.candidates.filter((c) => sceneById(ctx, c) !== undefined) ?? [];
     const pick = plan.scenes.find((s) => s.slot === i && cands.includes(s.sceneId));
     return pick?.sceneId ?? cands[0] ?? '';
   };
   const sceneIds = Array.from({ length: n }, (_, i) => sceneOf(i));
   const wanted = (i: number): string | undefined => {
-    const scene = ctx.scenes[sceneIds[i] as string];
+    const scene = sceneById(ctx, sceneIds[i] as string);
     const pick = plan.scenes.find((s) => s.slot === i && s.sceneId === sceneIds[i]);
     return pick?.variant && scene?.variants.includes(pick.variant) ? pick.variant : undefined;
   };
@@ -136,7 +144,7 @@ export function enforcePlan(raw: unknown, ctx: PlanContext): EnforcedPlan {
   // 3. Variants: the peak gets its scene's strongest; the others keep the plan's choice or a
   //    seeded rotation; then no two neighbours share a scene and a variant.
   const variants: (string | undefined)[] = new Array<string | undefined>(n).fill(undefined);
-  const peakScene = ctx.scenes[sceneIds[peak] as string];
+  const peakScene = sceneById(ctx, sceneIds[peak] as string);
   if (peakScene) {
     variants[peak] = peakScene.variants.includes(peakScene.strongest)
       ? peakScene.strongest
@@ -144,7 +152,7 @@ export function enforcePlan(raw: unknown, ctx: PlanContext): EnforcedPlan {
   }
   for (let i = 0; i < n; i++) {
     if (i === peak) continue;
-    const scene = ctx.scenes[sceneIds[i] as string];
+    const scene = sceneById(ctx, sceneIds[i] as string);
     if (!scene || scene.variants.length === 0) continue;
     const rot = Math.abs(Math.trunc(ctx.seed) + i) % scene.variants.length;
     const first = wanted(i) ?? (scene.variants[rot] as string);
@@ -176,7 +184,7 @@ export function enforcePlan(raw: unknown, ctx: PlanContext): EnforcedPlan {
   for (const i of plan.images) {
     if (images.length >= Math.max(0, Math.floor(ctx.imagesMax))) break;
     if (i >= n || images.includes(i)) continue;
-    if (ctx.scenes[sceneIds[i] as string]?.imageRole) images.push(i);
+    if (sceneById(ctx, sceneIds[i] as string)?.imageRole) images.push(i);
   }
 
   // 6. Motifs: the look's own, once each, on known slots.
