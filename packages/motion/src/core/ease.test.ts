@@ -93,4 +93,43 @@ describe('countAt', () => {
       ),
     );
   });
+
+  // Regression (Kiro IDE, 2026-11-15): a big-number property failed once in a full forced run.
+  // A seed loop over 24,000 runs didn't hit it (fc.double rarely lands on a rounding half), so
+  // the half values are generated on purpose here: negative halves at each precision made the
+  // counter show the final value from its first frame.
+  it('never shows the final value early for fractional and half values, either sign', () => {
+    const half = fc
+      .tuple(fc.integer({ min: -2000, max: 2000 }), fc.integer({ min: 0, max: 2 }))
+      .map(([n, d]) => ({ to: (n + 0.5) / 10 ** d, decimals: d }));
+    const any = fc
+      .tuple(fc.integer({ min: -200_000, max: 200_000 }), fc.integer({ min: 0, max: 2 }))
+      .map(([n, d]) => ({ to: n / 100, decimals: d }));
+    fc.assert(
+      fc.property(
+        fc.oneof(half, any),
+        fc.constantFrom(0, 0, 1, -1, 2.5),
+        fc.integer({ min: 1, max: 5_000 }),
+        fc.integer({ min: 0, max: 4_999 }),
+        ({ to, decimals }, from, dur, beforeRaw) => {
+          const fmt = { decimals };
+          const final = formatCount(to, fmt);
+          const shown = countAt(beforeRaw % dur, 0, dur, from, to, fmt);
+          if (formatCount(from, fmt) === final) expect(shown).toBe(final);
+          else expect(shown, `${from} → ${to} at ${decimals} decimals`).not.toBe(final);
+          expect(countAt(dur, 0, dur, from, to, fmt)).toBe(final);
+        },
+      ),
+      { numRuns: 2000 },
+    );
+  });
+
+  it('counts -0.05 at one decimal instead of showing "-0.1" from the start (regression)', () => {
+    expect(countAt(0, 0, 1000, 0, -0.05, { decimals: 1 })).toBe('0.0');
+    expect(countAt(999, 0, 1000, 0, -0.05, { decimals: 1 })).toBe('0.0');
+    expect(countAt(1000, 0, 1000, 0, -0.05, { decimals: 1 })).toBe('-0.1');
+    expect(countAt(0, 0, 1000, 0, -0.5, { decimals: 0 })).toBe('0');
+    // One unit before the final display value, not two: -2.5 shows -2 just before "-3".
+    expect(countAt(999, 0, 1000, 0, -2.5, { decimals: 0 })).toBe('-2');
+  });
 });

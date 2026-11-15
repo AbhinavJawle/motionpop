@@ -40,6 +40,9 @@ export const arbitrary: fc.Arbitrary<Score> = fc
       value: fc.oneof(
         fc.integer({ min: -999, max: 999_999 }),
         fc.double({ min: -1000, max: 100_000, noNaN: true }).map((v) => Math.round(v * 100) / 100),
+        // Rounding halves, which uniform doubles almost never hit: -0.05 at one decimal once made the
+        // counter show its final value from the first frame (fixed in core/count.ts, 2026-11-15).
+        fc.constantFrom(-0.05, -0.5, -2.5, 0.05, 0.5, -0.15),
       ),
       prefix: fc.option(fc.constantFrom('$', '€', '£', '+'), { nil: undefined }),
       suffix: fc.option(fc.constantFrom('%', 'M', 'k', 'bn', 'x'), { nil: undefined }),

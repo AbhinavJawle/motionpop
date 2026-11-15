@@ -38,13 +38,22 @@ export function countAt(
   fmt: CountFormat = {},
   ease: Ease = outExpo,
 ): string {
-  if (tMs >= startMs + durMs) return formatCount(to, fmt);
+  const final = formatCount(to, fmt);
+  if (tMs >= startMs + durMs) return final;
+  // Nothing to count when the start already reads as the final value.
+  if (formatCount(from, fmt) === final) return final;
   const scale = 10 ** (fmt.decimals ?? 0);
-  const target = Math.round(to * scale);
-  if (Math.round(from * scale) === target) return formatCount(to, fmt);
+  // The display rounds half away from zero (toLocaleString); `Math.round` rounds half up, so
+  // -0.05 at 1 decimal became 0, equal to `from`, and the counter showed "-0.1" from the start.
+  // Found by a flaky big-number property (2026-11-15); the target now rounds like the display.
+  const target = Math.sign(to) * Math.round(Math.abs(to) * scale);
   const raw = tween(tMs, startMs, durMs, from, to, ease) * scale;
   // Round toward `from`; the 1e-9 guard keeps exact steps (float noise) from dropping a unit.
-  const stepped = to >= from ? Math.floor(raw + 1e-9) : Math.ceil(raw - 1e-9);
-  const v = (to >= from ? Math.min(stepped, target - 1) : Math.max(stepped, target + 1)) / scale;
+  const up = to >= from;
+  const stepped = up ? Math.floor(raw + 1e-9) : Math.ceil(raw - 1e-9);
+  let v = (up ? Math.min(stepped, target - 1) : Math.max(stepped, target + 1)) / scale;
+  // Belt and braces: binary floats and the display's decimal rounding can still disagree by a
+  // unit; never show the final string before the landing.
+  for (let k = 0; k < 2 && formatCount(v, fmt) === final; k++) v += (up ? -1 : 1) / scale;
   return formatCount(v, fmt);
 }
