@@ -503,3 +503,25 @@ Template:
   - It also flagged that placing and widening one slot at a time can starve a lower-score neighbour. Claude Code changed this to two passes: every slot gets its minimum first, then slots widen towards their ideal in score order. A regression test fails on the old code and passes on the new.
   - The local `qe.tmp.mjs` in the uncommitted list was a Claude Code scratch script, removed after use.
 <!-- /kiro-session:sess_c43d1e89-acd7-4b19-8c11-dc439128d235 -->
+
+<!-- kiro-session:sess_c38eabb7-03f4-4f27-a37a-eeb4b63a1e41 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T09:13:10.209Z · last stop: 2026-11-15T09:15:01.063Z · session: sess_c38eabb7-03f4-4f27-a37a-eeb4b63a1e41
+- commits since start: 
+  - 5539ba9 feat(05-audio-pipeline): task 11 transcribe.cloud task (packages/ai)
+- uncommitted changes: 
+  - `M apps/web/lib/pipeline/browser-deps.ts`
+  - ` M apps/web/lib/pipeline/events.ts`
+  - ` M apps/web/lib/pipeline/processing-state.ts`
+  - ` M apps/web/lib/pipeline/run.test.ts`
+  - ` M apps/web/lib/pipeline/run.ts`
+  - `?? apps/web/lib/slots/`
+- Summary (added in Claude Code after reviewing `run28.log` and commit 5539ba9):
+  - Task: the `packages/ai` half of spec 05 task 11. That is the `transcribe.cloud` task (ONLY_IN_CLOUD, 1 credit per started minute, a check for empty, overlapping or out-of-range words) plus `toTranscript`, which builds a schema-valid Transcript with clamping and an `approx` timing flag.
+  - It renamed the router and provider `image` input to `media` (image or audio MIME types), with tests for an inline `audio/wav` part.
+  - Result: `@motionpop/ai` 263 tests green, including a fast-check property: any output that passes the check gives a valid, monotonic, in-range transcript.
+  - "Coarse" rule (its own definition, documented): `approx` if at least 50 % of word durations are multiples of 500 ms (with at least 4 words), or the median word is over 1.5 s, or the audio is over 5 s with fewer than 0.5 words per second. It noted the thresholds aren't tuned on real Gemini output yet.
+  - It found that the SDK types say nothing about inline-data size limits; the service enforces them. It suggested capping or chunking long audio.
+  - It had to copy the filler list from `apps/web`. Claude Code then moved `isFiller` into `@motionpop/schemas`, so on-device and cloud transcription share one list.
+  - One `pnpm typecheck` failed on `apps/web` while Claude Code was mid-edit there; its re-run passed. It didn't touch `apps/web` or `tasks.md`, as asked.
+<!-- /kiro-session:sess_c38eabb7-03f4-4f27-a37a-eeb4b63a1e41 -->

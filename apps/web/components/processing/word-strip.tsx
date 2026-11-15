@@ -1,8 +1,11 @@
 'use client';
 
-import type { Word } from '@motionpop/schemas';
+import type { Slot, Word } from '@motionpop/schemas';
 import { motion } from 'motion/react';
 import { useMemo } from 'react';
+import { cn } from '@/lib/cn';
+import { slotCardText } from '@/lib/editor/slot-display';
+import { springPop } from '@/lib/motion/presets';
 import { useStill } from '@/lib/motion/use-still';
 
 /** Above this many words the strip samples them, so the DOM stays small. */
@@ -11,16 +14,19 @@ const MAX_PILLS = 400;
 /**
  * The Processing screen's mini timeline (spec 05 R5.3): one pill per word, placed by time.
  * Pills pop in as words arrive, and when cleaning re-times them they glide into place as the
- * pauses close up. Fillers show dimmed until they are cut.
+ * pauses close up. Fillers show dimmed until they are cut. Suggested slots (spec 06 R4.2) pop
+ * in above the words they belong to, dashed like suggested cards on the editor timeline.
  */
 export function WordStrip({
   words,
   keys,
   durationMs,
+  slots = [],
 }: {
   words: Word[];
   keys: number[];
   durationMs: number;
+  slots?: Slot[];
 }) {
   const still = useStill();
   const shown = useMemo(() => {
@@ -33,7 +39,7 @@ export function WordStrip({
   }, [words, keys]);
 
   return (
-    <div className="relative h-[72px] overflow-hidden rounded-xl bg-[rgb(21_21_29/0.7)] shadow-glass">
+    <div className="relative h-[104px] overflow-hidden rounded-xl bg-[rgb(21_21_29/0.7)] shadow-glass">
       <span className="absolute top-3 left-4 font-mono text-[9px] leading-3 tracking-[1.1px] text-text-3">
         YOUR VOICE
       </span>
@@ -42,7 +48,45 @@ export function WordStrip({
           {(durationMs / 1000).toFixed(1)}s
         </span>
       )}
-      <div className="absolute inset-x-4 top-[34px] h-6">
+      <div className="absolute inset-x-4 top-[32px] h-[26px]" data-testid="strip-slots">
+        {durationMs > 0 &&
+          slots.map((slot, k) => {
+            const left = (slot.startMs / durationMs) * 100;
+            const width = ((slot.endMs - slot.startMs) / durationMs) * 100;
+            const { title } = slotCardText(slot);
+            return (
+              <motion.span
+                key={slot.id}
+                data-status={slot.status}
+                title={`${title} · ${slot.reason}`}
+                initial={still ? false : { opacity: 0, scale: 0.85, y: 6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                transition={{ ...springPop, delay: still ? 0 : 0.08 + k * 0.09 }}
+                className={cn(
+                  'absolute top-0 flex h-full items-center gap-1.5 overflow-hidden rounded-[6px] border border-dashed px-2 shadow-glass',
+                  slot.status === 'ready'
+                    ? 'border-violet/45 bg-slot-ready'
+                    : 'border-white/14 bg-slot-suggested',
+                )}
+                style={{ left: `${left}%`, width: `${width}%` }}
+              >
+                <span
+                  aria-hidden
+                  className={cn(
+                    'shrink-0 text-[10px] leading-3',
+                    slot.status === 'ready' ? 'text-mint' : 'text-violet',
+                  )}
+                >
+                  {slot.status === 'ready' ? '●' : '✦'}
+                </span>
+                <span className="truncate text-[10px] leading-3 font-medium text-text-2">
+                  {title}
+                </span>
+              </motion.span>
+            );
+          })}
+      </div>
+      <div className="absolute inset-x-4 top-[66px] h-6">
         {words.length === 0 && (
           <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/8" />
         )}

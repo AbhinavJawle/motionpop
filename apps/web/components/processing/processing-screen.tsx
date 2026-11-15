@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { Pip } from '@/components/pip/pip';
 import { Button } from '@/components/ui/button';
-import { fadeIn } from '@/lib/motion/presets';
+import { fadeIn, springPop } from '@/lib/motion/presets';
 import { useStill } from '@/lib/motion/use-still';
 import { browserPipelineDeps } from '@/lib/pipeline/browser-deps';
 import { PIPELINE_STEPS } from '@/lib/pipeline/events';
@@ -23,6 +23,9 @@ import { StepCard } from './step-card';
 import { WordStrip } from './word-strip';
 
 type Phase = 'checking' | 'drop' | 'running' | 'interrupted';
+
+/** Pip's bubble once suggestions are in: "1 slot ready" / "3 slots ready". */
+const slotsReady = (n: number) => `${n} ${n === 1 ? 'slot' : 'slots'} ready`;
 
 type Action = { type: 'reset' } | { type: 'event'; event: Parameters<typeof reduceProcessing>[1] };
 function reducer(s: ProcessingState, a: Action): ProcessingState {
@@ -121,6 +124,21 @@ export function ProcessingScreen({ id }: { id: string }) {
               decorative
               seed={5}
             />
+            <AnimatePresence>
+              {state.slots.length > 0 && (
+                <motion.p
+                  key="bubble"
+                  data-testid="pip-bubble"
+                  initial={still ? false : { opacity: 0, scale: 0.6, x: -6, y: 6 }}
+                  animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={springPop}
+                  className="absolute top-1 left-[calc(100%+6px)] origin-bottom-left rounded-[12px] rounded-bl-[4px] bg-card-2 px-3 py-1.5 text-[12px] leading-4 font-medium whitespace-nowrap text-text shadow-glass"
+                >
+                  {slotsReady(state.slots.length)}
+                </motion.p>
+              )}
+            </AnimatePresence>
           </div>
           <p className="mt-5 font-mono text-[11px] leading-[14px] tracking-[1.1px] text-violet-ink">
             {phase === 'running' ? (done ? 'ALL SET' : 'PIP IS WORKING') : 'NEW PROJECT'}
@@ -166,6 +184,7 @@ export function ProcessingScreen({ id }: { id: string }) {
                     words={state.words}
                     keys={state.wordKeys}
                     durationMs={state.durationMs}
+                    slots={state.slots}
                   />
                 </div>
                 <div className="mt-6 flex justify-center gap-3">

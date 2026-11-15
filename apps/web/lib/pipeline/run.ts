@@ -1,7 +1,11 @@
+import { postPass, tagSpans, type TaggedSpan, type ValidatedParams } from '@motionpop/ai';
 import {
   EditorProjectSchema,
   type EditorProject,
+  type Slot,
+  type SlotSuggestion,
   type Transcript,
+  type Version,
   type Word,
 } from '@motionpop/schemas';
 import type { AudioStore } from '../audio/audio-store';
@@ -11,7 +15,9 @@ import { checkDuration, validateIntake } from '../audio/intake';
 import type { ProjectRepository } from '../projects/repository';
 import {
   cleanupSummary,
+  momentsSummary,
   PipelineError,
+  slotsSummary,
   transcriptSummary,
   type PipelineEvent,
   type PipelineStep,
@@ -50,6 +56,34 @@ export interface PipelineDeps {
   now(): number;
   newId(): string;
   styleId: string;
+  /** Slot detection (spec 06): the deterministic detector, or AI through the router. */
+  detect(words: Word[], spans: TaggedSpan[]): Promise<SlotSuggestion[]>;
+  /** Component param validation for the post-pass (fills defaults, lists `needsInput`). */
+  validateParams(componentId: string, params: Record<string, unknown>): ValidatedParams;
+}
+
+/** A first version for every ready slot, so the inspector history works (spec 06 design). */
+export function firstVersions(
+  slots: readonly Slot[],
+  now: number,
+): { slots: Slot[]; versions: Version[] } {
+  const versions: Version[] = [];
+  const out = slots.map((s) => {
+    if (s.status !== 'ready') return s;
+    const v: Version = {
+      id: `v-${s.id}-1`,
+      slotId: s.id,
+      componentId: s.componentId,
+      params: s.params,
+      source: 'user',
+      costCredits: 0,
+      createdAt: now,
+      label: 'v1',
+    };
+    versions.push(v);
+    return { ...s, currentVersionId: v.id };
+  });
+  return { slots: out, versions };
 }
 
 function titleFrom(name: string): string {
@@ -144,14 +178,27 @@ export async function runPipeline(
         : cleanupSummary(edl.fillersRemoved, edl.pausesShortened),
     });
 
-    // Slot detection lands in spec 06.
-    onEvent({ type: 'step', step: 'moments', state: 'skipped', detail: 'Up next' });
-    onEvent({ type: 'step', step: 'suggest', state: 'skipped', detail: 'Up next' });
+    // Moments (spec 06 R1): the deterministic tagger on the cleaned words.
+    step = 'moments';
+    onEvent({ type: 'step', step, state: 'active' });
+    const spans = tagSpans(cleanedWords);
+    onEvent({ type: 'step', step, state: 'done', detail: momentsSummary(spans.length) });
 
-    // Store (R4). Last chance to cancel before anything is written. A failure here shows on
-    // the last card until spec 06 adds a real step after it.
-    checkAbort();
+    // Suggest (spec 06 R2-R3): detect, then the post-pass makes them timeline-valid.
     step = 'suggest';
+    onEvent({ type: 'step', step, state: 'active' });
+    const suggestions = await deps.detect(cleanedWords, spans);
+    checkAbort();
+    const placed = postPass({
+      words: cleanedWords,
+      suggestions,
+      validate: deps.validateParams,
+    });
+    onEvent({ type: 'slots', slots: placed });
+
+    // Store (spec 05 R4). Last chance to cancel before anything is written. A failure here
+    // shows on the suggest card, which stays active until the project is saved.
+    checkAbort();
     const written: string[] = [];
     try {
       const originalSrc = await deps.audioStore.put(input.file);
@@ -195,12 +242,12 @@ export async function runPipeline(
         },
         transcript: transcript(cleanedWords, cuts.length > 0),
         originalTranscript: transcript(t.words, false),
-        slots: [],
-        versions: [],
+        ...firstVersions(placed, now),
         createdAt: now,
         updatedAt: now,
       });
       await deps.repo.save(project);
+      onEvent({ type: 'step', step, state: 'done', detail: slotsSummary(placed.length) });
       onEvent({ type: 'done', projectId: id });
       return { projectId: id };
     } catch (err) {

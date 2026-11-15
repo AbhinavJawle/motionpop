@@ -248,3 +248,10 @@ Template:
   | Render 8 s at 1080p | HyperFrames producer, local | 15.2 s |
 
   The device column is still missing: Nano timings need headed Chrome with the Prompt API flag. `/dev/skeleton` now mirrors every timing line to the console (R6.1). Router decisions are recorded in D-027.
+- **Spec 05 task 11, `packages/ai` half (Kiro run 28), reviewed:** `transcribe.cloud` + `toTranscript`, and the router's `image` input became `media` so audio can go inline. I moved the filler list into `@motionpop/schemas` (`isFiller`) because Kiro had to copy it. The UI half (offer cloud transcription when Whisper fails, cost shown first) is still open.
+- **Spec 06 task 6: pipeline integration (Claude Code):**
+  - **Pipeline:** Processing now runs moments (the tagger), then suggest (detector, then post-pass with registry validation), then save. Ready slots get a v1 version.
+  - **UI:** the word strip shows dashed slot cards above the pills with a staggered spring pop-in. Pip gets a "1 slot ready" bubble.
+  - **Checked in headless Chromium, local mode:** the sample shows "Found 3 moments", "1 slot found" and the Big number card. The editor opens with the ready big-number slot (40 %, "Our revenue grew") over "Our revenue grew forty percent".
+  - **Tests:** 3 new pipeline tests (sample → ready slot + version + `timelineIssues` clean; detector gets the cleaned words and spans; a detector failure fails the suggest card and saves nothing), plus validator tests.
+  - **Known break:** `e2e/processing.spec.ts` still expects moments and suggest to be `skipped`. Updating it is spec 06 task 7, which goes to Kiro next. CI doesn't run e2e.

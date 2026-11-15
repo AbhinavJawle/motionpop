@@ -1,9 +1,11 @@
-import { EditorProjectSchema, type Word } from '@motionpop/schemas';
+import { EditorProjectSchema, timelineIssues, type Word } from '@motionpop/schemas';
 import { describe, expect, it, vi } from 'vitest';
+import { detectLocal } from '@motionpop/ai';
 import { MemoryAudioStore, type AudioStore } from '../audio/audio-store';
 import type { DecodedAudio } from '../audio/decode';
 import { INTAKE_LIMITS, INTAKE_MESSAGES } from '../audio/intake';
 import { MemoryProjectRepository, type ProjectRepository } from '../projects/repository';
+import { validateParams } from '../slots/validate-params';
 import { cleanupSummary, PipelineError, transcriptSummary, type PipelineEvent } from './events';
 import { runPipeline, type PipelineDeps, type PipelineInput, type TranscribeOutput } from './run';
 import { sampleInput } from './sample';
@@ -99,6 +101,8 @@ function makeHarness(
     now: () => 1_700_000_000_000,
     newId: () => PROJECT_ID,
     styleId: 'style-test',
+    detect: (words, spans) => Promise.resolve(detectLocal(words, spans)),
+    validateParams,
   };
   return {
     deps,
@@ -140,8 +144,11 @@ describe('runPipeline: normal upload', () => {
       { type: 'step', step: 'clean', state: 'active' },
       { type: 'words', words: retimed, durationMs: CLEANED_DURATION },
       { type: 'step', step: 'clean', state: 'done', detail: 'Removed 1 um and 1 long pause' },
-      { type: 'step', step: 'moments', state: 'skipped', detail: 'Up next' },
-      { type: 'step', step: 'suggest', state: 'skipped', detail: 'Up next' },
+      { type: 'step', step: 'moments', state: 'active' },
+      { type: 'step', step: 'moments', state: 'done', detail: 'No moments found' },
+      { type: 'step', step: 'suggest', state: 'active' },
+      { type: 'slots', slots: [] },
+      { type: 'step', step: 'suggest', state: 'done', detail: 'No slots this time' },
       { type: 'done', projectId: PROJECT_ID },
     ]);
   });
@@ -525,6 +532,69 @@ describe('runPipeline: sample input', () => {
     expect(loaded.project.title).toBe('Sample voiceover');
     expect(loaded.project.originalTranscript?.words).toEqual(s.words);
     expect(loaded.project.originalTranscript?.ranOn).toBe('device');
+  });
+});
+
+describe('runPipeline: slot detection (spec 06)', () => {
+  const runSample = async (over: Partial<PipelineDeps> = {}) => {
+    const s = sampleInput();
+    const h = makeHarness({ words: [], durationMs: 18_000 });
+    Object.assign(h.deps, over);
+    const result = runPipeline(
+      { file: s.file, name: s.name, source: 'sample', words: s.words },
+      h.deps,
+      h.onEvent,
+    );
+    return { h, result };
+  };
+
+  it('tags, detects and saves the sample big-number as a ready slot with a v1 version', async () => {
+    const { h, result } = await runSample();
+    await result;
+    const step = (name: string) =>
+      h.events.find((e) => e.type === 'step' && e.step === name && e.state === 'done');
+    expect(step('moments')).toMatchObject({ detail: 'Found 3 moments' });
+    expect(step('suggest')).toMatchObject({ detail: '1 slot found' });
+    const slotsEvent = h.events.find((e) => e.type === 'slots');
+    expect(slotsEvent).toMatchObject({ slots: [{ componentId: 'big-number', status: 'ready' }] });
+
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    const [slot] = loaded.project.slots;
+    expect(slot).toMatchObject({
+      id: 's-1',
+      componentId: 'big-number',
+      status: 'ready',
+      params: { value: 40, suffix: '%', label: 'Our revenue grew' },
+      currentVersionId: 'v-s-1-1',
+    });
+    expect(loaded.project.versions).toEqual([
+      expect.objectContaining({ id: 'v-s-1-1', slotId: 's-1', source: 'user', label: 'v1' }),
+    ]);
+    expect(timelineIssues(loaded.project)).toEqual([]);
+  });
+
+  it('passes the cleaned words and the tagged spans to the injected detector', async () => {
+    const detect = vi.fn<PipelineDeps['detect']>(() => Promise.resolve([]));
+    const { result } = await runSample({ detect });
+    await result;
+    const [words, spans] = detect.mock.calls[0]!;
+    expect(words.every((w) => !w.filler)).toBe(true);
+    expect(spans.map((sp) => sp.kind)).toEqual(['comparison', 'number', 'year']);
+  });
+
+  it('shows a detector failure on the suggest card and saves nothing', async () => {
+    const { h, result } = await runSample({
+      detect: () => Promise.reject(new Error('detector exploded')),
+    });
+    await expect(result).rejects.toMatchObject({ step: 'suggest' });
+    expect(h.events).toContainEqual({
+      type: 'step',
+      step: 'suggest',
+      state: 'failed',
+      detail: 'detector exploded',
+    });
+    await expectNothingStored(h);
   });
 });
 

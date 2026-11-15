@@ -1,8 +1,10 @@
+import { detectLocal } from '@motionpop/ai';
 import { audioStore } from '../audio/audio-store';
 import { decodeForPipeline } from '../audio/decode';
 import { renderCleaned } from '../audio/render-cleaned';
 import { encodeWav } from '../audio/wav';
 import { IdbProjectRepository } from '../projects/idb-repository';
+import { validateParams } from '../slots/validate-params';
 import { transcribeOnDevice } from '../transcribe/whisper-client';
 import type { PipelineDeps } from './run';
 
@@ -37,5 +39,9 @@ export function browserPipelineDeps(): PipelineDeps {
     now: () => Date.now(),
     newId: newProjectId,
     styleId: DEFAULT_STYLE_ID,
+    // Deterministic for now: AI detection (`detectSlots` through the router) waits for an
+    // on-device availability check, so processing never spends cloud credits unasked (R2.3).
+    detect: (words, spans) => Promise.resolve(detectLocal(words, spans)),
+    validateParams,
   };
 }

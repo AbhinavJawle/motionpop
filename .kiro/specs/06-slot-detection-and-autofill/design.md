@@ -67,6 +67,8 @@ The 400 ms gap is a suggestion rule only. Users can still place slots edge to ed
 - `detectSlots(router | null, words, spans)` never throws. It drops unknown component or skill ids, skills that don't work with the component, and out-of-range words (`keepKnown`, R2.4). It falls back to `detectLocal` without a router, on any router error, or when nothing usable comes back. The caller still runs the post-pass.
 - Prompt v1 lives in `prompts/slots-detect.v1.ts` (a string module, see ai-tasks.md).
 
+**As built (task 6, 2026-11-15, Claude Code):** `PipelineDeps` gained `detect(words, spans)` and `validateParams`. The browser uses `detectLocal` and the registry-backed `validateParams` (`lib/slots/validate-params.ts`); AI detection waits for an on-device availability check, so processing never spends cloud credits unasked. The suggest card stays active until the project is saved, so a save failure shows there. Ready slots get version `v-<slotId>-1` (`firstVersions`). The word strip grew to 104 px with a slot row above the pills, and Pip's bubble reads "1 slot ready" / "N slots ready" as soon as the slots event lands.
+
 ## Auto-fill (blocked part)
 `useAutoFill(projectId)` in the editor walks suggested slots in order. For each: set `generating`, call `component.fill` on-device through the router, validate, then add a version and set `ready`. It stops on unmount and skips slots edited since load. It ships behind `autoFill` in Remote Config (spec 01).
 

@@ -1,4 +1,4 @@
-import type { Word } from '@motionpop/schemas';
+import type { Slot, Word } from '@motionpop/schemas';
 
 /** The Processing screen's steps, in pipeline order (D-024: transcribe before cleaning). */
 export const PIPELINE_STEPS = ['transcribe', 'clean', 'moments', 'suggest'] as const;
@@ -11,6 +11,7 @@ export type PipelineEvent =
   | { type: 'progress'; step: 'transcribe'; stage: 'loading' | 'transcribing'; percent?: number }
   | { type: 'words'; words: Word[]; durationMs: number }
   | { type: 'peaks'; peaks: Float32Array; bucketMs: number; durationMs: number }
+  | { type: 'slots'; slots: Slot[] }
   | { type: 'done'; projectId: string }
   | { type: 'error'; step: PipelineStep | 'intake'; message: string };
 
@@ -33,6 +34,16 @@ export function cleanupSummary(fillersRemoved: number, pausesShortened: number):
   if (fillersRemoved > 0) parts.push(plural(fillersRemoved, 'um', 'ums'));
   if (pausesShortened > 0) parts.push(plural(pausesShortened, 'long pause', 'long pauses'));
   return parts.length === 0 ? 'Nothing to clean up' : `Removed ${parts.join(' and ')}`;
+}
+
+/** "Found 3 moments" / "No moments found" (spec 06 R4.1). */
+export function momentsSummary(n: number): string {
+  return n === 0 ? 'No moments found' : `Found ${plural(n, 'moment', 'moments')}`;
+}
+
+/** "3 slots found" / "No slots this time" (spec 06 R4.1). */
+export function slotsSummary(n: number): string {
+  return n === 0 ? 'No slots this time' : `${plural(n, 'slot', 'slots')} found`;
 }
 
 /** "214 words · 18.0s" */

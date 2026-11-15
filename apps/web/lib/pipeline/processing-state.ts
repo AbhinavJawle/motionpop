@@ -1,4 +1,4 @@
-import type { Word } from '@motionpop/schemas';
+import type { Slot, Word } from '@motionpop/schemas';
 import { PIPELINE_STEPS, type PipelineEvent, type PipelineStep, type StepState } from './events';
 
 /** What the Processing screen shows, folded from pipeline events (spec 05 R5). Pure. */
@@ -8,6 +8,8 @@ export interface ProcessingState {
   /** Stable key per word: its index in the first (original) word list, so re-timed words glide. */
   wordKeys: number[];
   durationMs: number;
+  /** Suggested slots from the post-pass (spec 06), drawn above the word pills. */
+  slots: Slot[];
   error: { step: PipelineStep | 'intake'; message: string } | null;
   projectId: string | null;
   /** The latest human sentence, for the polite live region. */
@@ -30,6 +32,7 @@ export function initialProcessing(): ProcessingState {
     words: [],
     wordKeys: [],
     durationMs: 0,
+    slots: [],
     error: null,
     projectId: null,
     announcement: '',
@@ -70,6 +73,8 @@ export function reduceProcessing(s: ProcessingState, e: PipelineEvent): Processi
       };
     case 'peaks':
       return s;
+    case 'slots':
+      return { ...s, slots: e.slots };
     case 'done':
       return { ...s, projectId: e.projectId, announcement: 'Ready. Opening the editor.' };
     case 'error':
