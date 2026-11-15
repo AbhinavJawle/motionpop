@@ -20,6 +20,7 @@ import { scenes } from '../src/scenes';
 import { compileProject, type CompileSlot } from '../src/compiler';
 import type { MotionComponent } from '../src/contract';
 import { contains, safeArea, type Box } from '../src/core/safe-area';
+import { OPTICAL_LIFT } from '../src/engine/stage';
 import { editorialExplainer, looks, testInverted } from '../src/styles';
 
 interface Samples<P> {
@@ -63,6 +64,10 @@ interface Probe {
   surfaces: { kind: string; rect: Box }[];
   focal: { text: string; opacity: number; rect: Box } | null;
   rootBgAlpha: number;
+  /** Union of visible text (as set) and surfaces, camera off; null when nothing shows. */
+  group: Box | null;
+  /** Words of visible text in the group. */
+  groupWords: number;
 }
 
 interface StageReportLite {
@@ -92,6 +97,84 @@ const GAP_MS = 300;
 const STEP_MS = 20;
 const HOLD_MS = 800;
 const SYNC_MS = 80;
+
+/**
+ * Composition rule (Changed by spec 07 task 23 review). The optical centre sits OPTICAL_LIFT
+ * (2 % of frame height) above the safe area's centre, the same point the stage centres on: a
+ * group may sit up to OPTICAL_TOL from it, so from 8 % above the true centre to 4 % below it. Coverage is the group's share of the safe
+ * width, per format (a portrait frame is narrow, so its text should span most of it).
+ */
+const OPTICAL_TOL = 0.06;
+// 16:9 is lower than the 45 % the review asked of versus: a two-word hook line in balanced
+// display type ("why Nobody", 34 % wide) is as large as the type scale allows and reads well.
+// versus itself clears 45 % (see KIRO_LOG, task 23 review).
+const MIN_WIDTH_SHARE: Record<Format, number> = { '16:9': 0.33, '9:16': 0.7, '1:1': 0.45 };
+/**
+ * A narrower group still covers the frame when it is this tall (a share of the safe height): a
+ * left-aligned number over its label is a column, not a small block.
+ */
+const MIN_HEIGHT_SHARE = 0.4;
+/**
+ * Fewer visible words than this are exempt from coverage: a one-word hook ("Why?") or two
+ * initials ("A" vs "B") are set at their largest size and still can't span the frame, and
+ * blowing them up further would break the type scale. Centring still applies to them.
+ */
+const COVERAGE_MIN_WORDS = 4;
+/** Warnings while the scenes are brought in line; failures once all three pass. */
+const COMPOSITION_FAILS = true;
+const isScene = id !== undefined && id in scenes;
+
+interface CompositionRow {
+  case: string;
+  format: Format;
+  label: string;
+  /** Group centre minus optical centre, as a share of frame height (positive = below). */
+  offset: number;
+  /** Group width / safe width. */
+  widthShare: number;
+  /** Group height / safe height. */
+  heightShare: number;
+  words: number;
+  dropped: boolean;
+  problems: string[];
+}
+
+function compositionOf(
+  g: Box,
+  words: number,
+  safe: Box,
+  frameH: number,
+  format: Format,
+  dropped = false,
+): Omit<CompositionRow, 'case' | 'format' | 'label'> {
+  const optical = safe.y + safe.height / 2 - OPTICAL_LIFT * frameH;
+  const offset = (g.y + g.height / 2 - optical) / frameH;
+  const widthShare = g.width / safe.width;
+  const heightShare = g.height / safe.height;
+  const problems: string[] = [];
+  if (Math.abs(offset) > OPTICAL_TOL)
+    problems.push(
+      `group centre ${(offset * 100).toFixed(1)} % of frame height ${offset > 0 ? 'below' : 'above'} the optical centre (max ${OPTICAL_TOL * 100} %)`,
+    );
+  if (
+    !dropped &&
+    words >= COVERAGE_MIN_WORDS &&
+    widthShare < MIN_WIDTH_SHARE[format] &&
+    heightShare < MIN_HEIGHT_SHARE
+  )
+    problems.push(
+      `group spans ${(widthShare * 100).toFixed(0)} % of the safe width and ${(heightShare * 100).toFixed(0)} % of its height (min ${MIN_WIDTH_SHARE[format] * 100} % wide or ${MIN_HEIGHT_SHARE * 100} % tall)`,
+    );
+  const r = (x: number) => Math.round(x * 1000) / 1000;
+  return {
+    offset: r(offset),
+    widthShare: r(widthShare),
+    heightShare: r(heightShare),
+    words,
+    dropped,
+    problems,
+  };
+}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- registry of heterogeneous components; params are validated by each schema
 const registry = { ...components, ...scenes } as Record<string, MotionComponent<any>>;
@@ -220,14 +303,21 @@ const overlap = (a: Box, b: Box): boolean => {
 };
 
 /** Runs in the page: seeks through HyperFrames' clock (exercises the hf-seek contract) and probes a slot. */
-async function probeAt(page: Page, slotId: string, rawMs: number, direct = false): Promise<Probe> {
+async function probeAt(
+  page: Page,
+  slotId: string,
+  rawMs: number,
+  direct = false,
+  /** Measure the composition as laid out (everything shown, whatever its opacity now). */
+  laidOut = false,
+): Promise<Probe> {
   // Frame-aligned, like the producer (30 fps). HyperFrames floors its clock to frames, so the clock
   // gets exactly frame / 30 s and the direct seek gets the same frame's integer ms.
   const frame = msToFrame(rawMs);
   const tMs = frameToMs(frame);
   const tSec = frame / 30;
   return page.evaluate(
-    async ({ slotId, tMs, tSec, direct }) => {
+    async ({ slotId, tMs, tSec, direct, laidOut }) => {
       const w = window as unknown as {
         __player?: { seek?: (s: number) => unknown };
         __hf?: { seek?: (s: number) => unknown };
@@ -305,14 +395,44 @@ async function probeAt(page: Page, slotId: string, rawMs: number, direct = false
       const focal = f
         ? { text: f.textContent ?? '', opacity: effOpacity(f), rect: rectOf(f) }
         : null;
+      // The composition (spec 07 task 23 review): the union of the visible text as set and the
+      // visible surfaces, in slot space (camera off), and how many words it shows.
+      const pieces: { x: number; y: number; width: number; height: number }[] = [];
+      let groupWords = 0;
+      for (const el of host?.querySelectorAll<HTMLElement>('[data-text]') ?? []) {
+        if (el.parentElement?.closest('[data-text]')) continue;
+        const text = (el.textContent ?? '').trim();
+        if (!visible(el) || (!laidOut && effOpacity(el) < 0.05) || !text) continue;
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const rs = [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+        if (rs.length === 0) continue;
+        pieces.push(...rs.map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height })));
+        // Single glyphs (a tile's initial, "VS") are graphics, not words.
+        if (text.length > 2) groupWords += text.split(/\s+/).length;
+      }
+      for (const el of host?.querySelectorAll<HTMLElement>('[data-surface]') ?? []) {
+        if (!visible(el) || (!laidOut && effOpacity(el) < 0.05)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width > 0) pieces.push({ x: r.x, y: r.y, width: r.width, height: r.height });
+      }
+      const group = pieces.length
+        ? (() => {
+            const x0 = Math.min(...pieces.map((r) => r.x));
+            const y0 = Math.min(...pieces.map((r) => r.y));
+            const x1 = Math.max(...pieces.map((r) => r.x + r.width));
+            const y1 = Math.max(...pieces.map((r) => r.y + r.height));
+            return { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+          })()
+        : null;
       if (cam) cam.style.transform = camTransform;
       const bg = root ? getComputedStyle(root).backgroundColor : 'rgba(0, 0, 0, 0)';
       const m = /rgba?\(([^)]+)\)/.exec(bg);
       const parts = m?.[1]?.split(',').map((s) => Number(s.trim())) ?? [0, 0, 0, 0];
       const rootBgAlpha = parts.length === 4 ? (parts[3] ?? 0) : bg === 'transparent' ? 0 : 1;
-      return { texts, surfaces, focal, rootBgAlpha };
+      return { texts, surfaces, focal, rootBgAlpha, group, groupWords };
     },
-    { slotId, tMs, tSec, direct },
+    { slotId, tMs, tSec, direct, laidOut },
   );
 }
 
@@ -365,6 +485,7 @@ async function main() {
   const cases = buildCases();
   const failures: Failure[] = [];
   const warnings: string[] = [];
+  const composition: CompositionRow[] = [];
   let stills = 0;
   const t0 = performance.now();
   const browser = await puppeteer.launch({ headless: true });
@@ -552,6 +673,29 @@ async function main() {
                 bad = true;
               }
             }
+            // Changed by spec 07 task 23 review: a composition rule for scenes. At the key moment
+            // and once everything has landed, the group (text as set plus surfaces, camera off)
+            // sits near the optical centre of the safe area and fills a fair share of it.
+            // At the key moment the later cues haven't entered yet: a scene that builds reserves
+            // their place on purpose, and re-centring landed text as they arrive would move it
+            // during its read time (R5.1b). So the key moment measures the composition as laid
+            // out (everything that will show, whatever its opacity now); hold-end measures what
+            // is visible.
+            const comp =
+              label === 'key' ? await probeAt(page, s.id, s.startMs + t, false, true) : p;
+            if (isScene && (label === 'key' || label === 'hold-end') && comp.group) {
+              // A dropped optional cue leaves the scene's designed fallback (a stat without its
+              // label, a hook without its punch): smaller on purpose, so only centring applies.
+              const dropped = (rep?.plan.dropped.length ?? 0) > 0;
+              const row = compositionOf(comp.group, comp.groupWords, safe, h, format, dropped);
+              composition.push({ case: c.name, format, label, ...row });
+              for (const problem of row.problems) {
+                if (COMPOSITION_FAILS) {
+                  fail('composition', problem, t);
+                  bad = true;
+                } else warnings.push(`${format} ${c.name} @${label}: composition: ${problem}`);
+              }
+            }
             if (label === 'key') {
               const fo = p.focal;
               if (
@@ -633,6 +777,7 @@ async function main() {
     ms: Math.round(performance.now() - t0),
     failures,
     warnings,
+    composition,
   };
   await writeFile(join(outDir, 'report.json'), JSON.stringify(report, null, 2));
   console.log(

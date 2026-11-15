@@ -844,6 +844,24 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - In 9:16 face-off without cards (plain look), the gap between a name and its detail is wide, because it is sized to clear the cards.
   - Very long single-word names break mid-word at the minimum size (the same behaviour as hook-statement).
 - **Kiro features used:** the custom agent `motionpop-builder` headless on Kiro CLI; steering (handoff, motion principles, component contract, style-pack format, ai-tasks); the spec's `tasks.md` notes; property-based tests (versus joins the gate-report and safe-default properties; seek purity over random scores).
+- **After Claude Code's review of `6cc042b` (same night, same headless agent and model):** the review found the stills below the bar: groups placed too high or too low, and names too small in 16:9, with face-off not reading as huge. Changes:
+  - **Centring in the engine.** `stage(ctx, { centre: true })` moves the whole shown group so its vertical centre sits on the optical centre (`OPTICAL_LIFT`, 2 % of frame height above the safe area's centre), clamped to the camera-safe area. It runs at compile time once dropped cues are known, so a short slot centres what it keeps. All three scenes opt in. To make that work, dropped actors are now hidden before marks are drawn, not after (a move inside `compile()`, with no behaviour change otherwise).
+  - **Scale.** Split names went from 0.07 to 0.09 of frame height in 16:9. Face-off names are 0.18 / 0.14 / 0.13, about 2x split, and their columns now limit them. Verdict and detail sizes went up too, keeping names > verdict > details. The ledger tile, name and verdict are larger. The ledger block is centred horizontally on what it really sets, and its rule fits the text, because a short pair had left the right half empty. Face-off: the name-to-detail gap is 0.3 of the name (was 0.65, which left details stranded), and the gutter is wider so cards clear the VS disc.
+  - **New `motion:check` rule (`composition`), now a failure, marked "Changed by spec 07 task 23 review" in `scripts/check.ts`.**
+    - Where: scenes only, at the key moment and hold-end. The key moment measures the layout of everything that will show, whatever its opacity. Later cues have not entered yet, and re-centring as they arrive would move landed text during its read time.
+    - Rule: the union of text as set and surfaces must have its centre within 6 % of frame height of the optical centre. It must also span at least 33 % / 70 % / 45 % of the safe width (16:9 / 9:16 / 1:1), or 40 % of the safe height.
+    - Exempt from coverage: fewer than 4 words (single glyphs like tile initials and "VS" don't count as words), and cases whose optional cue was dropped (the designed fallback).
+    - Why 33 % in 16:9 and not 45 %: two random hook-statement lines ("why Nobody") are as large as their type scale allows. I loosened the threshold with a comment rather than inflate the type. versus clears 42 % at its narrowest (a ledger at minimum length) and 79 % median.
+  - **The rule run before the centring fix (as warnings):** versus 371 of 1,422 measured stills had problems, stat-punch 757 of 1,224 (mostly groups 6–17 % high, from top-biased stacks), hook-statement 249 of 1,488 (punch variant up to 30 % high).
+  - **After the fix**, offset from the optical centre (positive = below):
+    - versus: −0.5 % to +3.0 %.
+    - stat-punch: −0.2 % to +1.5 %.
+    - hook-statement: −0.1 % to +3.0 %.
+    - Hold-end in all three: at most +1.4 %, so always above the true centre.
+    - The +3.0 % values are at the key moment, while entrances still carry their rise. That puts them at most 1 % below the true centre, for a fraction of a second.
+  - **Checks:** prettier clean; typecheck and lint green (0 warnings); `turbo run test --force` schemas 99, ai 322, motion 224, web 364. `motion:check` with the composition rule failing: versus 237 cases × 3 formats, 0 failures, 712 warnings. stat-punch 204, 0 failures, 39 warnings. hook-statement 248, 0 failures, 746 warnings. The warnings are the known "focal already settled" class, plus one versus warning the earlier run didn't have, not looked into.
+  - **Stills re-reviewed:** hold-end sheets of every versus variant in 3 formats × 3 looks after each change. Two fixes came from those sheets: the ledger centring, and a regression it caused at first, where short ledger names pushed their text box past the frame edge and failed `focal` 46 times. Boxes are now clamped to the column.
+  - **Left as is:** in 16:9 face-off the field-notes circle on the winner falls back to an underline, because the circle would cross the disc (the decor rule). Field-notes body type wraps the 9:16 ledger verdict onto two lines where the other looks keep one.
 <!-- /kiro-cli:2026-11-15-task-23 -->
 
 <!-- kiro-session:sess_4ce6f9f4-5332-4d40-8c8b-c04dcf27a272 -->

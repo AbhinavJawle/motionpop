@@ -174,10 +174,10 @@ export interface Stage {
    */
   restack(actors: readonly (Actor | null)[], area: Box, bias?: number): void;
   /**
-   * Move a placed actor down by `dy` px (up when negative). Layout only: call it after
-   * measuring and before surfaces, marks and shapes that follow the actor.
+   * Move a placed actor down by `dy` px (up when negative) and right by `dx` px. Layout only:
+   * call it after measuring and before surfaces, marks and shapes that follow the actor.
    */
-  nudge(actor: Actor, dy: number): void;
+  nudge(actor: Actor, dy: number, dx?: number): void;
   on(cue: string, ...actions: Action[]): void;
   compile(): StageComposition;
 }
@@ -289,9 +289,23 @@ export function revealTimes(
   return t.map(Math.round);
 }
 
+/**
+ * The optical centre sits this share of frame height above the safe area's true centre: a block
+ * centred exactly looks low (spec 07 task 23 review; motion:check measures against the same).
+ */
+export const OPTICAL_LIFT = 0.02;
+
 export function stage(
   ctx: SceneContext,
-  spec: { cues: readonly CueSpec[]; anchors?: readonly ScoreBeat[] },
+  spec: {
+    cues: readonly CueSpec[];
+    anchors?: readonly ScoreBeat[];
+    /**
+     * Centre the shown group vertically on the optical centre at compile time, once dropped
+     * cues are known (layout only). Scenes that lay out a centred block set it.
+     */
+    centre?: boolean;
+  },
 ): Stage {
   const { root, width: w, height: h, format, style, durationMs } = ctx;
   const look = ctx.look;
@@ -494,6 +508,49 @@ export function stage(
     return mark;
   };
 
+  /**
+   * Centre what will be on screen (spec 07 task 23 review). The union of the shown text as set
+   * and the shown surfaces moves as one so its centre sits on the optical centre of the safe
+   * area (OPTICAL_LIFT above its true centre), never leaving the camera-safe area. Runs once the
+   * dropped cues are known and before any mark is drawn, so a slot too short for its optional
+   * lines centres what it keeps. Layout only; without layout (happy-dom) nothing moves.
+   */
+  const centreGroup = () => {
+    const r0 = root.getBoundingClientRect();
+    if (r0.width <= 0) return;
+    const k = w / r0.width;
+    const shown = actors.filter((a) => a.el.style.display !== 'none');
+    const rects: Box[] = [];
+    for (const a of shown) {
+      if (a.kind === 'shape') {
+        if (a.el.dataset.surface !== undefined) rects.push(a.box);
+        continue;
+      }
+      const range = doc.createRange();
+      range.selectNodeContents(a.el);
+      for (const r of Array.from(range.getClientRects()))
+        if (r.width > 0 && r.height > 0)
+          rects.push({ x: 0, y: (r.top - r0.top) * k, width: 1, height: r.height * k });
+    }
+    if (rects.length === 0) return;
+    const y0 = Math.min(...rects.map((r) => r.y));
+    const y1 = Math.max(...rects.map((r) => r.y + r.height));
+    const frameSafe = safeArea(format, w, h);
+    const target = frameSafe.y + frameSafe.height / 2 - OPTICAL_LIFT * h;
+    let dy = target - (y0 + y1) / 2;
+    // Stay inside the camera-safe area (a group taller than it keeps its own placement).
+    if (y1 - y0 > safe.height) return;
+    dy = Math.max(safe.y - y0, Math.min(safe.y + safe.height - y1, dy));
+    dy = Math.round(dy);
+    if (!dy) return;
+    const carries = new Set<NonNullable<Actor['carry']>>();
+    for (const a of actors) {
+      api.nudge(a, dy);
+      if (a.carry) carries.add(a.carry);
+    }
+    for (const c of carries) c.cy += dy;
+  };
+
   const api: Stage = {
     safe,
     restack(list, area, bias = 0.45) {
@@ -515,10 +572,11 @@ export function stage(
         y += x.h + (gaps[i] ?? 0);
       });
     },
-    nudge(a, dy) {
-      if (!dy) return;
-      a.box = { ...a.box, y: a.box.y + dy };
+    nudge(a, dy, dx = 0) {
+      if (!dy && !dx) return;
+      a.box = { ...a.box, x: a.box.x + dx, y: a.box.y + dy };
       a.el.style.top = `${a.box.y}px`;
+      a.el.style.left = `${a.box.x}px`;
     },
     text(id, content, slot, opts = {}) {
       if (opts.role === 'label' && look?.fonts.hand) {
@@ -804,6 +862,16 @@ export function stage(
         ...(person ? { snapMargin: person.snapMargin } : {}),
       });
       const exitStart = plan.exitStartMs;
+
+      // Actors whose cue was dropped never appear. (Moved before the cues by the spec 07 task 23
+      // review, so marks and the centring below only see what will really be on screen.)
+      const droppedSet = new Set(plan.dropped);
+      for (const a of actors) {
+        if (a.enteredBy.length > 0 && a.enteredBy.every((c) => droppedSet.has(c)))
+          a.el.style.display = 'none';
+      }
+      if (spec.centre) centreGroup();
+
       const leads: Record<string, number> = {};
       const markedByCue = new Set<Actor>();
       const soundCues: SoundCue[] = [];
@@ -963,12 +1031,7 @@ export function stage(
         }
       }
 
-      // Actors whose cue was dropped never appear.
-      const droppedSet = new Set(plan.dropped);
-      for (const a of actors) {
-        if (a.enteredBy.length > 0 && a.enteredBy.every((c) => droppedSet.has(c)))
-          a.el.style.display = 'none';
-      }
+      // Actors whose cue was dropped are hidden before the cues are built (see above).
 
       // Juice: only what this stage can actually show.
       const canSnap = cam.snap > 0;

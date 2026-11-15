@@ -161,11 +161,14 @@ export function layoutVersus(
   if (variant === 'ledger') return ledger();
 
   const split = variant !== 'face-off';
-  const nameS = split ? by(0.07, 0.055, 0.056) : by(0.11, 0.09, 0.066);
-  const detS = by(0.036, 0.028, 0.032);
-  const verS = by(0.046, 0.032, 0.042);
+  // Changed by the task 23 review: names larger, and face-off (the peak) about twice split.
+  const nameS = split ? by(0.09, 0.07, 0.075) : by(0.18, 0.14, 0.13);
+  const detS = by(0.038, 0.029, 0.034);
+  const verS = by(0.055, 0.036, 0.048);
   // Face-off cards hang below their names: the detail keeps clear of them.
-  const nameGap = split ? 0.25 : 0.65;
+  // Changed by the task 23 review: 0.3 of the huge name clears the card's padding (2 % of the
+  // frame) without leaving the detail stranded.
+  const nameGap = split ? 0.25 : 0.3;
   const verRow = (): Row[] =>
     has.verdict ? [{ id: 'verdict', size: verS, lines: 2, min: 0.6 }] : [];
 
@@ -236,7 +239,8 @@ export function layoutVersus(
 
   // Side by side (16:9 and 1:1): two columns with the divider and the VS disc in the gutter.
   const area = column(safe, by(0.94, 1, 1));
-  const g = split ? by(0.14, 0, 0.16) : by(0.16, 0, 0.22);
+  // Face-off: the gutter holds the disc and both cards' padding, nothing else.
+  const g = split ? by(0.14, 0, 0.16) : by(0.19, 0, 0.24);
   const [lc, rc] = columns(area, (1 - g) / 2, g);
   const tile = split ? Math.round(Math.min(H * by(0.2, 0, 0.15), lc.width * 0.6)) : 0;
   const rows: Row[] = [
@@ -244,8 +248,9 @@ export function layoutVersus(
     {
       id: 'name',
       size: nameS,
-      lines: 2,
-      min: split ? 0.55 : 0.45,
+      // One line at full size; a long name sets two smaller ones (maxLines below).
+      lines: 1,
+      min: 0.45,
       gap: has.detail ? nameGap : has.verdict ? gap(H * 0.07, nameS) : 0,
     },
     ...(has.detail
@@ -271,7 +276,7 @@ export function layoutVersus(
     const d = t ? Math.min(t.box.height, Math.floor(col.width * 0.6)) : 0;
     return {
       ...(t ? { initial: glyphSlot(square(col.x + col.width / 2, t.box.y + d / 2, d), 0.52) } : {}),
-      name: inCol(s['name'] as TextSlot, col),
+      name: { ...inCol(s['name'] as TextSlot, col), maxLines: 2 },
       ...(s['detail'] ? { detail: inCol(s['detail'], col) } : {}),
     };
   };
@@ -282,7 +287,7 @@ export function layoutVersus(
   const d = Math.round(
     Math.min(
       (gx1 - gx0) * (split ? 0.7 : 0.82),
-      H * (split ? by(0.1, 0, 0.085) : by(0.13, 0, 0.1)),
+      H * (split ? by(0.1, 0, 0.085) : by(0.12, 0, 0.1)),
     ),
   );
   const anchor = left.initial?.box ?? {
@@ -305,14 +310,14 @@ export function layoutVersus(
   /** Two rows, each a tile beside its name and detail, a rule between them, the verdict last. */
   function ledger(): VersusSlots {
     // 16:9 keeps the block near the centre: a full-width rule under short names looks empty.
-    const area = column(safe, by(0.62, 1, 0.94));
+    const area = column(safe, by(0.7, 1, 0.94));
     const vl = 2;
     const dims = (k: number) => {
       const px = (share: number) => Math.round(H * share * k);
-      const t = px(by(0.16, 0.1, 0.13));
-      const nameMax = px(by(0.065, 0.05, 0.055));
-      const detMax = px(by(0.034, 0.028, 0.03));
-      const verMax = px(by(0.044, 0.034, 0.04));
+      const t = px(by(0.2, 0.1, 0.15));
+      const nameMax = px(by(0.085, 0.06, 0.07));
+      const detMax = px(by(0.04, 0.03, 0.034));
+      const verMax = px(by(0.052, 0.036, 0.046));
       // One line at full size; a long name may set two smaller ones.
       const nameH = Math.ceil(nameMax * 1.2);
       const gapND = Math.round(nameMax * 0.2);
@@ -398,6 +403,20 @@ export function layoutVersus(
 }
 
 const xOf = (b: Box) => ({ x: b.x, width: b.width });
+
+/** Width of a text actor's widest set line in its element's px (0 without layout). */
+function setWidth(a: Actor): number {
+  const doc = a.el.ownerDocument;
+  if (!doc.createRange) return 0;
+  const range = doc.createRange();
+  range.selectNodeContents(a.el);
+  const rs = Array.from(range.getClientRects?.() ?? []).filter((r) => r.width > 0);
+  if (rs.length === 0) return 0;
+  const el = a.el.getBoundingClientRect();
+  // Scale from client px to frame px by the element's own box.
+  const k = el.width > 0 ? a.box.width / el.width : 1;
+  return (Math.max(...rs.map((r) => r.right)) - el.left) * k;
+}
 const bottom = (b: Box) => b.y + b.height;
 
 /**
@@ -537,7 +556,7 @@ export const versus = defineScene<VersusContent>({
   formats: ['16:9', '9:16', '1:1'],
   build(ctx, score, variant) {
     const c = score.content;
-    const st = stage(ctx, { cues: this.cues, anchors: score.beats });
+    const st = stage(ctx, { cues: this.cues, anchors: score.beats, centre: true });
     const has = { detail: Boolean(c.leftDetail || c.rightDetail), verdict: Boolean(c.verdict) };
     const L = layoutVersus(variant, ctx.format, ctx.width, ctx.height, st.safe, has);
 
@@ -566,6 +585,7 @@ export const versus = defineScene<VersusContent>({
         : null;
 
     // Re-pack the rows by what they really set, then draw tiles, divider and disc around them.
+    let ledgerSpan: { x: number; width: number } | null = null;
     const some = (xs: (Actor | null)[]) => xs.filter((x): x is Actor => x !== null);
     if (variant === 'ledger') {
       const rows = [a, b].map((s) => ({ items: some([s.initial, s.name, s.detail]) }));
@@ -587,6 +607,25 @@ export const versus = defineScene<VersusContent>({
         if (s.initial) st.nudge(s.initial, top + (row - t) / 2 - s.initial.box.y);
       }
       packBands(st, bands, L.area, frames);
+      // Changed by the task 23 review: the rows are left-aligned text, so a short pair left the
+      // right of the column empty under a full-width rule. Centre the block on what it really
+      // sets, and fit the rule to it.
+      const texts = some([a.name, a.detail, b.name, b.detail, verdict]);
+      const right = Math.max(...texts.map((x) => x.box.x + setWidth(x)));
+      if (texts.every((x) => setWidth(x) > 0)) {
+        const x0 = Math.min(...some([a.initial, b.initial, ...texts]).map((x) => x.box.x));
+        const dx = Math.round(L.area.x + L.area.width / 2 - (x0 + right) / 2);
+        for (const x of some([a.initial, a.name, a.detail, b.initial, b.name, b.detail, verdict]))
+          st.nudge(x, 0, dx);
+        // Text boxes keep inside the column (their set lines already fit the narrower width).
+        const edge = L.area.x + L.area.width;
+        for (const x of texts) {
+          const width = Math.min(x.box.width, Math.floor(edge - x.box.x));
+          x.box = { ...x.box, width };
+          x.el.style.width = `${width}px`;
+        }
+        ledgerSpan = { x: x0 + dx, width: right - x0 };
+      }
     } else if (L.axis === 'v') {
       const bands: Band[] = [
         ...(a.initial && b.initial ? [{ items: [a.initial, b.initial] }] : []),
@@ -633,7 +672,8 @@ export const versus = defineScene<VersusContent>({
     const cardB = card('right', b.name);
 
     const boxes = (s: typeof a) => some([s.initial, s.name, s.detail]).map((x) => x.box);
-    const line = st.shape('divider', dividerFor(L, boxes(a), boxes(b), vsText?.box), {
+    const div = dividerFor(L, boxes(a), boxes(b), vsText?.box);
+    const line = st.shape('divider', ledgerSpan ? { ...div, ...ledgerSpan } : div, {
       color: 'muted',
       radius: L.rule,
       ...(vsText ? { behind: vsText } : {}),

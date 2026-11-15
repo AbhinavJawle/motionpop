@@ -225,7 +225,7 @@ export const hookStatement = defineScene<HookStatementContent>({
       if (ctx.words && w < ctx.words.length) beats.push({ cue: 'emphasis', word: w });
     }
 
-    const st = stage(ctx, { cues: this.cues, anchors: beats });
+    const st = stage(ctx, { cues: this.cues, anchors: beats, centre: true });
     const slots = layoutHookStatement(v, ctx.format, ctx.height, st.safe, {
       eyebrow: Boolean(c.eyebrow),
       subline: Boolean(c.subline),

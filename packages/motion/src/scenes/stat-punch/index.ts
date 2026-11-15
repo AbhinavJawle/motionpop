@@ -186,7 +186,7 @@ export const statPunch = defineScene<StatPunchContent>({
   formats: ['16:9', '9:16', '1:1'],
   build(ctx, score, variant) {
     const c = score.content;
-    const st = stage(ctx, { cues: this.cues, anchors: score.beats });
+    const st = stage(ctx, { cues: this.cues, anchors: score.beats, centre: true });
     const slots = layoutStatPunch(variant, ctx.format, ctx.height, st.safe, Boolean(c.context));
     const fmt: CountFormat = { prefix: c.prefix, suffix: c.suffix, decimals: c.decimals };
     if (slots.context && c.context) {
