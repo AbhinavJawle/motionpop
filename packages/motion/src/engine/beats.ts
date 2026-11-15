@@ -23,6 +23,12 @@ export interface CueSpec {
   optional?: boolean;
   /** May move to a more stressed neighbouring word (never for numbers or chart values). */
   snap?: boolean;
+  /**
+   * The entrance keeps building this long after it lands (text revealed word by word on the
+   * voice). Later unanchored cues wait for it, and the read time of its last words counts from
+   * its end.
+   */
+  spanMs?: number;
 }
 
 export interface SlotWordTime {
@@ -137,7 +143,7 @@ export function scheduleBeats(input: BeatInput): BeatPlan {
 
   cues.forEach((cue, i) => {
     const lead = Math.max(MIN_LEAD_MS, cue.leadMs ?? input.enterMs);
-    const hold = cue.words ? readTimeMs(cue.words) : MIN_HOLD_MS;
+    const hold = cue.words ? readFor(cue) : MIN_HOLD_MS;
     const latest = exitStartMs - hold;
     const want = desired[i];
     let landMs: number;
@@ -185,13 +191,23 @@ export function scheduleBeats(input: BeatInput): BeatPlan {
     });
     prevLand = landMs;
     if (cue.words) {
-      const endMs = Math.min(exitStartMs, landMs + readTimeMs(cue.words));
+      const endMs = Math.min(exitStartMs, landMs + readFor(cue));
       if (endMs > landMs) quiet.push({ cue: cue.id, startMs: landMs, endMs });
     }
-    minStart = Math.max(minStart, landMs + MIN_GAP_MS);
+    minStart = Math.max(minStart, landMs + (cue.spanMs ?? 0) + MIN_GAP_MS);
   });
 
   return { cues: out, dropped, squeezed, quiet, exitStartMs };
+}
+
+/**
+ * How long a cue's text needs, from its landing. Text revealed word by word is read as it
+ * arrives, so after the last word only the last few words still need reading.
+ */
+function readFor(cue: CueSpec): number {
+  const words = cue.words ?? 0;
+  const span = Math.max(0, cue.spanMs ?? 0);
+  return Math.max(readTimeMs(words), span > 0 ? span + readTimeMs(Math.min(words, 3)) : 0);
 }
 
 /** True when `[startMs, endMs]` overlaps any quiet window. */

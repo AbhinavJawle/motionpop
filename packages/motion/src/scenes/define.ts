@@ -47,6 +47,8 @@ export interface SceneDef<C> {
   imageRoles: readonly ImageRoleDef[];
   durationMs: { min: number; ideal: number; max: number };
   formats: Format[];
+  /** When the focal element lands with no word timings. Default: 35 % in, at most 1.2 s. */
+  keyMomentMs?: (durationMs: number) => number;
   build: (ctx: SceneContext, score: SceneScore<C>, variant: string) => StageComposition;
 }
 
@@ -119,7 +121,8 @@ export function defineScene<C>(def: SceneDef<C>): Scene<C> {
     defaults: { content: def.defaultContent, beats: [], images: [] },
     durationMs: def.durationMs,
     formats: def.formats,
-    keyMomentMs: (_p, durationMs) => Math.round(Math.min(1200, durationMs * 0.35)),
+    keyMomentMs: (_p, durationMs) =>
+      Math.round(def.keyMomentMs?.(durationMs) ?? Math.min(1200, durationMs * 0.35)),
     build(ctx, score) {
       // Without word timings (checks, samples, a slot over silence) the focal cue lands on the
       // key moment: one synthetic word there keeps a single code path.

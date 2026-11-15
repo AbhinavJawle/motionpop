@@ -13,6 +13,7 @@ import { eases } from '../core/ease';
 import { fitText } from '../core/fit-text';
 import { progress } from '../core/interp';
 import { insetForCamera, safeArea, type Box } from '../core/safe-area';
+import { readTimeMs } from '@motionpop/schemas';
 import { fontStack } from '../fonts/font-faces';
 import { scheduleBeats, type BeatPlan, type CueSpec, type SlotWordTime } from './beats';
 import { buildDecor } from './decor';
@@ -81,6 +82,12 @@ export interface Actor {
   enteredBy: string[];
   /** Number actors: how the final value is formatted. */
   count?: { from: number; to: number; fmt: CountFormat };
+  /** Word-by-word text: one span per word, revealed on the voice. */
+  parts?: HTMLElement[];
+  /** Indexes into `parts` of the emphasised words (marks go around these). */
+  focusIdx?: number[];
+  /** Runs after the actor's props are written on each seek (styles the word spans). */
+  post?: (tMs: number) => void;
 }
 
 export type Action =
@@ -134,6 +141,10 @@ export interface TextOptions {
   truncatable?: boolean;
   focal?: boolean;
   depth?: 0 | 1 | 2;
+  /** Reveal the text word by word, each word on its spoken word. */
+  byWord?: boolean;
+  /** Words of the text to emphasise (accent colour; `mark` goes around them). */
+  emphasis?: string;
 }
 export interface NumberOptions {
   countFrom?: number;
@@ -160,6 +171,53 @@ const back = (x: number, s: number): number => {
   return 1 + (s + 1) * p * p * p + s * p * p;
 };
 const countWords = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
+const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}%$€£]+/gu, '');
+
+/** Pace of word-by-word text when no spoken word gives the time (about 3.5 words a second). */
+export const WORD_PACE_MS = 280;
+const MIN_WORD_GAP_MS = 90;
+const WORD_IN_MS = 180;
+
+/** Where `phrase` sits in `words` (normalised), as indexes, or [] when it is not there. */
+export function findPhrase(words: readonly string[], phrase: string): number[] {
+  const want = phrase.split(/\s+/).map(norm).filter(Boolean);
+  if (want.length === 0) return [];
+  const have = words.map(norm);
+  for (let i = 0; i + want.length <= have.length; i++) {
+    if (want.every((x, j) => have[i + j] === x)) return want.map((_, j) => i + j);
+  }
+  return [];
+}
+
+/**
+ * Reveal time of each word of a word-by-word line: the first on `landMs`, then each on its
+ * spoken word (from `first`), or at a steady pace past the transcript. Never closer than a
+ * short gap, and compressed so the last word arrives by `limitMs`.
+ */
+export function revealTimes(
+  words: readonly SlotWordTime[] | undefined,
+  first: number | null,
+  landMs: number,
+  n: number,
+  limitMs = Infinity,
+): number[] {
+  const t: number[] = [];
+  for (let k = 0; k < n; k++) {
+    if (k === 0) {
+      t.push(landMs);
+      continue;
+    }
+    const prev = t[k - 1] as number;
+    const spoken = first === null ? undefined : words?.[first + k];
+    t.push(Math.max(spoken ? spoken.startMs : prev + WORD_PACE_MS, prev + MIN_WORD_GAP_MS));
+  }
+  const last = t[n - 1] ?? landMs;
+  if (last > limitMs) {
+    const k = limitMs > landMs ? (limitMs - landMs) / (last - landMs) : 0;
+    return t.map((x) => Math.round(landMs + (x - landMs) * k));
+  }
+  return t.map(Math.round);
+}
 
 export function stage(
   ctx: SceneContext,
@@ -207,6 +265,7 @@ export function stage(
     css: string,
     content: string,
     truncatable: boolean,
+    fill?: (el: HTMLElement) => void,
   ) => {
     const el = doc.createElement('div');
     el.dataset.text = '';
@@ -214,6 +273,7 @@ export function stage(
     const { box } = slot;
     el.style.cssText = `position:absolute;left:${box.x}px;top:${box.y}px;width:${box.width}px;text-align:${slot.align};transform-origin:${slot.align === 'left' ? 'left center' : 'center center'};${css}`;
     el.textContent = content;
+    fill?.(el);
     root.append(el);
     const fit = fitText(
       el,
@@ -238,7 +298,17 @@ export function stage(
   };
 
   /** Rectangle of an actor's final text, in frame px (width is 0 in layout-less test DOMs). */
-  const textRect = (a: Actor): Box => {
+  const textRect = (a: Actor, focus = false): Box => {
+    if (a.parts) {
+      // Measure the words as set: a mark goes under one line of them, the widest.
+      const spans = focus && a.focusIdx?.length ? a.focusIdx.map((i) => a.parts![i]!) : a.parts;
+      const r = widestLine(spans, root, w);
+      if (r) {
+        const size = a.size || h * 0.05;
+        return { x: r.x, y: r.y + size * 0.08, width: r.width, height: size * 1.02 };
+      }
+      return { x: a.box.x, y: a.box.y, width: a.box.width, height: a.box.height };
+    }
     const probe = doc.createElement('span');
     probe.textContent = a.count ? formatCount(a.count.to, a.count.fmt) : a.el.textContent;
     const keep = a.el.textContent;
@@ -250,9 +320,9 @@ export function stage(
     return { x, y: a.box.y + size * 0.08, width: tw, height: size * 1.02 };
   };
 
-  const addMark = (a: Actor, decor: DecorId, atMs: number, durMs: number) => {
+  const addMark = (a: Actor, decor: DecorId, atMs: number, durMs: number, focus = false) => {
     const fill = decor === 'highlighter';
-    const d = buildDecor(doc, decor, textRect(a), {
+    const d = buildDecor(doc, decor, textRect(a, focus), {
       color: fill ? style.colors.highlight : style.colors.accent,
       size: a.size || h * 0.05,
       stroke: style.shape.stroke,
@@ -260,13 +330,35 @@ export function stage(
       radius: style.shape.radius,
       frame: { x: 0, y: 0, width: w, height: h },
       // Other text, as it is actually set (a short line leaves room beside it).
-      keepClear: actors
-        .filter((x) => x !== a && x.kind !== 'shape' && x.el.style.display !== 'none')
-        .map(textRect),
+      keepClear: [
+        ...actors
+          .filter((x) => x !== a && x.kind !== 'shape' && x.el.style.display !== 'none')
+          .map((x) => textRect(x)),
+        // A mark around some words of a line must not cut through its other lines.
+        ...(focus && a.parts
+          ? a.parts
+              .filter((_, i) => !a.focusIdx?.includes(i))
+              .map((el) => {
+                const r0 = root.getBoundingClientRect();
+                const k = r0.width > 0 ? w / r0.width : 1;
+                const r = el.getBoundingClientRect();
+                return {
+                  x: (r.left - r0.left) * k,
+                  y: (r.top - r0.top) * k,
+                  width: r.width * k,
+                  height: r.height * k,
+                };
+              })
+              .filter((b) => b.width > 0)
+          : []),
+      ],
     });
     if (d.layer === 'under') a.el.before(d.el);
     else a.el.after(d.el);
-    if (fill) a.el.dataset.on = 'highlight';
+    if (fill && !focus) a.el.dataset.on = 'highlight';
+    // Highlighted words keep the ink colour: accent on the highlight colour reads poorly.
+    if (fill && focus)
+      for (const i of a.focusIdx ?? []) a.parts![i]!.style.color = style.colors.ink;
     const mark = {
       el: d.el,
       reveal: d.reveal,
@@ -300,14 +392,36 @@ export function stage(
           lineHeight: 1,
         };
       }
+      const parts: HTMLElement[] = [];
+      const tokens = content.trim().split(/\s+/).filter(Boolean);
+      const focusIdx = opts.emphasis ? findPhrase(tokens, opts.emphasis) : [];
       const { el, size } = place(
         id,
         slot,
         fontFor(opts.role ?? 'body'),
         content,
-        opts.truncatable ?? true,
+        // Word-by-word text is never truncated: every word has a spoken time.
+        opts.byWord ? false : (opts.truncatable ?? true),
+        opts.byWord || focusIdx.length
+          ? (box) => {
+              box.replaceChildren();
+              tokens.forEach((t, i) => {
+                if (i > 0) box.append(doc.createTextNode(' '));
+                const span = doc.createElement('span');
+                span.textContent = t;
+                span.style.display = 'inline-block';
+                if (focusIdx.includes(i)) {
+                  span.dataset.emphasis = '';
+                  span.style.color = style.colors.accent;
+                }
+                box.append(span);
+                parts.push(span);
+              });
+            }
+          : undefined,
       );
       if (opts.focal) el.dataset.focal = '';
+      if (opts.byWord) el.dataset.byWord = '';
       return add({
         id,
         kind: 'text',
@@ -317,6 +431,8 @@ export function stage(
         words: countWords(content),
         align: slot.align,
         depth: opts.depth ?? 1,
+        ...(opts.byWord ? { parts } : {}),
+        ...(focusIdx.length ? { parts, focusIdx } : {}),
       });
     },
     number(id, value, fmt, slot, opts = {}) {
@@ -367,7 +483,20 @@ export function stage(
           a.type === 'enter' ? [a.actor] : [],
         );
         const words = c.words ?? entering.reduce((n, a) => n + a.words, 0);
-        return { ...c, words };
+        // Word-by-word text keeps arriving after the cue lands: estimate how long from the
+        // spoken words (the final times are set after scheduling).
+        const byWord = entering.filter((a) => a.parts && !a.count && isByWord(a));
+        if (byWord.length === 0) return { ...c, words };
+        const anchor = spec.anchors?.find((b) => b.cue === c.id);
+        const first = anchor && ctx.words?.[anchor.word] ? anchor.word : null;
+        const land = first === null ? 0 : (ctx.words?.[first]?.startMs ?? 0);
+        const spanMs = Math.max(
+          ...byWord.map((a) => {
+            const t = revealTimes(ctx.words, first, land, a.parts!.length);
+            return (t[t.length - 1] ?? land) - land;
+          }),
+        );
+        return { ...c, words, spanMs };
       });
       const plan = scheduleBeats({
         cues,
@@ -381,6 +510,7 @@ export function stage(
       });
       const exitStart = plan.exitStartMs;
       const leads: Record<string, number> = {};
+      const markedByCue = new Set<Actor>();
       const soundCues: SoundCue[] = [];
       const sound = look?.sound ?? {};
       const q = (t: number, land: number) =>
@@ -408,6 +538,43 @@ export function stage(
               person?.enter?.[a.kind === 'number' ? 'number' : a.kind] ??
               preset[a.kind];
             const seedTilt = (((ctx.seed + a.id.length * 31) % 7) - 3) * 0.6;
+            if (isByWord(a)) {
+              // The line appears with its first word; each word pops in on its spoken word.
+              const parts = a.parts!;
+              const n = parts.length;
+              const times = revealTimes(
+                ctx.words,
+                cue.word,
+                cue.landMs,
+                n,
+                exitStart - readTimeMs(Math.min(n, 3)),
+              );
+              a.effects.push((tMs, p) => {
+                const t = q(tMs, cue.landMs);
+                p.opacity *= t >= cue.startMs ? 1 : 0;
+                // The line settles as its first word lands (the words carry the rest).
+                p.ty += (1 - enterEase(progress(t, cue.startMs, lead))) * lift * 0.3;
+              });
+              a.post = (tMs) => {
+                parts.forEach((span, k) => {
+                  const land = times[k] as number;
+                  const from = k === 0 ? cue.startMs : Math.max(0, land - WORD_IN_MS);
+                  const e = enterEase(progress(q(tMs, land), from, Math.max(1, land - from)));
+                  const wordStress = cue.word === null ? undefined : ctx.stress?.[cue.word + k];
+                  const punch =
+                    wordStress === undefined
+                      ? overshoot
+                      : Math.min(3, overshoot + Math.max(0, (wordStress - 60) / 40));
+                  const b = back(e, punch);
+                  const emph = a.focusIdx?.includes(k) ?? false;
+                  span.style.opacity = String(Math.min(1, e * 1.6));
+                  span.style.transform = `translateY(${(1 - b) * lift * 0.5}px) scale(${emph ? 0.7 + 0.3 * b : 1})`;
+                });
+              };
+              const name = sound.enter;
+              if (name) soundCues.push({ atMs: cue.startMs, kind: 'enter', sound: name });
+              continue;
+            }
             a.effects.push((tMs, p) => {
               const t = q(tMs, cue.landMs);
               const x = progress(t, cue.startMs, lead);
@@ -476,7 +643,14 @@ export function stage(
           } else {
             // A mark is part of the landing: it draws behind or around the text, never over it.
             const dur = Math.max(1, Math.round(enterMs * 0.6));
-            addMark(a, look?.marks?.[action.role] ?? 'highlighter', cue.landMs, dur);
+            addMark(
+              a,
+              look?.marks?.[action.role] ?? 'highlighter',
+              cue.landMs,
+              dur,
+              Boolean(a.focusIdx?.length),
+            );
+            markedByCue.add(a);
             if (sound.mark) soundCues.push({ atMs: cue.landMs, kind: 'mark', sound: sound.mark });
           }
         }
@@ -519,7 +693,8 @@ export function stage(
           soundCues.push({ atMs: j.atMs, kind: 'snap', sound: sound.snap });
       }
       // decor-draw: after a line has been read, the look underlines it by hand.
-      const marked = new Set<Actor>();
+      // A line that already carries a mark is not underlined again.
+      const marked = new Set<Actor>(markedByCue);
       for (const j of juice.beats.filter((b) => b.id === 'decor-draw')) {
         const target = [...plan.cues]
           .reverse()
@@ -577,6 +752,7 @@ export function stage(
           for (const fx of a.effects) fx(tMs, p);
           if (p.text !== null) a.el.textContent = p.text;
           write(a.el, p);
+          a.post?.(tMs);
         }
         for (const m of marks) {
           const p = fresh();
@@ -600,6 +776,42 @@ export function stage(
     },
   };
   return api;
+}
+
+/**
+ * The widest visual line of some word spans, in frame px (null without layout, as in tests).
+ * Spans are grouped into lines by their top edge.
+ */
+function widestLine(spans: readonly HTMLElement[], root: HTMLElement, frameW: number): Box | null {
+  const r0 = root.getBoundingClientRect();
+  if (r0.width <= 0) return null;
+  const k = frameW / r0.width;
+  const lines: { top: number; x0: number; x1: number }[] = [];
+  for (const el of spans) {
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0) continue;
+    const line = lines.find((l) => Math.abs(l.top - r.top) < r.height * 0.5);
+    if (line) {
+      line.x0 = Math.min(line.x0, r.left);
+      line.x1 = Math.max(line.x1, r.right);
+    } else lines.push({ top: r.top, x0: r.left, x1: r.right });
+  }
+  const best = lines.reduce<(typeof lines)[number] | null>(
+    (m, l) => (!m || l.x1 - l.x0 > m.x1 - m.x0 ? l : m),
+    null,
+  );
+  if (!best) return null;
+  return {
+    x: (best.x0 - r0.left) * k,
+    y: (best.top - r0.top) * k,
+    width: (best.x1 - best.x0) * k,
+    height: 0,
+  };
+}
+
+/** Text revealed word by word (not just emphasised). */
+function isByWord(a: Actor): boolean {
+  return a.parts !== undefined && a.el.dataset.byWord !== undefined;
 }
 
 export type { JuiceBeat };
