@@ -35,10 +35,10 @@ export function firebaseProvider(getAI: () => Promise<AI>): AIProvider {
         },
       });
       const parts: Part[] = [{ type: 'text', text: req.prompt }];
-      if (req.image)
+      if (req.media)
         parts.push({
           type: 'inlineData',
-          inlineData: { mimeType: req.image.mimeType, data: req.image.base64 },
+          inlineData: { mimeType: req.media.mimeType, data: req.media.base64 },
         });
       const result = await model.generateContent(parts);
       return {

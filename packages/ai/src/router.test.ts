@@ -93,6 +93,17 @@ describe('createRouter', () => {
     expect(usage).toEqual([expect.objectContaining({ ok: true, credits: 0, ranOn: 'device' })]);
   });
 
+  it('passes the task media to the provider', async () => {
+    const p = scripted([answer('{"n":1}')]);
+    const { router } = make(p);
+    const media = { mimeType: 'audio/wav' as const, base64: 'UklG' };
+    await router.run(task({ media: () => media }), { q: 'a' });
+    expect(p.calls[0]?.media).toEqual(media);
+    const p2 = scripted([answer('{"n":1}')]);
+    await make(p2).router.run(task(), { q: 'a' });
+    expect(p2.calls[0]).not.toHaveProperty('media');
+  });
+
   it('charges the cloud cost only when the answer came from the cloud', async () => {
     // PREFER_ON_DEVICE can still land in the cloud (no Nano): the provider reports it.
     const p = scripted([() => ({ text: '{"n":1}', ranOn: 'cloud' })]);

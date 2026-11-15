@@ -59,16 +59,23 @@ describe('firebaseProvider', () => {
     expect(generateContent).toHaveBeenCalledWith([{ type: 'text', text: 'hello' }]);
   });
 
-  it('reports cloud when the SDK says in_cloud or says nothing, and sends images inline', async () => {
+  it('reports cloud when the SDK says in_cloud or says nothing, and sends media inline', async () => {
     const provider = firebaseProvider(() => Promise.resolve(ai));
     generateContent.mockResolvedValueOnce({
       response: { text: () => '{}', inferenceSource: 'in_cloud' },
     });
-    const image = { mimeType: 'image/jpeg' as const, base64: 'AAAA' };
-    expect((await provider.generate({ ...REQ, image })).ranOn).toBe('cloud');
+    const media = { mimeType: 'image/jpeg' as const, base64: 'AAAA' };
+    expect((await provider.generate({ ...REQ, media })).ranOn).toBe('cloud');
     expect(generateContent).toHaveBeenLastCalledWith([
       { type: 'text', text: 'hello' },
       { type: 'inlineData', inlineData: { mimeType: 'image/jpeg', data: 'AAAA' } },
+    ]);
+    const audio = { mimeType: 'audio/wav' as const, base64: 'UklG' };
+    generateContent.mockResolvedValueOnce({ response: { text: () => '{}' } });
+    await provider.generate({ ...REQ, mode: 'ONLY_IN_CLOUD', media: audio });
+    expect(generateContent).toHaveBeenLastCalledWith([
+      { type: 'text', text: 'hello' },
+      { type: 'inlineData', inlineData: { mimeType: 'audio/wav', data: 'UklG' } },
     ]);
     generateContent.mockResolvedValueOnce({ response: { text: () => '{}' } });
     expect((await provider.generate({ ...REQ, mode: 'ONLY_IN_CLOUD' })).ranOn).toBe('cloud');

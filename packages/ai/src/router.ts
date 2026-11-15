@@ -17,9 +17,23 @@ export interface ProviderRequest {
   jsonSchema: Record<string, unknown>;
   /** Cloud thinking level (Gemini 3.x). Lower is faster; ignored on-device. */
   thinking?: ThinkingLevel;
-  /** Optional JPEG/PNG for note.fix (on-device accepts images). */
-  image?: { mimeType: 'image/jpeg' | 'image/png'; base64: string };
+  /**
+   * Optional inline media: a JPEG/PNG for note.fix (on-device accepts images), or audio for
+   * transcribe.cloud (cloud only: Gemini Nano takes no audio).
+   */
+  media?: { mimeType: MediaMimeType; base64: string };
 }
+
+export const MEDIA_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'audio/wav',
+  'audio/mpeg',
+  'audio/mp4',
+  'audio/webm',
+  'audio/ogg',
+] as const;
+export type MediaMimeType = (typeof MEDIA_MIME_TYPES)[number];
 
 export type ThinkingLevel = 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
 
@@ -53,7 +67,7 @@ export interface TaskDef<I, O> {
    * answer: it triggers the repair, and the message is fed back to the model.
    */
   check?: (output: O, input: I) => string | null;
-  image?: (input: I) => ProviderRequest['image'];
+  media?: (input: I) => ProviderRequest['media'];
 }
 
 export interface RouterConfig {
@@ -159,7 +173,7 @@ export function createRouter(deps: {
         system: task.system,
         jsonSchema,
         ...(task.thinking ? { thinking: task.thinking } : {}),
-        ...(task.image ? { image: task.image(input.data) } : {}),
+        ...(task.media ? { media: task.media(input.data) } : {}),
       };
       const started = now();
       let attempts = 0;
