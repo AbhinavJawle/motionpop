@@ -328,6 +328,11 @@ export function stage(
   root.style.cssText = 'position:absolute;inset:0;';
 
   const actors: Actor[] = [];
+  /** Balanced text (3+ words): its word spans, to de-orphan again on the final box at compile. */
+  const balanced = new Map<
+    string,
+    { parts: HTMLElement[]; slot: TextSlot; truncatable: boolean }
+  >();
   const cueActions = new Map<string, Action[]>();
   const marks: { el: HTMLElement | SVGSVGElement; effects: Effect[]; reveal: 'draw' | 'grow' }[] =
     [];
@@ -395,10 +400,11 @@ export function stage(
     }
     const probe = doc.createElement('span');
     probe.textContent = a.count ? formatCount(a.count.to, a.count.fmt) : a.el.textContent;
-    const keep = a.el.textContent;
+    // Put the same child nodes back (not the text): word spans and the de-orphan glue stay.
+    const keep = [...a.el.childNodes];
     a.el.replaceChildren(probe);
     const tw = Math.min(a.box.width, probe.getBoundingClientRect().width);
-    a.el.textContent = keep;
+    a.el.replaceChildren(...keep);
     const size = a.size || h * 0.05;
     const x = a.align === 'left' ? a.box.x : a.box.x + (a.box.width - tw) / 2;
     return { x, y: a.box.y + size * 0.08, width: tw, height: size * 1.02 };
@@ -599,7 +605,10 @@ export function stage(
         content,
         // Word-by-word text is never truncated: every word has a spoken time.
         truncatable,
-        opts.byWord || focusIdx.length
+        // Balanced text of 3+ words also gets word spans, so a lone last word can be found and
+        // glued. (Not shorter text: a span wraps inside itself, so fitText would never see a long
+        // single word overflow and shrink it.)
+        opts.byWord || focusIdx.length || (opts.balance && tokens.length >= 3)
           ? (box) => {
               box.replaceChildren();
               tokens.forEach((t, i) => {
@@ -620,6 +629,7 @@ export function stage(
       const el = placed.el;
       let size = placed.size;
       if (opts.balance && parts.length >= 3) {
+        balanced.set(id, { parts, slot, truncatable });
         size = deOrphan(el, parts, slot, truncatable) ?? size;
         if (el.dataset.orphan === 'unavoidable')
           ctx.warn(`${id} leaves one word on its last line: the last two words don't fit together`);
@@ -869,6 +879,18 @@ export function stage(
       for (const a of actors) {
         if (a.enteredBy.length > 0 && a.enteredBy.every((c) => droppedSet.has(c)))
           a.el.style.display = 'none';
+      }
+      // A scene may narrow a text box after it was placed (columns, clamps, centring). Balanced
+      // text is checked once more on its final box, so no word is left alone on the last line.
+      for (const a of actors) {
+        const b = balanced.get(a.id);
+        if (!b || a.el.style.display === 'none' || a.el.dataset.orphan === 'unavoidable') continue;
+        const size = deOrphan(a.el, b.parts, { ...b.slot, box: a.box }, b.truncatable);
+        if (size !== null) a.size = size;
+        if (a.el.dataset.orphan === 'unavoidable')
+          ctx.warn(
+            `${a.id} leaves one word on its last line: the last two words don't fit together`,
+          );
       }
       if (spec.centre) centreGroup();
 

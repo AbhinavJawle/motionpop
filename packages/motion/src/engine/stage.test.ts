@@ -92,6 +92,27 @@ describe('stage', () => {
     comp.dispose();
   });
 
+  it('keeps the word spans of balanced text when a mark measures it', () => {
+    // Regression: measuring a text for a mark swapped its children for a probe and put back only
+    // the text, so the word spans (and the de-orphan glue) were gone after compile().
+    const ctx = ctxFor({ look: LOOK, words: WORDS });
+    const st = stage(ctx, {
+      cues: [{ id: 'focal', leadMs: 900 }],
+      anchors: [{ cue: 'focal', word: 3 }],
+    });
+    const label = st.text('label', 'of trade sat still every day', slot(400, 60), {
+      role: 'label',
+      balance: true,
+    });
+    st.on('focal', enter(label), mark(label));
+    const comp = st.compile();
+    comp.seek(3000);
+    const el = ctx.root.querySelector<HTMLElement>('[data-actor="label"]')!;
+    expect(el.querySelectorAll('span:not([data-glue])')).toHaveLength(6);
+    expect(el.textContent).toBe('of trade sat still every day');
+    comp.dispose();
+  });
+
   it('keeps cue order, read time between text cues, and meets the beat budget', () => {
     const comp = statScene(ctxFor({ look: LOOK, words: WORDS }));
     const { plan, juice } = comp.report;

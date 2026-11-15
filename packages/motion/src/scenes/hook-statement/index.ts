@@ -236,7 +236,7 @@ export const hookStatement = defineScene<HookStatementContent>({
         : null;
     const subline =
       slots.subline && c.subline
-        ? st.text('subline', c.subline, slots.subline, { role: 'label' })
+        ? st.text('subline', c.subline, slots.subline, { role: 'label', balance: true })
         : null;
     if (v === 'punch' && slots.big) {
       const cut = focus[0] as number;

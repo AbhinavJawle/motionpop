@@ -108,7 +108,11 @@ const OPTICAL_TOL = 0.06;
 // 16:9 is lower than the 45 % the review asked of versus: a two-word hook line in balanced
 // display type ("why Nobody", 34 % wide) is as large as the type scale allows and reads well.
 // versus itself clears 45 % (see KIRO_LOG, task 23 review).
-const MIN_WIDTH_SHARE: Record<Format, number> = { '16:9': 0.33, '9:16': 0.7, '1:1': 0.45 };
+// 9:16 went from 70 % to 64 % with the lone-last-word rule: a balanced two-line subline under a
+// long word ("internationalisation / everything this") is narrower than the greedy wrap that left
+// "this" alone, and random hooks measured 67 % and 69.6 %. The bigger type isn't allowed by the
+// scale, so the threshold moved, not the text.
+const MIN_WIDTH_SHARE: Record<Format, number> = { '16:9': 0.33, '9:16': 0.64, '1:1': 0.45 };
 /**
  * A narrower group still covers the frame when it is this tall (a share of the safe height): a
  * left-aligned number over its label is a column, not a small block.
@@ -371,17 +375,36 @@ async function probeAt(
             .filter((r) => r.width > 0 && r.height > 0)
             .map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height }));
         })(),
-        // Balanced text (motion principle 11): one word alone on the last of 2+ lines.
+        // One word alone on the last of 2+ lines (motion principle 11). Changed by the
+        // stat-punch `side` fix: this covers every text (labels, details, verdicts), not only
+        // balanced headlines, and measures each word with a Range, so plain text counts too.
         orphan: (() => {
           // `unavoidable`: the stage tried, and the last two words don't fit on one line.
-          if (el.dataset.balance === undefined || el.dataset.orphan === 'unavoidable') return false;
-          // Word spans (a glued pair sits in a [data-glue] wrapper).
-          const tops = [...el.querySelectorAll<HTMLElement>('span:not([data-glue])')].map((x) =>
-            Math.round(x.offsetTop),
-          );
-          if (tops.length < 3 || new Set(tops).size < 2) return false;
-          const last = Math.max(...tops);
-          return tops.filter((t) => t === last).length === 1;
+          if (el.dataset.orphan === 'unavoidable') return false;
+          const words: { top: number; h: number }[] = [];
+          const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            for (const m of (n.textContent ?? '').matchAll(/\S+/g)) {
+              const r = document.createRange();
+              r.setStart(n, m.index ?? 0);
+              r.setEnd(n, (m.index ?? 0) + m[0].length);
+              const rects = [...r.getClientRects()].filter((x) => x.width > 0 && x.height > 0);
+              const first = rects[0];
+              if (first) words.push({ top: first.top, h: first.height });
+            }
+          }
+          if (words.length < 3) return false;
+          // Group words into lines: a new line starts when the top moves down by half a line.
+          const lines: number[] = [];
+          let lineTop = words[0]?.top ?? 0;
+          for (const w of words) {
+            if (w.top - lineTop > w.h * 0.5) {
+              lines.push(1);
+              lineTop = w.top;
+            } else if (lines.length === 0) lines.push(1);
+            else lines[lines.length - 1] = (lines[lines.length - 1] ?? 0) + 1;
+          }
+          return lines.length >= 2 && lines[lines.length - 1] === 1;
         })(),
       }));
       const surfaces = [...(host?.querySelectorAll<HTMLElement>('[data-surface]') ?? [])]

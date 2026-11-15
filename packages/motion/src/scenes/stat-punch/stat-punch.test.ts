@@ -119,6 +119,45 @@ describe('stat-punch scene', () => {
     }
   });
 
+  // Regression (2026-11): the 9:16 `side` label left "day" alone on its last line in every look.
+  // The label is now balanced like hook-statement and versus text. Without layout here, the test
+  // pins the build (balanced, one span per word); `motion:check` measures the lines in a browser.
+  it('balances the label in every variant and format, with a word span for each word', () => {
+    const label = 'Of trade sat still every day';
+    for (const format of FORMAT_IDS) {
+      for (const variant of VARIANTS) {
+        const root = document.createElement('div');
+        document.body.append(root);
+        const comp = statPunch.build(
+          {
+            root,
+            ...FORMATS[format],
+            format,
+            style: editorialExplainer,
+            durationMs: 6000,
+            keyMomentMs: 1400,
+            fps: 30,
+            seed: 5,
+            warn: () => {},
+          },
+          {
+            variant,
+            content: { value: 12, suffix: '%', decimals: 0, label, countFrom: 0 },
+            beats: [],
+            images: [],
+          },
+        );
+        const el = root.querySelector<HTMLElement>('[data-actor="label"]')!;
+        expect(el.dataset.balance, `${variant} ${format}`).toBeDefined();
+        expect(el.style.cssText).toContain('text-wrap');
+        expect(el.querySelectorAll('span:not([data-glue])')).toHaveLength(6);
+        expect(el.textContent).toBe(label);
+        comp.dispose();
+        root.remove();
+      }
+    }
+  });
+
   it('is seek-pure for random content, variants and formats', () => {
     fc.assert(
       fc.property(
