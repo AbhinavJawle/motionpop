@@ -22,6 +22,7 @@
     "@motionpop/motion": "workspace:*",
     "@types/node": "catalog:",
     "fast-check": "catalog:",
+    "happy-dom": "^21.0.4",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

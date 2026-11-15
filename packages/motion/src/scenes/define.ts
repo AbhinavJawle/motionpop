@@ -135,7 +135,9 @@ export function defineScene<C>(def: SceneDef<C>): Scene<C> {
     build(ctx, score) {
       // Without word timings (checks, samples, a slot over silence) the focal cue lands on the
       // key moment: one synthetic word there keeps a single code path.
-      const words = ctx.words ?? [{ startMs: ctx.keyMomentMs, endMs: ctx.keyMomentMs + 300 }];
+      const words = ctx.words?.length
+        ? ctx.words
+        : [{ startMs: ctx.keyMomentMs, endMs: ctx.keyMomentMs + 300 }];
       const beats =
         score.beats.length > 0
           ? score.beats
