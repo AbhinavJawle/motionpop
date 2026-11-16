@@ -992,3 +992,40 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - uncommitted changes: 
   - `?? .kiro/specs/08-render-and-export/REVIEW.md`
 <!-- /kiro-session:sess_771316f7-e4cd-4e09-afdc-b454db81fc13 -->
+
+### 2026-11-16 · Kiro CLI (headless, overnight) · model: claude-sonnet-5.5 · spec 08 review fixes and tasks 1–3
+- **Spec / tasks:** spec `08-render-and-export`: apply `REVIEW.md` (F1–F18) to the three spec files, then tasks 1, 2 and 3. Founder asleep; Claude Code reviews after. Nothing pushed, deployed, installed or paid for.
+- **Prompt (short):** apply every review finding using Claude Code's decisions on the open choices (F2 cloud skeleton after task 6 as `[approval]`, F5 option a, F7 4K and WebM to "Later"); record the founder defaults; one docs commit, then one commit each for tasks 1, 2 and 3; Context7 before the spike; definition of done per `handoff.md` §11.
+- **Commits (local, in order):**
+  - `e7e2d7c` docs: review findings applied. `requirements.md`, `design.md` (new §25 maps each finding to its sections), `tasks.md` and a resolution table in `REVIEW.md`.
+  - `e16b62b` task 1: the producer spike.
+  - `2cdbd5a` task 2: render schemas.
+  - `5c8035e` task 3: property tests (Kiro task).
+- **Part 1, what changed in the spec:**
+  - New task 6a (cloud walking skeleton, `[approval]`), with the Dockerfile and `cloudbuild.yaml` moved into it from task 20, and "the cloud skeleton passing" named as the thing that cannot be cut.
+  - 4K and transparent WebM, with their flags and old tasks 25 and 26, moved to "Later"; the disabled "Soon" cards stay (R1.5, R1.6). `ResolutionSchema` is 720p and 1080p only.
+  - Image slots count as "left out" (R1.8); R1.10 removed for now.
+  - New R3.9 (the job re-validates its paths and re-encodes the voice to WAV), emulator-mode e2e, share page tests, accessibility assertions, `lookFor(styleId)` in task 4, the preflight seeking with `__motionpop.seek`, root-file steps marked IDE, the founder defaults recorded in `requirements.md` and design §22.
+  - One addition of mine: `renderIdFor` and `newShareId` move to `services/render/src/store/ids.ts`, because they need Node `crypto` and `packages/schemas` is bundled for the browser.
+  - A discrepancy I did not settle: the builder's agent file lists `firestore.rules` and `storage.rules` as writable, while `handoff.md` §7 does not. Task 13 follows the review (rule fixes from the IDE) and says so.
+- **Task 1 (spike, `$0`, local):** Context7 `/heygen-com/hyperframes` first (producer options, "render at smaller sizes"). New script `services/render/scripts/spike-output.ts` (`pnpm --filter @motionpop/render spike`).
+  - 720p works natively through `outputResolution` on 0.9.46 in all three formats: exact sizes and frame counts, scaled and not cropped (0.57 % mean difference against the downscaled 1080p frame). No ffmpeg fallback needed.
+  - 18 s 1080p 16:9 on this laptop: quality high with 2 workers 23.3 s wall and 1.3 GB peak; high with auto workers 40.5 s; standard 27.8 s and 41.7 s. `auto` chose 1 worker. Kept `high` and `workers: 2`.
+  - The numbers are one run each on a laptop, so Cloud Run timings still come from task 6a. The first render of the process was about 6 s slower (warm-up).
+  - D-034 could not be written: the builder agent can't write `docs/`. The draft lines are in the task note for the IDE to enter.
+- **Task 2 (schemas):** `packages/schemas/src/render.ts` and tests; `DailyLimitsSchema` defaults for `planCloud` and `renders` (F1); `IntMsSchema` exported (F12); four config keys with Remote Config decoders. Full `turbo run typecheck lint test --force` green (schemas 155 tests then).
+- **Task 3 (property tests):** 23 properties for P4, P6, P7 and the day doc written by either path.
+  - **A property test found a real bug in my task 2 code:** a lone surrogate in a title survived `sanitizeFilename`, so `encodeURIComponent` would have thrown when the job builds the download header, failing the render at upload. Fixed by removing `\p{Cs}`, with a regression test.
+  - **One failure was my test, not the code:** I asserted that a name never contains `..`; that is harmless once separators are gone, so the property now only forbids a name that is `.` or `..`.
+  - Also ran the properties once at 5000 runs: green.
+- **Checks run:** `npx prettier --check .` clean; `pnpm -s turbo run typecheck lint test --force` green across schemas, ai, web, motion and render after task 2 (schemas, ai 322, web 364, motion 226 tests); after task 3 the schemas package alone (typecheck, lint with 0 warnings, 179 tests) because only test files and `render.ts` changed. Not run: web build, Playwright and `motion:check` (nothing in those areas changed). Per `handoff.md` §11 the full suite runs once per commit; CI is the safety net after the push.
+- **Not verified or not done:**
+  - `docs/decisions.md` D-034 is not entered (see above).
+  - Nothing cloud-side: task 6a and 22 wait for the founder.
+  - The Remote Config template in the Firebase console doesn't have the four new keys yet; the typed defaults apply.
+- **Interleaved commits:** while this run was going, `966be07` (motion) and `d2a9579` (CI Playwright job) landed on `main` from another session. I did not touch them; my commits sit on top.
+- **Kiro features used:** custom agent `motionpop-builder` (headless), steering and the spec workflow (EARS → design → tasks, review findings back into the spec), MCP (Context7 for the producer API), fast-check property tests.
+- **What helped / what didn't:**
+  - The review made Part 1 mechanical: each finding named the file and the fix.
+  - Writing the property tests after the code caught a real defect within minutes.
+  - Turbo's cached typecheck replayed a "hit" for the web package after a schemas change; `--force` was needed to be sure (`handoff.md` §2.8 again).
