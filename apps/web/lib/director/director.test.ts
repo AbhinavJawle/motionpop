@@ -42,7 +42,7 @@ const SLOTS: Slot[] = [
     endMs: 13000,
     wordStart: 13,
     wordEnd: 18,
-    componentId: 'map-zoom',
+    componentId: 'callout',
   }),
 ];
 const SUGGESTIONS = [

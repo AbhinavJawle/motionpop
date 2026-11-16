@@ -113,10 +113,12 @@ describe('prefillPrompt (R6.1)', () => {
     const p = demoProject(0);
     store.getState().load({
       ...p,
-      slots: p.slots.map((s) => (s.id === 'slot-3' ? { ...s, prompt: '' } : s)),
+      slots: p.slots.map((s) =>
+        s.id === 'slot-3' ? { ...s, prompt: '', componentId: 'callout' } : s,
+      ),
     });
     const r = await prefillPrompt({ store, getRouter: async () => null }, 'slot-3', LOCAL);
     expect(r).toMatchObject({ kind: 'filled', source: 'template' });
-    expect(r.kind === 'filled' && r.text).toContain('map for');
+    expect(r.kind === 'filled' && r.text).toContain('callout for');
   });
 });

@@ -36,7 +36,10 @@ describe('component catalogue', () => {
   it('lists exactly the components in component-library.md, in build order', () => {
     const md = readFileSync(join(root, '.kiro/steering/component-library.md'), 'utf8');
     const ids = [...md.matchAll(/^## \d+\. `([a-z-]+)`/gm)].map((m) => m[1]);
-    expect(CATALOGUE.map((c) => c.id)).toEqual(ids);
+    // A scene that took over a component's id (map-zoom, spec 07) lives in SCENES instead.
+    expect(CATALOGUE.map((c) => c.id)).toEqual(
+      ids.filter((id) => !SCENES.some((s) => s.id === id)),
+    );
   });
 
   it('copies each "Use when" line from component-library.md', () => {

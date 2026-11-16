@@ -157,7 +157,13 @@ describe('scoring and mapping', () => {
       ['bar-chart', 'contrast-split', 0.8],
       ['callout', 'calm-explanation', 0.4],
     ]);
-    expect(out.every((s) => s.needsInput && s.needsInput.length > 0)).toBe(true);
+    // map-zoom is a built scene now (its draft names the place); the planned components still need input.
+    expect(out.find((s) => s.componentId === 'map-zoom')?.needsInput).toBeUndefined();
+    expect(
+      out
+        .filter((s) => s.componentId !== 'map-zoom')
+        .every((s) => s.needsInput && s.needsInput.length > 0),
+    ).toBe(true);
   });
 
   it('keeps only the best when the budget is tight', () => {

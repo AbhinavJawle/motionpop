@@ -10,6 +10,7 @@ import { ServerCredits } from '@/lib/credits/server-credits';
 import { demoProject } from '@/lib/projects/fixture';
 import { createEditorStore } from '@/lib/stores/editor';
 import { COULDNT_GENERATE, generateSlot, PIP_IS_ON_IT, type GenerateDeps } from './generate';
+import { makePlanned } from '@/lib/testing/planned';
 
 const CLOUD: Route = {
   kind: 'cloud',
@@ -131,6 +132,7 @@ describe('generateSlot', () => {
 
   it('a planned graphic and a missing credits client are blocked before any spend', async () => {
     const { deps, credits } = setup();
+    makePlanned(deps.store);
     expect(await generateSlot(deps, 'slot-3', CLOUD)).toMatchObject({
       outcome: 'blocked',
       reason: 'Coming soon',

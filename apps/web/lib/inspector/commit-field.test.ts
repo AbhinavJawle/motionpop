@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { demoProject } from '../projects/fixture';
 import { createEditorStore } from '../stores/editor';
 import { commitField, GATE_WARNING } from './commit-field';
+import { makePlanned } from '@/lib/testing/planned';
 
 const fresh = () => {
   const store = createEditorStore(() => 1000);
@@ -76,6 +77,7 @@ describe('commitField (spec 09 R2.2 to R2.4)', () => {
 
   it('a planned component or a missing slot says so', () => {
     const store = fresh();
+    makePlanned(store);
     expect(commitField(store, 'slot-3', { path: '/x', label: 'X' }, 1)).toEqual({
       ok: false,
       error: 'This graphic isn’t available yet.',

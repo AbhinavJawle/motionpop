@@ -132,6 +132,13 @@ const COVERAGE_MIN_WORDS = 4;
 /** Warnings while the scenes are brought in line; failures once all three pass. */
 const COMPOSITION_FAILS = true;
 const isScene = id !== undefined && id in scenes;
+/**
+ * Map scenes are exempt from the composition rule: the picture is the map, which the camera
+ * centres in the frame, and the title sits in a corner over it like a news map. Safe area,
+ * overflow, overlap and contrast still apply to the title.
+ */
+const textLed =
+  isScene && (scenes as Record<string, { category: string }>)[id as string]?.category !== 'map';
 
 interface CompositionRow {
   case: string;
@@ -726,7 +733,7 @@ async function main() {
             // is visible.
             const comp =
               label === 'key' ? await probeAt(page, s.id, s.startMs + t, false, true) : p;
-            if (isScene && (label === 'key' || label === 'hold-end') && comp.group) {
+            if (textLed && (label === 'key' || label === 'hold-end') && comp.group) {
               // A dropped optional cue leaves the scene's designed fallback (a stat without its
               // label, a hook without its punch): smaller on purpose, so only centring applies.
               const dropped = (rep?.plan.dropped.length ?? 0) > 0;

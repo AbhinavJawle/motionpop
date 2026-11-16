@@ -1,5 +1,6 @@
 import type { Exemplar } from './exemplar';
 import { hookStatementExemplars } from './hook-statement/exemplars';
+import { mapZoomExemplars } from './map-zoom/exemplars';
 import { statPunchExemplars } from './stat-punch/exemplars';
 import { versusExemplars } from './versus/exemplars';
 
@@ -8,4 +9,5 @@ export const exemplars: Record<string, readonly Exemplar<unknown>[]> = {
   'stat-punch': statPunchExemplars as Exemplar<unknown>[],
   'hook-statement': hookStatementExemplars as Exemplar<unknown>[],
   versus: versusExemplars as Exemplar<unknown>[],
+  'map-zoom': mapZoomExemplars as Exemplar<unknown>[],
 };

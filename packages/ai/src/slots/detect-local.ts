@@ -31,7 +31,6 @@ const NEEDS: Record<string, string[]> = {
   'bar-chart': ['data'],
   'line-chart': ['series'],
   callout: ['title'],
-  'map-zoom': ['target'],
 };
 /** How far back a slot may start before its span (design: at most 4 words). */
 const LEAD_WORDS = 4;
@@ -322,16 +321,23 @@ function candidates(
           if (hook) out.push(hook);
         }
         break;
-      case 'place':
+      case 'place': {
+        // Every gazetteer place resolves in the map scene (checked in gazetteer.test.ts); the
+        // label is a draft, the scene's own resolver names the place when it fills.
+        const place = clean(span.text);
         out.push({
           ...base,
           score: 0.65,
           componentId: 'map-zoom',
           skillId: 'zoom-from-world-to-place',
-          params: {},
-          needsInput: NEEDS['map-zoom'],
+          params: {
+            content: { place, label: place.replace(/\b\p{Ll}/gu, (c) => c.toUpperCase()) },
+            images: [],
+          },
+          anchor: { cue: 'place', word: span.wordStart },
         });
         break;
+      }
       case 'year': {
         // A sequence: the first year of ≥ 2 in one sentence covers them all.
         const same = years.filter((y) => sentence[y.wordStart] === sentence[span.wordStart]);

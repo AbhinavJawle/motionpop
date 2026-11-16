@@ -64,15 +64,6 @@ export const CATALOGUE: readonly CatalogueEntry[] = [
     maxMs: 8000,
     built: false,
   },
-  {
-    id: 'map-zoom',
-    name: 'Map zoom',
-    useWhen: 'a place, route or spread is mentioned',
-    minMs: 3500,
-    idealMs: 5000,
-    maxMs: 10000,
-    built: false,
-  },
 ];
 
 export interface SkillEntry {
@@ -177,6 +168,16 @@ export const SCENES: readonly SceneEntry[] = [
     maxMs: 10000,
     built: true,
     // No component did this before (bar-chart compares values, not two named sides).
+    replaces: [],
+  },
+  {
+    id: 'map-zoom',
+    name: 'Map',
+    useWhen: 'the narration names a country, city, continent or region',
+    minMs: 3500,
+    idealMs: 5000,
+    maxMs: 10000,
+    built: true,
     replaces: [],
   },
 ];

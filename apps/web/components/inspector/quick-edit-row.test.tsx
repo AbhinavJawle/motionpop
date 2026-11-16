@@ -8,6 +8,7 @@ import { demoProject } from '@/lib/projects/fixture';
 import { resetActivity, useAIActivity } from '@/lib/stores/ai-activity';
 import { editorStore } from '@/lib/stores/editor';
 import { QuickEditRow, QUICK_EDIT_ATTR } from './quick-edit-row';
+import { makePlanned } from '@/lib/testing/planned';
 
 const routerRef: { current: Router } = {
   current: createFakeRouter({ latencyMs: 0, sleep: async () => {} }),
@@ -130,6 +131,7 @@ describe('QuickEditRow (R7)', () => {
   });
 
   it('a planned graphic cannot be quick-edited', () => {
+    makePlanned(editorStore);
     render(<QuickEditRow slot={slot('slot-3')} />);
     expect(input().disabled).toBe(true);
     expect(screen.getByText('Coming soon')).toBeTruthy();

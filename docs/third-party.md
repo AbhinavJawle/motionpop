@@ -18,6 +18,8 @@ Both hackathons require disclosure of pre-existing code and third-party resource
 | Geist + Geist Mono variable woff2 (bundled in `packages/motion/src/fonts`, embedded in compositions) | SIL OFL 1.1 (`OFL-Geist.txt`) | identical type in preview and render |
 | `@huggingface/transformers` 4.3.2 (+ onnxruntime-web) | Apache-2.0 (onnxruntime: MIT) | on-device transcription in a Web Worker |
 | Whisper base weights, ONNX export `onnx-community/whisper-base_timestamped` (from `openai/whisper-base`) | Apache-2.0 (upstream model card; the ONNX export lists no separate licence) | word-timed transcription, downloaded at runtime from the Hugging Face hub |
+| d3-geo 3.1.1, topojson-client 3.1.0 | ISC | map-zoom scene: projection and paths (`packages/motion/src/scenes/map-zoom`) |
+| world-atlas 2.0.2 (`countries-110m.json`), from Natural Earth 1:110m admin-0 | ISC (package); Natural Earth data is public domain | country shapes bundled into the composition runtime |
 | d3-geo, topojson-client | ISC/BSD | maps |
 | roughjs 4.6.6 | MIT | hand-drawn marks in looks (marker circle, underline). Always called with a non-zero seed: without one it uses `Math.random` |
 | perfect-freehand 1.2.3 | MIT | highlighter stroke outline |

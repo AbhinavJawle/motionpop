@@ -8,6 +8,7 @@ import { closeOutOfCredits, useCreditsUi } from '@/lib/credits/credits-ui';
 import { demoProject } from '@/lib/projects/fixture';
 import { createEditorStore } from '@/lib/stores/editor';
 import { runQuickEdit, type QuickEditDeps } from './quick-edit';
+import { makePlanned } from '@/lib/testing/planned';
 
 const DEVICE: Route = { kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: false };
 const CLOUD: Route = {
@@ -93,6 +94,7 @@ describe('runQuickEdit on the device', () => {
 
   it('a planned graphic and an empty instruction are blocked', async () => {
     const { deps } = setup();
+    makePlanned(deps.store);
     expect(await runQuickEdit(deps, 'slot-3', 'make it slower', DEVICE)).toEqual({
       kind: 'blocked',
       reason: 'Coming soon',

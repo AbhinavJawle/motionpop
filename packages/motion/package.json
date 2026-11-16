@@ -21,13 +21,20 @@
   },
   "dependencies": {
     "@motionpop/schemas": "workspace:*",
+    "d3-geo": "3.1.1",
     "perfect-freehand": "1.2.3",
     "roughjs": "4.6.6",
+    "topojson-client": "3.1.0",
+    "world-atlas": "2.0.2",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@hyperframes/core": "catalog:",
+    "@types/d3-geo": "3.1.0",
+    "@types/geojson": "7946.0.16",
     "@types/node": "catalog:",
+    "@types/topojson-client": "3.1.5",
+    "@types/topojson-specification": "1.0.5",
     "esbuild": "^0.28.2",
     "fast-check": "catalog:",
     "happy-dom": "^21.0.4",

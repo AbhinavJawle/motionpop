@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { demoProject } from '@/lib/projects/fixture';
 import { editorStore } from '@/lib/stores/editor';
 import { ContentSection } from './content-section';
+import { makePlanned } from '@/lib/testing/planned';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- test-only removal of a DOM API
 delete (Element.prototype as any).animate;
@@ -105,6 +106,7 @@ describe('ContentSection (spec 09 R2)', () => {
   });
 
   it('a graphic that is not built yet says so', () => {
+    makePlanned(editorStore);
     render(<ContentSection slot={slot('slot-3')} />);
     expect(screen.getByText('This graphic isn’t available yet.')).toBeTruthy();
   });

@@ -61,3 +61,11 @@ describe('normalizePlaceKey', () => {
     expect(normalizePlaceKey(input)).toBe(expected);
   });
 });
+
+describe('gazetteer and the map scene', () => {
+  it('every place the tagger finds is one the map-zoom scene can draw', async () => {
+    const { placeTarget } = await import('@motionpop/motion');
+    const missing = [...PLACES].filter((p) => placeTarget(p) === null);
+    expect(missing).toEqual([]);
+  });
+});
