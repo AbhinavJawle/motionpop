@@ -74,7 +74,12 @@ export function createUserStore(listen: UserDocListen): UserStore {
       e.stop ??= listen(
         uid,
         (data) => publish(e, parseUserSnapshot(data)),
-        () => publish(e, EMPTY_USER),
+        (err) => {
+          // Never silent (architecture.md): a denied read (for example rules not deployed) used to
+          // leave the credits chip loading forever with nothing in the console.
+          console.warn('users/{uid} listener failed; balance is unknown', err);
+          publish(e, EMPTY_USER);
+        },
       );
       return () => {
         e.listeners.delete(fn);
