@@ -4,6 +4,7 @@ import { APP_CONFIG_DEFAULTS, type AppConfig } from '@motionpop/schemas';
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useAuth } from '../auth/auth-provider';
 import { firebaseEnabled, getDb } from '../firebase/client';
+import { useCredits } from '../credits/use-credits';
 import { loadAppConfig } from '../firebase/remote-config';
 import { renderClientFor, toView, type RenderClient, type RenderView } from './render-client';
 
@@ -14,42 +15,11 @@ import { renderClientFor, toView, type RenderClient, type RenderView } from './r
 export const NO_CHANGE_CHECK_MS = 45_000;
 
 /**
- * The signed-in user's credits, live from `users/{uid}`. Null while loading, signed out, or in
- * local mode (no Firebase): the chip keeps its placeholder there.
+ * The signed-in user's credits, live from `users/{uid}` (spec 13: this is `useCredits().balance`).
+ * Null while loading, signed out, or in local mode (no Firebase).
  */
 export function useCreditBalance(): number | null {
-  const auth = useAuth();
-  const uid = auth.status === 'signed-in' ? auth.user.uid : null;
-  const [state, setState] = useState<{ uid: string; credits: number } | null>(null);
-  useEffect(() => {
-    if (!uid) return;
-    let stop: (() => void) | undefined;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const db = await getDb();
-        const { doc, onSnapshot } = await import('firebase/firestore');
-        if (cancelled) return;
-        stop = onSnapshot(
-          doc(db, 'users', uid),
-          (snap) => {
-            const credits: unknown = snap.data()?.['credits'];
-            if (typeof credits === 'number' && Number.isInteger(credits) && credits >= 0) {
-              setState({ uid, credits });
-            }
-          },
-          () => {},
-        );
-      } catch {
-        // No balance: the chip keeps its placeholder.
-      }
-    })();
-    return () => {
-      cancelled = true;
-      stop?.();
-    };
-  }, [uid]);
-  return uid && state?.uid === uid ? state.credits : null;
+  return useCredits().balance;
 }
 
 /** The caller's active render, if any (a reload during a render shows its progress again). */

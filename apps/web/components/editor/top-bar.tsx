@@ -13,9 +13,9 @@ import { SegmentedPills } from '@/components/ui/segmented-pills';
 import { Tooltip } from '@/components/ui/tooltip';
 import { renameProject, setFormat } from '@/lib/commands';
 import { cn } from '@/lib/cn';
+import { useCreditsBalance } from '@/lib/credits/use-credits-client';
 import { isActive } from '@/lib/renders/export-flow';
 import { exportStore, useExportUi } from '@/lib/renders/export-store';
-import { useCreditBalance } from '@/lib/renders/hooks';
 import { selectCanRedo, selectCanUndo, useEditor } from '@/lib/stores/editor';
 
 const FORMATS: readonly { value: Format; label: string }[] = [
@@ -23,9 +23,6 @@ const FORMATS: readonly { value: Format; label: string }[] = [
   { value: '9:16', label: '9:16' },
   { value: '1:1', label: '1:1' },
 ];
-
-/** Shown until the live balance is known, and always in local mode (no Firebase). */
-const CREDITS_PLACEHOLDER = 120;
 
 /** Editor top bar (editor.png; "Top bar" in design/figma-export.css): 56 px. */
 export function TopBar() {
@@ -36,7 +33,7 @@ export function TopBar() {
   const exec = useEditor((s) => s.exec);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
-  const balance = useCreditBalance();
+  const balance = useCreditsBalance();
 
   return (
     <header className="relative flex h-14 shrink-0 items-center border-b border-white/6 bg-raised-grad pr-[28px] pl-5">
@@ -90,7 +87,7 @@ export function TopBar() {
         <BrandKitChip className="ml-[19px]" onClick={() => toast('Brand kit is on its way.')} />
         <CreditsChip
           className="ml-3"
-          credits={balance ?? CREDITS_PLACEHOLDER}
+          credits={balance}
           onClick={() => toast('Credits and plans are on their way.')}
         />
         <ExportButton />
