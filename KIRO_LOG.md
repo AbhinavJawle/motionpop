@@ -916,3 +916,11 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - The steering made most decisions mechanical (paths, rules, cost table, colours).
   - Context7 was good for API shapes but had nothing on prices.
   - The worktree having no `node_modules` meant reading the installed types from the main checkout.
+
+<!-- kiro-session:sess_303306e8-6b6f-480c-9024-80e51436c1a7 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T23:49:54.508Z · last stop: 2026-11-16T00:12:19.179Z · session: sess_303306e8-6b6f-480c-9024-80e51436c1a7
+- commits since start: 
+  - 5ce0126 docs(08-render-and-export): spec
+- uncommitted changes: none
+<!-- /kiro-session:sess_303306e8-6b6f-480c-9024-80e51436c1a7 -->
