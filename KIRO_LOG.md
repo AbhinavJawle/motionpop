@@ -935,3 +935,52 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - d2e5388 fix(07-scene-engine-and-looks): balance stat-punch labels, lone-last-word check covers all text
 - uncommitted changes: none
 <!-- /kiro-session:sess_1e20da40-be37-476e-a977-6975f472f85d -->
+
+### 2026-11-16 · Kiro CLI (headless) · agent: motionpop-builder · model: claude-opus-5.5 · spec 08 writing
+- **Spec / task:** write spec 08 `render-and-export` (requirements, design, tasks) in the `spec-08` worktree. Docs only: no code changed, nothing installed, nothing deployed, nothing pushed. The founder was asleep, so open calls were decided in the spec (design §21) and the rest listed as open questions (design §22).
+- **Prompt (short):** read the steering, plan, decisions, spec 07's compiler and scene timing, `packages/motion/src/compiler/`, `services/render/` and the export PNGs. Verify the producer and Cloud Run job APIs with Context7. Write the spec the Kiro way, review it against steering, commit, log.
+- **What I read:**
+  - all of `.kiro/steering/` that applies (handoff, architecture, tech, security-and-cost, screens, design-system, data-model, ai-tasks, component-contract);
+  - `docs/plan.md` §2–§9 and `docs/decisions.md` D-008–D-028;
+  - the compiler (`compile.ts`, `types.ts`, `scene-timing.ts`), the runtime's error handling and `services/render` (`parity.ts`, `skeleton.ts`, `render-dir.ts`);
+  - the web app's compile adapter, repository, assets route, Admin and verify helpers, the plan-allowance and bootstrap transactions, the rules and their tests, the CI workflow and the Playwright config;
+  - `design/screens/export.png` and `export-ready.png` (looked at both), with exact geometry taken from `design/figma-export.css` (frames "Export dialog" and "Success dialog").
+- **What I checked with MCP and how:**
+  - Context7 `/heygen-com/hyperframes` and `/websites/hyperframes_heygen`: producer options, transparent WebM, 4K and `outputResolution`, `@hyperframes/gcp-cloud-run`.
+  - Context7 `/websites/cloud_google_run`: `jobs:run` with overrides, task timeout, max retries, jobs billing.
+  - Because the worktree has no `node_modules`, I also read the installed `@hyperframes/producer@0.9.46` type declarations in the main worktree (read-only) to confirm `createRenderJob` / `executeRenderJob` signatures, `RenderStatus`, `outputResolution` presets and `AbortSignal` support.
+  - **Not verified:** Context7 had no pricing table, so the cost figures in design §16 are marked as estimates from memory; whether 720p downscaling works on 0.9.46; whether the Admin SDK credential's token works for the Cloud Run Admin API. Each is assigned to a task (1, 11, 22).
+- **Key findings that shaped the design:**
+  - Projects live in IndexedDB (`idb-repository`), not Firestore, so the client must send a validated snapshot and the server compiles it.
+  - Nothing reads `__motionpop.errors` in render mode yet, so the design adds a preflight.
+  - `EditorProject` has no captions or music fields, so those toggles are "Soon" until spec 12.
+  - The credits chip is a placeholder until spec 13, so the live balance is pulled forward.
+  - CI runs no Playwright today.
+  - The builder agent can't write `.github/` or `.kiro/hooks/`, so those tasks are IDE tasks.
+- **Outcome:**
+  - `.kiro/specs/08-render-and-export/requirements.md`: R1–R9 with EARS criteria, plus NFRs.
+  - `design.md`: architecture, three render modes, data flow, zod schemas, state machine, credits transactions, job steps, launchers, routes, Storage paths, UI values from the CSS, cost, deploy, testing, 11 correctness properties, edge cases, decisions, open questions, steering updates and a self-review section.
+  - `tasks.md`: 27 tasks, 8 marked **[kiro]** (about 30 %), 1 **[approval]**, plus flagged follow-ups and a Later list.
+  - Not yet reviewed by the founder, the `spec-reviewer` agent (task 0) or Claude Code.
+- **Self-review:** I read the draft against each steering file and fixed ten gaps before committing (listed in design §24). Examples:
+  - the missing error toast with Retry;
+  - ember used for progress where violet is the cloud colour;
+  - an orphan snapshot file on rejected requests;
+  - no mechanism for R3.4;
+  - the producer leaking into the web bundle;
+  - unsafe non-ASCII download filenames.
+- **My own mistakes in the run:** the first draft pointed the requirements header at the wrong design sections (§15/§16 instead of §21/§22) and gave a task number for the `firebase-admin` dependency that no longer matched after renumbering. Both were caught by a cross-reference grep and fixed. I first misread the PNG's modal position because the image was shown scaled; the CSS (560 px at x = 440, centred) settled it.
+- **Checks run:** no code changed, so no typecheck, lint or tests. `.prettierignore` excludes `*.md`, so prettier doesn't apply. I grepped the cross-references and checked every requirement id is referenced by a task.
+- **Kiro features used:** custom agent `motionpop-builder` (headless Kiro CLI), steering (always and fileMatch), the spec workflow (EARS → design → tasks), MCP (Context7), the session-start hook's context.
+- **What helped / what didn't:**
+  - The steering made most decisions mechanical (paths, rules, cost table, colours).
+  - Context7 was good for API shapes but had nothing on prices.
+  - The worktree having no `node_modules` meant reading the installed types from the main checkout.
+
+<!-- kiro-session:sess_303306e8-6b6f-480c-9024-80e51436c1a7 -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T23:49:54.508Z · last stop: 2026-11-16T00:12:19.179Z · session: sess_303306e8-6b6f-480c-9024-80e51436c1a7
+- commits since start: 
+  - 5ce0126 docs(08-render-and-export): spec
+- uncommitted changes: none
+<!-- /kiro-session:sess_303306e8-6b6f-480c-9024-80e51436c1a7 -->
