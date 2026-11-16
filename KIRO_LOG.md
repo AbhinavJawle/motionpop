@@ -1562,3 +1562,23 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - 8a961f4 fix(09-inspector-quick-edits-and-notes): task 12 More row folds optional empty content rows
 - uncommitted changes: none
 <!-- /kiro-session:sess_1af05a6d-6423-44e1-a0c7-c5c499c09473 -->
+
+<!-- kiro-session:sess_9c4178c7-b960-4d67-879d-93aed2d67139 -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T08:18:55.205Z · last stop: 2026-11-16T09:18:47.051Z · session: sess_9c4178c7-b960-4d67-879d-93aed2d67139
+- commits since start: 
+  - ea5b37c fix(11-dashboard-start-recording): task 12 project titles never sit under the collage strip
+  - e14efcf feat(11-dashboard-start-recording): task 16 capture bar hold-to-record
+  - 0b469ad feat(11-dashboard-start-recording): task 15 in-browser recorder and the recording screen
+  - f13b1bd feat(11-dashboard-start-recording): task 14 Start screen with record, upload and script cards
+  - 943bae7 feat(11-dashboard-start-recording): task 13 full dashboard with Continue card, stats and project grid
+  - 114febc feat(11-dashboard-start-recording): task 12 static style posters and the Try a style row
+  - e5cec16 feat(11-dashboard-start-recording): task 11 empty card and whole-page drop layer
+  - f4f9131 feat(11-dashboard-start-recording): task 10 dashboard shell, top bar, greeting and help sheet
+  - 72fa2b3 feat(11-dashboard-start-recording): task 9 dashboard copy, greeting, stats and search helpers
+  - bba3c4e fix(13-credits-judge-plan-settings): a failed users/{uid} read is logged, not silent (a Claude Code commit made on main during this window, not part of the Kiro run; note added in the IDE)
+  - b7277e9 feat(11-dashboard-start-recording): task 8 pending intake hand-off into Processing
+  - 69d3ceb feat(11-dashboard-start-recording): task 3 repository list, delete, duplicate, markOpened
+  - 3b49ae2 feat(11-dashboard-start-recording): task 1 project summary, doc and start schemas
+- uncommitted changes: none
+<!-- /kiro-session:sess_9c4178c7-b960-4d67-879d-93aed2d67139 -->
