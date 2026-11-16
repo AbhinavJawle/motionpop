@@ -54,9 +54,7 @@ describe('picking a graphic type (founder 2026-11-16: "Couldn’t switch to that
     expect(
       looseContent('stat-punch', ['And', 'this', 'is', 'only', 'the', 'beginning']),
     ).toBeNull();
-    expect(
-      looseContent('stat-punch', ['rates', 'hit', 'six', 'percent']),
-    ).toMatchObject({
+    expect(looseContent('stat-punch', ['rates', 'hit', 'six', 'percent'])).toMatchObject({
       value: 6,
       suffix: '%',
     });
@@ -72,5 +70,21 @@ describe('picking a graphic type (founder 2026-11-16: "Couldn’t switch to that
       left: expect.any(String),
       right: expect.any(String),
     });
+  });
+});
+
+describe('switching keeps or clears the prompt', () => {
+  it('clears a prompt Pip wrote for the old type, keeps one the creator wrote', async () => {
+    const { createEditorStore } = await import('../stores/editor');
+    const { switchGraphic } = await import('./switch-graphic');
+    for (const [prompt, kept] of [
+      ['An Editorial Explainer hook statement for “Our revenue grew”', false],
+      ['Make the number huge and red', true],
+    ] as const) {
+      const store = createEditorStore(() => 1);
+      store.getState().load({ ...project(), slots: [{ ...slot, prompt }] });
+      expect(switchGraphic(store, 's1', 'quote', document)).toBe(true);
+      expect(store.getState().project?.slots[0]?.prompt).toBe(kept ? prompt : '');
+    }
   });
 });

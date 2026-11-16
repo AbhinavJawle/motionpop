@@ -58,6 +58,8 @@ export interface ApplyVersionInput {
   status?: SlotStatus;
   /** Switches the slot to this component in the same step (a custom graphic, spec 15). */
   componentId?: string;
+  /** Replaces the slot's prompt in the same step (a type switch clears a prompt written for the old type). */
+  prompt?: string;
 }
 
 /**
@@ -87,6 +89,7 @@ export function applyVersion(slotId: string, input: ApplyVersionInput): Command 
         const s = d.slots.find((x) => x.id === slotId);
         if (!s) return;
         s.componentId = target;
+        if (input.prompt !== undefined) s.prompt = input.prompt;
         s.params = structuredClone(input.params);
         if (timing) s.timing = timing;
         else delete s.timing;
