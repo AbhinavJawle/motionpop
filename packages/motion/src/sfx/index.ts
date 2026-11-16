@@ -3,3 +3,4 @@
 export { SFX_SAMPLE_RATE, dbToGain, gainToDb, msToSamples, peakOf } from './dsp';
 export * from './synth';
 export * from './wav';
+export * from './place';

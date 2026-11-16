@@ -1,4 +1,4 @@
-import { encodeWav16 } from '@motionpop/motion/sfx';
+import { encodeWav16 } from '@motionpop/motion/sfx/wav';
 
 /**
  * 16-bit mono PCM WAV. Used for synthesized fixture voices and cleaned voiceovers (spec 05).
