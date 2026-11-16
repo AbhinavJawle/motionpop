@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { catalogueEntry, isDetectable, skillEntry, skillWorksWith } from './catalogue';
 import {
   bigNumberParams,
+  chartDraft,
   detectLocal,
   hookLine,
   reasonFor,
@@ -145,19 +146,38 @@ describe('scoring and mapping', () => {
 
   it('maps each kind to its component and skill, best first within the budget', () => {
     const out = detectLocal(w, spans, { maxSlots: 3 });
+    // Changed by spec 07 task 24: "from 10 to 40" is a chart-story (was bar-chart).
     expect(out.map((s) => [s.componentId, s.skillId, s.score])).toEqual([
       ['map-zoom', 'zoom-from-world-to-place', 0.65],
-      ['bar-chart', 'contrast-split', 0.8],
+      ['chart-story', 'contrast-split', 0.8],
       ['callout', 'calm-explanation', 0.4],
     ]);
     expect(out.every((s) => s.needsInput && s.needsInput.length > 0)).toBe(true);
   });
 
   it('keeps only the best when the budget is tight', () => {
-    expect(detectLocal(w, spans, { maxSlots: 1 }).map((s) => s.componentId)).toEqual(['bar-chart']);
+    expect(detectLocal(w, spans, { maxSlots: 1 }).map((s) => s.componentId)).toEqual([
+      'chart-story',
+    ]);
+    // The comparison's own words label its two values, each cue on the word that says it.
+    expect(detectLocal(w, spans, { maxSlots: 1 })[0]?.params).toEqual({
+      content: {
+        labels: ['From', 'To'],
+        values: [10, 40],
+        decimals: 0,
+      },
+      images: [],
+      // The slot leads in from "sales" (word 2), so "10" is its word 3.
+      beats: [
+        { cue: 'v1', word: 3 },
+        { cue: 'v2', word: 5 },
+      ],
+    });
   });
 
-  it('turns two years in one sentence into a trend, and ignores a lone year', () => {
+  // Changed by spec 07 task 24: years were a line-chart with no data (replaced by chart-story).
+  // Now a sentence with a value per year is a line chart-story; years alone make no chart.
+  it('charts a value per year as a trend, and makes no chart from years alone', () => {
     const y = words('From', '2019', 'to', '2023', 'it', 'climbed.', 'In', '2024.');
     const out = detectLocal(
       y,
@@ -168,13 +188,51 @@ describe('scoring and mapping', () => {
       ],
       { maxSlots: 5 },
     );
-    expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({
-      componentId: 'line-chart',
-      wordStart: 0,
-      wordEnd: 3,
-      score: 0.6,
+    expect(out.some((s) => s.componentId === 'chart-story')).toBe(false);
+    const t = words('Rent', 'was', '900', 'in', '2010', 'and', '2,100', 'in', '2025.');
+    const chart = detectLocal(t, tagSpans(t), { maxSlots: 1 })[0];
+    expect(chart).toMatchObject({
+      componentId: 'chart-story',
+      skillId: 'slow-build-trend',
+      score: 0.9,
+      params: {
+        variant: 'line',
+        content: {
+          labels: ['2010', '2025'],
+          values: [900, 2100],
+        },
+      },
     });
+  });
+
+  it('charts three values in one sentence as one chart-story, labelled by their words', async () => {
+    const { scenes } = await import('@motionpop/motion');
+    const t = words(
+      'Our',
+      'team',
+      'shipped',
+      '12',
+      'features',
+      'in',
+      'March,',
+      '19',
+      'in',
+      'April',
+      'and',
+      '31',
+      'in',
+      'May.',
+    );
+    const [chart] = detectLocal(t, tagSpans(t), { maxSlots: 1 });
+    expect(chart?.componentId).toBe('chart-story');
+    expect(chart?.params['beats']).toEqual([
+      { cue: 'v1', word: 3 - (chart?.wordStart ?? 0) },
+      { cue: 'v2', word: 7 - (chart?.wordStart ?? 0) },
+      { cue: 'v3', word: 11 - (chart?.wordStart ?? 0) },
+    ]);
+    expect(scenes['chart-story']?.params.safeParse(chart?.params).success).toBe(true);
+    // No label without a spoken word for it: a value with only numbers before it gives no chart.
+    expect(chartDraft(words('5', '6', '7.'), tagSpans(words('5', '6', '7.')), 0, 2)).toBeNull();
   });
 
   it('needs at least three list items', () => {

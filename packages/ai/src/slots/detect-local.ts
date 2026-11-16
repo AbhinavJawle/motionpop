@@ -21,6 +21,8 @@ interface Candidate {
   needsInput?: string[];
   /** Scenes: the cue that lands on a known spoken word (absolute word index). */
   anchor?: { cue: string; word: number };
+  /** Scenes with more than one anchored cue (absolute word indexes); `anchor` is the first. */
+  beats?: { cue: string; word: number }[];
 }
 
 const CURRENCY: ReadonlySet<NumberUnit> = new Set(['$', '£', '€']);
@@ -28,8 +30,6 @@ const SENTENCE_END = /[.?!]["')\]]*$/;
 const PUNCT_EDGE = /^[^\p{L}\p{N}$£€%]+|[^\p{L}\p{N}%]+$/gu;
 /** Inputs each not-yet-built component will need (spec 07 defines the real schemas). */
 const NEEDS: Record<string, string[]> = {
-  'bar-chart': ['data'],
-  'line-chart': ['series'],
   callout: ['title'],
   'map-zoom': ['target'],
 };
@@ -244,6 +244,150 @@ export function bigNumberParams(
   return label ? { params } : { params, needsInput: ['label'] };
 }
 
+/** chart-story's limits (its content schema): 2 to 6 values, labels and value text that fit. */
+const CHART_MIN_ITEMS = 2;
+const CHART_MAX_ITEMS = 6;
+const CHART_MAX_VALUE = 999_999;
+const CHART_MAX_VALUE_CHARS = 8;
+const CHART_LABEL_CHARS = 16;
+/** Words that introduce a value's label after it ("12 in March"). */
+const LABEL_PREPS = new Set(['in', 'for', 'at', 'by', 'during', 'on']);
+/** Grammar a label never is (possessives added to the versus list: "Our team shipped 12"). */
+const LABEL_STOP = new Set([...VERSUS_STOP, 'our', 'my', 'your', 'their', 'his', 'her', 'then']);
+
+/** The value text a chart shows, as `formatCount` in the motion package writes it. */
+const chartText = (v: number, prefix: string, suffix: string, decimals: number) =>
+  `${prefix}${v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}${suffix}`;
+
+/**
+ * A chart-story draft over words `ws..we` (spec 07 task 24): the tagged numbers in the unit of
+ * the first one, in the order spoken, each `v` cue on the word that says it. Labels are the
+ * years in the range when there is one per value, else the spoken word nearest before each
+ * value (a capitalised one first). A "from X to Y" comparison with no separate numbers gives
+ * two values labelled with its own words, "From" and "To". Null when the words don't give 2 to
+ * 6 values with labels, so the detector never shows a value or label nobody said.
+ */
+export function chartDraft(
+  words: readonly SlotWord[],
+  spans: readonly TaggedSpan[],
+  ws: number,
+  we: number,
+): { params: Record<string, unknown>; beats: { cue: string; word: number }[] } | null {
+  const inside = (s: TaggedSpan) => s.wordStart >= ws && s.wordEnd <= we;
+  const bare = (t: string) => t.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, '');
+  let points: { word: number; value: number; unit: NumberUnit | undefined; label?: string }[] =
+    spans
+      .filter((s) => s.kind === 'number' && s.value !== undefined && inside(s))
+      .map((s) => ({ word: s.wordStart, value: s.value as number, unit: s.unit }));
+  if (points.length < CHART_MIN_ITEMS) {
+    const c = spans.find(
+      (s) =>
+        s.kind === 'comparison' && s.fromValue !== undefined && s.value !== undefined && inside(s),
+    );
+    const to = c
+      ? words.findIndex(
+          (w, i) => i > c.wordStart && i <= c.wordEnd && bare(w.text).toLowerCase() === 'to',
+        )
+      : -1;
+    if (!c || to < 0) return null;
+    points = [
+      { word: c.wordStart + 1, value: c.fromValue as number, unit: c.unit, label: 'From' },
+      { word: to + 1, value: c.value as number, unit: c.unit, label: 'To' },
+    ];
+  }
+  const first = points[0];
+  if (!first) return null;
+  points = points.filter((p) => p.unit === first.unit).slice(0, CHART_MAX_ITEMS);
+  if (points.length < CHART_MIN_ITEMS) return null;
+  const big = Math.max(...points.map((p) => Math.abs(p.value)));
+  const [div, scale] = big >= 1e9 ? [1e9, 'B'] : big >= 1e6 ? [1e6, 'M'] : [1, ''];
+  const values = points.map((p) => Math.round((p.value / div) * 100) / 100);
+  if (values.some((v) => v < 0 || v > CHART_MAX_VALUE) || !values.some((v) => v > 0)) return null;
+  const unit = first.unit;
+  const prefix = unit && CURRENCY.has(unit) ? unit : '';
+  const suffix = (unit === '%' || unit === 'x' ? unit : '') + scale;
+  const decimals = Math.max(...values.map(decimalsOf));
+  if (values.some((v) => chartText(v, prefix, suffix, decimals).length > CHART_MAX_VALUE_CHARS))
+    return null;
+  const years = spans.filter((s) => s.kind === 'year' && s.value !== undefined && inside(s));
+  const sentence = sentenceIndex(words);
+  const isValue = (k: number) => points.some((p) => p.word === k);
+  const usable = (k: number) => {
+    const w = words[k];
+    const t = w ? bare(w.text) : '';
+    return w && !w.filler && t && !/\d/.test(t) && !LABEL_STOP.has(t.toLowerCase()) ? t : null;
+  };
+  /**
+   * The value's label: a name right after it ("12 features in March"), else the nearest name
+   * before it ("Europe recycles 48%"), else the nearest content word before it. Never across
+   * another value or the sentence end, so a value never takes its neighbour's label.
+   */
+  const nearLabel = (at: number): string | null => {
+    for (let k = at + 1; k <= Math.min(we, at + 3); k++) {
+      if (isValue(k) || sentence[k] !== sentence[at]) break;
+      const prev = bare(words[k - 1]?.text ?? '').toLowerCase();
+      const t = usable(k);
+      if (t && LABEL_PREPS.has(prev) && /^\p{Lu}/u.test(t)) return t;
+      if (/[.,;:!?]$/.test(words[k]?.text ?? '')) break;
+    }
+    const near: string[] = [];
+    for (let k = at - 1; k >= Math.max(ws, at - 3); k--) {
+      if (isValue(k) || sentence[k] !== sentence[at] || /[.,;:!?]$/.test(words[k]?.text ?? ''))
+        break;
+      const t = usable(k);
+      if (t) near.push(t);
+    }
+    return near.find((x) => /^\p{Lu}/u.test(x)) ?? near[0] ?? null;
+  };
+  const byYear = years.length === points.length;
+  const labels = points.map((p, k) =>
+    byYear ? String(years[k]!.value) : (p.label ?? nearLabel(p.word)),
+  );
+  const shown = labels.map((l) => (l ? l[0]!.toUpperCase() + l.slice(1) : null));
+  if (shown.some((l) => !l || l.length > CHART_LABEL_CHARS)) return null;
+  // Two values under one label would be a guess: no chart.
+  if (new Set(shown).size !== shown.length) return null;
+  return {
+    params: {
+      ...(byYear ? { variant: 'line' } : {}),
+      content: {
+        labels: shown,
+        values,
+        ...(prefix ? { prefix } : {}),
+        ...(suffix ? { suffix } : {}),
+        decimals,
+      },
+      images: [],
+    },
+    beats: points.map((p, k) => ({ cue: `v${k + 1}`, word: p.word })),
+  };
+}
+
+/** A chart-story candidate over `ws..we`, or null when the words don't give a chart. */
+function chartCandidate(
+  words: readonly SlotWord[],
+  spans: readonly TaggedSpan[],
+  ws: number,
+  we: number,
+  score: number,
+  skillId: string,
+): Candidate | null {
+  const d = chartDraft(words, spans, ws, we);
+  if (!d) return null;
+  return {
+    wordStart: ws,
+    wordEnd: we,
+    score,
+    componentId: 'chart-story',
+    skillId,
+    params: d.params,
+    // Auto-fill writes the title, takeaway and variant; the draft is what it keeps otherwise.
+    needsInput: ['content'],
+    anchor: d.beats[0] as { cue: string; word: number },
+    beats: d.beats,
+  };
+}
+
 function candidates(
   words: readonly SlotWord[],
   spans: readonly TaggedSpan[],
@@ -251,7 +395,6 @@ function candidates(
 ): Candidate[] {
   const out: Candidate[] = [];
   const comparisons = spans.filter((s) => s.kind === 'comparison');
-  const years = spans.filter((s) => s.kind === 'year');
   const ranges = sentenceRanges(sentence);
 
   // Sentence openers and claims (spec 07 task 27): the opening line, questions to the viewer
@@ -275,6 +418,28 @@ function candidates(
             : null;
     const hook = kind ? hookCandidate(words, r, kind.score, kind.skill) : null;
     if (hook) out.push(hook);
+    // Spec 07 task 24: a sentence that gives three or more values in one unit, or two values with
+    // a year each, is a chart-story from the first of them to the sentence end. It ranks
+    // above a single stat, so "12 in March, 19 in April and 31 in May" becomes one chart.
+    const nums = spans.filter(
+      (s) => s.kind === 'number' && s.wordStart >= r.start && s.wordEnd <= r.end,
+    );
+    const yrs = spans.filter(
+      (s) => s.kind === 'year' && s.wordStart >= r.start && s.wordEnd <= r.end,
+    );
+    if (nums.length >= 3 || (nums.length >= 2 && yrs.length === nums.length)) {
+      const all = [...nums, ...yrs];
+      const chart = chartCandidate(
+        words,
+        spans,
+        Math.min(...all.map((s) => s.wordStart)),
+        // To the sentence end: the last value's label often follows it ("31 in May").
+        r.end,
+        0.9,
+        yrs.length ? 'slow-build-trend' : 'countdown-ranking',
+      );
+      if (chart && (chart.beats?.length ?? 0) >= (yrs.length ? 2 : 3)) out.push(chart);
+    }
   });
 
   for (const span of spans) {
@@ -297,15 +462,18 @@ function candidates(
         break;
       }
       case 'comparison':
+        // Changed by spec 07 task 24: "from X to Y" is a two-value chart-story (bar-chart is
+        // replaced by the scene).
         if (span.fromValue !== undefined && span.value !== undefined) {
-          out.push({
-            ...base,
-            score: 0.8,
-            componentId: 'bar-chart',
-            skillId: 'contrast-split',
-            params: {},
-            needsInput: NEEDS['bar-chart'],
-          });
+          const chart = chartCandidate(
+            words,
+            spans,
+            span.wordStart,
+            span.wordEnd,
+            0.8,
+            'contrast-split',
+          );
+          if (chart) out.push(chart);
         }
         break;
       case 'list':
@@ -327,23 +495,8 @@ function candidates(
           needsInput: NEEDS['map-zoom'],
         });
         break;
-      case 'year': {
-        // A sequence: the first year of ≥ 2 in one sentence covers them all.
-        const same = years.filter((y) => sentence[y.wordStart] === sentence[span.wordStart]);
-        if (same.length >= 2 && same[0] === span) {
-          const last = same[same.length - 1] as TaggedSpan;
-          out.push({
-            wordStart: span.wordStart,
-            wordEnd: last.wordEnd,
-            score: 0.6,
-            componentId: 'line-chart',
-            skillId: 'slow-build-trend',
-            params: {},
-            needsInput: NEEDS['line-chart'],
-          });
-        }
-        break;
-      }
+      // Changed by spec 07 task 24: a 'year' sequence was a line-chart, which chart-story
+      // replaces; years with a value each are charted per sentence above.
       case 'name':
         out.push({
           ...base,
@@ -439,6 +592,16 @@ export function sceneDraft(
       first,
     );
   }
+  if (s.componentId === 'chart-story') {
+    // Spec 07 task 24: the values as spoken, each `v` cue on its word; no values, no chart.
+    const d = chartDraft(words, spans, s.wordStart, s.wordEnd);
+    if (!d) return null;
+    return {
+      ...s,
+      params: { ...d.params, beats: d.beats.map((b) => ({ ...b, word: b.word - s.wordStart })) },
+      needsInput: ['content'],
+    };
+  }
   if (s.componentId === 'versus') {
     // Spec 07 task 23: the two sides as spoken, each cue on its side's first word. Auto-fill
     // writes the details and the verdict; without both sides there is nothing to compare.
@@ -511,7 +674,10 @@ export function detectLocal(
     score: c.score,
     // Scene beats index the slot's own words (the post-pass rebases them if the slot moves).
     params: c.anchor
-      ? { ...c.params, beats: [{ cue: c.anchor.cue, word: c.anchor.word - c.wordStart }] }
+      ? {
+          ...c.params,
+          beats: (c.beats ?? [c.anchor]).map((b) => ({ cue: b.cue, word: b.word - c.wordStart })),
+        }
       : c.params,
     ...(c.needsInput ? { needsInput: c.needsInput } : {}),
   }));

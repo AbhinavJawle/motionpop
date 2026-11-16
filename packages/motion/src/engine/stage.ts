@@ -62,6 +62,8 @@ interface Props {
   ty: number;
   scale: number;
   scaleX: number;
+  /** Vertical scale (bars that grow up from their baseline). */
+  scaleY: number;
   rot: number;
   /** Share clipped from the right / bottom (mask and wipe reveals). */
   clipR: number;
@@ -97,6 +99,8 @@ export interface Actor {
   post?: (tMs: number) => void;
   /** Set when a tilted surface carries the actor: its marks turn with it about (cx, cy). */
   carry?: { rot: number; cx: number; cy: number };
+  /** Shapes that grow up from their bottom edge (`origin: 'bottom'`): `draw` scales them in y. */
+  grow?: 'y';
 }
 
 const overlapsBox = (a: Box, b: Box) =>
@@ -196,6 +200,8 @@ export interface TextOptions {
   byWord?: boolean;
   /** Words of the text to emphasise (accent colour; `mark` goes around them). */
   emphasis?: string;
+  /** Never break a word mid-way: a word too wide for the box shrinks the text (see fitText). */
+  keepWords?: boolean;
   /**
    * Balance the lines (CSS `text-wrap: balance`): even line lengths, so a headline never
    * leaves one word alone on its last line (motion principle 11).
@@ -215,14 +221,28 @@ export interface SurfaceOpts {
    */
   box?: Box;
 }
-export type ShapeColor = 'accent' | 'accent2' | 'highlight' | 'ink' | 'muted';
+export type ShapeColor =
+  | 'accent'
+  | 'accent2'
+  | 'highlight'
+  | 'ink'
+  | 'muted'
+  /** The look's chart palette (`colors.chart[i]`), for data marks; falls back to `muted`. */
+  | 'chart-0'
+  | 'chart-1'
+  | 'chart-2';
 export interface ShapeOptions {
   /** Colour token from the look. */
   color?: ShapeColor;
   radius?: number;
   depth?: 0 | 1 | 2;
-  /** Transform origin for scale entrances: the left edge (default, bars grow) or the centre. */
-  origin?: 'left' | 'center';
+  /**
+   * Transform origin for scale entrances: the left edge (default, bars grow right), the centre,
+   * or the bottom edge (columns grow up from their baseline: `draw` scales them in y).
+   */
+  origin?: 'left' | 'center' | 'bottom';
+  /** A fixed turn in degrees about the transform origin (a line segment between two points). */
+  rotate?: number;
   /** Put the shape behind this actor instead of on top of everything placed so far. */
   behind?: Actor;
   /**
@@ -360,6 +380,7 @@ export function stage(
     content: string,
     truncatable: boolean,
     fill?: (el: HTMLElement) => void,
+    keepWords = false,
   ) => {
     const el = doc.createElement('div');
     el.dataset.text = '';
@@ -378,6 +399,7 @@ export function stage(
         lineHeight: slot.lineHeight,
         maxLines: slot.maxLines,
         truncatable,
+        ...(keepWords ? { breakWords: false } : {}),
       },
     );
     if (fit.truncated) ctx.warn(`${id} truncated to fit`);
@@ -630,6 +652,7 @@ export function stage(
               });
             }
           : undefined,
+        opts.keepWords,
       );
       const el = placed.el;
       let size = placed.size;
@@ -678,8 +701,17 @@ export function stage(
     shape(id, box, opts = {}) {
       const el = doc.createElement('div');
       el.dataset.actor = id;
-      const color = style.colors[opts.color ?? 'accent'];
-      el.style.cssText = `position:absolute;left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px;background:${color};border-radius:${opts.radius ?? style.shape.radius}px;transform-origin:${opts.origin === 'center' ? 'center center' : 'left center'};`;
+      const token = opts.color ?? 'accent';
+      const color = token.startsWith('chart-')
+        ? (style.colors.chart[Number(token.slice(6))] ?? style.colors.muted)
+        : style.colors[token as Exclude<ShapeColor, `chart-${number}`>];
+      const origin =
+        opts.origin === 'center'
+          ? 'center center'
+          : opts.origin === 'bottom'
+            ? 'center bottom'
+            : 'left center';
+      el.style.cssText = `position:absolute;left:${box.x}px;top:${box.y}px;width:${box.width}px;height:${box.height}px;background:${color};border-radius:${opts.radius ?? style.shape.radius}px;transform-origin:${origin};`;
       if (opts.behind) opts.behind.el.before(el);
       else root.append(el);
       if (opts.behind && opts.carries) {
@@ -688,7 +720,7 @@ export function stage(
         opts.behind.el.dataset.on = opts.color ?? 'accent';
         for (const part of opts.behind.parts ?? []) part.style.color = c;
       }
-      return add({
+      const actor = add({
         id,
         kind: 'shape',
         el,
@@ -697,7 +729,11 @@ export function stage(
         words: 0,
         align: 'left',
         depth: opts.depth ?? 1,
+        ...(opts.origin === 'bottom' ? { grow: 'y' as const } : {}),
       });
+      const turn = opts.rotate ?? 0;
+      if (turn) actor.effects.push((_t, p) => (p.rot += turn));
+      return actor;
     },
     surface(id, kind, around, opts = {}) {
       const list = Array.isArray(around) ? around : [around as Actor];
@@ -1012,7 +1048,8 @@ export function stage(
                   break;
                 case 'draw':
                   p.opacity *= shown;
-                  p.scaleX *= e;
+                  if (a.grow === 'y') p.scaleY *= e;
+                  else p.scaleX *= e;
                   break;
                 default: // rise, count
                   p.opacity *= e;
@@ -1125,7 +1162,7 @@ export function stage(
 
       const write = (el: HTMLElement | SVGSVGElement, p: Props) => {
         el.style.opacity = String(p.opacity);
-        el.style.transform = `translate(${p.tx}px,${p.ty}px) rotate(${p.rot}deg) scale(${p.scale * p.scaleX},${p.scale})`;
+        el.style.transform = `translate(${p.tx}px,${p.ty}px) rotate(${p.rot}deg) scale(${p.scale * p.scaleX},${p.scale * p.scaleY})`;
         el.style.clipPath =
           p.clipR > 0 || p.clipB > 0 ? `inset(0 ${p.clipR * 100}% ${p.clipB * 100}% 0)` : 'none';
       };
@@ -1139,6 +1176,7 @@ export function stage(
           ty: -out * lift,
           scale: 1,
           scaleX: 1,
+          scaleY: 1,
           rot: 0,
           clipR: 0,
           clipB: 0,
@@ -1257,6 +1295,8 @@ function deOrphan(
   glue.style.whiteSpace = 'nowrap';
   a.before(glue);
   glue.append(a, ...(space && space !== b ? [space] : []), b);
+  // Text placed with `keepWords` keeps its words whole on the refit too.
+  const keepWords = el.style.overflowWrap === 'normal';
   const refit = () =>
     fitText(
       el,
@@ -1267,6 +1307,7 @@ function deOrphan(
         lineHeight: slot.lineHeight,
         maxLines: slot.maxLines,
         truncatable,
+        ...(keepWords ? { breakWords: false } : {}),
       },
     );
   const fit = refit();

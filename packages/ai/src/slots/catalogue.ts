@@ -179,6 +179,18 @@ export const SCENES: readonly SceneEntry[] = [
     // No component did this before (bar-chart compares values, not two named sides).
     replaces: [],
   },
+  {
+    id: 'chart-story',
+    name: 'Chart story',
+    useWhen:
+      'the narration gives 2 to 6 values to compare or a trend over time (years, places, groups)',
+    minMs: 5000,
+    idealMs: 7200,
+    maxMs: 12000,
+    built: true,
+    // Spec 07 task 24: bars, rows and a line in one scene.
+    replaces: ['bar-chart', 'line-chart'],
+  },
 ];
 
 const replacedBy = new Map(SCENES.flatMap((s) => s.replaces.map((r) => [r, s.id] as const)));
