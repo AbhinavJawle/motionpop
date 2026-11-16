@@ -6,6 +6,33 @@ _Reviewer: `spec-reviewer` (read-only), model claude-sonnet-5.5. Read: `requirem
 
 The spec is thorough and mostly matches steering and the code. Requirements are numbered, EARS-style and traced to tasks. All 11 correctness properties have an owning task. The credit logic is in one place, with fixed ledger ids. Two findings would break the build or the schedule if left as written (F1, F2). Fix F1 to F5 before task 1; the rest can be fixed on the way.
 
+## Resolution (2026-11-16, headless run, claude-sonnet-5.5)
+
+Each finding is resolved in `requirements.md`, `design.md` and `tasks.md`, using Claude Code's decisions on the open choices (F2 yes, F5 option a, F7 yes, the rest as written). `design.md` §25 maps every finding to the sections that changed.
+
+| Finding | Resolved in |
+|---|---|
+| F1 | design §5 and §7.1; tasks 2, 3 and 10 |
+| F2 | new task 6a (**[approval]**); design §17; cut order in `tasks.md` |
+| F3 | tasks 8, 13 and 22 (IDE steps marked) |
+| F4 | design §4 and §21 (decision 3), P9; tasks 4 and 5 |
+| F5 | option (a): R1.8, R1.10 removed; design §8 step 3; "Later" |
+| F6 | design §18; tasks 17, 19 and 21 |
+| F7 | R1.5, R1.6, R3.3; design §5, §14, §21; 4K and WebM in "Later" (old tasks 25 and 26) |
+| F8 | R3.9, R8.3; design §8 step 2; tasks 6 and 7 |
+| F9 | design §8 step 4; task 6 |
+| F10 | R1.4; design §21 (decision 15); task 23 |
+| F11 | moot with F7; kept in "Later" |
+| F12 | design §5; task 2 |
+| F13 | design §5, §8 step 5, P10; tasks 6 and 9 |
+| F14 | R2.8; design §21 (decision 19) |
+| F15 | R8.5, R9.1; design §18; tasks 6a, 8 and 22 |
+| F16 | design §20 |
+| F17 | design §3 and §7.2; task 12 |
+| F18 | R1.13; design §18; task 15 |
+
+Two additions beyond the findings: `renderIdFor` and `newShareId` move to `services/render/src/store/ids.ts` (they need Node `crypto`, and `packages/schemas` is bundled for the browser), and the founder defaults of design §22 are recorded in `requirements.md`.
+
 ## Findings, by severity
 
 ### High
