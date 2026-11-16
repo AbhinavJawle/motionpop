@@ -189,6 +189,9 @@ export class HybridAudioStore implements AudioStore {
     await this.d.queue.remove(ref).catch(() => undefined);
     this.markDone(ref);
     await this.d.local.deleteKey(ref).catch(() => undefined);
+    // An upload already under way would land after the delete and leave an orphan (a project
+    // deleted right after it was duplicated): let it finish, then remove.
+    await this.idle([ref]);
     try {
       await (await this.d.remote()).remove(storagePathOf(ref));
     } catch (err) {

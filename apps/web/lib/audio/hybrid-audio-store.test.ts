@@ -22,10 +22,12 @@ class FakeRemote implements RemoteAudio {
   failUploads = 0;
   refuseReads = false;
   gate: Promise<void> | null = null;
+  started = 0;
   async exists(path: string) {
     return this.objects.has(path);
   }
   async upload(path: string, blob: Blob) {
+    this.started += 1;
     if (this.gate) await this.gate;
     if (this.failUploads > 0) {
       this.failUploads -= 1;
@@ -81,6 +83,22 @@ describe('HybridAudioStore', () => {
     await store.drained();
     expect(remote.objects.has(storagePathOf(ref))).toBe(true);
     expect(store.pending([ref])).toBe(0);
+  });
+
+  it('a delete during an upload leaves nothing behind (duplicate, then delete at once)', async () => {
+    const remote = new FakeRemote();
+    let open!: () => void;
+    remote.gate = new Promise((r) => (open = r));
+    const store = make(new IDBFactory(), remote);
+    const ref = await store.put(wav(5), place);
+    while (remote.started === 0) await new Promise((r) => setTimeout(r, 1));
+    const deleting = store.delete(ref);
+    // Let the delete do everything it can before the upload lands.
+    await new Promise((r) => setTimeout(r, 30));
+    open();
+    await deleting;
+    await store.drained();
+    expect(remote.objects.size).toBe(0);
   });
 
   it('files the object at the path spec 08 accepts (voicePathFor)', async () => {
