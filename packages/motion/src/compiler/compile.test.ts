@@ -43,6 +43,14 @@ describe('compileProject', () => {
     );
   });
 
+  it('adds the bed as its own audio clip on track 2 only when given', () => {
+    expect(compileProject(input, assets)).not.toContain('id="bed"');
+    const html = compileProject({ ...input, bedSrc: 'assets/bed.wav' }, assets);
+    expect(html).toContain(
+      '<audio id="bed" class="clip" data-start="0" data-duration="18" data-track-index="2" data-volume="1" src="assets/bed.wav">',
+    );
+  });
+
   it('embeds the HyperFrames runtime before the project and our runtime', () => {
     const html = compileProject(input, assets);
     const hf = html.indexOf('/*hf*/');

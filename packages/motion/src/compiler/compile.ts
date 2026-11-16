@@ -131,6 +131,11 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
       `    <audio id="voice" class="clip" data-start="0" data-duration="${sec(durationMs)}" data-track-index="0" data-volume="1" src="${escapeAttr(input.voiceSrc)}"></audio>`,
     );
   }
+  if (input.bedSrc) {
+    layers.push(
+      `    <audio id="bed" class="clip" data-start="0" data-duration="${sec(durationMs)}" data-track-index="2" data-volume="1" src="${escapeAttr(input.bedSrc)}"></audio>`,
+    );
+  }
   for (const s of input.slots) {
     layers.push(
       `    <div id="${escapeAttr(s.id)}" class="clip mp-slot" data-start="${sec(s.startMs)}" data-duration="${sec(s.endMs - s.startMs)}" data-track-index="1"></div>`,

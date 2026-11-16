@@ -28,3 +28,42 @@ export function encodeWav16(samples: Float32Array, sampleRate: number): Uint8Arr
   }
   return bytes;
 }
+
+/**
+ * Reads a 16-bit PCM WAV (any channel count, any extra chunks) into its first channel as floats.
+ * The render job measures the voice level with it. Returns null for anything else.
+ */
+export function decodeWav16(
+  bytes: Uint8Array,
+): { samples: Float32Array; sampleRate: number } | null {
+  const v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const tag = (o: number) => String.fromCharCode(...bytes.subarray(o, o + 4));
+  if (bytes.length < 12 || tag(0) !== 'RIFF' || tag(8) !== 'WAVE') return null;
+  let channels = 0;
+  let sampleRate = 0;
+  let bits = 0;
+  let format = 0;
+  for (let o = 12; o + 8 <= bytes.length;) {
+    const id = tag(o);
+    const size = v.getUint32(o + 4, true);
+    const body = o + 8;
+    if (id === 'fmt ' && size >= 16) {
+      format = v.getUint16(body, true);
+      channels = v.getUint16(body + 2, true);
+      sampleRate = v.getUint32(body + 4, true);
+      bits = v.getUint16(body + 14, true);
+    } else if (id === 'data') {
+      // WAVE_FORMAT_EXTENSIBLE (0xfffe) carries PCM too; ffmpeg writes it for some layouts.
+      if ((format !== 1 && format !== 0xfffe) || bits !== 16 || channels < 1 || sampleRate <= 0)
+        return null;
+      const end = Math.min(bytes.length, body + size);
+      const frames = Math.floor((end - body) / (2 * channels));
+      const samples = new Float32Array(frames);
+      for (let i = 0; i < frames; i++)
+        samples[i] = v.getInt16(body + i * 2 * channels, true) / 0x8000;
+      return { samples, sampleRate };
+    }
+    o = body + size + (size % 2);
+  }
+  return null;
+}

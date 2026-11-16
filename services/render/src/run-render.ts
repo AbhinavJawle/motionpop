@@ -13,6 +13,7 @@ import {
 } from '@motionpop/schemas';
 import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { prepareBed } from './bed';
 import { contentDisposition } from './headers';
 import { outputIssues } from './output';
 import { preflightSamples } from './preflight-samples';
@@ -119,6 +120,15 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     if (!paths) throw new RenderStepError('internal', 'no paths');
     const outPaths: RenderPaths = paths;
 
+    // 2b. The sound bed (effects, music). It only adds to the voice, so a failure here logs and
+    // the export goes on with the voice alone rather than failing the whole render.
+    let bedSrc: string | null = null;
+    try {
+      bedSrc = await prepareBed(project, compDir);
+    } catch (e) {
+      log.error({ event: 'bed-failed', renderId, error: errorText(e) });
+    }
+
     // 3. Compile.
     const slots = await step('compile-failed', 'compiling', async () => {
       const input = projectCompileInput(project, {
@@ -126,6 +136,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         format: doc.format,
         background: 'style',
         voiceSrc: 'assets/voice.wav',
+        ...(bedSrc ? { bedSrc } : {}),
         // The job computes the caption groups itself from the snapshot (spec 12 R4.5).
         captions: doc.captions,
       });

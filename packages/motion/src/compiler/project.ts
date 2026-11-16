@@ -62,6 +62,8 @@ export interface ProjectCompileOptions {
    * itself as the master clock (spec 04 R5.1), so it passes none.
    */
   voiceSrc?: string;
+  /** The render's mixed bed (effects and music); the editor plays its own, so it passes none. */
+  bedSrc?: string;
   /** Burn in captions; defaults to the project's own setting (spec 12 R3). */
   captions?: boolean;
 }
@@ -86,6 +88,7 @@ export function projectCompileInput(
     mode: opts.mode,
     ...(opts.background ? { background: opts.background } : {}),
     ...(opts.voiceSrc ? { voiceSrc: opts.voiceSrc } : {}),
+    ...(opts.bedSrc ? { bedSrc: opts.bedSrc } : {}),
     ...captionsFor(project, format, opts.captions, slots),
     slots,
   };

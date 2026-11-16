@@ -3,7 +3,6 @@
 import { audioOf, type EditorProject } from '@motionpop/schemas';
 import { useEffect, useRef } from 'react';
 import type { PlaybackClock } from '@/lib/editor/playback';
-import { useAppConfig } from '@/lib/renders/hooks';
 import { useEditor } from '@/lib/stores/editor';
 import { mixInWorker } from './bed-client';
 import type { BedRequest } from './bed-messages';
@@ -16,7 +15,6 @@ export const BED_DEBOUNCE_MS = 300;
 export function bedRequestFor(
   project: EditorProject,
   voiceLevelDb: number,
-  musicSynthEnabled: boolean,
 ): Omit<BedRequest, 'type' | 'id'> {
   const audio = audioOf(project);
   const synth = audio.musicId === 'calm-pad' || audio.musicId === 'steady-pulse';
@@ -45,18 +43,18 @@ export function bedRequestFor(
     },
     voiceSrc: project.voiceover.src,
     voiceLevelDb,
-    music: synth && musicSynthEnabled && audio.musicId ? { id: audio.musicId } : null,
+    music: synth && audio.musicId ? { id: audio.musicId } : null,
   };
 }
 
 /**
  * Keeps the open project's sound bed mixed and playing in sync with the editor's clock. The
  * mix runs in a worker, debounced; only the latest answer is used. Effects-only beds play from
- * the first edit; synthesized music waits for `musicSynthEnabled` (the founder's listening check).
+ * the first edit. `musicSynthEnabled` only hides the music picker; a project that has synthesized
+ * music plays it here exactly as the render job mixes it (services/render/src/bed.ts).
  */
 export function useSoundBed(clock: PlaybackClock, voiceLevelDb: number | null): void {
   const project = useEditor((s) => s.project);
-  const { musicSynthEnabled } = useAppConfig();
   const elRef = useRef<HTMLAudioElement | null>(null);
   const latest = useRef(0);
 
@@ -81,7 +79,7 @@ export function useSoundBed(clock: PlaybackClock, voiceLevelDb: number | null): 
 
   useEffect(() => {
     if (!project || voiceLevelDb === null) return;
-    const req = bedRequestFor(project, voiceLevelDb, musicSynthEnabled);
+    const req = bedRequestFor(project, voiceLevelDb);
     const n = ++latest.current;
     const timer = setTimeout(() => {
       useBedState.setState({ status: 'mixing' });
@@ -120,5 +118,5 @@ export function useSoundBed(clock: PlaybackClock, voiceLevelDb: number | null): 
       });
     }, BED_DEBOUNCE_MS);
     return () => clearTimeout(timer);
-  }, [project, voiceLevelDb, musicSynthEnabled, clock]);
+  }, [project, voiceLevelDb, clock]);
 }

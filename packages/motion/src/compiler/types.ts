@@ -47,6 +47,8 @@ export interface CompileInput {
   mode?: 'preview' | 'render';
   /** Voiceover URL or relative asset path (e.g. "assets/voice.wav"). */
   voiceSrc?: string;
+  /** The mixed effects and music bed (spec 12 §7), already levelled against the voice. */
+  bedSrc?: string;
   /** Burned-in captions; absent means none. */
   captions?: CompileCaptions;
   slots: CompileSlot[];
