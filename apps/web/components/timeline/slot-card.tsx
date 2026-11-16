@@ -1,7 +1,18 @@
 'use client';
 
 import type { Slot } from '@motionpop/schemas';
-import { RotateCcw, Sparkles } from 'lucide-react';
+import {
+  CalendarRange,
+  Columns2,
+  Globe,
+  Image as ImageIcon,
+  ListOrdered,
+  Quote,
+  RotateCcw,
+  Sparkles,
+  Type,
+  type LucideIcon,
+} from 'lucide-react';
 import { motion, type HTMLMotionProps } from 'motion/react';
 import { forwardRef, type CSSProperties } from 'react';
 import { Shimmer } from '@/components/ui/shimmer';
@@ -103,7 +114,7 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
             {thumb ? (
               <span className="text-[10px] leading-[13px] font-semibold text-ember">{thumb}</span>
             ) : (
-              <MiniBars />
+              <TypeGlyph componentId={slot.componentId} />
             )}
           </span>
         )}
@@ -186,6 +197,23 @@ function ResizeHandle({ side }: { side: 'left' | 'right' }) {
       <span className="h-4 w-0.5 rounded-full bg-white/50 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-data-[dragging]:opacity-100" />
     </span>
   );
+}
+
+/** Each graphic type's glyph on its card, so the timeline shows what plays where. */
+const GLYPHS: Record<string, LucideIcon> = {
+  'hook-statement': Type,
+  quote: Quote,
+  'map-zoom': Globe,
+  versus: Columns2,
+  'list-stack': ListOrdered,
+  timeline: CalendarRange,
+  'photo-evidence': ImageIcon,
+};
+
+function TypeGlyph({ componentId }: { componentId: string }) {
+  const Icon = GLYPHS[componentId];
+  if (!Icon) return <MiniBars />;
+  return <Icon className="size-[17px] text-violet-ink" strokeWidth={1.5} />;
 }
 
 function MiniBars() {
