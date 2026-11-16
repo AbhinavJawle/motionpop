@@ -24,6 +24,8 @@ Both hackathons require disclosure of pre-existing code and third-party resource
 | roughjs 4.6.6 | MIT | hand-drawn marks in looks (marker circle, underline). Always called with a non-zero seed: without one it uses `Math.random` |
 | perfect-freehand 1.2.3 | MIT | highlighter stroke outline |
 | Caveat variable woff2, latin subset, from `@fontsource-variable/caveat` 5.3.0 (bundled in `packages/motion/src/fonts`) | SIL OFL 1.1 (`OFL-Caveat.txt`) | handwriting font of the `field-notes` look |
+| Fraunces, Space Grotesk, Bricolage Grotesque, Playfair Display variable woff2, latin subset, from `@fontsource-variable/*` 5.3.0 (bundled in `packages/motion/src/fonts`, copies in `apps/web/public/fonts` for the panel previews) | SIL OFL 1.1 (`OFL-fraunces.txt`, `OFL-spacegrotesk.txt`, `OFL-bricolagegrotesque.txt`, `OFL-playfairdisplay.txt`) | Fonts panel choices |
+| Openverse API (`api.openverse.org`), photo search in the Media panel | API terms; each photo CC0 or CC BY, attribution stored with the asset | free photos for scenes |
 | Natural Earth data | Public domain | map shapes |
 | HyperFrames (`@hyperframes/player`, `producer`, `lint`, `gcp-cloud-run`) | Apache-2.0 | preview + rendering (brings Puppeteer/Chrome and FFmpeg) |
 | fast-check, vitest, playwright | MIT / Apache-2.0 | tests |
