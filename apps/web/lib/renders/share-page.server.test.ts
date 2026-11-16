@@ -56,6 +56,23 @@ describe('loadShareView (R5.4)', () => {
     );
   });
 
+  it('a render with a still gets a signed poster; a failed signing just leaves it out', async () => {
+    const thumbPath = 'users/u1/projects/p1/renders/r1/thumb.jpg';
+    const withPoster = {
+      ...deps({ render: { ...doc(), thumbPath } }),
+      posterUrl: async (path: string) => `https://signed.example/${path}`,
+    };
+    const view = await loadShareView(withPoster, SHARE);
+    expect(view).toMatchObject({ kind: 'found', posterUrl: `https://signed.example/${thumbPath}` });
+    const failing = {
+      ...deps({ render: { ...doc(), thumbPath } }),
+      posterUrl: () => Promise.reject(new Error('no thumb')),
+    };
+    const plain = await loadShareView(failing, SHARE);
+    expect(plain.kind).toBe('found');
+    expect(plain).not.toHaveProperty('posterUrl');
+  });
+
   it('the URL lives one hour', () => {
     expect(SHARE_URL_TTL_MS).toBe(3_600_000);
   });

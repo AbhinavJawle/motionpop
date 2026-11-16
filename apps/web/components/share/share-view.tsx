@@ -34,12 +34,14 @@ export function ShareVideo({
   format,
   resolution,
   videoUrl,
+  posterUrl,
 }: {
   title: string;
   durationMs: number;
   format: Format;
   resolution: string;
   videoUrl: string;
+  posterUrl?: string | undefined;
 }) {
   const size = FORMATS[format];
   const vertical = size.height > size.width;
@@ -59,6 +61,7 @@ export function ShareVideo({
             playsInline
             preload="metadata"
             src={videoUrl}
+            poster={posterUrl}
             aria-label={title}
             className="size-full bg-black object-contain"
           />

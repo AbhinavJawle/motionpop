@@ -21,5 +21,12 @@ export function sharePageDeps(mode: RenderMode): SharePageDeps {
         .getSignedUrl({ version: 'v4', action: 'read', expires: Date.now() + ttlMs });
       return url;
     },
+    posterUrl: async (path, ttlMs) => {
+      if (mode !== 'cloud') return null;
+      const [url] = await bucket()
+        .file(path)
+        .getSignedUrl({ version: 'v4', action: 'read', expires: Date.now() + ttlMs });
+      return url;
+    },
   };
 }

@@ -18,6 +18,8 @@ export interface SharePageDeps {
   load: (shareId: string) => Promise<LoadedShareLike | null>;
   /** The URL the `<video>` plays: a signed URL (cloud) or the streaming route (emulator). */
   videoUrl: (shareId: string, outputPath: string, ttlMs: number) => Promise<string>;
+  /** A signed URL for the render's still (cloud only), shown before the video plays. */
+  posterUrl?: (path: string, ttlMs: number) => Promise<string | null>;
 }
 
 export type ShareView =
@@ -28,6 +30,7 @@ export type ShareView =
       format: Format;
       resolution: string;
       videoUrl: string;
+      posterUrl?: string;
     }
   | { kind: 'not-found' };
 
@@ -36,8 +39,14 @@ export async function loadShareView(deps: SharePageDeps, shareId: string): Promi
   const loaded = await deps.load(shareId);
   const output = loaded?.render.outputPath;
   if (!loaded || !output) return { kind: 'not-found' };
+  const thumb = loaded.render.thumbPath;
+  const poster =
+    thumb && deps.posterUrl
+      ? await deps.posterUrl(thumb, SHARE_URL_TTL_MS).catch(() => null)
+      : null;
   return {
     kind: 'found',
+    ...(poster ? { posterUrl: poster } : {}),
     title: loaded.render.title,
     durationMs: loaded.render.durationMs,
     format: loaded.render.format,
