@@ -768,4 +768,37 @@ describe('runPipeline: Start draft and pending intake (spec 11 task 8)', () => {
     expect(await f.audioStore.get(ref)).not.toBeNull();
     expect(f.audioStore.size).toBe(1);
   });
+
+  it('signed in, files a stored take under the project and drops the hand-off copy only after the save', async () => {
+    const places: Array<string | undefined> = [];
+    const syncing = (inner: MemoryAudioStore): AudioStore => ({
+      put: (blob, place) => {
+        places.push(place?.projectId);
+        return inner.put(blob);
+      },
+      get: (ref) => inner.get(ref),
+      delete: (ref) => inner.delete(ref),
+      syncs: () => true,
+    });
+    const h = makeHarness();
+    h.deps.audioStore = syncing(h.audioStore);
+    const storedRef = await h.audioStore.put(audioFile());
+    await runPipeline(makeInput({ storedRef, source: 'record' }), h.deps, h.onEvent);
+    const r = await h.repo.load(PROJECT_ID);
+    if (!r.ok) throw new Error('not saved');
+    expect(places).toEqual([PROJECT_ID, PROJECT_ID]);
+    expect(r.project.voiceover.originalSrc).not.toBe(storedRef);
+    expect(await h.audioStore.get(storedRef)).toBeNull();
+    expect(await h.audioStore.get(r.project.voiceover.originalSrc ?? '')).not.toBeNull();
+
+    const f = makeHarness();
+    f.deps.audioStore = syncing(f.audioStore);
+    const ref = await f.audioStore.put(audioFile());
+    vi.spyOn(f.repo, 'save').mockRejectedValue(new Error('quota'));
+    await expect(
+      runPipeline(makeInput({ storedRef: ref, source: 'record' }), f.deps, f.onEvent),
+    ).rejects.toThrow();
+    expect(await f.audioStore.get(ref)).not.toBeNull();
+    expect(f.audioStore.size).toBe(1);
+  });
 });

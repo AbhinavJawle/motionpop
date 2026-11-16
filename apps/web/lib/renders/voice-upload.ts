@@ -1,50 +1,20 @@
 import { isSafeId, voicePathFor, type EditorProject } from '@motionpop/schemas';
-import { audioStore, isIdbAudioRef } from '../audio/audio-store';
+import { CANONICAL_TYPE, MAX_VOICE_BYTES, hash16, voiceExtFor } from '../audio/audio-path';
+import { appAudioStore } from '../audio/app-audio-store';
+import { isIdbAudioRef, type AudioStore } from '../audio/audio-store';
+import { firebaseRemoteAudio } from '../audio/firebase-remote-audio';
+import {
+  AudioElsewhereError,
+  isStorageAudioRef,
+  type RemoteAudio,
+} from '../audio/hybrid-audio-store';
 import { encodeWav, synthVoice } from '../audio/synth-voice';
-import { getStorageClient } from '../firebase/client';
 import { synthRate } from '../projects/fixture';
 
 // The voice an export renders (spec 08 R2.1, design §3 step 2): the project's voiceover as a Blob,
 // then (cloud and emulator modes) a hashed upload under the owner's `audio/` folder.
 
-export type VoiceExt = 'wav' | 'mp3' | 'm4a' | 'webm' | 'ogg';
-
-/** Browser MIME types to the extensions `voicePathFor` accepts (the same table the offline route uses). */
-const EXT_BY_TYPE: Readonly<Record<string, VoiceExt>> = {
-  'audio/wav': 'wav',
-  'audio/x-wav': 'wav',
-  'audio/wave': 'wav',
-  'audio/vnd.wave': 'wav',
-  'audio/mpeg': 'mp3',
-  'audio/mp3': 'mp3',
-  'audio/mp4': 'm4a',
-  'audio/x-m4a': 'm4a',
-  'audio/m4a': 'm4a',
-  'audio/aac': 'm4a',
-  'audio/webm': 'webm',
-  'audio/ogg': 'ogg',
-};
-
-const CANONICAL_TYPE: Readonly<Record<VoiceExt, string>> = {
-  wav: 'audio/wav',
-  mp3: 'audio/mpeg',
-  m4a: 'audio/mp4',
-  webm: 'audio/webm',
-  ogg: 'audio/ogg',
-};
-
-/** The upload limit of the Storage rule and the route (security-and-cost.md). */
-export const MAX_VOICE_BYTES = 50 * 1024 * 1024;
-
-/** MIME type without parameters (`audio/webm;codecs=opus` becomes `audio/webm`). */
-export function baseType(type: string): string {
-  return (type.split(';')[0] ?? '').trim().toLowerCase();
-}
-
-/** The extension for a blob's type, or null when the server would not accept it. */
-export function voiceExtFor(type: string): VoiceExt | null {
-  return EXT_BY_TYPE[baseType(type)] ?? null;
-}
+export { MAX_VOICE_BYTES, baseType, hash16, voiceExtFor, type VoiceExt } from '../audio/audio-path';
 
 export class VoiceError extends Error {
   constructor(
@@ -56,16 +26,28 @@ export class VoiceError extends Error {
   }
 }
 
-/** The project's voiceover as a Blob: a synthesized sample voice, the AudioStore, or a URL. */
-export async function resolveVoiceBlob(project: EditorProject): Promise<Blob> {
+/**
+ * The project's voiceover as a Blob: a synthesized sample voice, the AudioStore (`idb:` and,
+ * since spec 11 task 7, `storage:` refs, local copy first), or a URL.
+ */
+export async function resolveVoiceBlob(
+  project: EditorProject,
+  store: AudioStore = appAudioStore(),
+): Promise<Blob> {
   const src = project.voiceover.src;
   const rate = synthRate(src);
   if (rate !== null) {
     const samples = synthVoice(project.transcript.words, project.voiceover.durationMs, 1, rate);
     return new Blob([encodeWav(samples, rate)], { type: 'audio/wav' });
   }
-  if (isIdbAudioRef(src)) {
-    const blob = await audioStore().get(src);
+  if (isIdbAudioRef(src) || isStorageAudioRef(src)) {
+    let blob: Blob | null;
+    try {
+      blob = await store.get(src);
+    } catch (e) {
+      if (e instanceof AudioElsewhereError) throw new VoiceError('voice-missing', e.message);
+      throw e;
+    }
     if (!blob) throw new VoiceError('voice-missing', 'The voiceover is missing from this browser.');
     return blob;
   }
@@ -77,12 +59,6 @@ export async function resolveVoiceBlob(project: EditorProject): Promise<Blob> {
     if (e instanceof VoiceError) throw e;
     throw new VoiceError('network', 'The voiceover could not be fetched.');
   }
-}
-
-/** First 16 hex characters of the SHA-256 of the bytes (the `voice-{hash16}` part of the path). */
-export async function hash16(bytes: ArrayBuffer): Promise<string> {
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
-  return Array.from(digest.slice(0, 8), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 /** `users/{uid}/audio/{projectId}/voice-{hash16}.{ext}` (checked against `voicePathFor`). */
@@ -105,20 +81,19 @@ export async function voicePathOf(uid: string, projectId: string, blob: Blob): P
  * Uploads the voice (cloud and emulator modes) and returns its path. The path holds the content
  * hash, so an object that already exists is the same audio and the upload is skipped.
  */
-export async function uploadVoice(uid: string, projectId: string, blob: Blob): Promise<string> {
+export async function uploadVoice(
+  uid: string,
+  projectId: string,
+  blob: Blob,
+  remote: () => Promise<RemoteAudio> = firebaseRemoteAudio,
+): Promise<string> {
   const path = await voicePathOf(uid, projectId, blob);
   const ext = voiceExtFor(blob.type);
   try {
-    const storage = await getStorageClient();
-    const { ref, getMetadata, uploadBytes } = await import('firebase/storage');
-    const object = ref(storage, path);
-    try {
-      await getMetadata(object);
-      return path;
-    } catch {
-      // Not there yet (or not readable): upload it.
-    }
-    await uploadBytes(object, blob, { contentType: CANONICAL_TYPE[ext ?? 'wav'] });
+    const storage = await remote();
+    // Not there yet (or not readable): upload it.
+    if (await storage.exists(path).catch(() => false)) return path;
+    await storage.upload(path, blob, CANONICAL_TYPE[ext ?? 'wav']);
     return path;
   } catch (e) {
     if (e instanceof VoiceError) throw e;

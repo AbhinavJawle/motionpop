@@ -298,11 +298,16 @@ export async function runPipeline(
     checkAbort();
     const written: string[] = [];
     try {
-      const originalSrc = input.storedRef ?? (await deps.audioStore.put(input.file));
-      if (!input.storedRef) written.push(originalSrc);
+      // Every ref is filed under the project (design §2.4). A stored take is reused as it is in
+      // local mode; signed in, it is put again under the project so it uploads to the account.
+      const place = { projectId: id, kind: 'voice' } as const;
+      const reuse = input.storedRef && !deps.audioStore.syncs?.() ? input.storedRef : null;
+      const originalSrc = reuse ?? (await deps.audioStore.put(input.file, place));
+      if (!reuse) written.push(originalSrc);
       const src = cleanedPcm
         ? await deps.audioStore.put(
             new Blob([deps.encodeWav(cleanedPcm, OUTPUT_SAMPLE_RATE)], { type: 'audio/wav' }),
+            place,
           )
         : originalSrc;
       if (src !== originalSrc) written.push(src);
@@ -347,6 +352,10 @@ export async function runPipeline(
         updatedAt: now,
       });
       await deps.repo.save(project);
+      // The project owns its own copy now; the hand-off's local take can go.
+      if (input.storedRef && !reuse && input.storedRef !== originalSrc) {
+        await deps.audioStore.delete(input.storedRef).catch(() => undefined);
+      }
       onEvent({ type: 'step', step, state: 'done', ...planned });
       onEvent({ type: 'done', projectId: id });
       return { projectId: id };

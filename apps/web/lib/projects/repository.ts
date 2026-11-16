@@ -148,15 +148,20 @@ export abstract class StoredProjectRepository implements ProjectLibrary {
     if (!r.ok) throw new Error(`Can't duplicate project ${id}: ${r.error}`);
     const source = r.project;
     const copied = new Map<string, string>();
+    const copyId = this.newId();
     try {
       for (const ref of audioRefsOf(source)) {
         const blob = await this.audio.get(ref);
         // Fixture voices (`synth:…`) are not stored blobs; the copy points at the same recipe.
-        copied.set(ref, blob ? await this.audio.put(blob) : ref);
+        // Filed under the copy's id, so signed in it gets its own Storage object (R1.9).
+        copied.set(
+          ref,
+          blob ? await this.audio.put(blob, { projectId: copyId, kind: 'voice' }) : ref,
+        );
       }
       const now = this.now();
       const copy: EditorProject = structuredClone(source);
-      copy.id = this.newId();
+      copy.id = copyId;
       copy.title = newTitle.slice(0, 80);
       copy.createdAt = now;
       copy.updatedAt = now;

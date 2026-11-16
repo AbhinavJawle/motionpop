@@ -3,10 +3,11 @@
  * and the audio store never race each other over versions.
  *   v1: projects
  *   v2: audio (spec 05)
+ *   v3: uploads (spec 11 task 7: the audio upload queue, so a failed upload survives a reload)
  */
 export const DB_NAME = 'motionpop';
-export const DB_VERSION = 2;
-export const STORES = { projects: 'projects', audio: 'audio' } as const;
+export const DB_VERSION = 3;
+export const STORES = { projects: 'projects', audio: 'audio', uploads: 'uploads' } as const;
 
 /** Opens the database once per factory (`indexedDB` resolved lazily so SSR can import this). */
 const opened = new WeakMap<IDBFactory, Promise<IDBDatabase>>();

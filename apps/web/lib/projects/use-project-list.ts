@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { appAudioStore } from '../audio/app-audio-store';
 import { useAuth } from '../auth/auth-provider';
 import { authSettled, currentUid } from '../auth/auth-store';
 import { firebaseEnabled } from '../firebase/client';
@@ -22,12 +23,12 @@ let shared: ProjectLibrary | undefined;
 export function projectLibrary(): ProjectLibrary {
   shared ??= firebaseEnabled()
     ? new SyncedLibrary({
-        local: new IdbProjectRepository(),
+        local: new IdbProjectRepository(undefined, { audio: appAudioStore() }),
         cloud: firestoreCloud(),
         uid: currentUid,
         ready: () => authSettled(),
       })
-    : new IdbProjectRepository();
+    : new IdbProjectRepository(undefined, { audio: appAudioStore() });
   return shared;
 }
 

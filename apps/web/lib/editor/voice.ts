@@ -2,7 +2,9 @@ import type { EditorProject } from '@motionpop/schemas';
 import { encodeWav, synthVoice } from '../audio/synth-voice';
 import { DEFAULT_BUCKET_MS } from '../audio/peaks';
 import { PeaksResponseSchema } from '../audio/peaks-messages';
-import { audioStore, isIdbAudioRef } from '../audio/audio-store';
+import { appAudioStore } from '../audio/app-audio-store';
+import { isIdbAudioRef } from '../audio/audio-store';
+import { isStorageAudioRef } from '../audio/hybrid-audio-store';
 import { synthRate } from '../projects/fixture';
 
 export interface LoadedVoice {
@@ -37,7 +39,8 @@ function peaksInWorker(channels: Float32Array[], sampleRate: number): Promise<Fl
 /**
  * Loads the project's voiceover for playback and the waveform (spec 04 R4.4, R5.1): fixture
  * voices are synthesized from their word timings; other projects decode their stored audio
- * (AudioStore `idb:` refs, or a URL).
+ * (AudioStore `idb:` and `storage:` refs, or a URL). A `storage:` ref with no local copy that
+ * Storage refuses throws `AudioElsewhereError` ("This voiceover lives on another device").
  */
 export async function loadVoice(project: EditorProject): Promise<LoadedVoice> {
   let url: string;
@@ -54,8 +57,9 @@ export async function loadVoice(project: EditorProject): Promise<LoadedVoice> {
     sampleRate = rate;
   } else {
     let bytes: ArrayBuffer;
-    if (isIdbAudioRef(project.voiceover.src)) {
-      const blob = await audioStore().get(project.voiceover.src);
+    const src = project.voiceover.src;
+    if (isIdbAudioRef(src) || isStorageAudioRef(src)) {
+      const blob = await appAudioStore().get(src);
       if (!blob) throw new Error('The voiceover audio is missing from this browser.');
       url = URL.createObjectURL(blob);
       const objectUrl = url;

@@ -13,6 +13,8 @@ import { slotAt } from '@/lib/notes/active-slot';
 import { styleFor } from '@/lib/composition/project-to-compile';
 import { cn } from '@/lib/cn';
 import { useEditor, type SaveStatus } from '@/lib/stores/editor';
+import { useUploadState, type UploadState } from '@/lib/audio/use-upload-state';
+import { audioRefsOf } from '@/lib/projects/summary';
 import { FrameNotesLayer } from '@/components/notes/frame-notes-layer';
 import { OfflineBanner } from './offline-banner';
 import { PreviewBadge } from './preview-badge';
@@ -78,6 +80,8 @@ export function PreviewPane() {
   const safeZone = useEditor((s) => s.safeZone);
   const toggleSafeZone = useEditor((s) => s.toggleSafeZone);
   const saveStatus = useEditor((s) => s.saveStatus);
+  const voiceover = useEditor((s) => s.project?.voiceover);
+  const uploads = useUploadState(voiceover ? audioRefsOf({ voiceover }) : undefined);
   const generating = useEditor((s) => s.generating !== null);
   const sceneTotal = useEditor((s) => s.project?.slots.length ?? 0);
   const sceneIndex = useEditor((s) => {
@@ -160,28 +164,41 @@ export function PreviewPane() {
           SCENE {String(sceneIndex).padStart(2, '0')} / {String(sceneTotal).padStart(2, '0')}
         </span>
         <span className="text-text-2">{styleName}</span>
-        <SaveIndicator status={saveStatus} generating={generating} />
+        <SaveIndicator status={saveStatus} uploads={uploads} generating={generating} />
       </footer>
     </section>
   );
 }
 
-function SaveIndicator({ status, generating }: { status: SaveStatus; generating: boolean }) {
+function SaveIndicator({
+  status,
+  uploads,
+  generating,
+}: {
+  status: SaveStatus;
+  uploads: UploadState;
+  generating: boolean;
+}) {
+  // Audio still uploading to the account counts as unsaved (spec 11 design §10).
   const text = generating
     ? 'Generating motion…'
-    : status === 'saving'
-      ? 'Saving…'
-      : status === 'error'
-        ? 'Couldn’t save · retrying on next change'
-        : 'All changes saved';
+    : status === 'error'
+      ? 'Couldn’t save · retrying on next change'
+      : uploads === 'failing'
+        ? 'Couldn’t upload audio · retrying'
+        : status === 'saving' || uploads === 'uploading'
+          ? 'Saving…'
+          : 'All changes saved';
+  const tone = generating
+    ? 'mint'
+    : status === 'error'
+      ? 'error'
+      : uploads !== 'idle' || status === 'saving'
+        ? 'warn'
+        : 'mint';
   return (
     <span role="status" className="flex items-center gap-2 text-text-2">
-      <StatusDot
-        tone={
-          generating ? 'mint' : status === 'error' ? 'error' : status === 'saving' ? 'warn' : 'mint'
-        }
-        className="size-[5px]"
-      />
+      <StatusDot tone={tone} className="size-[5px]" />
       {text}
     </span>
   );

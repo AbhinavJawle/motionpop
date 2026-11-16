@@ -1,7 +1,7 @@
 import { detectLocal, planVideo } from '@motionpop/ai';
 import { requestPlanAllowance } from '../ai/plan-allowance';
 import { getRouter } from '../ai/router-client';
-import { audioStore } from '../audio/audio-store';
+import { appAudioStore } from '../audio/app-audio-store';
 import { decodeForPipeline } from '../audio/decode';
 import { renderCleaned } from '../audio/render-cleaned';
 import { encodeWav } from '../audio/wav';
@@ -36,7 +36,7 @@ export function browserPipelineDeps(): PipelineDeps {
     },
     renderCleaned,
     encodeWav,
-    audioStore: audioStore(),
+    audioStore: appAudioStore(),
     repo: projectLibrary(),
     now: () => Date.now(),
     newId: newProjectId,

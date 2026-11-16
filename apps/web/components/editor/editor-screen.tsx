@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Timeline } from '@/components/timeline/timeline';
 import { PlaybackClock } from '@/lib/editor/playback';
 import { loadVoice, type LoadedVoice } from '@/lib/editor/voice';
+import { AudioElsewhereError } from '@/lib/audio/hybrid-audio-store';
 import { projectLibrary } from '@/lib/projects/use-project-list';
 import { openProject } from '@/lib/projects/open';
 import type { ProjectLibrary } from '@/lib/projects/repository';
@@ -109,7 +110,14 @@ export function EditorScreen({
         setVoice(v);
       })
       .catch((e: unknown) => {
-        toast.error(`Couldn’t load the voiceover: ${e instanceof Error ? e.message : String(e)}`);
+        if (e instanceof AudioElsewhereError) {
+          // Storage refused the read and this browser has no copy (design §2.4).
+          toast(e.message, {
+            description: 'Open it on the device that recorded it to hear it here.',
+          });
+        } else {
+          toast.error(`Couldn’t load the voiceover: ${e instanceof Error ? e.message : String(e)}`);
+        }
         if (initialMs !== undefined) clock.seek(initialMs);
       });
     return () => {
