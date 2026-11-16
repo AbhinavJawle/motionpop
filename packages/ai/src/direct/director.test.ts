@@ -295,7 +295,7 @@ describe('planVideo', () => {
   it('plans on the device first, with enums of what exists in the structured output', async () => {
     const { router, calls } = routerWith(() => GOOD);
     const r = await planVideo(router, INPUT, { cloudAllowed: allowed, seed: 3 });
-    expect(r).toMatchObject({ source: 'device', model: 'fast' });
+    expect(r).toMatchObject({ source: 'device', model: 'gemini-nano' });
     expect(calls.map((c) => c.mode)).toEqual(['ONLY_ON_DEVICE']);
     expect(r.plan.slots[0]?.variant).toBe('left');
     const schema = JSON.stringify(calls[0]?.jsonSchema);

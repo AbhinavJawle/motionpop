@@ -87,7 +87,7 @@ describe('createRouter', () => {
     const { router, usage } = make(p);
     const r = await router.run(task(), { q: 'a' });
     expect(r).toMatchObject({ output: { n: 4 }, ranOn: 'device', costCredits: 0, attempts: 1 });
-    expect(r.model).toBe('fast-model');
+    expect(r.model).toBe('gemini-nano'); // a device run names Chrome's model, not the cloud one
     expect(p.calls[0]?.mode).toBe('PREFER_ON_DEVICE');
     expect(p.calls[0]?.jsonSchema).toMatchObject({ type: 'object' });
     expect(usage).toEqual([

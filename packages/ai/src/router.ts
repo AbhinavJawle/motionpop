@@ -8,6 +8,9 @@ import type { InferenceMode, RanOn } from '@motionpop/schemas';
  * task's schema (spec 00 correctness property 3).
  */
 
+/** What usage logs name an on-device run: Gemini Nano, served by Chrome. */
+export const DEVICE_MODEL = 'gemini-nano';
+
 export interface ProviderRequest {
   mode: InferenceMode;
   model: string;
@@ -271,10 +274,12 @@ export function createRouter(deps: {
         throw new RouterError(task.id, lastFailure, lastError);
       }
       const costCredits = result.ranOn === 'cloud' ? cloudCost : 0;
+      // The cloud model name is only true for a cloud run; on the device it is Chrome's model.
+      const usedModel = result.ranOn === 'device' ? DEVICE_MODEL : model;
       deps.onUsage?.({
         task: task.id,
         ranOn: result.ranOn,
-        model,
+        model: usedModel,
         credits: costCredits,
         cloudCost,
         latencyMs,
@@ -282,7 +287,14 @@ export function createRouter(deps: {
         attempts,
         ...(problems.length ? { problems } : {}),
       });
-      return { output: result.value, ranOn: result.ranOn, model, costCredits, latencyMs, attempts };
+      return {
+        output: result.value,
+        ranOn: result.ranOn,
+        model: usedModel,
+        costCredits,
+        latencyMs,
+        attempts,
+      };
     },
   };
 }
