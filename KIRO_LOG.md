@@ -1582,3 +1582,15 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - 3b49ae2 feat(11-dashboard-start-recording): task 1 project summary, doc and start schemas
 - uncommitted changes: none
 <!-- /kiro-session:sess_9c4178c7-b960-4d67-879d-93aed2d67139 -->
+
+<!-- kiro-session:sess_2707df65-9028-4fd8-a719-cda9752a0eb0 -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T09:43:47.992Z · last stop: 2026-11-16T10:14:49.840Z · session: sess_2707df65-9028-4fd8-a719-cda9752a0eb0
+- commits since start: 
+  - 5262a1a feat(12-formats-captions-sound): task B7 synthesized music beds (synth only)
+  - bc6af7c feat(12-formats-captions-sound): task B5 ducking, limiter, levels and the bed mix
+  - 7a20569 feat(12-formats-captions-sound): task B4 placeSfx, automatic effects on the graphics
+  - ba29f32 feat(12-formats-captions-sound): task B2 synthesized effects and the one WAV encoder
+  - a658b11 feat(12-formats-captions-sound): task B1 audio settings, setAudio and the audio config keys
+- uncommitted changes: none
+<!-- /kiro-session:sess_2707df65-9028-4fd8-a719-cda9752a0eb0 -->
