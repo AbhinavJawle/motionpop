@@ -19,7 +19,13 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     # No user namespaces in Cloud Run's sandbox: Chrome runs without its own sandbox, inside the
     # container's (the job holds no credentials beyond its own render's paths).
     HYPERFRAMES_CHROME_SANDBOX=0 \
-    CHROME_NO_SANDBOX=1
+    CHROME_NO_SANDBOX=1 \
+    # Only chrome-headless-shell: the producer renders with it (BeginFrame) and the preflight
+    # uses it too, so the full Chrome download (~170 MB) stays out of the image.
+    PUPPETEER_SKIP_CHROME_DOWNLOAD=true \
+    PRODUCER_HEADLESS_SHELL_PATH=/app/.cache/headless-shell \
+    # 4 vCPU / 8 GiB is not a low-memory host; the auto-detection picked the slow profile.
+    PRODUCER_LOW_MEMORY_MODE=false
 
 WORKDIR /app
 RUN chown node:node /app
@@ -27,10 +33,14 @@ USER node
 
 COPY --chown=node:node . .
 # Installs the job and its workspace packages; puppeteer's install script fetches Chrome into
-# PUPPETEER_CACHE_DIR. Then the composition runtime the job inlines into each render.
+# PUPPETEER_CACHE_DIR. Then the composition runtime the job inlines into each render, and the
+# dev dependencies (the runtime bundler, test tools) come out again.
 RUN pnpm install --frozen-lockfile --filter "@motionpop/render..." \
-  && ls "$PUPPETEER_CACHE_DIR"/chrome-headless-shell "$PUPPETEER_CACHE_DIR"/chrome \
-  && pnpm --filter @motionpop/motion build:runtime
+  && ln -s "$(ls -d "$PUPPETEER_CACHE_DIR"/chrome-headless-shell/linux-*/chrome-headless-shell-linux64)/chrome-headless-shell" "$PRODUCER_HEADLESS_SHELL_PATH" \
+  && "$PRODUCER_HEADLESS_SHELL_PATH" --version \
+  && pnpm --filter @motionpop/motion build:runtime \
+  && pnpm install --frozen-lockfile --prod --filter "@motionpop/render..." \
+  && pnpm store prune
 
 WORKDIR /app/services/render
 CMD ["node", "--import", "tsx", "src/job.ts"]

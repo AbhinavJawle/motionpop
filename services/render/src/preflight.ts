@@ -23,6 +23,11 @@ export interface ChromePreflightOptions {
   noSandbox?: boolean;
   /** Longest wait for the runtime to be ready. */
   readyTimeoutMs?: number;
+  /**
+   * A chrome-headless-shell binary (the image ships only that one, the same the producer uses);
+   * unset, puppeteer's own Chrome.
+   */
+  headlessShellPath?: string;
 }
 
 export function createChromePreflight(opts: ChromePreflightOptions = {}): Preflight {
@@ -31,7 +36,9 @@ export function createChromePreflight(opts: ChromePreflightOptions = {}): Prefli
       const html = await readFile(join(compDir, 'index.html'), 'utf8');
       const { width, height } = FORMATS[format];
       const browser = await puppeteer.launch({
-        headless: true,
+        ...(opts.headlessShellPath
+          ? { headless: 'shell' as const, executablePath: opts.headlessShellPath }
+          : { headless: true }),
         args: opts.noSandbox ? ['--no-sandbox', '--disable-setuid-sandbox'] : [],
       });
       const onAbort = () => void browser.close().catch(() => undefined);

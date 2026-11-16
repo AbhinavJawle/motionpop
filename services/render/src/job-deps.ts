@@ -35,7 +35,12 @@ export async function buildCloudDeps(renderId: string, env: JobEnv): Promise<Ren
     store: new FirestoreRenderStore(getFirestore(app)),
     blobs: new GcsBlobStore(getStorage(app).bucket(bucketName)),
     // Cloud Run gives Chrome no user namespace sandbox; the container itself is the boundary.
-    preflight: createChromePreflight({ noSandbox: env['CHROME_NO_SANDBOX'] === '1' }),
+    preflight: createChromePreflight({
+      noSandbox: env['CHROME_NO_SANDBOX'] === '1',
+      ...(env['PRODUCER_HEADLESS_SHELL_PATH']
+        ? { headlessShellPath: env['PRODUCER_HEADLESS_SHELL_PATH'] }
+        : {}),
+    }),
     producer: createHyperframesProducer(),
     ffmpeg: createProcessFfmpeg(),
     assets: await loadCompileAssets(),
