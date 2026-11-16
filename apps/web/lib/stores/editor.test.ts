@@ -65,7 +65,7 @@ describe('autosave', () => {
     const store = fresh();
     const repo = new MemoryProjectRepository();
     const save = vi.spyOn(repo, 'save');
-    const stop = startAutosave(store, repo);
+    const { stop } = startAutosave(store, repo);
 
     store.getState().exec(moveSlot('slot-2', 4300));
     vi.advanceTimersByTime(300);
@@ -86,7 +86,7 @@ describe('autosave', () => {
     const store = fresh();
     const repo = new MemoryProjectRepository();
     const save = vi.spyOn(repo, 'save');
-    const stop = startAutosave(store, repo);
+    const { stop } = startAutosave(store, repo);
     store.getState().load(demoProject(5));
     vi.advanceTimersByTime(1000);
     expect(save).not.toHaveBeenCalled();
@@ -99,10 +99,38 @@ describe('autosave', () => {
     const store = fresh();
     const repo = new MemoryProjectRepository();
     vi.spyOn(repo, 'save').mockRejectedValue(new Error('quota'));
-    const stop = startAutosave(store, repo);
+    const { stop } = startAutosave(store, repo);
     store.getState().exec(moveSlot('slot-2', 4300));
     await vi.runAllTimersAsync();
     expect(store.getState().saveStatus).toBe('error');
     await stop();
+  });
+
+  it('flush saves now and resolves only after the save and the uploads finished', async () => {
+    vi.useRealTimers();
+    const store = fresh();
+    const repo = new MemoryProjectRepository();
+    const order: string[] = [];
+    const save = repo.save.bind(repo);
+    vi.spyOn(repo, 'save').mockImplementation(async (p) => {
+      await new Promise((r) => setTimeout(r, 20));
+      await save(p);
+      order.push('save');
+    });
+    const uploadsIdle = () =>
+      new Promise<void>((r) =>
+        setTimeout(() => {
+          order.push('uploads');
+          r();
+        }, 40),
+      );
+    const handle = startAutosave(store, repo, { uploadsIdle });
+    store.getState().exec(moveSlot('slot-2', 4300));
+    await handle.flush();
+    order.push('flushed');
+    expect(order).toEqual(['save', 'uploads', 'flushed']);
+    const r = await repo.load('demo');
+    expect(r.ok && r.project.slots[1]!.startMs).toBe(4300);
+    await handle.stop();
   });
 });

@@ -13,7 +13,9 @@ import { AudioElsewhereError } from '@/lib/audio/hybrid-audio-store';
 import { projectLibrary } from '@/lib/projects/use-project-list';
 import { openProject } from '@/lib/projects/open';
 import type { ProjectLibrary } from '@/lib/projects/repository';
-import { startAutosave } from '@/lib/stores/autosave';
+import { setActiveAutosave, startAutosave } from '@/lib/stores/autosave';
+import { appAudioStore } from '@/lib/audio/app-audio-store';
+import { audioRefsOf } from '@/lib/projects/summary';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 import { ExportController } from '@/components/export/export-controller';
 import { AIStatusToasts } from './ai-status-toasts';
@@ -23,6 +25,7 @@ import { PreviewPane } from './preview-pane';
 import { SettingsPanel } from './settings-panel';
 import { PipPanel } from '@/components/pip-panel/pip-panel';
 import { ToolRail } from './tool-rail';
+import { RailPanels } from './rail-panels';
 import { TopBar } from './top-bar';
 import { CaptureTestHook } from './capture-test-hook';
 import { useEditorKeys } from './use-editor-keys';
@@ -89,8 +92,17 @@ export function EditorScreen({
 
   useEffect(() => {
     if (phase.kind !== 'ready') return;
-    const stop = startAutosave(editorStore, repo);
-    return () => void stop();
+    const handle = startAutosave(editorStore, repo, {
+      uploadsIdle: () => {
+        const p = editorStore.getState().project;
+        return appAudioStore().idle(p ? audioRefsOf(p) : []);
+      },
+    });
+    setActiveAutosave(handle);
+    return () => {
+      setActiveAutosave(null);
+      void handle.stop();
+    };
   }, [phase.kind, repo]);
 
   // Voice: synthesized or decoded, then peaks in a worker. Re-created per project.
@@ -180,6 +192,7 @@ export function EditorScreen({
         <ToolRail />
         <SettingsPanel />
         <PipPanel />
+        <RailPanels />
         <PreviewPane />
         <Inspector />
         <PipDock />

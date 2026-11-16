@@ -124,7 +124,8 @@ Nov 25 scope: tasks 1–18 (with 4a and 6b) and 23–25. **Firestore sync (tasks
 
 ## E. Editor rail panels
 
-- [ ] 20. Projects panel (design §12) in the spec 10 `LeftPanel` container (build the container here first if spec 10 task 1 is not done, and tick it there), calling the editor store's `flushSave()` (task 6) before switching. Voice and Projects replace their coming-soon panels from spec 10 task 1. — R10
+- [x] 20. Projects panel (design §12) in the spec 10 `LeftPanel` container (build the container here first if spec 10 task 1 is not done, and tick it there), calling the editor store's `flushSave()` (task 6) before switching. Voice and Projects replace their coming-soon panels from spec 10 task 1. — R10
+  _Built (Kiro CLI ship mode, 2026-11-16): `components/editor/projects-panel.tsx` in the shared `LeftPanel` via `rail-panels.tsx` (`lib/editor/rail-panel.ts`; Pip, Settings and the rail panels close each other); 64 px rows with poster, title, mono duration · edited, status chip, violet border on the open project (listed even before its first save); `startAutosave` now returns `{ flush, stop }`, `flush` awaits the save, then (capped at 4 s) `SyncedLibrary.idle()` and the project's uploads; the editor registers it for `flushSave()`. One flush ordering test. Screenshot `apps/web/.check/projects-panel.png`._
 - [ ] 21. Voice panel: source chip, duration, waveform, cleanup result, transcript with struck fillers and click-to-seek, Re-record / Replace audio with the new-take modal (new project via the start draft). — R11.1, R11.2
 - [ ] 22. **[kiro]** `setCleanup(enabled)` command (design §12), the optional `Voiceover.cleanedSrc` / `EditorProject.cleanedTranscript` fields, `unmapTime` (new, the inverse of `mapTime` in `lib/audio/edl.ts`), and property 9 (off then on is identity; invariants kept or rejected unchanged) over random transcripts with fillers and pauses; then the toggle in the Voice panel. _(First to cut.)_ — R11.3
 
