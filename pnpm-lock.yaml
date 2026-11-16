@@ -83,6 +83,9 @@ importers:
       '@motionpop/motion':
         specifier: workspace:*
         version: link:../../packages/motion
+      '@motionpop/render':
+        specifier: workspace:*
+        version: link:../../services/render
       '@motionpop/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
@@ -297,6 +300,9 @@ importers:
       '@motionpop/schemas':
         specifier: workspace:*
         version: link:../../packages/schemas
+      firebase-admin:
+        specifier: 14.5.1
+        version: 14.5.1(@firebase/app-compat@0.5.22)(@firebase/app@0.16.6)
       zod:
         specifier: 'catalog:'
         version: 4.6.7

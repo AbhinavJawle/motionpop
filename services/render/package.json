@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./store": "./src/store/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
@@ -19,6 +20,7 @@
     "@hyperframes/producer": "catalog:",
     "@motionpop/motion": "workspace:*",
     "@motionpop/schemas": "workspace:*",
+    "firebase-admin": "14.5.1",
     "zod": "catalog:"
   },
   "devDependencies": {

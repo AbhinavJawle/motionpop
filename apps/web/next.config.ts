@@ -6,7 +6,12 @@ const config: NextConfig = {
   // locks its dist dir). Unset, nothing changes.
   distDir: process.env.NEXT_DIST_DIR ?? '.next',
   // Workspace packages ship TypeScript source.
-  transpilePackages: ['@motionpop/schemas', '@motionpop/motion', '@motionpop/ai'],
+  transpilePackages: [
+    '@motionpop/schemas',
+    '@motionpop/motion',
+    '@motionpop/ai',
+    '@motionpop/render',
+  ],
   reactStrictMode: true,
   // On App Hosting the web config arrives as FIREBASE_WEBAPP_CONFIG; inline it as NEXT_PUBLIC_*.
   env: webappConfigEnv(process.env),
