@@ -65,34 +65,48 @@ describe('on-device status', () => {
     expect(useAIStatusStore.getState().availability).toBe('unavailable');
   });
 
-  it('set-up only starts from "downloadable", streams progress and ends available', async () => {
-    await setUpOnDevice();
-    expect(h.init).not.toHaveBeenCalled();
-    useAIStatusStore.setState({ availability: 'downloadable' });
-    h.init.mockImplementation((cb: (p: number) => void) => {
-      cb(0.34);
-      expect(useAIStatusStore.getState()).toMatchObject({
-        availability: 'downloading',
-        setupProgress: 0.34,
-      });
-      return Promise.resolve();
+  /** A Prompt API stub: `create` reports progress through the monitor, then resolves or rejects. */
+  function stubPromptApi(result: 'ok' | Error, progress: number[] = []) {
+    const create = vi.fn(async (opts: { monitor?: (m: EventTarget) => void }) => {
+      const target = new EventTarget();
+      opts.monitor?.(target);
+      for (const loaded of progress) {
+        const e = new Event('downloadprogress');
+        Object.assign(e, { loaded });
+        target.dispatchEvent(e);
+        expect(useAIStatusStore.getState()).toMatchObject({
+          availability: 'downloading',
+          setupProgress: loaded,
+        });
+      }
+      if (result !== 'ok') throw result;
+      return { destroy: vi.fn() };
     });
+    vi.stubGlobal('LanguageModel', { create });
+    return create;
+  }
+
+  it('set-up only starts from "downloadable", streams progress and ends available', async () => {
+    const create = stubPromptApi('ok', [0.34, 1]);
     await setUpOnDevice();
+    expect(create).not.toHaveBeenCalled();
+    useAIStatusStore.setState({ availability: 'downloadable' });
+    await setUpOnDevice();
+    expect(create).toHaveBeenCalledOnce();
     expect(useAIStatusStore.getState()).toMatchObject({
       availability: 'available',
       setupProgress: null,
     });
   });
 
-  it('a failed set-up goes back to "downloadable" so the button returns', async () => {
+  it('a failed set-up (Chrome aborts the download) goes back to "downloadable" with a reason', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    useAIStatusStore.setState({ availability: 'downloadable' });
-    h.init.mockRejectedValue(new Error('network'));
+    useAIStatusStore.setState({ availability: 'downloadable', setupError: null });
+    stubPromptApi(new DOMException('signal is aborted without reason', 'AbortError'));
     await setUpOnDevice();
-    expect(useAIStatusStore.getState()).toMatchObject({
-      availability: 'downloadable',
-      setupProgress: null,
-    });
+    const st = useAIStatusStore.getState();
+    expect(st).toMatchObject({ availability: 'downloadable', setupProgress: null });
+    expect(st.setupError).toMatch(/free disk space/);
   });
 });
 

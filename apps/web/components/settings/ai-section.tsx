@@ -41,7 +41,7 @@ export function statusView(availability: Availability, progress: number | null):
 /** AI & models (R6.3): the prefer-on-device switch, the on-device status and the usage chart. */
 export function AISection({ variant }: { variant: SettingsVariant }) {
   const { preferOnDevice, loaded, save } = usePreferOnDevice();
-  const { availability, setupProgress } = useAIStatus();
+  const { availability, setupProgress, setupError } = useAIStatus();
   const { balance } = useCredits();
   const usage = useUsageSummary(balance);
   const status = statusView(availability, setupProgress);
@@ -95,6 +95,12 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
           </a>
         )}
       </div>
+
+      {setupError && availability === 'downloadable' && (
+        <p className="mt-2 text-xs leading-4 text-text-2" role="alert">
+          {setupError}
+        </p>
+      )}
 
       <hr className="my-5 border-white/6" />
       <UsageChart

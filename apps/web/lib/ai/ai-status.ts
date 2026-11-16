@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { useEffect } from 'react';
-import { firebaseEnabled, getAILogic } from '../firebase/client';
+import { firebaseEnabled } from '../firebase/client';
 import { fakeAiFlag } from '../credits/pick-client';
 
 /**
@@ -20,6 +20,8 @@ interface AIStatusState {
   detected: boolean;
   /** `navigator.onLine`, kept current by `watchConnection` (spec 09 R9.4). */
   online: boolean;
+  /** Why the last set-up failed, shown under the status row; null otherwise. */
+  setupError: string | null;
 }
 
 export const useAIStatusStore = create<AIStatusState>(() => ({
@@ -27,6 +29,7 @@ export const useAIStatusStore = create<AIStatusState>(() => ({
   setupProgress: null,
   detected: false,
   online: true,
+  setupError: null,
 }));
 
 /**
@@ -86,30 +89,63 @@ export async function detectAvailability(): Promise<void> {
   }
 }
 
-/** Downloads the on-device model. Call it from a click handler only. Never throws. */
+interface PromptApiCreate {
+  create: (opts: {
+    expectedInputs: { type: string }[];
+    monitor?: (m: EventTarget) => void;
+  }) => Promise<{ destroy?: () => void }>;
+}
+
+/**
+ * Downloads the on-device model. Call it from a click handler only. Never throws.
+ *
+ * `LanguageModel.create()` is called before any `await`, so it runs inside the click's user
+ * activation (a download needs one). We call the Prompt API directly instead of the SDK's
+ * `initializeDeviceModel`, whose internal download promise is left unhandled when Chrome
+ * rejects (for example an `AbortError` when the disk has less than the free space Chrome
+ * requires), which left the bar at 0 % with a runtime error.
+ */
 export async function setUpOnDevice(): Promise<void> {
   const s = useAIStatusStore.getState();
   if (s.availability !== 'downloadable') return;
-  useAIStatusStore.setState({ availability: 'downloading', setupProgress: 0 });
+  const api = (globalThis as { LanguageModel?: PromptApiCreate }).LanguageModel;
+  if (!api) {
+    useAIStatusStore.setState({ availability: 'unavailable', setupProgress: null });
+    return;
+  }
+  useAIStatusStore.setState({ availability: 'downloading', setupProgress: 0, setupError: null });
   try {
-    const ai = await getAILogic();
-    const { getGenerativeModel, InferenceMode } = await import('firebase/ai');
-    const model = getGenerativeModel(ai, { mode: InferenceMode.ONLY_ON_DEVICE });
-    await model.initializeDeviceModel((p) => useAIStatusStore.setState({ setupProgress: p }));
+    const session = await api.create({
+      expectedInputs: [{ type: 'text' }, { type: 'image' }],
+      monitor: (m) =>
+        m.addEventListener('downloadprogress', (e) =>
+          useAIStatusStore.setState({ setupProgress: (e as unknown as { loaded: number }).loaded }),
+        ),
+    });
+    session.destroy?.();
     useAIStatusStore.setState({ availability: 'available', setupProgress: null });
   } catch (err) {
     console.warn('On-device set-up failed', err);
-    useAIStatusStore.setState({ availability: 'downloadable', setupProgress: null });
+    useAIStatusStore.setState({
+      availability: 'downloadable',
+      setupProgress: null,
+      setupError:
+        'Chrome stopped the download. It needs about 22 GB of free disk space and a supported GPU or 16 GB of RAM.',
+    });
   }
 }
 
-export function useAIStatus(): Pick<AIStatusState, 'availability' | 'setupProgress' | 'online'> {
+export function useAIStatus(): Pick<
+  AIStatusState,
+  'availability' | 'setupProgress' | 'online' | 'setupError'
+> {
   const availability = useAIStatusStore((s) => s.availability);
   const setupProgress = useAIStatusStore((s) => s.setupProgress);
   const online = useAIStatusStore((s) => s.online);
+  const setupError = useAIStatusStore((s) => s.setupError);
   useEffect(() => {
     void detectAvailability();
     return watchConnection();
   }, []);
-  return { availability, setupProgress, online };
+  return { availability, setupProgress, online, setupError };
 }
