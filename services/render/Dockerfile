@@ -39,7 +39,7 @@ RUN pnpm install --frozen-lockfile --filter "@motionpop/render..." \
   && ln -s "$(ls -d "$PUPPETEER_CACHE_DIR"/chrome-headless-shell/linux-*/chrome-headless-shell-linux64)/chrome-headless-shell" "$PRODUCER_HEADLESS_SHELL_PATH" \
   && "$PRODUCER_HEADLESS_SHELL_PATH" --version \
   && pnpm --filter @motionpop/motion build:runtime \
-  && pnpm install --frozen-lockfile --prod --filter "@motionpop/render..." \
+  && CI=true pnpm install --frozen-lockfile --prod --filter "@motionpop/render..." \
   && pnpm store prune
 
 WORKDIR /app/services/render
