@@ -144,6 +144,11 @@ export const LookSchema = stylePackObject
       .partialRecord(z.enum(['enter', 'mark', 'focal', 'snap', 'exit']), z.string().min(1))
       .optional(),
     transitions: z.array(z.string().min(1)).max(4).optional(),
+    /** Map look for map scenes (globe imagery): satellite, terrain, paper or night. */
+    map: z
+      .object({ style: z.enum(['satellite', 'terrain', 'paper', 'night']) })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine(checkStyleContrast);

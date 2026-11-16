@@ -26,6 +26,10 @@ Both hackathons require disclosure of pre-existing code and third-party resource
 | Caveat variable woff2, latin subset, from `@fontsource-variable/caveat` 5.3.0 (bundled in `packages/motion/src/fonts`) | SIL OFL 1.1 (`OFL-Caveat.txt`) | handwriting font of the `field-notes` look |
 | Fraunces, Space Grotesk, Bricolage Grotesque, Playfair Display variable woff2, latin subset, from `@fontsource-variable/*` 5.3.0 (bundled in `packages/motion/src/fonts`, copies in `apps/web/public/fonts` for the panel previews) | SIL OFL 1.1 (`OFL-fraunces.txt`, `OFL-spacegrotesk.txt`, `OFL-bricolagegrotesque.txt`, `OFL-playfairdisplay.txt`) | Fonts panel choices |
 | Openverse API (`api.openverse.org`), photo search in the Media panel | API terms; each photo CC0 or CC BY, attribution stored with the asset | free photos for scenes |
+| NASA Blue Marble (land and oceans, via Wikimedia Commons, 24000 x 12000 scaled to 8192 x 4096) in `packages/motion/assets/maps/satellite-8k.webp` | Public domain (NASA) | satellite globe in map scenes |
+| NASA Earth's City Lights (DMSP 1994-1995, via Wikimedia Commons, scaled to 4096 x 2048) in `packages/motion/assets/maps/night-4k.webp` | Public domain (NASA) | night globe in map scenes |
+| Natural Earth I shaded relief with hypsometric tints, 1:50m, and Gray Earth shaded relief, 1:50m (scaled to 8192 x 4096) in `packages/motion/assets/maps/relief-8k.webp`, `gray-8k.webp` | Public domain (Natural Earth) | terrain and paper globes in map scenes |
+| world-atlas `countries-50m.json`, `land-50m.json` (Natural Earth 1:50m) | ISC package, public-domain data | close-up borders and the paper map's land mask |
 | Natural Earth data | Public domain | map shapes |
 | HyperFrames (`@hyperframes/player`, `producer`, `lint`, `gcp-cloud-run`) | Apache-2.0 | preview + rendering (brings Puppeteer/Chrome and FFmpeg) |
 | fast-check, vitest, playwright | MIT / Apache-2.0 | tests |

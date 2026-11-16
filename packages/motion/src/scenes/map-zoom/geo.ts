@@ -3,6 +3,7 @@ import type { Feature, FeatureCollection, MultiPolygon, Polygon } from 'geojson'
 import { feature } from 'topojson-client';
 import type { GeometryCollection, Topology } from 'topojson-specification';
 import countries110m from 'world-atlas/countries-110m.json' with { type: 'json' };
+import countries50mJson from 'world-atlas/countries-50m.json' with { type: 'json' };
 import type { Format } from '../../contract';
 import type { PlaceTarget } from './places';
 
@@ -24,6 +25,32 @@ export function countries(): { list: Country[]; names: ReadonlySet<string> } {
     cache = { list, names: new Set(list.map((f) => f.properties.name)) };
   }
   return cache;
+}
+
+let cache50: Country[] | null = null;
+/** Natural Earth 1:50m countries (public domain), parsed on first use: the close-up outlines. */
+export function countries50(): Country[] {
+  if (!cache50) {
+    const topo = countries50mJson as unknown as Topology<{
+      countries: GeometryCollection<{ name: string }>;
+    }>;
+    const fc = feature(topo, topo.objects.countries) as FeatureCollection<
+      Polygon | MultiPolygon,
+      { name: string }
+    >;
+    cache50 = fc.features.filter((f) => f.properties.name !== 'Antarctica');
+  }
+  return cache50;
+}
+
+/** The point the camera centres on: the mainland's centroid, the city, or the region's middle. */
+export function targetCentre(target: PlaceTarget, list: readonly Country[]): [number, number] {
+  if (target.kind === 'point') return [target.lon, target.lat];
+  if (target.kind === 'region') {
+    return [(target.box[0] + target.box[2]) / 2, (target.box[1] + target.box[3]) / 2];
+  }
+  const c = list.find((f) => f.properties.name === target.neName);
+  return c ? mainland(c, geoPath(geoNaturalEarth1())) : [10, 20];
 }
 
 export type Bounds = [[number, number], [number, number]];

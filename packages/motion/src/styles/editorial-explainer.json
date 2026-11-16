@@ -84,5 +84,8 @@
     "focal": "thud",
     "snap": "whoosh"
   },
-  "transitions": ["push"]
+  "transitions": ["push"],
+  "map": {
+    "style": "terrain"
+  }
 }

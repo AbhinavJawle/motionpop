@@ -1,7 +1,7 @@
 // Bundles src/runtime/runtime.ts into dist/runtime.js (IIFE) and copies the pinned
 // HyperFrames runtime next to it. Usage: node scripts/build-runtime.ts
 import { build } from 'esbuild';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,4 +38,10 @@ for (const [family, file] of Object.entries(BUNDLED_FONTS)) {
 await writeFile(join(outDir, 'fonts.json'), JSON.stringify(fonts));
 // Seeded grain + paper tiles as PNG data URLs (see scripts/textures.ts).
 await writeFile(join(outDir, 'textures.json'), JSON.stringify(textureDataUrls()));
+// Map imagery for the globe (public domain; see docs/third-party.md), served to the preview and
+// copied next to the composition by the render job.
+await mkdir(join(outDir, 'maps'), { recursive: true });
+for (const f of await readdir(join(pkgDir, 'assets/maps'))) {
+  if (f.endsWith('.webp')) await copyFile(join(pkgDir, 'assets/maps', f), join(outDir, 'maps', f));
+}
 console.log(`runtime built → ${outDir}`);

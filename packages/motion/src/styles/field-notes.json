@@ -22,27 +22,45 @@
     "displayWeight": 800,
     "hand": "Caveat"
   },
-  "texture": { "grain": 0.06, "paper": true, "vignette": 0.14 },
+  "texture": {
+    "grain": 0.06,
+    "paper": true,
+    "vignette": 0.14
+  },
   "motion": {
     "enterEase": "outExpo",
     "moveEase": "inOutCubic",
     "enterMs": 480,
     "staggerMs": 45,
     "holdMs": 900,
-    "camera": { "pushIn": 1.05 }
+    "camera": {
+      "pushIn": 1.05
+    }
   },
-  "shape": { "radius": 2, "stroke": 3 },
+  "shape": {
+    "radius": 2,
+    "stroke": 3
+  },
   "allowPlayful": false,
   "energy": "lively",
   "personality": {
     "preset": "snappy",
-    "enter": { "text": "mask", "number": "count", "shape": "draw" },
+    "enter": {
+      "text": "mask",
+      "number": "count",
+      "shape": "draw"
+    },
     "overshoot": 0.05,
     "popMax": 0.08,
     "exitRatio": 0.6,
     "snapMargin": 15
   },
-  "camera": { "push": [1, 1.05], "snap": 0.06, "whip": false, "parallax": 14 },
+  "camera": {
+    "push": [1, 1.05],
+    "snap": 0.06,
+    "whip": false,
+    "parallax": 14
+  },
   "surfaces": {
     "card": ["paper", "torn-edge", "shadow-soft"],
     "photo": ["white-border", "tape", "tilt"],
@@ -60,6 +78,14 @@
     "recipe": "{subject}, documentary photograph, soft natural daylight, slightly desaturated, realistic, 35mm film look",
     "treatment": ["key", "white-border", "shadow-soft", "tilt"]
   },
-  "sound": { "enter": "paper", "mark": "pen", "focal": "thud", "snap": "whoosh" },
-  "transitions": ["paper-wipe", "push"]
+  "sound": {
+    "enter": "paper",
+    "mark": "pen",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["paper-wipe", "push"],
+  "map": {
+    "style": "paper"
+  }
 }

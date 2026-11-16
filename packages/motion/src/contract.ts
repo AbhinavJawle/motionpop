@@ -11,6 +11,8 @@ export interface ImageRef {
   height: number;
   /** True: a cutout with transparent background. False: a framed photo. */
   keyed: boolean;
+  /** Runtime only: the decoded element (map textures upload it to WebGL). Never serialised. */
+  el?: HTMLImageElement;
 }
 
 export interface BuildContext {

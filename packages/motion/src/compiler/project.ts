@@ -6,6 +6,8 @@ import { sceneTiming } from './scene-timing';
 import type { CompileCaptions, CompileInput, CompileSlot } from './types';
 import type { ImageRef } from '../contract';
 import { fontStack } from '../fonts/font-faces';
+import { MAP_FILES, mapImageId, type MapStyle } from '../scenes/map-zoom/globe';
+import { mapStyleFor } from '../scenes/map-zoom';
 
 /**
  * A slot that renders in `format`: ready, its component or scene exists and supports the format,
@@ -133,6 +135,45 @@ export interface ProjectCompileOptions {
   captions?: boolean;
   /** Ready images by asset id: data URLs in the preview, asset paths in the render. */
   images?: Record<string, ImageRef>;
+  /**
+   * Where the map imagery lives, ending in `/`: an absolute URL in the preview (served with CORS
+   * for WebGL), `assets/maps/` in the render. Without it map scenes draw their flat vector map.
+   */
+  mapsBase?: string;
+}
+
+/** Every bundled map image file name (the preview route serves only these). */
+export const MAP_FILE_NAMES: readonly string[] = Object.values(MAP_FILES);
+export { MAP_FILES, mapImageId };
+
+/** Map styles the project's map scenes use (the render job copies those images). */
+export function mapStylesInUse(
+  project: Pick<EditorProject, 'slots' | 'styleId'> & { brand?: EditorProject['brand'] },
+  format: Format = '16:9',
+): MapStyle[] {
+  const look = styleFor(project);
+  const out = new Set<MapStyle>();
+  for (const s of project.slots) {
+    if (s.componentId !== 'map-zoom' || !isRenderable(s, format)) continue;
+    const own = (s.params as { content?: { mapStyle?: MapStyle } }).content?.mapStyle;
+    out.add(mapStyleFor(own, look as Parameters<typeof mapStyleFor>[1]));
+  }
+  return [...out];
+}
+
+/** Image refs for the map styles in use, under `base`. */
+function mapImages(project: EditorProject, format: Format, base: string): Record<string, ImageRef> {
+  const out: Record<string, ImageRef> = {};
+  for (const style of mapStylesInUse(project, format)) {
+    const night = style === 'night';
+    out[mapImageId(style)] = {
+      src: `${base}${MAP_FILES[style]}`,
+      width: night ? 4096 : 8192,
+      height: night ? 2048 : 4096,
+      keyed: false,
+    };
+  }
+  return out;
 }
 
 /**
@@ -157,9 +198,21 @@ export function projectCompileInput(
     ...(opts.voiceSrc ? { voiceSrc: opts.voiceSrc } : {}),
     ...(opts.bedSrc ? { bedSrc: opts.bedSrc } : {}),
     ...captionsFor(project, format, opts.captions, slots),
-    ...(opts.images && Object.keys(opts.images).length ? { images: opts.images } : {}),
+    ...imagesFor(project, format, opts),
     slots,
   };
+}
+
+function imagesFor(
+  project: EditorProject,
+  format: Format,
+  opts: ProjectCompileOptions,
+): { images?: Record<string, ImageRef> } {
+  const all = {
+    ...(opts.mapsBase ? mapImages(project, format, opts.mapsBase) : {}),
+    ...(opts.images ?? {}),
+  };
+  return Object.keys(all).length ? { images: all } : {};
 }
 
 /**

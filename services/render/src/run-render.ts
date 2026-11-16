@@ -1,6 +1,12 @@
 // The render job (spec 08 design §8): one render doc in, one MP4 and one thumbnail out. It only
 // talks to the ports, so the cloud, the emulators and offline mode run the same code.
-import { assetsInUse, compileProject, projectCompileInput } from '@motionpop/motion/compiler';
+import {
+  assetsInUse,
+  compileProject,
+  MAP_FILES,
+  mapStylesInUse,
+  projectCompileInput,
+} from '@motionpop/motion/compiler';
 import type { ImageRef } from '@motionpop/motion';
 import { mediaHashOf, mediaStoragePath } from '@motionpop/schemas';
 import {
@@ -13,9 +19,10 @@ import {
   type RenderErrorCode,
   type RenderPaths,
 } from '@motionpop/schemas';
-import { mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { prepareBed } from './bed';
+import { motionDistDir } from './compile-assets';
 import { contentDisposition } from './headers';
 import { outputIssues } from './output';
 import { preflightSamples } from './preflight-samples';
@@ -151,6 +158,23 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       }
     }
 
+    // 2d. Map imagery for the globe, from the bundled runtime (never the network).
+    const styles = mapStylesInUse(project, doc.format);
+    let mapsBase: string | undefined;
+    if (styles.length) {
+      try {
+        await mkdir(join(compDir, 'assets', 'maps'), { recursive: true });
+        for (const s of styles) {
+          const f = MAP_FILES[s];
+          await copyFile(join(motionDistDir(), 'maps', f), join(compDir, 'assets', 'maps', f));
+        }
+        mapsBase = 'assets/maps/';
+      } catch (e) {
+        // The map scenes draw their flat vector map instead.
+        log.error({ event: 'maps-missing', renderId, error: errorText(e) });
+      }
+    }
+
     // 3. Compile.
     const slots = await step('compile-failed', 'compiling', async () => {
       const input = projectCompileInput(project, {
@@ -162,6 +186,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         // The job computes the caption groups itself from the snapshot (spec 12 R4.5).
         captions: doc.captions,
         images,
+        ...(mapsBase ? { mapsBase } : {}),
       });
       if (input.slots.length === 0) {
         throw new RenderStepError('compile-failed', 'nothing in the project can be rendered');

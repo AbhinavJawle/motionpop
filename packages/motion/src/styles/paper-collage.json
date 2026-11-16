@@ -21,28 +21,46 @@
     "mono": "Geist Mono",
     "displayWeight": 600
   },
-  "texture": { "grain": 0.07, "paper": true, "vignette": 0.1 },
+  "texture": {
+    "grain": 0.07,
+    "paper": true,
+    "vignette": 0.1
+  },
   "motion": {
     "enterEase": "outQuart",
     "moveEase": "inOutCubic",
     "enterMs": 560,
     "staggerMs": 60,
     "holdMs": 1000,
-    "camera": { "pushIn": 1.03 }
+    "camera": {
+      "pushIn": 1.03
+    }
   },
-  "shape": { "radius": 0, "stroke": 3 },
+  "shape": {
+    "radius": 0,
+    "stroke": 3
+  },
   "allowPlayful": false,
   "energy": "lively",
   "personality": {
     "preset": "stepped",
-    "enter": { "text": "slam", "number": "count", "shape": "pop" },
+    "enter": {
+      "text": "slam",
+      "number": "count",
+      "shape": "pop"
+    },
     "overshoot": 0.04,
     "popMax": 0.06,
     "exitRatio": 0.6,
     "stepFps": 12,
     "snapMargin": 15
   },
-  "camera": { "push": [1, 1.03], "snap": 0, "whip": false, "parallax": 18 },
+  "camera": {
+    "push": [1, 1.03],
+    "snap": 0,
+    "whip": false,
+    "parallax": 18
+  },
   "surfaces": {
     "card": ["paper", "torn-edge", "shadow-soft", "tape", "tilt"],
     "photo": ["white-border", "tape", "tilt", "shadow-soft"],
@@ -60,6 +78,14 @@
     "recipe": "{subject}, vintage 1970s magazine photo cut-out, visible halftone print dots, slightly faded warm colours",
     "treatment": ["key", "white-border", "tilt", "tape"]
   },
-  "sound": { "enter": "paper", "mark": "paper", "focal": "thud", "snap": "whoosh" },
-  "transitions": ["paper-wipe", "push"]
+  "sound": {
+    "enter": "paper",
+    "mark": "paper",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["paper-wipe", "push"],
+  "map": {
+    "style": "paper"
+  }
 }

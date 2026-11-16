@@ -15,6 +15,12 @@ import type { SceneContext } from '../engine/stage';
 import { hashString } from '../core/rng';
 import { fontStack, primaryFamily } from '../fonts/font-faces';
 import { withTiming } from './timing';
+import { planSeams, seamState, type SlotSeams } from './seams';
+
+const FALLBACK_SEAMS: SlotSeams = {
+  enter: { kind: 'slide', dir: 1 },
+  exit: { kind: 'slide', dir: 1 },
+};
 
 export type SlotPhase = 'fonts' | 'mount' | 'params' | 'build' | 'seek';
 
@@ -66,34 +72,7 @@ interface Mounted {
   composition: Composition;
   /** The slot holds its last frame and cuts (`fade: false`): no exit seam. */
   holds: boolean;
-}
-
-/**
- * The seam between graphics ("cut the curve"): the outgoing graphic accelerates left and fades
- * by a third of its travel, the incoming one arrives mid-motion from the right and settles, on
- * mirrored power-4 eases so the speed matches at the cut. Partial travel (12 % of the frame),
- * a light blur at the cut. Returns the wrapper's offset, opacity and blur at slot time `local`.
- */
-export const SEAM_MS = 320;
-export function seamAt(
-  local: number,
-  durationMs: number,
-  width: number,
-  holds: boolean,
-): { x: number; opacity: number; blur: number } {
-  const travel = width * 0.12;
-  if (local < SEAM_MS) {
-    const p = Math.max(0, local / SEAM_MS);
-    const e = 1 - (1 - p) ** 4;
-    return { x: travel * (1 - e), opacity: 0.35 + 0.65 * Math.min(1, p * 2.2), blur: 8 * (1 - e) };
-  }
-  const left = durationMs - local;
-  if (!holds && left < SEAM_MS) {
-    const p = Math.max(0, Math.min(1, 1 - left / SEAM_MS));
-    const e = p ** 4;
-    return { x: -travel * e, opacity: Math.max(0, 1 - p / 0.3), blur: 8 * e };
-  }
-  return { x: 0, opacity: 1, blur: 0 };
+  seams: SlotSeams;
 }
 
 const PLACEHOLDER_TEXT = "Couldn't render";
@@ -212,6 +191,7 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
           root,
           composition,
           holds: slot.timing?.fade === false,
+          seams: seamPlan.get(slot.id) ?? FALLBACK_SEAMS,
         });
       } catch (e) {
         fail(slot.id, 'build', e);
@@ -225,6 +205,17 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
   let pendingMs = 0;
   const broken = new Set<string>();
   const pushAmount = project.style.motion.camera.pushIn;
+  const seamPlan = planSeams(
+    project.slots.map((x) => ({
+      id: x.id,
+      startMs: x.startMs,
+      endMs: x.endMs,
+      energy: x.energy ?? undefined,
+    })),
+    'transitions' in project.style ? project.style.transitions : undefined,
+  );
+  const stepFps = 'personality' in project.style ? project.style.personality?.stepFps : undefined;
+  const seamStep = stepFps ? 1000 / stepFps : 0;
 
   const seek = (tMs: number) => {
     pendingMs = tMs;
@@ -236,9 +227,10 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       if (local < 0 || local > s.durationMs) continue;
       // Stage scenes plan their own camera (push capped during read time, snap-zooms).
       const scale = s.composition.camera?.(local) ?? pushIn(local, s.durationMs, pushAmount);
-      const seam = seamAt(local, s.durationMs, project.width, s.holds);
+      const seam = seamState(s.seams, local, s.durationMs, project.width, s.holds, seamStep);
+      const k = scale * seam.scale;
       s.cam.style.transform =
-        seam.x === 0 ? `scale(${scale})` : `translate(${seam.x.toFixed(1)}px,0) scale(${scale})`;
+        seam.x === 0 ? `scale(${k})` : `translate(${seam.x.toFixed(1)}px,0) scale(${k})`;
       s.cam.style.opacity = seam.opacity === 1 ? '' : seam.opacity.toFixed(3);
       s.cam.style.filter = seam.blur > 0.2 ? `blur(${seam.blur.toFixed(1)}px)` : '';
       try {
@@ -274,9 +266,11 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       Object.entries(all).map(async ([id, ref]) => {
         try {
           const img = new Image();
+          // Map textures are uploaded to WebGL: a cross-origin preview URL needs CORS mode.
+          if (!ref.src.startsWith('data:')) img.crossOrigin = 'anonymous';
           img.src = ref.src;
           await img.decode();
-          ok[id] = ref;
+          ok[id] = { ...ref, el: img };
         } catch (e) {
           fail('*', 'mount', new Error(`image ${id} did not load: ${messageOf(e)}`));
         }

@@ -15,6 +15,20 @@ import {
   type Bounds,
 } from './geo';
 import { placeKey, resolvePlace, type PlaceTarget } from './places';
+import { MAP_STYLES, mapImageId, type MapStyle } from './globe';
+import { mountGlobeMap, type GlobeMap } from './globe-scene';
+
+/** The map style for a slot: its own choice, else the look's, else by how dark the ground is. */
+export function mapStyleFor(
+  own: MapStyle | undefined,
+  look: { colors: { bg: string }; map?: { style: MapStyle } | undefined },
+): MapStyle {
+  if (own) return own;
+  if (look.map?.style) return look.map.style;
+  const n = Number.parseInt(look.colors.bg.slice(1), 16);
+  const l = (0.2126 * ((n >> 16) & 255) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+  return l < 0.35 ? 'satellite' : 'terrain';
+}
 
 const wordCount = (s: string) => s.trim().split(/\s+/).filter(Boolean).length;
 
@@ -40,6 +54,10 @@ export const mapZoomContent = z.object({
     .max(32)
     .optional()
     .describe('Tiny label above the title, e.g. "MEANWHILE" or "CASE STUDY"'),
+  mapStyle: z
+    .enum(MAP_STYLES)
+    .optional()
+    .describe('Map look: satellite, terrain, paper or night. Leave out to use the style default'),
 });
 export type MapZoomContent = z.infer<typeof mapZoomContent>;
 
@@ -203,6 +221,24 @@ export const mapZoom = defineScene<MapZoomContent>({
     mapActor.el.style.background = 'transparent';
     mapActor.el.style.borderRadius = '0';
     mapActor.el.style.transformOrigin = 'center center';
+    const look = ctx.look ?? ctx.style;
+    const mapStyle = mapStyleFor(c.mapStyle, look as Parameters<typeof mapStyleFor>[1]);
+    const tex = ctx.images?.[mapImageId(mapStyle)]?.el;
+    const globeMap: GlobeMap | null = tex
+      ? mountGlobeMap({
+          doc,
+          host: mapActor.el,
+          w,
+          h,
+          image: tex,
+          style: mapStyle,
+          colours: colors,
+          target,
+          list,
+          focus,
+          variant,
+        })
+      : null;
     const svg = doc.createElementNS(SVG, 'svg');
     svg.setAttribute('width', String(w));
     svg.setAttribute('height', String(h));
@@ -270,7 +306,8 @@ export const mapZoom = defineScene<MapZoomContent>({
     ring.setAttribute('stroke', colors.accent);
     ring.setAttribute('stroke-width', String(Math.max(2, pinR * 0.25)));
     if (point) svg.append(ring, pin);
-    mapActor.el.append(svg);
+    // The flat vector map is the fallback when the globe can't be drawn.
+    if (!globeMap) mapActor.el.append(svg);
 
     // Where the camera ends: the place framed in the focus box (the world stays for spotlight).
     const bounds = target ? targetBounds(target, proj, list) : null;
@@ -283,17 +320,34 @@ export const mapZoom = defineScene<MapZoomContent>({
     const startShare = variant === 'pin' ? 0.45 : 0;
     const ease = eases.inOutCubic;
 
+    const texts = [];
     if (slots.context && c.context) {
-      st.on('context', enter(st.text('context', c.context, slots.context, { role: 'eyebrow' })));
+      const ctxText = st.text('context', c.context, slots.context, { role: 'eyebrow' });
+      texts.push(ctxText);
+      st.on('context', enter(ctxText));
     }
     const title = st.text('label', c.label ?? target?.name ?? c.place, slots.label, {
       role: 'display',
       focal: true,
       balance: true,
     });
+    texts.push(title);
     st.on('place', enter(title));
     if (slots.note && c.note) {
-      st.on('note', enter(st.text('note', c.note, slots.note, { role: 'label', balance: true })));
+      const note = st.text('note', c.note, slots.note, { role: 'label', balance: true });
+      texts.push(note);
+      st.on('note', enter(note));
+    }
+    // Over imagery the words need help: light with a shadow over space and city lights, a halo of
+    // the paper colour over terrain and printed maps.
+    if (globeMap) {
+      const dark = mapStyle === 'satellite' || mapStyle === 'night';
+      for (const t of texts) {
+        if (dark) t.el.style.color = '#ffffff';
+        t.el.style.textShadow = dark
+          ? `0 ${Math.round(h * 0.003)}px ${Math.round(h * 0.014)}px rgba(0,0,0,0.65)`
+          : `0 0 ${Math.round(h * 0.012)}px ${colors.bg}, 0 0 ${Math.round(h * 0.004)}px ${colors.bg}`;
+      }
     }
 
     // The cue times are known after compile; the map reads them on every seek.
@@ -312,6 +366,10 @@ export const mapZoom = defineScene<MapZoomContent>({
       return { k, tx: fx - k * cx, ty: fy - k * cy };
     };
     mapActor.post = (tMs) => {
+      if (globeMap) {
+        globeMap.post(tMs, place);
+        return;
+      }
       const { k, tx, ty } = camAt(tMs);
       cam.setAttribute(
         'transform',
@@ -367,6 +425,14 @@ export const mapZoom = defineScene<MapZoomContent>({
     if (cue) place = { startMs: cue.startMs, landMs: cue.landMs };
     else place = { startMs: 0, landMs: Math.min(ZOOM_LEAD_MS, comp.durationMs) };
     comp.seek(0);
-    return comp;
+    if (!globeMap) return comp;
+    const dispose = comp.dispose;
+    return {
+      ...comp,
+      dispose: () => {
+        globeMap.dispose();
+        dispose?.();
+      },
+    };
   },
 });

@@ -17,7 +17,13 @@ export {
  * the voiceover itself as the master clock (spec 04 R5.1), so no `voiceSrc` here.
  */
 export function previewCompileInput(project: EditorProject): CompileInput {
-  return projectCompileInput(project, { mode: 'preview' });
+  return projectCompileInput(project, {
+    mode: 'preview',
+    // The globe's imagery, served with CORS for the sandboxed preview (WebGL needs it).
+    ...(typeof location !== 'undefined'
+      ? { mapsBase: `${location.origin}/api/composition/maps/` }
+      : {}),
+  });
 }
 
 /** A short key of the pictures the preview needs (asset ids), so a recompile happens when they change. */

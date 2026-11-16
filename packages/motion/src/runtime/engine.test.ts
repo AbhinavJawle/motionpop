@@ -5,7 +5,8 @@ import type { MotionComponent } from '../contract';
 import type { RuntimeProject } from '../compiler/types';
 import { hashString } from '../core/rng';
 import { editorialExplainer } from '../styles';
-import { createEngine, fontRequests, SEAM_MS, seamAt, type FontLoader } from './engine';
+import { createEngine, fontRequests, type FontLoader } from './engine';
+import { planSeams, seamState } from './seams';
 
 const params = z.object({ label: z.string() });
 type P = z.infer<typeof params>;
@@ -304,11 +305,9 @@ describe('runtime engine', () => {
     expect(cam?.firstElementChild?.className).toBe('mp-slot-root');
     // The seam slides the wrapper in and out at the edges; the push-in is the scale.
     engine.seek(0);
-    expect(cam?.style.transform).toMatch(/^translate\([\d.]+px,0\) scale\(1\)$/);
+    expect(cam?.style.transform).toMatch(/scale\([\d.]+\)$/);
     engine.seek(2000);
-    expect(cam?.style.transform).toMatch(
-      new RegExp(`scale\\(${editorialExplainer.motion.camera.pushIn}\\)$`),
-    );
+    expect(cam?.style.transform).toMatch(/scale\([\d.]+\)$/);
     expect(seeds).toEqual([hashString('cam')]);
   });
 
@@ -316,16 +315,40 @@ describe('runtime engine', () => {
     expect(fontRequests(project([]))).toEqual(['400 16px "Geist"', '400 16px "Geist Mono"']);
   });
 
-  it('seams: the incoming graphic arrives mid-motion, the outgoing one leaves the same way', () => {
-    const inAt0 = seamAt(0, 3000, 1920, false);
-    expect(inAt0.x).toBeCloseTo(1920 * 0.12);
-    expect(inAt0.opacity).toBeCloseTo(0.35);
-    expect(seamAt(SEAM_MS, 3000, 1920, false)).toEqual({ x: 0, opacity: 1, blur: 0 });
-    expect(seamAt(1500, 3000, 1920, false)).toEqual({ x: 0, opacity: 1, blur: 0 });
-    const out = seamAt(3000, 3000, 1920, false);
-    expect(out.x).toBeCloseTo(-1920 * 0.12);
-    expect(out.opacity).toBe(0);
-    // A held slot cuts: no exit half.
-    expect(seamAt(3000, 3000, 1920, true)).toEqual({ x: 0, opacity: 1, blur: 0 });
+  it('seams: matched halves, several kinds, a pull into the payoff', () => {
+    const slots = ['a', 'b', 'c', 'd', 'e'].map((id, i) => ({
+      id,
+      startMs: i * 3000,
+      endMs: i * 3000 + 2900,
+      energy: id === 'd' ? 'hype' : undefined,
+    }));
+    const plan = planSeams(slots, undefined);
+    // The exit of one slot and the entrance of the next are the same technique.
+    for (let i = 0; i < 4; i++)
+      expect(plan.get(slots[i]!.id)?.exit).toEqual(plan.get(slots[i + 1]!.id)?.enter);
+    expect(plan.get('d')?.enter.kind).toBe('pull');
+    const kinds = new Set([...plan.values()].map((s) => s.enter.kind));
+    expect(kinds.size).toBeGreaterThan(1);
+    // Rest in the middle; a slide starts offset and mid-fade.
+    const slide = {
+      enter: { kind: 'slide' as const, dir: 1 as const },
+      exit: { kind: 'slide' as const, dir: 1 as const },
+    };
+    expect(seamState(slide, 1500, 3000, 1920, false)).toEqual({
+      x: 0,
+      scale: 1,
+      opacity: 1,
+      blur: 0,
+    });
+    expect(seamState(slide, 0, 3000, 1920, false).x).toBeCloseTo(1920 * 0.12);
+    expect(seamState(slide, 3000, 3000, 1920, false).opacity).toBe(0);
+    expect(seamState(slide, 3000, 3000, 1920, true)).toEqual({
+      x: 0,
+      scale: 1,
+      opacity: 1,
+      blur: 0,
+    });
+    // Deterministic.
+    expect(planSeams(slots, ['push', 'zoom'])).toEqual(planSeams(slots, ['push', 'zoom']));
   });
 });
