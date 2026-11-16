@@ -176,7 +176,13 @@ function IconAction({
   );
 }
 
-function ProjectTitle({ title, onRename }: { title: string; onRename: (next: string) => void }) {
+export function ProjectTitle({
+  title,
+  onRename,
+}: {
+  title: string;
+  onRename: (next: string) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
   const inputRef = useRef<HTMLInputElement>(null);

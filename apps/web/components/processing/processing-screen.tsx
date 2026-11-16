@@ -15,6 +15,7 @@ import {
   STEP_TITLES,
   type ProcessingState,
 } from '@/lib/pipeline/processing-state';
+import { START_COPY } from '@/lib/dashboard/copy';
 import { clearPending, takePending } from '@/lib/intake/pending';
 import { runPipeline, type PipelineInput } from '@/lib/pipeline/run';
 import { sampleInput, sampleWords } from '@/lib/pipeline/sample';
@@ -115,7 +116,8 @@ export function ProcessingScreen({ id }: { id: string }) {
           name: p.meta.name,
           source: p.meta.source,
           storedRef: p.meta.ref,
-          title: p.draft.title,
+          // An untouched "Untitled Project" lets the file name title the project.
+          ...(p.draft.title !== START_COPY.untitled ? { title: p.draft.title } : {}),
           format: p.draft.format,
           cleanup: p.meta.cleanup,
           ...(p.draft.styleId ? { styleId: p.draft.styleId } : {}),
