@@ -167,3 +167,12 @@ Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/10-p
 - **The model's step is flat** (`action, slot, choice, atWord, instruction, label`, all required, with sentinels), because structured output has no `anyOf` and free `args` objects break the schema rules. Code computes every credit figure.
 - **Steps land one by one in one undo entry** (`amendTop` amends the plan's history entry with a growing composite), matching the design's mid-apply frame. Undo on the action card stops and undoes the whole plan; a user ⌘Z on the plan stops it too.
 - **Open:** a minimal brand-colours override for "Use brand colours everywhere" (journey 2) before spec 16; whether chips should also use Gemini Nano.
+
+## D-036 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 12: one mixed bed, captions in code, music behind a listening check
+Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/12-formats-captions-sound/`. Full table in that spec's `design.md` §0.
+- **One pre-mixed bed WAV** (music with ducking plus every effect) is the only extra audio, mixed by pure JS DSP in a worker and played by the preview. Export uploads the same file (keyed by a hash of its inputs) as one `<audio id="bed">`, so preview and export match by construction and the render service needs no DSP.
+- **Effects are synthesized from noise and transients, not tones.** **Synthesized music sits behind `music_synth_enabled` (default off) until the founder listens.** "Your own track" is always available and "No music" is the default. Reason: steering rules out stock libraries (D-016), and the HyperFrames sound guide says music written in code can't be judged without ears.
+- **Captions are rail-only and grouped in code** (3 / 4 / 5 words for 9:16 / 1:1 / 16:9, pop 3; breaks at sentence ends and 150 ms pauses; tagged spans kept whole; fillers dropped). `captions.chunk` on the device is an optional, validated refinement. Backings guarantee 4.5:1 for white text even over a white frame.
+- **Captions and audio settings are project fields with undoable commands**; the editor's UI-only captions flag goes away. Auto effects are derived from the slots, not stored.
+- **Levels are relative to a measured voice level** (RMS over word regions, an approximation); full loudness normalisation is left to export.
+- **Open:** music default and the listening check, the caption default preset, the 9:16 caption height.
