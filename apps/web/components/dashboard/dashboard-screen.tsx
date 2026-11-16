@@ -11,6 +11,7 @@ import { DropOverlay, useFileDrop } from './drop-layer';
 import { EmptyCard } from './empty-card';
 import { GreetingHeader } from './greeting-header';
 import { HelpSheet } from './help-sheet';
+import { TryAStyle } from './try-a-style';
 
 /** `/dashboard` (spec 11 R2–R6): top bar, greeting, capture bar, body, footer. */
 export function DashboardScreen() {
@@ -39,6 +40,7 @@ export function DashboardScreen() {
           )}
           {empty && <EmptyCard drag={drag} onWake={() => capture.current?.focus()} />}
         </div>
+        <TryAStyle />
       </main>
       <footer className="mx-auto flex max-w-[1440px] items-center justify-between px-[72px] pt-[60px] pb-[26px] text-[11px] leading-[14px] text-text-3">
         <span>{C.footer.line}</span>
