@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm --filter @motionpop/motion build:runtime && next build",
     "start": "next start",
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p e2e",
     "lint": "eslint .",

@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import type { NextConfig } from 'next';
 import { webappConfigEnv } from './lib/firebase/webapp-config-env';
 
@@ -15,6 +16,12 @@ const config: NextConfig = {
   // The development-only offline render route loads Chrome and the HyperFrames producer at run
   // time (`@motionpop/render/offline`). They are Node tools, not bundle material.
   serverExternalPackages: ['@hyperframes/producer', 'puppeteer', 'tsx'],
+  // App Hosting runs the standalone server: trace from the workspace root, and ship the composition
+  // runtime that /api/composition/assets reads from packages/motion/dist at run time.
+  outputFileTracingRoot: join(import.meta.dirname, '..', '..'),
+  outputFileTracingIncludes: {
+    '/api/composition/assets': ['../../packages/motion/dist/**/*'],
+  },
   reactStrictMode: true,
   // On App Hosting the web config arrives as FIREBASE_WEBAPP_CONFIG; inline it as NEXT_PUBLIC_*.
   env: webappConfigEnv(process.env),
