@@ -440,6 +440,12 @@ Template:
   - Sheets of the globe in all four styles, and Newsprint with a cut-out picture.
   - `motion:check hook-statement`: 0 failures. Before the fixes it had 190 failures. The cause was seams moving slots during the check, plus Newsprint's red at 4.41:1. Seams are now off in the check, the key-moment guard is unit-tested, and the red is 4.7:1.
   - Motion suite: 426 tests green.
-- **Not yet verified:** WebGL in the render job (the producer uses SwiftShader). I'm checking it with a hosted export after the deploy.
+- **Hosted end-to-end test found five bugs, all fixed and redeployed:**
+  1. **No way to change a graphic's type.** Asking Generate for a map still made a big number. The inspector header now has a type menu (it drafts the new type from the slot's own words, free, one undo step). A prompt that names another type switches the slot before Generate.
+  2. **Shift-drag picked old defaults.** It made `big-number` or the unbuilt title card; it now picks a scene from the words. Possessives count, so "Japan's" finds Japan.
+  3. **Years had separators.** A year read "1,989"; years now render as 1989 or 1990s.
+  4. **Projects never reached Firestore.** Reading a missing project was denied rather than returning "not found", so cloud sync never started. The rules are fixed and tested (164 green).
+  5. **The preview dropped the globe's imagery** whenever it added pictures. Separately, the render preflight used `page.setContent`, so relative assets (map imagery and pictures) never loaded and exports with them failed. The preflight now serves the folder over HTTP, and map imagery that fails falls back to vectors instead of failing the render.
+- **Verified on hosted:** a Japan map slot shows the terrain globe flying in, in the editor preview and in the exported 1080p MP4 (Cloud Run, software WebGL). A local `render:project` run of a Newsprint map also rendered the paper globe.
 - No Kiro runs this session.
 
