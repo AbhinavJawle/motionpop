@@ -905,3 +905,14 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - **Kiro features used:** custom agent `motionpop-builder` (headless Kiro CLI), steering (always and fileMatch rules loaded), the session-start hook's context, specs (three new, EARS), MCP (Context7), skills (`captions-overlay`, `hyperframes`), property-based tests planned per spec (9, 7 and 10 properties), the agent's permission rules (which blocked steering writes, as designed).
 - **Open questions for the founder:** listed at the end of each spec's `tasks.md` (spec 11: 5, spec 10: 3, spec 12: 3).
 <!-- /kiro-cli:2026-11-16-specs-10-11-12 -->
+
+<!-- kiro-session:sess_a8a5bfae-e447-489b-a56c-56e320582d9e -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T23:52:02.151Z · last stop: 2026-11-16T00:31:49.311Z · session: sess_a8a5bfae-e447-489b-a56c-56e320582d9e
+- commits since start: 
+  - 695a227 docs: KIRO_LOG entry for the specs 10-12 headless run, cross-spec fixes
+  - 1f47c52 docs(12-formats-captions-sound): spec
+  - 2bd7018 docs(10-pip-panel): spec
+  - c7dc42b docs(11-dashboard-start-recording): spec
+- uncommitted changes: none
+<!-- /kiro-session:sess_a8a5bfae-e447-489b-a56c-56e320582d9e -->
