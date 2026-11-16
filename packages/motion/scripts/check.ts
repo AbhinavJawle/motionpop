@@ -569,6 +569,9 @@ async function main() {
             format,
             durationMs: at,
             style,
+            // Layout is measured settled: the seams between graphics move whole slots on purpose
+            // (their key-moment guard is unit-tested in runtime/engine.test.ts).
+            seams: false,
             slots: slots.map(({ case: _c, keyAbs: _k, ...s }) => s),
           },
           assets,

@@ -35,7 +35,7 @@ export interface SeamState {
   blur: number;
 }
 
-const ENTER_MS: Record<SeamKind, number> = {
+export const ENTER_MS: Record<SeamKind, number> = {
   slide: 320,
   zoom: 420,
   pull: 520,
@@ -43,7 +43,7 @@ const ENTER_MS: Record<SeamKind, number> = {
   paper: 0,
   cut: 0,
 };
-const EXIT_MS: Record<SeamKind, number> = {
+export const EXIT_MS: Record<SeamKind, number> = {
   slide: 300,
   zoom: 200,
   pull: 220,
@@ -170,3 +170,24 @@ export function seamState(
   }
   return rest;
 }
+
+/**
+ * A seam never touches the key moment: an entrance still in motion at the key, or an exit that
+ * starts before the key has settled (key + 400 ms), becomes a cut on that side.
+ */
+export function guardSeams(seams: SlotSeams, keyMs: number, durationMs: number): SlotSeams {
+  const enter =
+    keyMs < ENTER_MS[seams.enter.kind] + 80
+      ? { ...seams.enter, kind: 'cut' as const }
+      : seams.enter;
+  const exit =
+    keyMs + 400 > durationMs - EXIT_MS[seams.exit.kind]
+      ? { ...seams.exit, kind: 'cut' as const }
+      : seams.exit;
+  return { enter, exit };
+}
+
+export const NO_SEAMS: SlotSeams = {
+  enter: { kind: 'cut', dir: 1 },
+  exit: { kind: 'cut', dir: 1 },
+};

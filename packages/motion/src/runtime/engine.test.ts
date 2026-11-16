@@ -6,7 +6,7 @@ import type { RuntimeProject } from '../compiler/types';
 import { hashString } from '../core/rng';
 import { editorialExplainer } from '../styles';
 import { createEngine, fontRequests, type FontLoader } from './engine';
-import { planSeams, seamState } from './seams';
+import { guardSeams, planSeams, seamState } from './seams';
 
 const params = z.object({ label: z.string() });
 type P = z.infer<typeof params>;
@@ -350,5 +350,17 @@ describe('runtime engine', () => {
     });
     // Deterministic.
     expect(planSeams(slots, ['push', 'zoom'])).toEqual(planSeams(slots, ['push', 'zoom']));
+  });
+
+  it('seams never touch the key moment', () => {
+    const s = {
+      enter: { kind: 'pull' as const, dir: 1 as const },
+      exit: { kind: 'slide' as const, dir: 1 as const },
+    };
+    // Key at 300 ms: the 520 ms pull would still be moving, so the entrance cuts.
+    expect(guardSeams(s, 300, 4000).enter.kind).toBe('cut');
+    // Key at 3500 ms of 4000: the exit would start before the key settles, so it cuts.
+    expect(guardSeams(s, 3500, 4000).exit.kind).toBe('cut');
+    expect(guardSeams(s, 2000, 4000)).toEqual(s);
   });
 });

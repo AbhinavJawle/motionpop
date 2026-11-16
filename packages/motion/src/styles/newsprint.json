@@ -8,12 +8,12 @@
     "bg": "#EEE8DC",
     "ink": "#141414",
     "muted": "#5B5650",
-    "accent": "#E2412B",
+    "accent": "#E8472F",
     "accent2": "#2C64A8",
     "highlight": "#FFD84D",
     "positive": "#2D7A4A",
     "negative": "#C2301E",
-    "chart": ["#C9C1B2", "#8F877A", "#E2412B"]
+    "chart": ["#C9C1B2", "#8F877A", "#E8472F"]
   },
   "fonts": {
     "display": "Playfair Display",

@@ -15,7 +15,7 @@ import type { SceneContext } from '../engine/stage';
 import { hashString } from '../core/rng';
 import { fontStack, primaryFamily } from '../fonts/font-faces';
 import { withTiming } from './timing';
-import { planSeams, seamState, type SlotSeams } from './seams';
+import { guardSeams, NO_SEAMS, planSeams, seamState, type SlotSeams } from './seams';
 
 const FALLBACK_SEAMS: SlotSeams = {
   enter: { kind: 'slide', dir: 1 },
@@ -191,7 +191,10 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
           root,
           composition,
           holds: slot.timing?.fade === false,
-          seams: seamPlan.get(slot.id) ?? FALLBACK_SEAMS,
+          seams:
+            project.seams === false
+              ? NO_SEAMS
+              : guardSeams(seamPlan.get(slot.id) ?? FALLBACK_SEAMS, keyMomentMs, durationMs),
         });
       } catch (e) {
         fail(slot.id, 'build', e);

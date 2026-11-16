@@ -45,6 +45,8 @@ export interface CompileInput {
   background?: 'style' | 'transparent';
   /** `preview` draws a placeholder for a failed slot; `render` leaves it empty so the job can fail. Default preview. */
   mode?: 'preview' | 'render';
+  /** Seams between graphics (default on). motion:check turns them off to measure settled layout. */
+  seams?: boolean;
   /** Voiceover URL or relative asset path (e.g. "assets/voice.wav"). */
   voiceSrc?: string;
   /** The mixed effects and music bed (spec 12 §7), already levelled against the voice. */
@@ -67,6 +69,7 @@ export interface RuntimeProject {
   /** Beat energy for scenes; defaults to the look's. */
   energy?: Energy;
   mode?: 'preview' | 'render';
+  seams?: boolean;
   captions?: CompileCaptions;
   images?: Record<string, ImageRef>;
   slots: CompileSlot[];

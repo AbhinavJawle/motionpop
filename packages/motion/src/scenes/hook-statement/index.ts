@@ -146,7 +146,7 @@ export function layoutHookStatement(
           ...eyebrow,
           // Gaps clear the look's strip under the big words (its pad is 0.22 of their size),
           // so it never covers the lead-in or the subline once the rows are re-stacked.
-          { id: 'line', size: by(0.05, 0.036, 0.046), lines: 2, min: 0.6, gap: 1.2 },
+          { id: 'line', size: by(0.064, 0.044, 0.056), lines: 2, min: 0.6, gap: 1.2 },
           { id: 'big', size: by(0.2, 0.11, 0.16), lines: by(2, 3, 2), min: 0.3, gap: 0.34 },
           ...subline,
         ],
