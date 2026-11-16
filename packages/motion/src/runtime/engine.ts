@@ -275,7 +275,11 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
           await img.decode();
           ok[id] = { ...ref, el: img };
         } catch (e) {
-          fail('*', 'mount', new Error(`image ${id} did not load: ${messageOf(e)}`));
+          const message = `image ${id} did not load: ${messageOf(e)}`;
+          // Map imagery is an upgrade: without it the map draws as vectors, so it never fails
+          // a render. A missing picture is a real fault and is reported.
+          if (id.startsWith('map:')) console.warn(`[motionpop] ${message}`);
+          else fail('*', 'mount', new Error(message));
         }
       }),
     );
