@@ -21,8 +21,8 @@ export function InspectorBody({ slot }: { slot: Slot }) {
       <InspectorHeader slot={slot} />
       <YouSaid slot={slot} />
       <PromptBox key={`${slot.id}:${slot.prompt}`} slot={slot} />
-      <QuickEditRow key={slot.id} slot={slot} />
-      <ContentSection key={slot.id} slot={slot} />
+      <QuickEditRow key={`quick:${slot.id}`} slot={slot} />
+      <ContentSection key={`content:${slot.id}`} slot={slot} />
       <StyleRow />
       <TimingSection slot={slot} />
       <VersionsStrip slot={slot} />

@@ -24,8 +24,12 @@ test('inspector with a slot selected, a quick edit working and done, and the ver
   page,
 }) => {
   const errors = trackPageErrors(page);
+  // React warnings (duplicate keys, bad props) are console errors, not page errors.
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(`console: ${m.text().slice(0, 300)}`);
+  });
   // A slow fake model, so the "working" state can be looked at.
-  await openEditor(page, '/editor/demo?t=5600&select=slot-2&fakeLatency=1500');
+  await openEditor(page, '/editor/demo?t=5600&select=slot-2&fakeLatency=4000');
   await page.evaluate(() => document.fonts.ready);
   await expect(page.getByLabel('Current time')).toHaveText('00:05.6');
   await page.waitForTimeout(2_000);
@@ -37,10 +41,10 @@ test('inspector with a slot selected, a quick edit working and done, and the ver
   await quick.press('Enter');
   await expect(page.locator('[aria-busy="true"]')).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'Pip is thinking…' })).toBeVisible();
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(300);
   await shot(page, 'inspector-quick-edit-busy');
 
-  await expect(page.getByText(/^Ready in \d+\.\ds$/)).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/^Ready in \d+\.\ds$/)).toBeVisible({ timeout: 15_000 });
   await expect(quick).toHaveValue('');
   await page.waitForTimeout(700);
   await shot(page, 'inspector-quick-edit-done');
