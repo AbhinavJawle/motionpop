@@ -103,3 +103,31 @@ describe('lintCustom', () => {
     ).toEqual([]);
   });
 });
+
+describe('custom sizing unit', () => {
+  it('defines --u as 1 % of the short side, so 9:16 text is as big as 16:9', () => {
+    g[CUSTOM_ALLOW_FLAG] = true;
+    for (const [format, width, height] of [
+      ['16:9', 1920, 1080],
+      ['9:16', 1080, 1920],
+    ] as const) {
+      const root = document.createElement('div');
+      custom.build(
+        {
+          root,
+          width,
+          height,
+          format,
+          style: editorialExplainer,
+          durationMs: 3000,
+          keyMomentMs: 500,
+          fps: 30,
+          seed: 1,
+          warn: () => {},
+        },
+        ok,
+      );
+      expect((root.firstElementChild as HTMLElement).style.getPropertyValue('--u')).toBe('10.8px');
+    }
+  });
+});

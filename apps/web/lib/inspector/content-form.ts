@@ -112,10 +112,13 @@ export function contentForm(
   const bools: Extract<Field, { kind: 'bool' }>[] = [];
   const rows: Extract<Field, { kind: 'rows' }>[] = [];
 
+  // A custom graphic's code is edited by asking again, not by hand: only its title shows.
+  const isCustom = base === '' && 'script' in props && 'html' in props;
   for (const key of Object.keys(props)) {
     const child = props[key];
     if (!SAFE.test(key) || !isObj(child)) continue;
     if (base === '' && (key === 'beats' || key === 'images')) continue;
+    if (isCustom && key !== 'title') continue;
     const path = `${base}/${key}`;
     const label = labelOf(key);
     const v = value[key];

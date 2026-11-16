@@ -21,12 +21,12 @@ export function customExample(
     html: `<div class="frame"><h1 class="headline">${escapeHtml(headline)}</h1><div class="track"><div class="fill"></div>${items}</div></div>`,
     css: [
       '.frame { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8%; background: var(--bg); }',
-      '.headline { font-family: var(--display); font-weight: 800; color: var(--ink); font-size: 6.2vw; margin: 0; letter-spacing: -0.02em; text-align: center; max-width: 84%; }',
+      '.headline { font-family: var(--display); font-weight: 800; color: var(--ink); font-size: calc(var(--u) * 11); margin: 0; letter-spacing: -0.02em; text-align: center; max-width: 84%; }',
       '.track { position: relative; width: 74%; height: 4px; background: var(--muted); border-radius: 4px; display: flex; justify-content: space-between; align-items: center; }',
       '.fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--accent); border-radius: 4px; }',
       '.step { position: relative; display: flex; flex-direction: column; align-items: center; }',
-      '.dot { width: 2.2vw; height: 2.2vw; border-radius: 50%; background: var(--accent); transform: scale(0); }',
-      '.label { position: absolute; top: 3vw; font-family: var(--body); font-weight: 600; font-size: 2.2vw; color: var(--ink); white-space: nowrap; opacity: 0; }',
+      '.dot { width: calc(var(--u) * 3.9); height: calc(var(--u) * 3.9); border-radius: 50%; background: var(--accent); transform: scale(0); }',
+      '.label { position: absolute; top: calc(var(--u) * 5.3); font-family: var(--body); font-weight: 600; font-size: calc(var(--u) * 3.9); color: var(--ink); white-space: nowrap; opacity: 0; }',
     ].join('\n'),
     script: [
       "const headline = root.querySelector('.headline');",

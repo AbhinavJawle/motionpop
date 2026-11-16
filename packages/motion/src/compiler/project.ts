@@ -99,6 +99,8 @@ export const VERBATIM_SCENES: ReadonlySet<string> = new Set([
   'hook-statement',
   'quote',
   'kinetic-headline',
+  // A custom graphic fills the frame with its own text (spec 15).
+  'custom',
 ]);
 
 /** The caption groups for a format, computed from the transcript every time (spec 12 R4.5). */

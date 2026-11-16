@@ -114,6 +114,8 @@ export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
     'position:absolute',
     'inset:0',
     'overflow:hidden',
+    // 1 % of the frame's short side: sizes in calc(var(--u) * N) read the same in every format.
+    `--u:${Math.min(ctx.width, ctx.height) / 100}px`,
     `--bg:${colors.bg}`,
     `--ink:${colors.ink}`,
     `--muted:${colors.muted}`,

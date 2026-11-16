@@ -57,7 +57,12 @@ describe('component catalogue', () => {
       CATALOGUE.filter((c) => c.built)
         .map((c) => c.id)
         .sort(),
-    ).toEqual(Object.keys(registry).sort());
+    ).toEqual(
+      // `custom` (spec 15) is only made on request, never suggested, so it has no catalogue entry.
+      Object.keys(registry)
+        .filter((id) => id !== 'custom')
+        .sort(),
+    );
     for (const c of CATALOGUE.filter((e) => e.built)) {
       const d = registry[c.id]?.durationMs;
       expect({ min: c.minMs, ideal: c.idealMs, max: c.maxMs }, c.id).toEqual(d);

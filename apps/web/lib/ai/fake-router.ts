@@ -10,7 +10,7 @@ import {
   type TaskDef,
   type UsageEvent,
 } from '@motionpop/ai';
-import { componentFor, sceneFor } from '@motionpop/motion';
+import { componentFor, customExample, sceneFor } from '@motionpop/motion';
 import type { InferenceMode } from '@motionpop/schemas';
 import { fakeAiFlag } from '../credits/pick-client';
 
@@ -161,6 +161,32 @@ export function fillAnswer(input: {
     return { params: input.currentParams };
   }
   return { params: (componentFor(input.componentId)?.defaults ?? {}) as Json };
+}
+
+/**
+ * `custom.compose` (spec 15): the library's example graphic, titled from the brief and stepped
+ * through the spoken words, so the whole tier-2 path runs with no model.
+ */
+export function customAnswer(input: { brief: string; words: string }) {
+  const words = input.words
+    .split(/\s+/)
+    .filter((w) => w.length > 3)
+    .map((w) => w.replace(/[.,!?;:]+$/, ''));
+  const steps =
+    words.length >= 3 ? [words[0], words[Math.floor(words.length / 2)], words.at(-1)] : undefined;
+  const headline = input.brief
+    .split(/\s+/)
+    .slice(0, 5)
+    .join(' ')
+    .replace(/[.,!?;:]+$/, '');
+  const ex = customExample(headline || 'Custom graphic', steps as string[] | undefined);
+  return {
+    title: ex.title,
+    html: ex.html,
+    css: ex.css,
+    script: ex.script,
+    keyMomentMs: ex.keyMomentMs ?? 500,
+  };
 }
 
 /**
@@ -326,6 +352,8 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
         output = prefillAnswer(input as PromptPrefillInput);
       } else if (task.id === 'pip.plan') {
         output = pipAnswer(input as PipPlanInput);
+      } else if (task.id === 'custom.compose') {
+        output = customAnswer(input as { brief: string; words: string });
       } else {
         throw fail(ranOn, 'provider', `The fake router has no answer for ${task.id}`);
       }

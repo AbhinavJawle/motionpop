@@ -56,6 +56,8 @@ export interface ApplyVersionInput {
   version: Version;
   /** Default `ready`. */
   status?: SlotStatus;
+  /** Switches the slot to this component in the same step (a custom graphic, spec 15). */
+  componentId?: string;
 }
 
 /**
@@ -72,7 +74,8 @@ export function applyVersion(slotId: string, input: ApplyVersionInput): Command 
       const snap = snapshotOf(p, slotId);
       const v = input.version;
       if (v.slotId !== slotId) throw new CommandRejected('the version belongs to another slot');
-      if (v.componentId !== snap.slot.componentId) {
+      const target = input.componentId ?? snap.slot.componentId;
+      if (v.componentId !== target) {
         throw new CommandRejected('the version is for another component');
       }
       if (p.versions.some((x) => x.id === v.id)) {
@@ -83,6 +86,7 @@ export function applyVersion(slotId: string, input: ApplyVersionInput): Command 
       return produce(p, (d) => {
         const s = d.slots.find((x) => x.id === slotId);
         if (!s) return;
+        s.componentId = target;
         s.params = structuredClone(input.params);
         if (timing) s.timing = timing;
         else delete s.timing;
