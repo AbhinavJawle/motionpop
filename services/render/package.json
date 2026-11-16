@@ -18,7 +18,8 @@
   "dependencies": {
     "@hyperframes/producer": "catalog:",
     "@motionpop/motion": "workspace:*",
-    "@motionpop/schemas": "workspace:*"
+    "@motionpop/schemas": "workspace:*",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
