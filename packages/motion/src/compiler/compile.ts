@@ -120,6 +120,7 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
   const layers: string[] = [];
   if (opaque) {
     layers.push('    <div class="mp-bg"></div>');
+    layers.push('    <div id="mp-backdrop"></div>');
     const texture = [
       textureCss.some((c) => c.includes('.mp-paper')) ? '<div class="mp-paper"></div>' : '',
       textureCss.some((c) => c.includes('.mp-grain')) ? '<div class="mp-grain"></div>' : '',

@@ -15,16 +15,74 @@
     "negative": "#E4473C",
     "chart": ["#B9B0C9", "#8E80B5", "#FF7A3D"]
   },
-  "fonts": { "display": "Geist", "body": "Geist", "mono": "Geist Mono", "displayWeight": 600 },
-  "texture": { "grain": 0.03, "paper": true, "vignette": 0.08 },
+  "fonts": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 600
+  },
+  "texture": {
+    "grain": 0.03,
+    "paper": true,
+    "vignette": 0.08
+  },
   "motion": {
     "enterEase": "outExpo",
     "moveEase": "inOutCubic",
-    "enterMs": 700,
+    "enterMs": 560,
     "staggerMs": 60,
     "holdMs": 1000,
-    "camera": { "pushIn": 1.05 }
+    "camera": {
+      "pushIn": 1.05
+    }
   },
-  "shape": { "radius": 6, "stroke": 2 },
-  "allowPlayful": false
+  "shape": {
+    "radius": 6,
+    "stroke": 2
+  },
+  "allowPlayful": false,
+  "energy": "lively",
+  "personality": {
+    "preset": "snappy",
+    "enter": {
+      "text": "mask",
+      "number": "count",
+      "image": "slam",
+      "shape": "draw"
+    },
+    "overshoot": 0.06,
+    "popMax": 0.08,
+    "exitRatio": 0.6,
+    "snapMargin": 15
+  },
+  "camera": {
+    "push": [1, 1.06],
+    "snap": 0.05,
+    "whip": false,
+    "parallax": 16
+  },
+  "surfaces": {
+    "card": ["plain", "shadow-soft"],
+    "photo": ["shadow-soft"],
+    "label": ["plain"],
+    "strip": ["plain"]
+  },
+  "marks": {
+    "emphasis": "highlighter",
+    "pointer": "arrow",
+    "divider": "rule",
+    "badge": "chip"
+  },
+  "juice": ["camera-snap", "camera-push", "accent-sweep", "decor-draw", "parallax-shift"],
+  "image": {
+    "recipe": "{subject}, clean studio photograph, soft even light, crisp detail, natural colours",
+    "treatment": ["key", "shadow-soft"]
+  },
+  "sound": {
+    "enter": "whoosh",
+    "mark": "pen",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["push"]
 }

@@ -16,7 +16,8 @@ export function parseStylePack(raw: unknown): StylePack {
   return pack;
 }
 
-export const editorialExplainer: StylePack = parseStylePack(editorialExplainerJson);
+/** The default look: warm paper, ink type, one ember accent, snappy motion with camera snaps. */
+export const editorialExplainer: Look = parseLook(editorialExplainerJson);
 
 /** Test-only pack (inverted palette, different timings). Never offered in the app. */
 export const testInverted: StylePack = parseStylePack(testInvertedJson);
