@@ -66,7 +66,7 @@ export function StylesGallery() {
                   <button
                     type="button"
                     onClick={() => router.push(`/start?style=${encodeURIComponent(o.id)}`)}
-                    className="group mt-5 flex items-center justify-between text-[13px] leading-4 font-medium text-violet-ink-2 hover:text-violet-ink"
+                    className="group mt-auto flex items-center justify-between pt-5 text-[13px] leading-4 font-medium text-violet-ink-2 hover:text-violet-ink"
                   >
                     Start with this style
                     <ArrowRight
