@@ -876,6 +876,40 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - uncommitted changes: none
 <!-- /kiro-session:sess_4ce6f9f4-5332-4d40-8c8b-c04dcf27a272 -->
 
+### 2026-11-16 · Kiro CLI (headless, overnight) · agent: motionpop-builder · model: claude-opus-5.5 · spec writing
+- **Run:** headless `kiro-cli` in the `specs-a` worktree, founder asleep, docs only (no code changes, no installs, no push). Claude Code merges the branch later.
+- **Task:** write specs 09 (inspector, quick edits, frame notes) and 13 (credits, judge plan, settings) the Kiro way, then review each against the steering.
+- **Read:** all steering files, `docs/plan.md`, `docs/decisions.md`, the inspector, top bar, rail, preview, store and commands, auto-fill, the router and its tasks, bootstrap, plan allowance, rules and rules tests, the Playwright config and design check, and `design/screens/editor.png`, `editor-generating.png`, `export.png`, plus the inspector frames in `figma-export.css`. Checked the installed `@firebase/ai` 3.1.0 types (`initializeDeviceModel(onDownloadProgress)` exists; no public availability API) and `@hyperframes/player` 0.9.46 (no frame capture API) in the main checkout's `node_modules`.
+- **Written:**
+  - `.kiro/specs/09-inspector-quick-edits-and-notes/{requirements,design,tasks}.md`: 9 requirement groups, 9 correctness properties, 23 tasks (12 marked [kiro]), commit `e4a55ff`.
+  - `.kiro/specs/13-credits-judge-plan-settings/{requirements,design,tasks}.md`: 7 requirement groups, 8 correctness properties, 18 tasks (10 marked [kiro]), commit `7e3f546`.
+- **Key decisions recorded in the specs (D-09-1…11, D-13-1…10), to be logged in `docs/decisions.md` on merge:**
+  - Cloud escalation of a failed device edit needs a click ("Try in the cloud ☁ 1"), because automatic escalation after a mint chip breaks "cost before every credited action". This changes `ai-tasks.md` §4, D-027 and `architecture.md` flow 4.
+  - One look per video; per-slot looks moved to Later.
+  - Timing (speed, ease, fade) lives on the slot and in versions, merged into one edit document so `/timing/*` patches work without touching scene scores.
+  - `edit.patch` v2 sends the editable paths as an enum in the structured output and drops the schema text, which retires the last `KNOWN_VIOLATIONS` entry.
+  - Frame notes always send the texts inside the circled region; the JPEG crop ships only if a capture spike passes.
+  - Credits: reserve before the browser's cloud call, refund on failure, append-only ledger with idempotent ids, 30 AI spends per UTC hour, kill switch stays manual. Credits are a guard, not a security boundary, for browser-side AI calls; the spec says so.
+  - Judges get a daily top-up on sign-in below 20 % of `judgeCredits`.
+  - Settings opens from the account menu (a left panel in the editor, `/settings` elsewhere), not as a ninth rail icon.
+  - Firestore rules gain `settings` shape validation.
+- **Review pass (same run):** found and fixed before committing: "Version is unchanged" contradicted the version-timing decision; the route function ignored Remote Config routing overrides and local mode; the e2e generated on a planned component that can't generate; idempotency keys could pass the 64-character limit; the prompt box never saved its edits (added `setSlotPrompt`); frame notes had no keyboard path; the judge chip was violet (cloud colour) instead of ember (credits); the `note.fix` prompt had no examples; Context7 and Firebase MCP checks were missing from the tasks that need them.
+- **Checks run:** `prettier --check` on both spec folders (clean). No code tests: no code changed.
+- **Not done / limits:**
+  - Steering files and `docs/decisions.md` were not edited, per the run's docs-only scope and the builder agent's write permissions. Each design.md ends with "Steering updates to make on merge".
+  - Nothing verified live: Nano availability, offline on-device inference and frame capture are open and have their own tasks (09 tasks 10, 19, 23).
+  - No PNG exists for Settings or the out-of-credits modal; their design check compares against the nearest designed frames and the token table.
+
+<!-- kiro-session:sess_e85d0115-8485-4011-9644-9b26ae7b5d7a -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T23:52:02.137Z · last stop: 2026-11-16T00:19:21.937Z · session: sess_e85d0115-8485-4011-9644-9b26ae7b5d7a
+- commits since start: 
+  - e2e337a docs: KIRO_LOG entry for the headless spec 09 and 13 writing run
+  - 7e3f546 docs(13-credits-judge-plan-settings): spec
+  - e4a55ff docs(09-inspector-quick-edits-and-notes): spec
+- uncommitted changes: none
+<!-- /kiro-session:sess_e85d0115-8485-4011-9644-9b26ae7b5d7a -->
+
 <!-- kiro-session:sess_3e0f50f8-701b-46d3-9059-29a179cf3d33 -->
 ### 2026-11-15 · Kiro CLI · agent: motion-qa (auto-logged by Stop hook)
 - started: unknown · last stop: 2026-11-15T23:50:24.942Z · session: sess_3e0f50f8-701b-46d3-9059-29a179cf3d33
@@ -1043,3 +1077,46 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - e7e2d7c docs(08-render-and-export): apply spec review findings F1-F18
 - uncommitted changes: none
 <!-- /kiro-session:sess_ae204549-df5a-4711-b9db-9f202eb63f85 -->
+
+<!-- kiro-session:sess_61c5b850-8e6d-496e-838e-fb81184e9159 -->
+### 2026-11-16 · Kiro CLI · agent: spec-reviewer (auto-logged by Stop hook)
+- started: unknown · last stop: 2026-11-16T00:27:28.500Z · session: sess_61c5b850-8e6d-496e-838e-fb81184e9159
+- commits since start: unknown (no start time recorded; see git log)
+- uncommitted changes: 
+  - `?? .kiro/specs/09-inspector-quick-edits-and-notes/REVIEW.md`
+  - `?? .kiro/specs/13-credits-judge-plan-settings/REVIEW.md`
+<!-- /kiro-session:sess_61c5b850-8e6d-496e-838e-fb81184e9159 -->
+
+<!-- kiro-cli:2026-11-16-spec-09-13-review-fixes -->
+## 2026-11-16 · Kiro CLI (headless, overnight) · model claude-sonnet-5.5 · agent: the default chat agent · specs 09 and 13, applying the spec-reviewer findings
+- **Task:** apply every finding of `09/REVIEW.md` (F1–F16) and `13/REVIEW.md` (F1–F17) to the three files of each spec, using Claude Code's decisions on the open choices. Docs only. Commits: `7ced6a3` (spec 09) and `38edb7c` (spec 13). Not pushed. This entry is a third commit.
+- **Decisions applied (Claude Code's, not mine)**
+  - Spec 08 owns the ledger transaction pattern and the fixed ids `export-{renderId}` / `refund-{renderId}`. Spec 13 generalises it as the one server spend helper (export, generate, cloud edit). Spec 13 drops `ServerSpend`, its own export cost table and `s-export-…` ids.
+  - One `costOf` in `packages/schemas`. `DailyLimitsSchema`: 08 task 2 keeps `planCloud.default(0)` and `renders`; spec 13 task 1 adds only its own counters.
+  - The kill switch blocks every cloud spend, exports included. Spec 08 R2.8 already says that, so I did not touch spec 08.
+  - The seam is listed as an exact table of spec 13 tasks (1, 2, 3, 4, 5, 8, 9) against the spec 09 task each precedes; the cloud route stays disabled until `ServerCredits` exists.
+  - Steering and decision edits became IDE tasks (09 task 25, 13 task 20), with D-09-1 recorded as D-035 superseding D-027's `edit.patch` escalation. Tasks needing MCP servers the builder lacks are marked IDE. The CI Playwright job is IDE, noted as done by Claude Code (09 task 24, 13 task 19).
+- **Choices I made inside those decisions (overturn any of them)**
+  - **Where the shared helper lives:** `services/render/src/store/ledger.ts` and `ledger-logic.ts`, exported through spec 08's `@motionpop/render/store` subpath. That is the only server-side place both the web routes and the render job already import. The package name is misleading for credits; renaming is in Later. If 08 task 8 has not landed when 13 task 4 runs, task 4 creates the folder and 08 task 8 uses the helper; if it has, task 4 refactors `startExport` / `failRender` onto it with 08's P1–P3 as the guard. **Claude Code: spec 08 task 8 should be told about this, since I did not edit spec 08.**
+  - **Judge refill on a refused spend** reuses the `judge-refill-{day}` ledger id, so the sign-in refill and the spend-time refill can't both pay on one day. It runs for exports too, inside `startExport`'s transaction.
+  - **Usage counters (F7):** per-UTC-day counters and a 12-bucket latency histogram in `limits/{day}.usage`, so the chart is in UTC days and medians are exact to the bucket. Event documents are still written (data-model.md lists them) but the app never reads them.
+  - **`refundsPerDay` default 30** (equal to the hourly cap), plus a toast when a refund is refused. The closed-tab case is documented as an honest limit, not fixed.
+  - **Decision ids:** spec 09 D-035 to D-049 (15 decisions: the 11 drafts plus four from the review), spec 13 D-050 to D-064 (10 drafts plus five). D-034 stays spec 08's. These are assignments on paper; the IDE tasks enter them in `docs/decisions.md`.
+  - **Rules edit in 13 task 7 stays `[kiro]`** because `motionpop-builder.json` lists `firestore.rules` in its allowed paths, with a fallback note (apply the diff from the IDE if the run is denied). Spec 08's tasks treat rules edits as IDE; handoff §7 says the same. The Firebase MCP validation step is IDE.
+  - **New cross-spec property C9** in spec 13 (balance never negative and at most one refund per spend across AI spends, client refunds, `startExport`, `failRender` and the sweep), with a follow-up task 5b because it needs 08 task 8.
+  - **New spec 09 task 11b** (hook, chip wiring, stub modal) and a demo-path order with checkpoints.
+- **Checks run and read:** `npx prettier --check` on both spec folders (clean). I grepped both folders for the removed names (`ServerSpend`, `s-export`, `packages/ai/src/cost.ts`, "tasks 1–5") and the only hits are the sentences that say they are gone. I did not run tests, typecheck or lint: docs only, no code changed.
+- **What I could not verify:** I did not read spec 08's code (it is not built past task 1), so the refactor of `startExport` / `failRender` in 13 task 4 is written against 08's design §7, not against real functions. Whether `firestore.rules` is writable by the headless agent is taken from `motionpop-builder.json`, not tested.
+- **Kiro features used:** the session-start hook's context (spec progress), steering (handoff §9–§12 read at the start, workflow, testing, security-and-cost, hybrid-ai), the three spec files per spec, the reviewer's `REVIEW.md` as the input. The default chat agent did the work; `spec-reviewer` was not rerun on the revised specs.
+- **What helped / what didn't:** the reviews had evidence lines with file names, which made each fix a lookup. The two specs and spec 08 write the same ledger, so the fixes only made sense when I read spec 08's design §7 and tasks first. One of my own edit scripts failed an assertion before writing anything and another skipped a replacement silently; I caught the second by grepping the result, not from the script's output.
+<!-- /kiro-cli:2026-11-16-spec-09-13-review-fixes -->
+
+<!-- kiro-session:sess_0ce76b39-19ee-4317-9a4e-98a80b7865ce -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T00:28:10.551Z · last stop: 2026-11-16T00:38:42.312Z · session: sess_0ce76b39-19ee-4317-9a4e-98a80b7865ce
+- commits since start: 
+  - e5d9bf2 docs: KIRO_LOG entry for the spec 09 and 13 review fixes
+  - 38edb7c docs(13-credits-judge-plan-settings): apply spec review findings F1-F17
+  - 7ced6a3 docs(09-inspector-quick-edits-and-notes): apply spec review findings F1-F16
+- uncommitted changes: none
+<!-- /kiro-session:sess_0ce76b39-19ee-4317-9a4e-98a80b7865ce -->
