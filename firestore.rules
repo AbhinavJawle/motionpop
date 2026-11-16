@@ -11,6 +11,17 @@ service cloud.firestore {
       return signedIn() && request.auth.uid == uid;
     }
 
+    // `users/{uid}.settings` has exactly these three keys with these types (spec 13 R6.6), so a
+    // client can never store a value that makes the server's `UserDocSchema.parse` throw.
+    function validSettings(s) {
+      return s is map
+        && s.keys().hasOnly(['preferOnDevice', 'captionsDefault', 'defaultFormat'])
+        && s.keys().hasAll(['preferOnDevice', 'captionsDefault', 'defaultFormat'])
+        && s.preferOnDevice is bool
+        && s.captionsDefault is bool
+        && s.defaultFormat in ['16:9', '9:16', '1:1'];
+    }
+
     function projectOwner(pid) {
       return get(/databases/$(database)/documents/projects/$(pid)).data.ownerId;
     }
@@ -19,9 +30,14 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if isOwner(uid);
       allow create, delete: if false;
+      // `lastSeenAt` is written by the bootstrap route only (Admin SDK), not by clients.
       allow update: if isOwner(uid)
         && request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['displayName', 'photoURL', 'settings', 'lastSeenAt']);
+          .hasOnly(['displayName', 'photoURL', 'settings'])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 80
+        && (!('photoURL' in request.resource.data) || request.resource.data.photoURL is string)
+        && validSettings(request.resource.data.settings);
 
       // Server-written only.
       match /credits/{tx} {
