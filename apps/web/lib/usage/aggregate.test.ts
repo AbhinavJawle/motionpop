@@ -12,6 +12,7 @@ import {
   aggregateUsage,
   histogramMedianMs,
   medianLabel,
+  medianValue,
   windowDays,
   type UsageDay,
 } from './aggregate';
@@ -105,6 +106,10 @@ describe('aggregateUsage', () => {
     expect(medianLabel(1000)).toBe('about 1 s');
     expect(medianLabel(15_000)).toBe('about 15 s');
     expect(medianLabel(null)).toBe('n/a');
+    expect(medianValue(500)).toBe('0.5 s');
+    expect(medianValue(4000)).toBe('4 s');
+    expect(medianValue(120_000)).toBe('120 s');
+    expect(medianValue(null)).toBe('n/a');
   });
 
   // C7 (spec 13): the property of the aggregation.

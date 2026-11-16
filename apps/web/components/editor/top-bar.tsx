@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { PipAvatar } from '@/components/pip/pip-avatar';
+import { AccountMenu } from '@/components/settings/account-menu';
 import { BrandKitChip } from '@/components/ui/brand-kit-chip';
 import { Button } from '@/components/ui/button';
 import { CreditsChip } from '@/components/ui/credits-chip';
@@ -14,6 +15,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { renameProject, setFormat } from '@/lib/commands';
 import { cn } from '@/lib/cn';
 import { useCreditsBalance } from '@/lib/credits/use-credits-client';
+import { openSettingsPanel } from '@/lib/editor/settings-panel';
 import { isActive } from '@/lib/renders/export-flow';
 import { exportStore, useExportUi } from '@/lib/renders/export-store';
 import { selectCanRedo, selectCanUndo, useEditor } from '@/lib/stores/editor';
@@ -88,11 +90,11 @@ export function TopBar() {
         <CreditsChip
           className="ml-3"
           credits={balance}
-          onClick={() => toast('Credits and plans are on their way.')}
+          onClick={() => openSettingsPanel('credits')}
         />
         <ExportButton />
         <span className="ml-5">
-          <PipAvatar size={32} />
+          <AccountMenu onOpenSettings={() => openSettingsPanel(null)} />
         </span>
       </div>
     </header>

@@ -39,6 +39,12 @@ export function UsageReporterHost() {
   }, [user]);
 
   useEffect(() => {
+    // Dev and test builds only: lets the design-check e2e fill the chart without a model.
+    if (process.env.NODE_ENV === 'production') return;
+    (window as unknown as Record<string, unknown>)['__recordSessionUsage'] = recordSessionUsage;
+  }, []);
+
+  useEffect(() => {
     if (!local) return;
     const reporter = new UsageReporter({
       fetch: () => Promise.reject(new Error('local mode')),

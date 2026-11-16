@@ -55,7 +55,9 @@ describe('UsageChart', () => {
     expect(screen.getByText('calls ran on your device')).toBeTruthy();
     expect(screen.getByText('12', { selector: 'dt' })).toBeTruthy();
     expect(screen.getByText('~24')).toBeTruthy();
-    expect(screen.getByText(/on device · about 4 s in the cloud/)).toBeTruthy();
+    expect(screen.getByTestId('median-figure').textContent).toBe(
+      '0.5 smedian on device · 4 s in the cloud',
+    );
     expect(screen.getByText('Usage is reported by your browser.')).toBeTruthy();
     expect(screen.getByText('Last 14 days')).toBeTruthy();
   });
@@ -71,7 +73,7 @@ describe('UsageChart', () => {
     render(<UsageChart summary={s} scope="account" variant="page" />);
     expect(screen.getByRole('img', { name: usageChartLabel(s) })).toBeTruthy();
     expect(usageChartLabel(s)).toBe(
-      'AI calls in the last 14 days: 5 on your device, 2 in the cloud',
+      'AI calls in the last 14 days: 5 on your device, 2 in the cloud. Median about 0.5 s on device, about 4 s in the cloud',
     );
   });
 

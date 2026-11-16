@@ -5,14 +5,17 @@ import { motion } from 'motion/react';
 import { cn } from '@/lib/cn';
 import { springSoft } from '@/lib/motion/presets';
 import { useStill } from '@/lib/motion/use-still';
-import { medianLabel, type UsageSummary } from '@/lib/usage/aggregate';
+import { medianLabel, medianValue, type UsageSummary } from '@/lib/usage/aggregate';
 import type { SettingsVariant } from './section-card';
 
 const CHART_HEIGHT = 88;
 const MIN_SEGMENT = 3;
 
-/** Bar geometry per variant (spec 13 design): 8 px bars with 4 px gaps in the panel, 24 px in the page. */
-const BAR = { panel: { width: 8, gap: 4 }, page: { width: 24, gap: 10 } } as const;
+/**
+ * Bars fill the card's width (flex), with a gap per variant. Changed from the design text's fixed
+ * 8 px and 24 px bars: fixed bars left a third of the card empty at 1440 (design check, task 14).
+ */
+const BAR = { panel: { gap: 6 }, page: { gap: 12 } } as const;
 
 /** Segment heights in px for one day, scaled to `max` (a non-empty segment is never thinner than 3 px). */
 export function segmentHeights(
@@ -29,7 +32,7 @@ export function segmentHeights(
 export function usageChartLabel(summary: UsageSummary): string {
   const f = summary.figures;
   const cloud = summary.days.reduce((n, d) => n + d.cloud, 0);
-  return `AI calls in the last ${summary.days.length} days: ${f.deviceCalls} on your device, ${cloud} in the cloud`;
+  return `AI calls in the last ${summary.days.length} days: ${f.deviceCalls} on your device, ${cloud} in the cloud. Median ${medianLabel(f.medianDeviceMs)} on device, ${medianLabel(f.medianCloudMs)} in the cloud`;
 }
 
 /**
@@ -51,12 +54,11 @@ export function UsageChart({
   failed?: boolean;
 }) {
   const still = useStill();
-  const { width, gap } = BAR[variant];
+  const { gap } = BAR[variant];
   const days = summary.days;
   const max = Math.max(1, ...days.map((d) => d.device + d.cloud));
   const total = days.reduce((n, d) => n + d.device + d.cloud, 0);
   const f = summary.figures;
-  const chartWidth = days.length * width + (days.length - 1) * gap;
 
   return (
     <div data-testid="usage-chart">
@@ -79,10 +81,10 @@ export function UsageChart({
       <div
         role="img"
         aria-label={usageChartLabel(summary)}
-        className={cn('relative mt-3', variant === 'panel' ? 'flex justify-center' : '')}
+        className="relative mt-3"
         style={{ height: CHART_HEIGHT + 18 }}
       >
-        <div className="relative" style={{ width: chartWidth }}>
+        <div className="relative w-full">
           <div className="flex items-end" style={{ height: CHART_HEIGHT, gap }}>
             {days.map((d, i) => {
               const h = segmentHeights(d.device, d.cloud, max);
@@ -93,8 +95,8 @@ export function UsageChart({
                   data-day={d.day}
                   data-device={d.device}
                   data-cloud={d.cloud}
-                  className="flex flex-col justify-end"
-                  style={{ width, height: CHART_HEIGHT }}
+                  className="flex min-w-0 flex-1 flex-col justify-end"
+                  style={{ height: CHART_HEIGHT }}
                 >
                   {h.cloud > 0 && (
                     <motion.span
@@ -125,8 +127,7 @@ export function UsageChart({
             {days.map((d, i) => (
               <span
                 key={d.day}
-                className="text-center font-mono text-[9px] leading-3 text-text-4"
-                style={{ width }}
+                className="min-w-0 flex-1 text-center font-mono text-[9px] leading-3 text-text-4"
               >
                 {variant === 'panel' && i % 2 === 1 ? '' : Number(d.day.slice(8, 10))}
               </span>
@@ -151,11 +152,16 @@ export function UsageChart({
           tone="mint"
           label={f.deviceCalls === 1 ? 'call ran on your device' : 'calls ran on your device'}
         />
-        <Figure
-          value={medianLabel(f.medianDeviceMs)}
-          tone="mint"
-          label={`on device · ${medianLabel(f.medianCloudMs)} in the cloud`}
-        />
+        <div className="flex flex-wrap items-baseline gap-x-2" data-testid="median-figure">
+          <dt className="tabular font-mono text-mint-ink">{medianValue(f.medianDeviceMs)}</dt>
+          <dd className="text-text-2">
+            median on device ·{' '}
+            <span className="tabular font-mono text-violet-ink-2">
+              {medianValue(f.medianCloudMs)}
+            </span>{' '}
+            in the cloud
+          </dd>
+        </div>
         <Figure value={`~${f.creditsSaved}`} tone="ember" label="credits saved" />
       </dl>
       <p className="mt-3 text-[10px] leading-[13px] text-text-3">

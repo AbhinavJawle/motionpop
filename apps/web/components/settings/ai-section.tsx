@@ -72,10 +72,10 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
         />
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3 rounded-chip bg-card-2 px-3 py-2.5">
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-chip bg-card-2 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2" data-testid="on-device-status">
           <StatusDot tone={status.tone} pulse={availability === 'downloading'} />
-          <span className="truncate text-xs leading-4" role="status">
+          <span className="text-xs leading-4" role="status">
             {status.label}
           </span>
         </div>

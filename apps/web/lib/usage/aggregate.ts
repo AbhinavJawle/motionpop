@@ -101,3 +101,10 @@ export function medianLabel(ms: number | null): string {
   const s = ms / 1000;
   return `about ${s < 10 ? Number(s.toFixed(1)) : Math.round(s)} s`;
 }
+
+/** "0.5 s" / "4 s" for the figures row (the word "median" is drawn next to it); "n/a" for none. */
+export function medianValue(ms: number | null): string {
+  if (ms === null) return 'n/a';
+  const s = ms / 1000;
+  return `${s < 10 ? Number(s.toFixed(1)) : Math.round(s)} s`;
+}

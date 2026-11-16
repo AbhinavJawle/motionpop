@@ -17,6 +17,7 @@ import { ExportController } from '@/components/export/export-controller';
 import { Inspector } from './inspector';
 import { PipDock } from './pip-dock';
 import { PreviewPane } from './preview-pane';
+import { SettingsPanel } from './settings-panel';
 import { ToolRail } from './tool-rail';
 import { TopBar } from './top-bar';
 import { useEditorKeys } from './use-editor-keys';
@@ -154,6 +155,7 @@ export function EditorScreen({
       <TopBar />
       <div className="relative flex min-h-0 flex-1">
         <ToolRail />
+        <SettingsPanel />
         <PreviewPane />
         <Inspector />
         <PipDock />

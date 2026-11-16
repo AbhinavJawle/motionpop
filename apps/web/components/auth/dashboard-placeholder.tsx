@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Pip } from '@/components/pip/pip';
+import { AccountMenu } from '@/components/settings/account-menu';
 import { Button } from '@/components/ui/button';
 import { signOutUser } from '@/lib/auth/actions';
 import { useAuth } from '@/lib/auth/auth-provider';
@@ -19,7 +20,10 @@ export function DashboardPlaceholder() {
       : 'this device';
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg px-6">
+    <main className="relative flex min-h-dvh flex-col items-center justify-center gap-4 bg-bg px-6">
+      <div className="absolute top-4 right-7">
+        <AccountMenu />
+      </div>
       <Pip state="idle" size={96} glow look="cursor" decorative seed={11} />
       <p className="label-caps text-violet-ink">YOUR PROJECTS</p>
       <h1

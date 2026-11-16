@@ -15,6 +15,7 @@ import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/cn';
 import { spring } from '@/lib/motion/presets';
+import { useSettingsPanel } from '@/lib/editor/settings-panel';
 import { useEditor, type RailItem } from '@/lib/stores/editor';
 
 const ITEMS: readonly { id: RailItem; label: string; icon: LucideIcon }[] = [
@@ -32,6 +33,8 @@ const ITEMS: readonly { id: RailItem; label: string; icon: LucideIcon }[] = [
 export function ToolRail() {
   const rail = useEditor((s) => s.rail);
   const setRail = useEditor((s) => s.setRail);
+  // While Settings is open in the left panel no rail item shows active (D-13-6).
+  const settingsOpen = useSettingsPanel((s) => s.open);
 
   return (
     <nav
@@ -39,7 +42,7 @@ export function ToolRail() {
       className="relative flex w-[72px] shrink-0 flex-col items-center gap-1.5 border-r border-white/6 bg-panel pt-3"
     >
       {ITEMS.map(({ id, label, icon: Icon }) => {
-        const active = rail === id;
+        const active = rail === id && !settingsOpen;
         return (
           <button
             key={id}
