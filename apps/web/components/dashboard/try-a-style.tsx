@@ -45,7 +45,7 @@ export function TryAStyle() {
         </div>
         <button
           type="button"
-          onClick={() => toast(C.toasts.exploreStyles)}
+          onClick={() => router.push('/styles')}
           className="mt-[4px] mr-[42px] flex items-center gap-1 text-[13px] leading-4 text-violet-ink-2 transition-colors hover:text-violet-ink"
         >
           {C.styles.explore}

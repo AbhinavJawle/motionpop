@@ -4,15 +4,10 @@ import { Check } from 'lucide-react';
 import { cn } from '@/lib/cn';
 import { setStyle } from '@/lib/commands';
 import { styleOptions } from '@/lib/inspector/timing-view';
+import { LOOK_STILLS } from '@/lib/editor/look-stills';
 import { useEditor } from '@/lib/stores/editor';
 
-/** Stills of the demo's stat scene in each look, captured from the editor preview. */
-const STILLS: Readonly<Record<string, string>> = {
-  'editorial-explainer': '/looks/editorial-explainer.jpg',
-  'field-notes': '/looks/field-notes.jpg',
-  'paper-collage': '/looks/paper-collage.jpg',
-  newsprint: '/looks/newsprint.jpg',
-};
+const STILLS = LOOK_STILLS;
 
 /**
  * The Styles rail panel: every look a creator can pick, with a still, its name and what it feels

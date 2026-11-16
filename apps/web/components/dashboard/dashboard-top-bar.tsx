@@ -7,9 +7,9 @@ import { useRouter } from 'next/navigation';
 import { PipAvatar } from '@/components/pip/pip-avatar';
 import { AccountMenu } from '@/components/settings/account-menu';
 import { CreditsChip } from '@/components/ui/credits-chip';
-import { toast } from '@/components/ui/toast';
 import { useCreditsBalance } from '@/lib/credits/use-credits-client';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
+import { cn } from '@/lib/cn';
 import { buttonMotion } from '@/lib/motion/presets';
 
 /**
@@ -17,7 +17,7 @@ import { buttonMotion } from '@/lib/motion/presets';
  * logo at x 45, nav "Projects" (ember underline) and "Styles", credits chip at x 1032,
  * "+ New project" 160×40 at x 1152, avatar at x 1336.
  */
-export function DashboardTopBar() {
+export function DashboardTopBar({ active = 'projects' }: { active?: 'projects' | 'styles' }) {
   const router = useRouter();
   const balance = useCreditsBalance();
   return (
@@ -32,21 +32,27 @@ export function DashboardTopBar() {
           <span className="text-[22px] leading-7 font-semibold tracking-[-0.3px]">motionpop</span>
         </Link>
         <nav aria-label="Main" className="ml-[71px] flex h-full items-center gap-[42px]">
-          <Link
-            href="/dashboard"
-            aria-current="page"
-            className="relative flex h-full items-center text-sm leading-[18px] font-medium text-text"
-          >
-            {C.nav.projects}
-            <span aria-hidden className="absolute right-0 bottom-0 left-0 h-0.5 bg-ember" />
-          </Link>
-          <button
-            type="button"
-            onClick={() => toast(C.toasts.styles)}
-            className="text-sm leading-[18px] text-text-2 transition-colors hover:text-text"
-          >
-            {C.nav.styles}
-          </button>
+          {(
+            [
+              ['projects', '/dashboard', C.nav.projects],
+              ['styles', '/styles', C.nav.styles],
+            ] as const
+          ).map(([id, href, label]) => (
+            <Link
+              key={id}
+              href={href}
+              aria-current={active === id ? 'page' : undefined}
+              className={cn(
+                'relative flex h-full items-center text-sm leading-[18px] transition-colors',
+                active === id ? 'font-medium text-text' : 'text-text-2 hover:text-text',
+              )}
+            >
+              {label}
+              {active === id && (
+                <span aria-hidden className="absolute right-0 bottom-0 left-0 h-0.5 bg-ember" />
+              )}
+            </Link>
+          ))}
         </nav>
         <div className="ml-auto flex items-center">
           <CreditsChip
