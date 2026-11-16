@@ -233,8 +233,12 @@ function body(kind: PosterKind, h: string, custom: boolean): ReactNode {
               left: ux(19),
               top: u(36),
               padding: `${u(5)} ${u(10)}`,
-              fontSize: u(fit(16, h, custom)),
-              maxWidth: u(150),
+              fontSize: u(fit(custom ? 13 : 16, h, custom)),
+              maxWidth: ux(custom ? 200 : 150),
+              // A project title stays on one line so the red strip below never covers it.
+              ...(custom
+                ? { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
+                : {}),
               rotate: '-3deg',
             }}
           >
@@ -247,10 +251,10 @@ function body(kind: PosterKind, h: string, custom: boolean): ReactNode {
           <span
             className="absolute bg-[#E0613F] font-semibold text-[#FCEBDD]"
             style={{
-              left: ux(64),
-              top: u(70),
+              left: ux(custom ? 96 : 64),
+              top: u(custom ? 76 : 70),
               padding: `${u(4)} ${u(10)}`,
-              fontSize: u(14),
+              fontSize: u(custom ? 11 : 14),
               rotate: '3deg',
             }}
           >
