@@ -159,3 +159,11 @@ Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/11-d
 - **`tts.generate` moves from spec 05 task 12 to spec 11** and gets a media path in the router (`speak()`), because it returns audio, not JSON. Voices use our own labels; provider ids come from Remote Config. Speed is a delivery instruction in the prompt (the speech config has no rate field, per the Firebase "Generate speech" page read via Context7 on 2026-11-16); how well the model follows it is not measured yet.
 - **"Try a sample" sits on the Upload card** of `/start`, a deliberate small deviation from `start.png`, because judges need it and the design has no place for it.
 - **Open:** the 5-minutes-per-graphic figure behind "~saved", the voice preview spend (about $0.01), the Storage CORS rule for a second device.
+
+## D-035 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 10: Pip plans, routes and one undo
+Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/10-pip-panel/`. Full table in that spec's `design.md` §0.
+- **Suggestion chips are planned in code**, free and instant; typed messages go to `pip.plan`. That is why the designed empty state can honestly say "⚡ free · on-device".
+- **Code picks the route before sending** (`ONLY_ON_DEVICE` for slot-scoped requests that fit the device budget, else `ONLY_IN_CLOUD`), so the hint shown is the route used. A failed device plan offers "Ask in the cloud ☁ 2" instead of escalating. This replaces `PREFER_IN_CLOUD` in `ai-tasks.md` §6 (steering change proposed in the spec).
+- **The model's step is flat** (`action, slot, choice, atWord, instruction, label`, all required, with sentinels), because structured output has no `anyOf` and free `args` objects break the schema rules. Code computes every credit figure.
+- **Steps land one by one in one undo entry** (`amendTop` amends the plan's history entry with a growing composite), matching the design's mid-apply frame. Undo on the action card stops and undoes the whole plan; a user ⌘Z on the plan stops it too.
+- **Open:** a minimal brand-colours override for "Use brand colours everywhere" (journey 2) before spec 16; whether chips should also use Gemini Nano.
