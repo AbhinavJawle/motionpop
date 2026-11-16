@@ -1035,3 +1035,27 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - `?? .kiro/specs/09-inspector-quick-edits-and-notes/REVIEW.md`
   - `?? .kiro/specs/13-credits-judge-plan-settings/REVIEW.md`
 <!-- /kiro-session:sess_61c5b850-8e6d-496e-838e-fb81184e9159 -->
+
+<!-- kiro-cli:2026-11-16-spec-09-13-review-fixes -->
+## 2026-11-16 · Kiro CLI (headless, overnight) · model claude-sonnet-5.5 · agent: the default chat agent · specs 09 and 13, applying the spec-reviewer findings
+- **Task:** apply every finding of `09/REVIEW.md` (F1–F16) and `13/REVIEW.md` (F1–F17) to the three files of each spec, using Claude Code's decisions on the open choices. Docs only. Commits: `7ced6a3` (spec 09) and `38edb7c` (spec 13). Not pushed. This entry is a third commit.
+- **Decisions applied (Claude Code's, not mine)**
+  - Spec 08 owns the ledger transaction pattern and the fixed ids `export-{renderId}` / `refund-{renderId}`. Spec 13 generalises it as the one server spend helper (export, generate, cloud edit). Spec 13 drops `ServerSpend`, its own export cost table and `s-export-…` ids.
+  - One `costOf` in `packages/schemas`. `DailyLimitsSchema`: 08 task 2 keeps `planCloud.default(0)` and `renders`; spec 13 task 1 adds only its own counters.
+  - The kill switch blocks every cloud spend, exports included. Spec 08 R2.8 already says that, so I did not touch spec 08.
+  - The seam is listed as an exact table of spec 13 tasks (1, 2, 3, 4, 5, 8, 9) against the spec 09 task each precedes; the cloud route stays disabled until `ServerCredits` exists.
+  - Steering and decision edits became IDE tasks (09 task 25, 13 task 20), with D-09-1 recorded as D-035 superseding D-027's `edit.patch` escalation. Tasks needing MCP servers the builder lacks are marked IDE. The CI Playwright job is IDE, noted as done by Claude Code (09 task 24, 13 task 19).
+- **Choices I made inside those decisions (overturn any of them)**
+  - **Where the shared helper lives:** `services/render/src/store/ledger.ts` and `ledger-logic.ts`, exported through spec 08's `@motionpop/render/store` subpath. That is the only server-side place both the web routes and the render job already import. The package name is misleading for credits; renaming is in Later. If 08 task 8 has not landed when 13 task 4 runs, task 4 creates the folder and 08 task 8 uses the helper; if it has, task 4 refactors `startExport` / `failRender` onto it with 08's P1–P3 as the guard. **Claude Code: spec 08 task 8 should be told about this, since I did not edit spec 08.**
+  - **Judge refill on a refused spend** reuses the `judge-refill-{day}` ledger id, so the sign-in refill and the spend-time refill can't both pay on one day. It runs for exports too, inside `startExport`'s transaction.
+  - **Usage counters (F7):** per-UTC-day counters and a 12-bucket latency histogram in `limits/{day}.usage`, so the chart is in UTC days and medians are exact to the bucket. Event documents are still written (data-model.md lists them) but the app never reads them.
+  - **`refundsPerDay` default 30** (equal to the hourly cap), plus a toast when a refund is refused. The closed-tab case is documented as an honest limit, not fixed.
+  - **Decision ids:** spec 09 D-035 to D-049 (15 decisions: the 11 drafts plus four from the review), spec 13 D-050 to D-064 (10 drafts plus five). D-034 stays spec 08's. These are assignments on paper; the IDE tasks enter them in `docs/decisions.md`.
+  - **Rules edit in 13 task 7 stays `[kiro]`** because `motionpop-builder.json` lists `firestore.rules` in its allowed paths, with a fallback note (apply the diff from the IDE if the run is denied). Spec 08's tasks treat rules edits as IDE; handoff §7 says the same. The Firebase MCP validation step is IDE.
+  - **New cross-spec property C9** in spec 13 (balance never negative and at most one refund per spend across AI spends, client refunds, `startExport`, `failRender` and the sweep), with a follow-up task 5b because it needs 08 task 8.
+  - **New spec 09 task 11b** (hook, chip wiring, stub modal) and a demo-path order with checkpoints.
+- **Checks run and read:** `npx prettier --check` on both spec folders (clean). I grepped both folders for the removed names (`ServerSpend`, `s-export`, `packages/ai/src/cost.ts`, "tasks 1–5") and the only hits are the sentences that say they are gone. I did not run tests, typecheck or lint: docs only, no code changed.
+- **What I could not verify:** I did not read spec 08's code (it is not built past task 1), so the refactor of `startExport` / `failRender` in 13 task 4 is written against 08's design §7, not against real functions. Whether `firestore.rules` is writable by the headless agent is taken from `motionpop-builder.json`, not tested.
+- **Kiro features used:** the session-start hook's context (spec progress), steering (handoff §9–§12 read at the start, workflow, testing, security-and-cost, hybrid-ai), the three spec files per spec, the reviewer's `REVIEW.md` as the input. The default chat agent did the work; `spec-reviewer` was not rerun on the revised specs.
+- **What helped / what didn't:** the reviews had evidence lines with file names, which made each fix a lookup. The two specs and spec 08 write the same ledger, so the fixes only made sense when I read spec 08's design §7 and tasks first. One of my own edit scripts failed an assertion before writing anything and another skipped a replacement silently; I caught the second by grepping the result, not from the script's output.
+<!-- /kiro-cli:2026-11-16-spec-09-13-review-fixes -->
