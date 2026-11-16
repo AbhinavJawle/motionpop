@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { FormatSchema } from './format';
+import { WordSchema } from './transcript';
 
 /** What the Start screen collects before a voice exists (spec 11, design §2.5). */
 export const StartDraftSchema = z.object({
@@ -32,5 +33,11 @@ export const PendingIntakeSchema = z.object({
       script: z.string().max(SCRIPT_MAX_CHARS),
     })
     .optional(),
+  /**
+   * A single graphic (no voice): the typed line's words with their timings on a silent track.
+   * The project gets one slot over the whole line and no captions.
+   */
+  single: z.boolean().optional(),
+  words: z.array(WordSchema).max(60).optional(),
 });
 export type PendingIntake = z.infer<typeof PendingIntakeSchema>;

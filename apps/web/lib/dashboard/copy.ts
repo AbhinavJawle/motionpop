@@ -51,7 +51,6 @@ export const DASHBOARD_COPY = {
     deleted: (t: string) => `Deleted “${t}”.`,
     deleteFailed: "Couldn't delete that project. Try again.",
     renameFailed: "Couldn't rename that project. Try again.",
-    single: 'Single graphics are on their way.',
     brandKit: 'Brand kit is on its way.',
   },
   styles: {

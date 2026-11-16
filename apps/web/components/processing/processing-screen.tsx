@@ -124,7 +124,12 @@ export function ProcessingScreen({ id }: { id: string }) {
           cleanup: p.meta.cleanup,
           ...(p.draft.styleId ? { styleId: p.draft.styleId } : {}),
           ...(p.meta.tts ? { tts: p.meta.tts } : {}),
-          ...(p.meta.source === 'sample' ? { words: sampleWords() } : {}),
+          ...(p.meta.words
+            ? { words: p.meta.words }
+            : p.meta.source === 'sample'
+              ? { words: sampleWords() }
+              : {}),
+          ...(p.meta.single ? { single: true } : {}),
         });
       });
     return () => {

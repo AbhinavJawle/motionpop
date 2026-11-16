@@ -6,8 +6,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/cn';
-import { DASHBOARD_COPY, START_COPY as C } from '@/lib/dashboard/copy';
+import { START_COPY as C } from '@/lib/dashboard/copy';
 import { handOffFile, handOffSample, PROCESSING_NEW } from '@/lib/intake/hand-off';
+import { handOffSingle, SINGLE_MAX_WORDS } from '@/lib/intake/single';
 import { useStartDraft } from '@/lib/intake/use-start-draft';
 import { hoverLift } from '@/lib/motion/presets';
 import { ProjectTopBar } from './project-top-bar';
@@ -63,13 +64,7 @@ export function StartScreen() {
           />
           <ScriptCard initial={search.get('text') ?? readScriptDraft()} />
         </div>
-        <button
-          type="button"
-          onClick={() => toast(DASHBOARD_COPY.toasts.single)}
-          className="mt-[34px] text-[13px] leading-4 text-text-body transition-colors hover:text-text"
-        >
-          {C.single} →
-        </button>
+        <SingleGraphic busy={busy} onMake={(line) => void go(() => handOffSingle(line, draft))} />
         <p className="mt-8 text-[11px] leading-[14px] text-text-2">{C.singleFoot}</p>
       </main>
     </div>
@@ -263,5 +258,70 @@ function ScriptCard({ initial }: { initial: string }) {
         />
       </button>
     </Card>
+  );
+}
+
+/**
+ * "Or just make a single graphic": opens one line to type. The line becomes a short project
+ * with one graphic on a silent track, chosen from its words (a number, a place, a comparison).
+ */
+function SingleGraphic({ busy, onMake }: { busy: boolean; onMake: (line: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [line, setLine] = useState('');
+  const words = line.trim().split(/\s+/).filter(Boolean).length;
+  const tooLong = words > SINGLE_MAX_WORDS;
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-[34px] text-[13px] leading-4 text-text-body transition-colors hover:text-text"
+      >
+        {C.single} →
+      </button>
+    );
+  }
+  const submit = () => {
+    if (busy || words === 0 || tooLong) return;
+    onMake(line.trim());
+  };
+  return (
+    <motion.form
+      initial={{ opacity: 0, y: 6 }}
+      animate={{ opacity: 1, y: 0 }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        submit();
+      }}
+      className="mt-[30px] flex w-[560px] flex-col items-center gap-2"
+    >
+      <div className="flex w-full items-center gap-2 rounded-chip border border-line bg-card p-1.5 pl-4 shadow-glass">
+        <input
+          autoFocus
+          value={line}
+          onChange={(e) => setLine(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setOpen(false);
+          }}
+          aria-label="Line for a single graphic"
+          placeholder="Revenue grew 40% since 2020"
+          maxLength={200}
+          className="h-9 flex-1 bg-transparent text-[14px] text-text outline-none placeholder:text-text-3"
+        />
+        <button
+          type="submit"
+          disabled={busy || words === 0 || tooLong}
+          className="inline-flex h-9 items-center gap-1.5 rounded-chip bg-[linear-gradient(180deg,#FF975C,#FF7A3D)] px-4 text-[13px] font-semibold text-[#2A1308] disabled:opacity-50"
+        >
+          Make it
+          <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
+        </button>
+      </div>
+      <p className={cn('text-[11px] leading-[14px]', tooLong ? 'text-error' : 'text-text-3')}>
+        {tooLong
+          ? `Keep it to ${SINGLE_MAX_WORDS} words for one graphic.`
+          : 'One line, one graphic. Numbers, places and comparisons each get their own kind.'}
+      </p>
+    </motion.form>
   );
 }

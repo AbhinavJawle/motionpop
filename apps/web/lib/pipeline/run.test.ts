@@ -14,6 +14,7 @@ import {
   type PipelineInput,
   type TranscribeOutput,
 } from './run';
+import { singleWords } from '../intake/single';
 import { sampleInput } from './sample';
 
 const PROJECT_ID = 'p-test';
@@ -801,5 +802,31 @@ describe('runPipeline: Start draft and pending intake (spec 11 task 8)', () => {
     ).rejects.toThrow();
     expect(await f.audioStore.get(ref)).not.toBeNull();
     expect(f.audioStore.size).toBe(1);
+  });
+});
+
+describe('runPipeline: a single graphic', () => {
+  it('a silent track with typed words gets exactly one slot over them all, and no captions', async () => {
+    const typed = singleWords('Revenue grew 40% since 2020.');
+    const h = makeHarness({ decoded: pcm(6200, 0), durationMs: 6200 });
+    const detect = vi.fn(h.deps.detect);
+    h.deps.detect = detect;
+    await runPipeline(
+      makeInput({ name: 'Single graphic.wav', words: typed, single: true, cleanup: false }),
+      h.deps,
+      h.onEvent,
+    );
+    expect(detect).not.toHaveBeenCalled();
+    expect(h.transcribe).not.toHaveBeenCalled();
+    const loaded = await h.repo.load(PROJECT_ID);
+    const saved = loaded.ok ? loaded.project : null;
+    expect(saved?.slots).toHaveLength(1);
+    expect(saved?.slots[0]).toMatchObject({ componentId: 'stat-punch', wordStart: 0, wordEnd: 4 });
+    expect(saved?.captions?.enabled).toBe(false);
+  });
+
+  it('silence is still refused for a normal upload', async () => {
+    const h = makeHarness({ decoded: pcm(4400, 0), durationMs: 4400 });
+    await expect(runPipeline(makeInput(), h.deps, h.onEvent)).rejects.toThrow();
   });
 });

@@ -8,6 +8,7 @@ import {
 } from '@motionpop/ai';
 import {
   APP_CONFIG_DEFAULTS,
+  DEFAULT_CAPTIONS,
   EditorProjectSchema,
   type EditorProject,
   type Format,
@@ -19,6 +20,7 @@ import {
   type Voiceover,
   type Word,
 } from '@motionpop/schemas';
+import { graphicForWords } from '../slots/graphic-types';
 import type { AudioStore } from '../audio/audio-store';
 import { isSilent, OUTPUT_SAMPLE_RATE, type DecodedAudio } from '../audio/decode';
 import { buildEdl, cleanedDuration, retimeWords } from '../audio/edl';
@@ -61,6 +63,8 @@ export interface PipelineInput {
   /** False skips the cut list (generated voices, spec 05 R6.1). Default true. */
   cleanup?: boolean;
   tts?: NonNullable<Voiceover['tts']>;
+  /** A single graphic: silent audio with typed `words`, one slot over all of them, no captions. */
+  single?: boolean;
 }
 
 export interface TranscribeOutput {
@@ -141,6 +145,20 @@ function titleFrom(name: string): string {
  * until the final store step, and a failed store removes what it already wrote, so a cancel
  * or a failure never leaves half a project behind.
  */
+/** The one slot of a single graphic: every typed word, the type its words call for. */
+export function singleSuggestion(words: readonly Word[]): SlotSuggestion {
+  const text = words.map((w) => w.text);
+  return {
+    wordStart: 0,
+    wordEnd: Math.max(0, words.length - 1),
+    componentId: graphicForWords(text),
+    skillId: 'manual',
+    reason: `You wrote “${text.join(' ')}”`,
+    score: 1,
+    params: {},
+  };
+}
+
 export async function runPipeline(
   input: PipelineInput,
   deps: PipelineDeps,
@@ -186,7 +204,7 @@ export async function runPipeline(
     if (!duration.ok) {
       rejectFile(duration.message);
     }
-    if (isSilent(audio.pcm16k)) {
+    if (!input.single && isSilent(audio.pcm16k)) {
       rejectFile("I couldn't hear anything in that file.");
     }
 
@@ -256,7 +274,9 @@ export async function runPipeline(
     // Suggest (spec 06 R2-R3): detect, then the post-pass makes them timeline-valid.
     step = 'suggest';
     onEvent({ type: 'step', step, state: 'active' });
-    const suggestions = await deps.detect(cleanedWords, spans);
+    const suggestions = input.single
+      ? [singleSuggestion(cleanedWords)]
+      : await deps.detect(cleanedWords, spans);
     checkAbort();
     const placed = postPass({
       words: cleanedWords,
@@ -348,6 +368,7 @@ export async function runPipeline(
         },
         originalTranscript: transcript(t.words, false),
         ...firstVersions(slots, now),
+        ...(input.single ? { captions: { ...DEFAULT_CAPTIONS, enabled: false } } : {}),
         createdAt: now,
         updatedAt: now,
       });
