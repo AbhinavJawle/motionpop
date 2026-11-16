@@ -19,3 +19,12 @@ env:
     secret: JUDGE_EMAILS
     availability:
       - RUNTIME
+  # The export render job (spec 08 design §17). Not secrets.
+  - variable: RENDER_JOB
+    value: motionpop-render
+    availability:
+      - RUNTIME
+  - variable: RENDER_REGION
+    value: us-central1
+    availability:
+      - RUNTIME
