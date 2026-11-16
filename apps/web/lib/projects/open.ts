@@ -1,6 +1,6 @@
 import type { EditorProject } from '@motionpop/schemas';
 import { encodeWav, synthVoice } from '../audio/synth-voice';
-import { DEMO_PROJECT_ID, demoProject, synthRate } from './fixture';
+import { DEMO_PROJECT_ID, showcaseProject, synthRate } from './fixture';
 import { PERF_PROJECT_ID, perfProject } from './perf-fixture';
 import type { LoadResult, ProjectRepository } from './repository';
 
@@ -15,7 +15,7 @@ export async function openProject(
 ): Promise<LoadResult> {
   const r = await repo.load(id);
   if (r.ok || r.error === 'invalid') return r;
-  if (id === DEMO_PROJECT_ID) return { ok: true, project: demoProject(now()) };
+  if (id === DEMO_PROJECT_ID) return { ok: true, project: showcaseProject(now()) };
   if (id === PERF_PROJECT_ID) return { ok: true, project: perfProject(now()) };
   return r;
 }
