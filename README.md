@@ -26,6 +26,15 @@ voice ─▶ Whisper word timings (on-device) ─▶ cleanup (ums, long pauses) 
 | Video | Our own deterministic motion core rendered with HyperFrames (player in the editor, producer on Cloud Run) |
 | Audio | Whisper in a Web Worker (transformers.js), Web Audio for cleanup, waveform peaks and synthesized SFX |
 
+## On-device AI in Chrome
+
+Quick edits, frame notes and background auto-fill run on Gemini Nano in your browser through Firebase AI Logic: free, private and instant. Everything works without it; the app falls back to cloud AI and shows "Using cloud AI".
+
+1. Use desktop Chrome 139 or newer.
+2. Open `chrome://flags/#prompt-api-for-gemini-nano-multimodal-input`, set it to **Enabled** and relaunch Chrome.
+3. In motionpop, open **Settings › AI & models** and click **Set up on-device AI**. The first model download takes a few minutes and runs in the background.
+4. When the status reads "Ready", edits show the mint `⚡ free · on-device` chip.
+
 ## Repository
 
 ```
