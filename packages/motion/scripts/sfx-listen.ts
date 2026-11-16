@@ -44,6 +44,10 @@ if (m.synthBed && m.MUSIC_BED_IDS) {
     const file = join(outDir, `bed-${id}-20s.wav`);
     await writeFile(file, m.encodeWav16(m.synthBed(id, 20_000, 1), m.SFX_SAMPLE_RATE));
     written.push(file);
+    // Longer than one loop (26.7 s and 20 s), so the 500 ms loop crossfade can be heard.
+    const seam = join(outDir, `bed-${id}-60s-loop-seams.wav`);
+    await writeFile(seam, m.encodeWav16(m.synthBed(id, 60_000, 1), m.SFX_SAMPLE_RATE));
+    written.push(seam);
   }
 }
 for (const f of written) console.log(f);
