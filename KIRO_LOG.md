@@ -1509,3 +1509,18 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - Steering edits of task 25 still open (the `prompt.prefill` input shape is one of them).
 - **Kiro features used:** the session-start hook and the spec tasks as the work list, the done notes in `tasks.md`, fast-check properties (P6 per registered id, paging, template length, credit balance of quick edits), mutation checking, the Playwright screenshots next to the design PNGs.
 <!-- /kiro-cli:2026-11-16-spec-09-tasks-12-17 -->
+
+<!-- kiro-session:sess_7550dc14-8a38-456f-9002-f91fad6fe937 -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T05:36:22.192Z · last stop: 2026-11-16T06:35:33.440Z · session: sess_7550dc14-8a38-456f-9002-f91fad6fe937
+- commits since start: 
+  - b76c2dd docs: KIRO_LOG entry for the spec 09 tasks 12-17 run
+  - 0ef47d9 fix(09-inspector-quick-edits-and-notes): distinct keys for inspector sections
+  - 619532d feat(09-inspector-quick-edits-and-notes): task 17 prompt.prefill and template fallback
+  - 07a715a feat(09-inspector-quick-edits-and-notes): task 16 quick edit UI
+  - a783dbe feat(09-inspector-quick-edits-and-notes): task 15 versions strip
+  - 97432c7 feat(09-inspector-quick-edits-and-notes): task 14 style row and timing controls
+  - c5f9ed0 feat(09-inspector-quick-edits-and-notes): task 13 content form
+  - 2176c2d feat(09-inspector-quick-edits-and-notes): task 12 inspector rebuild
+- uncommitted changes: none
+<!-- /kiro-session:sess_7550dc14-8a38-456f-9002-f91fad6fe937 -->
