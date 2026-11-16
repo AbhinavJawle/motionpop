@@ -1,0 +1,23 @@
+# Build context for services/render/Dockerfile (the render job). Only the workspace manifests, the
+# lockfile and the packages the job imports go in.
+**/node_modules
+**/.next
+**/.turbo
+**/.check
+**/dist
+**/coverage
+**/*.log
+.git
+.env
+.env.*
+**/.env*
+Information
+design
+docs
+renders
+e2e-output
+test-results
+playwright-report
+# The web app isn't part of the job; its manifest stays so the frozen lockfile matches.
+apps/web/*
+!apps/web/package.json

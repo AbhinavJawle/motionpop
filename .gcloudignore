@@ -1,0 +1,23 @@
+# Upload for services/render/cloudbuild.yaml: the same context as .dockerignore.
+.gcloudignore
+
+**/node_modules
+**/.next
+**/.turbo
+**/.check
+**/dist
+**/coverage
+**/*.log
+.git
+.env
+.env.*
+**/.env*
+Information
+design
+docs
+renders
+e2e-output
+test-results
+playwright-report
+apps/web/*
+!apps/web/package.json

@@ -1,0 +1,11 @@
+# Builds and pushes the render job image (spec 08 design §17). Run from the repository root:
+#   gcloud builds submit --config services/render/cloudbuild.yaml --substitutions _TAG=<sha> .
+# services/render/deploy.sh then points the Cloud Run job at the new image.
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ['build', '-f', 'services/render/Dockerfile', '-t', '${_IMAGE}:${_TAG}', '.']
+images: ['${_IMAGE}:${_TAG}']
+substitutions:
+  _IMAGE: us-central1-docker.pkg.dev/motionpop-48409/motionpop/render
+  _TAG: latest
+timeout: 1800s
