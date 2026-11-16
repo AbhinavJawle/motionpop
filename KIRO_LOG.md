@@ -1059,3 +1059,13 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - **Kiro features used:** the session-start hook's context (spec progress), steering (handoff §9–§12 read at the start, workflow, testing, security-and-cost, hybrid-ai), the three spec files per spec, the reviewer's `REVIEW.md` as the input. The default chat agent did the work; `spec-reviewer` was not rerun on the revised specs.
 - **What helped / what didn't:** the reviews had evidence lines with file names, which made each fix a lookup. The two specs and spec 08 write the same ledger, so the fixes only made sense when I read spec 08's design §7 and tasks first. One of my own edit scripts failed an assertion before writing anything and another skipped a replacement silently; I caught the second by grepping the result, not from the script's output.
 <!-- /kiro-cli:2026-11-16-spec-09-13-review-fixes -->
+
+<!-- kiro-session:sess_0ce76b39-19ee-4317-9a4e-98a80b7865ce -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T00:28:10.551Z · last stop: 2026-11-16T00:38:42.312Z · session: sess_0ce76b39-19ee-4317-9a4e-98a80b7865ce
+- commits since start: 
+  - e5d9bf2 docs: KIRO_LOG entry for the spec 09 and 13 review fixes
+  - 38edb7c docs(13-credits-judge-plan-settings): apply spec review findings F1-F17
+  - 7ced6a3 docs(09-inspector-quick-edits-and-notes): apply spec review findings F1-F16
+- uncommitted changes: none
+<!-- /kiro-session:sess_0ce76b39-19ee-4317-9a4e-98a80b7865ce -->
