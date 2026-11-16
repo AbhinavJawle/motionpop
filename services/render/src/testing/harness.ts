@@ -89,6 +89,10 @@ export interface Harness {
   renderId: string;
   /** Names of port calls in order, for example `producer.render`. */
   calls: string[];
+  /** Runs after each port call is recorded: `(name, index)`. */
+  /** Object paths read or downloaded from the blob store, in order. */
+  reads: string[];
+  hook: { onCall?: (name: string, index: number) => Promise<void> | void };
   logs: { level: 'info' | 'error'; fields: Record<string, unknown> }[];
   workDir: string;
   /** Everything that could still be on disk or in the store after the render. */
@@ -124,6 +128,13 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
   const blobs = new FsBlobStore(join(root, 'bucket'));
   const clock = new FakeClock();
   const calls: string[] = [];
+  const hook: Harness['hook'] = {};
+  const reads: string[] = [];
+  /** Records a port call, then lets a test act at exactly that point (for example, sweep the render). */
+  const record = async (name: string): Promise<void> => {
+    calls.push(name);
+    await hook.onCall?.(name, calls.length - 1);
+  };
   const logs: Harness['logs'] = [];
   const paths = renderPaths(OWNER, project.id, RENDER_ID);
 
@@ -191,38 +202,42 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
 
   const ffmpeg: Ffmpeg = {
     async probe(file) {
-      calls.push(`ffmpeg.probe:${file.split('/').pop()}`);
+      await record(`ffmpeg.probe:${file.split('/').pop()}`);
       if (file.endsWith('voice-source')) return fakes.voiceProbe(file);
       if (file.endsWith('voice.wav')) return fakes.voiceProbe(file);
       return fakes.outputProbe(file);
     },
     async toWav(_src, dest) {
-      calls.push('ffmpeg.toWav');
+      await record('ffmpeg.toWav');
       await fakes.toWav();
       await writeFile(dest, 'RIFF fake wav');
     },
     async frame({ destJpg }) {
-      calls.push('ffmpeg.frame');
+      await record('ffmpeg.frame');
       await fakes.frame();
       await writeFile(destJpg, 'fake jpg');
     },
   };
   const preflight: Preflight = {
     async check({ compDir }) {
-      calls.push('preflight.check');
+      await record('preflight.check');
       return fakes.preflight(compDir);
     },
   };
   const producer: Producer = {
     async render(args) {
-      calls.push('producer.render');
+      await record('producer.render');
       return fakes.produce(args);
     },
   };
+  const realRead = blobs.read.bind(blobs);
+  blobs.read = async (path) => (reads.push(path), realRead(path));
+  const realDownload = blobs.download.bind(blobs);
+  blobs.download = async (path, dest) => (reads.push(path), realDownload(path, dest));
   // Uploads go through a wrapper so a test can make them fail.
   const realUpload = blobs.upload.bind(blobs);
   blobs.upload = async (path, src, meta) => {
-    calls.push(`blobs.upload:${path.split('/').pop()}`);
+    await record(`blobs.upload:${path.split('/').pop()}`);
     await fakes.upload(path);
     return realUpload(path, src, meta);
   };
@@ -253,6 +268,8 @@ export async function makeHarness(opts: HarnessOptions = {}): Promise<Harness> {
     paths,
     renderId: RENDER_ID,
     calls,
+    reads,
+    hook,
     logs,
     workDir,
     leftovers: async () => ({ blobs: await blobs.paths() }),
