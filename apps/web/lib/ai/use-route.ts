@@ -1,7 +1,6 @@
 'use client';
 
 import type { AppConfig } from '@motionpop/schemas';
-import { useEffect, useState } from 'react';
 import { useCreditsBalance, useCreditsClient } from '../credits/use-credits-client';
 import { useAppConfig } from '../renders/hooks';
 import { usePreferOnDevice } from '../settings/use-prefer-on-device';
@@ -44,32 +43,16 @@ export function routeInputFrom(s: {
   };
 }
 
-function useOnline(): boolean {
-  const [online, setOnline] = useState(true);
-  useEffect(() => {
-    const sync = () => setOnline(navigator.onLine);
-    sync();
-    window.addEventListener('online', sync);
-    window.addEventListener('offline', sync);
-    return () => {
-      window.removeEventListener('online', sync);
-      window.removeEventListener('offline', sync);
-    };
-  }, []);
-  return online;
-}
-
 /**
  * The route of a task from live state, including the Settings toggle: turning "Prefer on-device
  * AI" off moves quick edits to `☁ 1` at once and leaves auto-fill on the device (spec 13 R6.5).
  */
 export function useRoute(task: RoutedTask, opts: { forceCloud?: boolean } = {}): Route {
-  const { availability } = useAIStatus();
+  const { availability, online } = useAIStatus();
   const { preferOnDevice } = usePreferOnDevice();
   const { cloudAvailable, cloudBlockedReason } = useCreditsClient();
   const balance = useCreditsBalance();
   const config = useAppConfig();
-  const online = useOnline();
   return chooseRoute(
     routeInputFrom({
       task,

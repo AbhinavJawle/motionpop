@@ -10,7 +10,13 @@ vi.mock('firebase/ai', () => ({
   getGenerativeModel: () => ({ initializeDeviceModel: h.init }),
 }));
 
-import { detectAvailability, mapAvailability, setUpOnDevice, useAIStatusStore } from './ai-status';
+import {
+  detectAvailability,
+  mapAvailability,
+  setUpOnDevice,
+  useAIStatusStore,
+  watchConnection,
+} from './ai-status';
 
 const reset = () =>
   useAIStatusStore.setState({ availability: 'checking', setupProgress: null, detected: false });
@@ -87,5 +93,45 @@ describe('on-device status', () => {
       availability: 'downloadable',
       setupProgress: null,
     });
+  });
+});
+
+describe('connection (spec 09 R9.4)', () => {
+  function fakeWindow(onLine: boolean) {
+    const handlers = new Map<string, Set<() => void>>();
+    const win = {
+      navigator: { onLine },
+      addEventListener: (type: string, fn: () => void) => {
+        handlers.set(type, (handlers.get(type) ?? new Set()).add(fn));
+      },
+      removeEventListener: (type: string, fn: () => void) => void handlers.get(type)?.delete(fn),
+      fire: (type: string) => handlers.get(type)?.forEach((fn) => fn()),
+      count: () => [...handlers.values()].reduce((n, s) => n + s.size, 0),
+    };
+    return win;
+  }
+
+  it('starts online, follows online and offline events, and stops after the cleanup', () => {
+    const win = fakeWindow(true);
+    const stop = watchConnection(win as never);
+    expect(useAIStatusStore.getState().online).toBe(true);
+    win.navigator.onLine = false;
+    win.fire('offline');
+    expect(useAIStatusStore.getState().online).toBe(false);
+    win.navigator.onLine = true;
+    win.fire('online');
+    expect(useAIStatusStore.getState().online).toBe(true);
+    stop();
+    expect(win.count()).toBe(0);
+    win.navigator.onLine = false;
+    win.fire('offline');
+    expect(useAIStatusStore.getState().online).toBe(true);
+  });
+
+  it('reads the current state when it starts watching', () => {
+    const stop = watchConnection(fakeWindow(false) as never);
+    expect(useAIStatusStore.getState().online).toBe(false);
+    stop();
+    useAIStatusStore.setState({ online: true });
   });
 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { Cloud, Zap } from 'lucide-react';
-import { Toaster as SonnerToaster, toast as sonner } from 'sonner';
+import { Toaster as SonnerToaster, toast as sonner, type ExternalToast } from 'sonner';
 
 /**
  * Toasts (sonner, unstyled + our tokens): glass card, slides up with sonner's spring.
@@ -33,14 +33,16 @@ export function Toaster() {
 
 export const toast = Object.assign(sonner, {
   /** "On-device AI ready" style toast. */
-  device: (title: string, description?: string) =>
+  device: (title: string, description?: string, options?: ExternalToast) =>
     sonner(title, {
+      ...options,
       description,
       icon: <Zap className="text-mint" strokeWidth={1.5} aria-hidden />,
     }),
   /** "Using cloud AI" style toast. */
-  cloud: (title: string, description?: string) =>
+  cloud: (title: string, description?: string, options?: ExternalToast) =>
     sonner(title, {
+      ...options,
       description,
       icon: <Cloud className="text-violet" strokeWidth={1.5} aria-hidden />,
     }),

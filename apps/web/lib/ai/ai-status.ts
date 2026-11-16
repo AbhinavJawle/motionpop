@@ -18,13 +18,35 @@ interface AIStatusState {
   /** 0..1 while the model downloads, else null. */
   setupProgress: number | null;
   detected: boolean;
+  /** `navigator.onLine`, kept current by `watchConnection` (spec 09 R9.4). */
+  online: boolean;
 }
 
 export const useAIStatusStore = create<AIStatusState>(() => ({
   availability: 'checking',
   setupProgress: null,
   detected: false,
+  online: true,
 }));
+
+/**
+ * Follows the browser's online and offline events into the store. Returns the cleanup. Safe to
+ * call from several components: each call adds its own listeners and sets the current value.
+ */
+export function watchConnection(
+  target: Pick<Window, 'addEventListener' | 'removeEventListener'> & {
+    navigator: { onLine: boolean };
+  } = window,
+): () => void {
+  const sync = () => useAIStatusStore.setState({ online: target.navigator.onLine });
+  sync();
+  target.addEventListener('online', sync);
+  target.addEventListener('offline', sync);
+  return () => {
+    target.removeEventListener('online', sync);
+    target.removeEventListener('offline', sync);
+  };
+}
 
 interface PromptApi {
   availability: (opts: { expectedInputs: { type: string }[] }) => Promise<string>;
@@ -79,11 +101,13 @@ export async function setUpOnDevice(): Promise<void> {
   }
 }
 
-export function useAIStatus(): Pick<AIStatusState, 'availability' | 'setupProgress'> {
+export function useAIStatus(): Pick<AIStatusState, 'availability' | 'setupProgress' | 'online'> {
   const availability = useAIStatusStore((s) => s.availability);
   const setupProgress = useAIStatusStore((s) => s.setupProgress);
+  const online = useAIStatusStore((s) => s.online);
   useEffect(() => {
     void detectAvailability();
+    return watchConnection();
   }, []);
-  return { availability, setupProgress };
+  return { availability, setupProgress, online };
 }
