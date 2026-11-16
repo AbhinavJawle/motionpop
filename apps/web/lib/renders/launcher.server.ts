@@ -1,4 +1,5 @@
 import 'server-only';
+import { projectIdFrom, storageBucketFrom } from '@/lib/firebase/project-env';
 import { spawn } from 'node:child_process';
 import { mkdirSync, openSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -261,8 +262,7 @@ export interface LauncherSources {
 /** The launcher of a render mode, configured from the environment (`RENDER_JOB`, `RENDER_REGION`). */
 export function launcherFor(mode: RenderMode, sources: LauncherSources = {}): RenderLauncher {
   const env = sources.env ?? process.env;
-  const projectId =
-    env['GOOGLE_CLOUD_PROJECT'] ?? env['GCLOUD_PROJECT'] ?? env['NEXT_PUBLIC_FIREBASE_PROJECT_ID'];
+  const projectId = projectIdFrom(env);
   switch (mode) {
     case 'cloud':
       if (!projectId) throw new LaunchError('the Google Cloud project is not configured');
@@ -278,9 +278,7 @@ export function launcherFor(mode: RenderMode, sources: LauncherSources = {}): Re
         env: {
           ...env,
           ...(projectId ? { GOOGLE_CLOUD_PROJECT: projectId } : {}),
-          ...(env['NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET']
-            ? { STORAGE_BUCKET: env['NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET'] }
-            : {}),
+          ...(storageBucketFrom(env) ? { STORAGE_BUCKET: storageBucketFrom(env) } : {}),
         },
         logDir: join(tmpdir(), 'motionpop-renders'),
       });
