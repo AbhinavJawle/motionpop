@@ -1649,3 +1649,13 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - result, from the run's own report: motion 428/428; web 1,058/1,059 with eslint clean. The one failure was `lib/pipeline/detect-perf.test.ts` (a 150 ms budget took 383 ms under the full-suite load); Kiro re-ran that file alone and it passed, so it called it a timing flake and left it. No test needed updating; Kiro changed no files.
 <!-- /kiro-session:sess_ac62ebde-5a88-4e14-a459-190a47bbbd3f -->
 
+<!-- kiro-session:sess_0ccd1398-dd8b-47d7-8592-f1edf606e743 -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T21:47:02.714Z · last stop: 2026-11-16T21:47:59.853Z · session: sess_0ccd1398-dd8b-47d7-8592-f1edf606e743
+- commits since start: none
+- uncommitted changes: 
+  - `M packages/ai/src/slots/detect-local.test.ts`
+  - ` M packages/ai/src/slots/detect-local.ts`
+- task (run12, claude-haiku-5.5, effort low; prompt by Claude Code): update the detector tests for Claude Code's intended coverage changes (no callout, a 3 s budget, clauseRanges, closing-sentence hooks, lesson quotes) and add clauseRanges tests, inside packages/ai only.
+- result, from the run's own report: updated two expectations (the kinds list without callout; the budget 5 for the demo), added three clauseRanges tests, ai 397/397. Kiro noted itself that its merge test never reached the merge branch; Claude Code replaced it with a fast-check property (every clause 4 to 14 words, in order) after changing short pieces to always merge, and added a coverage regression test.
+<!-- /kiro-session:sess_0ccd1398-dd8b-47d7-8592-f1edf606e743 -->

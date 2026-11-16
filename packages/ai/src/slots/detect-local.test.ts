@@ -5,6 +5,7 @@ import { catalogueEntry, isDetectable, skillEntry, skillWorksWith } from './cata
 import {
   bigNumberParams,
   chartDraft,
+  clauseRanges,
   detectLocal,
   hookLine,
   listDraft,
@@ -16,6 +17,7 @@ import {
   timelineDraft,
   versusSides,
 } from './detect-local';
+import { postPass } from './post-pass';
 import { tagSpans } from './tagger';
 import type { SlotWord, TaggedSpan } from './types';
 
@@ -157,10 +159,10 @@ describe('scoring and mapping', () => {
   it('maps each kind to its component and skill, best first within the budget', () => {
     const out = detectLocal(w, spans, { maxSlots: 3 });
     // Changed by spec 07 task 24: "from 10 to 40" is a chart-story (was bar-chart).
+    // Changed 2026-11-16: names no longer suggest `callout`, so "Alice Moreau" gets no slot here.
     expect(out.map((s) => [s.componentId, s.skillId, s.score])).toEqual([
       ['map-zoom', 'zoom-from-world-to-place', 0.65],
       ['chart-story', 'contrast-split', 0.8],
-      ['callout', 'calm-explanation', 0.4],
     ]);
     // map-zoom is a built scene now (its draft names the place); the planned components still need input.
     expect(out.find((s) => s.componentId === 'map-zoom')?.needsInput).toBeUndefined();
@@ -421,8 +423,9 @@ describe('helpers', () => {
     expect(sentenceIndex(words('Hi.', 'You?', '"Yes!"', 'ok'))).toEqual([0, 1, 2, 3]);
   });
 
-  it('budgets one slot per 3.5 s of speech, at least one', () => {
-    expect(slotBudget(DEMO)).toBe(4);
+  it('budgets one slot per 3 s of speech, at least one', () => {
+    // Changed 2026-11-16: one slot per 3 s (was 3.5 s). The demo's 15.7 s gives 5.
+    expect(slotBudget(DEMO)).toBe(5);
     expect(slotBudget(words('hi'))).toBe(1);
     expect(slotBudget([])).toBe(0);
   });
@@ -597,6 +600,83 @@ describe('hook lines and scene drafts (spec 07 task 27)', () => {
   });
 });
 
+describe('clauseRanges', () => {
+  const LONG = words(
+    'The',
+    'team',
+    'spent',
+    'long',
+    'months',
+    'testing',
+    'the',
+    'new',
+    'engine,',
+    'which',
+    'finally',
+    'worked',
+    'on',
+    'the',
+    'third',
+    'try,',
+    'and',
+    'everyone',
+    'in',
+    'the',
+    'room',
+    'cheered',
+    'because',
+    'the',
+    'hard',
+    'work',
+    'had',
+    'truly',
+    'paid',
+    'off.',
+  ); // 30 words
+
+  it('returns a short sentence as one range', () => {
+    const w = words('We', 'grew', 'fast.');
+    expect(clauseRanges(w, { start: 0, end: 2 })).toEqual([{ start: 0, end: 2 }]);
+  });
+
+  it('splits a 30-word sentence into contiguous ranges of at most 14 words that cover every word once', () => {
+    expect(LONG).toHaveLength(30);
+    const parts = clauseRanges(LONG, { start: 0, end: 29 });
+    expect(parts.length).toBeGreaterThan(1);
+    expect(parts[0]?.start).toBe(0);
+    expect(parts[parts.length - 1]?.end).toBe(29);
+    for (let i = 0; i < parts.length; i++) {
+      const p = parts[i] as { start: number; end: number };
+      expect(p.end).toBeGreaterThanOrEqual(p.start);
+      expect(p.end - p.start + 1).toBeLessThanOrEqual(14);
+      if (i > 0) expect(p.start).toBe((parts[i - 1] as { end: number }).end + 1);
+    }
+  });
+
+  it('every clause has 4 to 14 words, covers the sentence in order (any sentence of 4+ words)', () => {
+    fc.assert(
+      fc.property(
+        fc.array(fc.stringMatching(/^[a-z]{1,8}[,;:]?$|^(and|but|which|so)$/), {
+          minLength: 4,
+          maxLength: 60,
+        }),
+        (texts) => {
+          const w = words(...texts);
+          const parts = clauseRanges(w, { start: 0, end: w.length - 1 });
+          expect(parts[0]?.start).toBe(0);
+          expect(parts[parts.length - 1]?.end).toBe(w.length - 1);
+          parts.forEach((p, i) => {
+            const n = p.end - p.start + 1;
+            expect(n).toBeGreaterThanOrEqual(4);
+            expect(n).toBeLessThanOrEqual(14);
+            if (i > 0) expect(p.start).toBe(parts[i - 1]!.end + 1);
+          });
+        },
+      ),
+    );
+  });
+});
+
 describe('properties', () => {
   const kinds = ['number', 'year', 'place', 'name', 'comparison', 'list'] as const;
   const arbInput = fc
@@ -661,5 +741,47 @@ describe('detectLocal with the real tagger', () => {
       'stat-punch',
       'hook-statement',
     ]);
+  });
+});
+
+describe('clauseRanges merges and coverage (founder 2026-11-16)', () => {
+  it('joins a piece under 4 words to its neighbour', () => {
+    // "Rates rose," is 2 words: it joins the clause after it.
+    const w = words(
+      ...'Rates rose, and the banks that had lent against land were left holding bad loans'.split(
+        ' ',
+      ),
+    );
+    const r = clauseRanges(w, { start: 0, end: w.length - 1 });
+    expect(r[0]).toEqual({ start: 0, end: expect.any(Number) });
+    expect(r[0]!.end - r[0]!.start + 1).toBeGreaterThanOrEqual(4);
+    expect(
+      r.flatMap((x) => Array.from({ length: x.end - x.start + 1 }, (_, i) => x.start + i)),
+    ).toEqual(w.map((_, i) => i));
+  });
+
+  it('a long explainer is mostly covered, with no empty stretch over 3.5 s', () => {
+    const text =
+      "In 1989, Japan's stock market was the most valuable on Earth. The Nikkei index closed the year near thirty nine thousand points, and land under the Imperial Palace in Tokyo was said to be worth more than all of California. Then the bubble burst. Within three years the index had lost more than half its value, and it would take thirty four years to climb back to that peak. What happened? Interest rates rose from two and a half percent to six percent in just over a year. Banks that had lent against inflated land suddenly held loans worth far less than they claimed. Instead of writing those loans off, many kept them alive, and a generation of so called zombie companies kept borrowing just to survive. The result was a lost decade, and then another. Wages barely moved. Prices drifted down instead of up. So why does this matter to you? Because the lesson is about time. Diversification is not exciting. But it is the reason a bad decade does not become a bad life.";
+    let t = 300;
+    const w: SlotWord[] = text.split(' ').map((x) => {
+      const len = 180 + 25 * x.length;
+      const word = { text: x, startMs: t, endMs: t + len, filler: false };
+      t += len + (/[.?!]$/.test(x) ? 450 : /[,;:]$/.test(x) ? 200 : 60);
+      return word;
+    });
+    // What the product saves: the detector's picks through the post-pass (which widens them).
+    const s = postPass({ words: w, suggestions: detectLocal(w, tagSpans(w)) });
+    const spanMs = (x: { startMs: number; endMs: number }) => x.endMs - x.startMs;
+    const total = w[w.length - 1]!.endMs - w[0]!.startMs;
+    const covered = s.reduce((a, x) => a + spanMs(x), 0);
+    expect(covered / total).toBeGreaterThan(0.8);
+    const sorted = [...s].sort((a, b) => a.wordStart - b.wordStart);
+    let prev = w[0]!.startMs;
+    for (const x of sorted) {
+      expect(x.startMs - prev).toBeLessThanOrEqual(3500);
+      prev = x.endMs;
+    }
+    expect(s.some((x) => x.componentId === 'callout')).toBe(false);
   });
 });

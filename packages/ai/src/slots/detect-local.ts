@@ -28,10 +28,6 @@ interface Candidate {
 const CURRENCY: ReadonlySet<NumberUnit> = new Set(['$', '£', '€']);
 const SENTENCE_END = /[.?!]["')\]]*$/;
 const PUNCT_EDGE = /^[^\p{L}\p{N}$£€%]+|[^\p{L}\p{N}%]+$/gu;
-/** Inputs each not-yet-built component will need (spec 07 defines the real schemas). */
-const NEEDS: Record<string, string[]> = {
-  callout: ['title'],
-};
 /** How far back a slot may start before its span (design: at most 4 words). */
 const LEAD_WORDS = 4;
 /**
@@ -45,6 +41,33 @@ const SCENE_LEAD_MS = 900;
  * an exit. A closing sentence that ends sooner before the transcript does is not a hook.
  */
 const HOOK_TAIL_MS = 1300;
+/**
+ * The closing sentence has no voice after it to give the line its tail, so it only needs this
+ * long after its last word starts (the text has been reading since the sentence began).
+ */
+const CLOSING_TAIL_MS = 500;
+/** Lines that state a lesson or a rule read as a pull quote rather than a headline. */
+const LESSON =
+  /\b(should|must|never|always|matters?|lesson|rule|remember|key|secret|truth|important)\b/i;
+/** Words a long sentence can break before, starting a new clause. */
+const CLAUSE_OPENERS = new Set([
+  'and',
+  'but',
+  'because',
+  'which',
+  'while',
+  'so',
+  'yet',
+  'although',
+  'though',
+  'when',
+  'where',
+  'who',
+  'then',
+  'or',
+]);
+/** A clause shorter than this joins its neighbour. */
+const CLAUSE_MIN_WORDS = 4;
 /** hook-statement's line limits (its content schema): at most 14 words and 90 characters. */
 const HOOK_MIN_WORDS = 3;
 const HOOK_MAX_WORDS = 14;
@@ -161,6 +184,48 @@ export function versusSides(
   return null;
 }
 
+/**
+ * A sentence too long for one line, cut into clauses that fit (spec 07, founder 2026-11-16:
+ * plain stretches should still carry a graphic). Breaks after `, ; : —` and before joining
+ * words; pieces under CLAUSE_MIN_WORDS join a neighbour (a two-word line is no graphic), and
+ * pieces then over the line limit are cut evenly. Every returned range fits `hookLine`'s word limits.
+ */
+export function clauseRanges(
+  words: readonly SlotWord[],
+  range: { start: number; end: number },
+): { start: number; end: number }[] {
+  const cuts: { start: number; end: number }[] = [];
+  let start = range.start;
+  for (let i = range.start; i <= range.end; i++) {
+    const t = words[i]?.text.trim() ?? '';
+    const next = clean(words[i + 1]?.text ?? '').toLowerCase();
+    const breakAfter = /[,;:\u2014\u2013]$/.test(t) || (i < range.end && CLAUSE_OPENERS.has(next));
+    if (i === range.end || (breakAfter && i - start + 1 >= 2)) {
+      cuts.push({ start, end: i });
+      start = i + 1;
+    }
+  }
+  // Merge short pieces forward (or into the previous piece at the end).
+  const merged: { start: number; end: number }[] = [];
+  for (const c of cuts) {
+    const last = merged[merged.length - 1];
+    const len = (r: { start: number; end: number }) => r.end - r.start + 1;
+    if (last && (len(last) < CLAUSE_MIN_WORDS || len(c) < CLAUSE_MIN_WORDS)) {
+      last.end = c.end;
+    } else merged.push({ ...c });
+  }
+  // Pieces still too long are cut evenly.
+  const out: { start: number; end: number }[] = [];
+  for (const m of merged) {
+    const n = m.end - m.start + 1;
+    const parts = Math.ceil(n / HOOK_MAX_WORDS);
+    const size = Math.ceil(n / parts);
+    for (let k = m.start; k <= m.end; k += size)
+      out.push({ start: k, end: Math.min(m.end, k + size - 1) });
+  }
+  return out;
+}
+
 /** First and last word index of every sentence. */
 function sentenceRanges(sentence: readonly number[]): { start: number; end: number }[] {
   const out: { start: number; end: number }[] = [];
@@ -186,7 +251,9 @@ function hookCandidate(
   const line = hookLine(words, range.start, range.end);
   if (!line) return null;
   const endMs = words[words.length - 1]?.endMs ?? 0;
-  if ((words[range.end]?.startMs ?? 0) + HOOK_TAIL_MS > endMs) return null;
+  const closing = range.end === words.length - 1;
+  if ((words[range.end]?.startMs ?? 0) + (closing ? CLOSING_TAIL_MS : HOOK_TAIL_MS) > endMs)
+    return null;
   let first = range.start;
   while (first < range.end && words[first]?.filler) first++;
   return {
@@ -605,7 +672,29 @@ function candidates(
               // the spoken line when the budget has room and nothing better claims them.
               { score: 0.3, skill: 'calm-explanation' };
     const hook = kind ? hookCandidate(words, r, kind.score, kind.skill) : null;
-    if (hook) out.push(hook);
+    if (hook) {
+      out.push(hook);
+      // A plain sentence that states a lesson is also offered as a pull quote, a little above
+      // its hook, so a film doesn't read as one headline after another.
+      if (kind.score <= 0.55 && LESSON.test(text) && k > 0) {
+        out.push({
+          ...hook,
+          componentId: 'quote',
+          score: kind.score + 0.02,
+          params: {
+            content: { quote: (hook.params.content as { line: string }).line },
+            images: [],
+          },
+          anchor: { cue: 'quote', word: hook.wordStart },
+        });
+      }
+    } else {
+      // Too long for one line: each clause that fits is a low-ranked hook (coverage).
+      for (const c of clauseRanges(words, r)) {
+        const h = hookCandidate(words, c, k === 0 ? 0.5 : 0.28, kind.skill);
+        if (h) out.push(h);
+      }
+    }
     // Spec 07 task 33: words in quote marks are a quote, ranked above a hook of the same sentence.
     const q = quoteDraft(words, r.start, r.end);
     if (q)
@@ -755,15 +844,9 @@ function candidates(
           });
         break;
       }
+      // Changed 2026-11-16: names no longer suggest `callout` (not built, so it never rendered
+      // and held the spot of a graphic that would); the sentence's hook covers them.
       case 'name':
-        out.push({
-          ...base,
-          score: 0.4,
-          componentId: 'callout',
-          skillId: 'calm-explanation',
-          params: {},
-          needsInput: NEEDS.callout,
-        });
         break;
     }
   }
@@ -928,8 +1011,9 @@ export function slotBudget(words: readonly SlotWord[]): number {
   const first = words[0];
   const last = words[words.length - 1];
   if (!first || !last) return 0;
-  // About one graphic per 3.5 s of voice (was 5 s, which left long empty stretches).
-  return Math.max(1, Math.round((last.endMs - first.startMs) / 3500));
+  // About one graphic per 3 s of voice (was 5 s, then 3.5 s; both left empty stretches). The
+  // pick still never overlaps, so this is a ceiling, not a target.
+  return Math.max(1, Math.round((last.endMs - first.startMs) / 3000));
 }
 
 export function detectLocal(
