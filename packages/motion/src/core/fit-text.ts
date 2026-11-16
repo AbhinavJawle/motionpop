@@ -12,6 +12,11 @@ export interface FitOptions {
    * Numbers and units pass false: the text stays unchanged and `overflow` is reported instead.
    */
   truncatable?: boolean;
+  /**
+   * Break a word that is wider than the box (default true). False keeps words whole, so a long
+   * word shrinks the text instead of wrapping mid-word ("Oceani / a" in a narrow chart column).
+   */
+  breakWords?: boolean;
 }
 
 export interface FitResult {
@@ -54,7 +59,7 @@ export function fitText(
 
   el.style.lineHeight = String(lh);
   el.style.width = `${box.width}px`;
-  el.style.overflowWrap = 'break-word';
+  el.style.overflowWrap = opts.breakWords === false ? 'normal' : 'break-word';
   const tryAt = (size: number) => {
     el.style.fontSize = `${size}px`;
     return !overflows(el, { width: box.width, height: height(size) });

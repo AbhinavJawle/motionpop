@@ -3,7 +3,7 @@ id: countdown-ranking
 name: Countdown Ranking
 version: 1
 use_when: the narration lists or ranks items (top 3, biggest, first/second/third)
-works_with: [bar-chart, kinetic-headline]
+works_with: [bar-chart, kinetic-headline, list-stack]
 energy: high
 default_duration: 6
 ---

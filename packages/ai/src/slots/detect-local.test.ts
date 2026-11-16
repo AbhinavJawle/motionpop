@@ -4,12 +4,16 @@ import { describe, expect, it } from 'vitest';
 import { catalogueEntry, isDetectable, skillEntry, skillWorksWith } from './catalogue';
 import {
   bigNumberParams,
+  chartDraft,
   detectLocal,
   hookLine,
+  listDraft,
+  quoteDraft,
   reasonFor,
   sceneDraft,
   sentenceIndex,
   slotBudget,
+  timelineDraft,
   versusSides,
 } from './detect-local';
 import { tagSpans } from './tagger';
@@ -152,9 +156,10 @@ describe('scoring and mapping', () => {
 
   it('maps each kind to its component and skill, best first within the budget', () => {
     const out = detectLocal(w, spans, { maxSlots: 3 });
+    // Changed by spec 07 task 24: "from 10 to 40" is a chart-story (was bar-chart).
     expect(out.map((s) => [s.componentId, s.skillId, s.score])).toEqual([
       ['map-zoom', 'zoom-from-world-to-place', 0.65],
-      ['bar-chart', 'contrast-split', 0.8],
+      ['chart-story', 'contrast-split', 0.8],
       ['callout', 'calm-explanation', 0.4],
     ]);
     // map-zoom is a built scene now (its draft names the place); the planned components still need input.
@@ -167,10 +172,28 @@ describe('scoring and mapping', () => {
   });
 
   it('keeps only the best when the budget is tight', () => {
-    expect(detectLocal(w, spans, { maxSlots: 1 }).map((s) => s.componentId)).toEqual(['bar-chart']);
+    expect(detectLocal(w, spans, { maxSlots: 1 }).map((s) => s.componentId)).toEqual([
+      'chart-story',
+    ]);
+    // The comparison's own words label its two values, each cue on the word that says it.
+    expect(detectLocal(w, spans, { maxSlots: 1 })[0]?.params).toEqual({
+      content: {
+        labels: ['From', 'To'],
+        values: [10, 40],
+        decimals: 0,
+      },
+      images: [],
+      // The slot leads in from "sales" (word 2), so "10" is its word 3.
+      beats: [
+        { cue: 'v1', word: 3 },
+        { cue: 'v2', word: 5 },
+      ],
+    });
   });
 
-  it('turns two years in one sentence into a trend, and ignores a lone year', () => {
+  // Changed by spec 07 task 24: years were a line-chart with no data (replaced by chart-story).
+  // Now a sentence with a value per year is a line chart-story; years alone make no chart.
+  it('charts a value per year as a trend, and makes no chart from years alone', () => {
     const y = words('From', '2019', 'to', '2023', 'it', 'climbed.', 'In', '2024.');
     const out = detectLocal(
       y,
@@ -181,16 +204,135 @@ describe('scoring and mapping', () => {
       ],
       { maxSlots: 5 },
     );
-    expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({
-      componentId: 'line-chart',
-      wordStart: 0,
-      wordEnd: 3,
-      score: 0.6,
+    expect(out.some((s) => s.componentId === 'chart-story')).toBe(false);
+    const t = words('Rent', 'was', '900', 'in', '2010', 'and', '2,100', 'in', '2025.');
+    const chart = detectLocal(t, tagSpans(t), { maxSlots: 1 })[0];
+    expect(chart).toMatchObject({
+      componentId: 'chart-story',
+      skillId: 'slow-build-trend',
+      score: 0.9,
+      params: {
+        variant: 'line',
+        content: {
+          labels: ['2010', '2025'],
+          values: [900, 2100],
+        },
+      },
     });
   });
 
-  it('needs at least three list items', () => {
+  it('turns words in quote marks into a quote, the cue on the first quoted word', async () => {
+    const { scenes } = await import('@motionpop/motion');
+    const t = words(
+      'Our',
+      'first',
+      'customer',
+      'told',
+      'us,',
+      '"I',
+      'would',
+      'pay',
+      'double',
+      'for',
+      'this,"',
+      'and',
+      'that',
+      'changed',
+      'everything.',
+      'Then',
+      'we',
+      'grew',
+      'fast.',
+    );
+    const q = detectLocal(t, tagSpans(t), { maxSlots: 3 }).find((s) => s.componentId === 'quote');
+    expect(q?.params).toMatchObject({
+      content: { quote: 'I would pay double for this' },
+      beats: [{ cue: 'quote', word: 5 - (q?.wordStart ?? 0) }],
+    });
+    expect(scenes['quote']?.params.safeParse(q?.params).success).toBe(true);
+    expect(quoteDraft(words('no', 'quote', 'here.'), 0, 2)).toBeNull();
+  });
+
+  it('turns three dated events into a timeline, each cue on its year', async () => {
+    const { scenes } = await import('@motionpop/motion');
+    const t = words(
+      'In',
+      '1903',
+      'the',
+      'first',
+      'plane',
+      'flew.',
+      'In',
+      '1927',
+      'a',
+      'pilot',
+      'crossed',
+      'the',
+      'ocean.',
+      'And',
+      'in',
+      '1969',
+      'people',
+      'walked',
+      'on',
+      'the',
+      'moon.',
+    );
+    const [tl] = detectLocal(t, tagSpans(t), { maxSlots: 1 });
+    expect(tl).toMatchObject({
+      componentId: 'timeline',
+      skillId: 'journey-along-a-timeline',
+      params: {
+        content: {
+          dates: ['1903', '1927', '1969'],
+          events: [
+            'The first plane flew',
+            'A pilot crossed the ocean',
+            'People walked on the moon',
+          ],
+        },
+      },
+    });
+    expect(tl?.params['beats']).toEqual(
+      [1, 7, 15].map((w, k) => ({ cue: `e${k + 1}`, word: w - (tl?.wordStart ?? 0) })),
+    );
+    expect(scenes['timeline']?.params.safeParse(tl?.params).success).toBe(true);
+    // Two years are not a timeline.
+    expect(timelineDraft(t, tagSpans(t), 0, 12)).toBeNull();
+  });
+
+  it('charts three values in one sentence as one chart-story, labelled by their words', async () => {
+    const { scenes } = await import('@motionpop/motion');
+    const t = words(
+      'Our',
+      'team',
+      'shipped',
+      '12',
+      'features',
+      'in',
+      'March,',
+      '19',
+      'in',
+      'April',
+      'and',
+      '31',
+      'in',
+      'May.',
+    );
+    const [chart] = detectLocal(t, tagSpans(t), { maxSlots: 1 });
+    expect(chart?.componentId).toBe('chart-story');
+    expect(chart?.params['beats']).toEqual([
+      { cue: 'v1', word: 3 - (chart?.wordStart ?? 0) },
+      { cue: 'v2', word: 7 - (chart?.wordStart ?? 0) },
+      { cue: 'v3', word: 11 - (chart?.wordStart ?? 0) },
+    ]);
+    expect(scenes['chart-story']?.params.safeParse(chart?.params).success).toBe(true);
+    // No label without a spoken word for it: a value with only numbers before it gives no chart.
+    expect(chartDraft(words('5', '6', '7.'), tagSpans(words('5', '6', '7.')), 0, 2)).toBeNull();
+  });
+
+  it('needs at least three list items', async () => {
+    const { scenes } = await import('@motionpop/motion');
     const l = words('Apples,', 'pears', 'and', 'plums.', 'Then', 'more', 'came', 'later.');
     const span = (items: number): TaggedSpan => ({
       wordStart: 0,
@@ -201,14 +343,49 @@ describe('scoring and mapping', () => {
     });
     // Changed by spec 07 task 27: a list of 3 is a countdown hook-statement over its sentence
     // (was kinetic-headline). With 2 items, the sentence is still the opening line's hook.
+    // Changed by spec 07 task 33: a list of 3 to 5 items that fit is a list-stack, each item
+    // on its first word; one the scene can't hold stays the hook.
     expect(detectLocal(l, [span(2)]).map((s) => [s.componentId, s.skillId, s.score])).toEqual([
       ['hook-statement', 'brand-sting', 0.58],
     ]);
     expect(detectLocal(l, [span(3)])[0]).toMatchObject({
-      componentId: 'hook-statement',
+      componentId: 'list-stack',
       skillId: 'countdown-ranking',
       score: 0.7,
-      params: { content: { line: 'Apples, pears and plums' } },
+      params: {
+        content: { items: ['Apples', 'Pears', 'Plums'] },
+        beats: [
+          { cue: 'i1', word: 0 },
+          { cue: 'i2', word: 1 },
+          { cue: 'i3', word: 3 },
+        ],
+      },
+    });
+    const long = words(
+      'Apples,',
+      'pears',
+      'and',
+      'every',
+      'single',
+      'kind',
+      'of',
+      'plum',
+      'you',
+      'can',
+      'find.',
+    );
+    // An item longer than the scene holds: no list-stack (the hook takes over where it fits).
+    expect(
+      detectLocal(long, [{ ...span(3), wordEnd: 10 }]).some((s) => s.componentId === 'list-stack'),
+    ).toBe(false);
+    expect(
+      scenes['list-stack']?.params.safeParse(detectLocal(l, [span(3)])[0]?.params).success,
+    ).toBe(true);
+    // Ordinals: the words after each one.
+    const steps = words('First,', 'plan', 'it,', 'second,', 'test', 'it,', 'third,', 'ship', 'it.');
+    expect(listDraft(steps, 0, 8)?.params).toEqual({
+      content: { items: ['Plan it', 'Test it', 'Ship it'] },
+      images: [],
     });
   });
 

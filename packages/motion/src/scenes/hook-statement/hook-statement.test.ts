@@ -201,7 +201,11 @@ describe('scene catalogue', () => {
     expect(text).toContain('center* (');
     expect(text).toContain('eyebrow? (');
     expect(text).not.toMatch(/"type"|\$schema|properties/);
-    expect(text.length).toBeLessThan(2500);
+    // Changed by spec 07 task 33: the whole catalogue (7 scenes) passed 2,500 characters. No
+    // prompt sends all of it: a fill sends its own scene's entry, cut at 1,500 characters in the
+    // app (scene-fill.ts), so the bound is per scene, with room to spare.
+    for (const s of Object.values(scenes))
+      expect(catalogueSummary([s] as never).length, s.id).toBeLessThan(1000);
   });
 });
 

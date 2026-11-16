@@ -83,7 +83,7 @@ export const SKILLS: readonly SkillEntry[] = [
   {
     id: 'calm-explanation',
     useWhen: 'the narration explains a concept, definition or key idea without numbers',
-    worksWith: ['kinetic-headline', 'callout'],
+    worksWith: ['kinetic-headline', 'callout', 'quote'],
     defaultDurationMs: 5000,
   },
   {
@@ -96,13 +96,13 @@ export const SKILLS: readonly SkillEntry[] = [
   {
     id: 'countdown-ranking',
     useWhen: 'the narration lists or ranks items (top 3, biggest, first/second/third)',
-    worksWith: ['bar-chart', 'kinetic-headline'],
+    worksWith: ['bar-chart', 'kinetic-headline', 'list-stack'],
     defaultDurationMs: 6000,
   },
   {
     id: 'journey-along-a-timeline',
     useWhen: 'the narration walks through dates, years, steps or a sequence of events',
-    worksWith: ['kinetic-headline', 'callout', 'line-chart'],
+    worksWith: ['kinetic-headline', 'callout', 'line-chart', 'timeline'],
     defaultDurationMs: 6000,
   },
   {
@@ -168,6 +168,52 @@ export const SCENES: readonly SceneEntry[] = [
     maxMs: 10000,
     built: true,
     // No component did this before (bar-chart compares values, not two named sides).
+    replaces: [],
+  },
+  {
+    id: 'chart-story',
+    name: 'Chart story',
+    useWhen:
+      'the narration gives 2 to 6 values to compare or a trend over time (years, places, groups)',
+    minMs: 5000,
+    idealMs: 7200,
+    maxMs: 12000,
+    built: true,
+    // Spec 07 task 24: bars, rows and a line in one scene.
+    replaces: ['bar-chart', 'line-chart'],
+  },
+  {
+    id: 'list-stack',
+    name: 'List stack',
+    useWhen: 'the narration lists or counts 3 to 5 things: steps, reasons, tips, ingredients',
+    minMs: 5600,
+    idealMs: 6400,
+    maxMs: 12000,
+    built: true,
+    // Spec 07 task 33: no component listed items before (lists went to a hook-statement).
+    replaces: [],
+  },
+  {
+    id: 'timeline',
+    name: 'Timeline',
+    useWhen: 'the narration walks through 3 to 6 dated events, years or steps in time',
+    minMs: 6600,
+    idealMs: 7400,
+    maxMs: 14000,
+    built: true,
+    // Spec 07 task 33: dated events had no graphic (years without values were a data-less
+    // line-chart suggestion).
+    replaces: [],
+  },
+  {
+    id: 'quote',
+    name: 'Quote',
+    useWhen: 'the narration quotes someone or reads out words someone said or wrote',
+    minMs: 3000,
+    idealMs: 10800,
+    maxMs: 15000,
+    built: true,
+    // callout stays planned: it also covers people, terms and labels, not only quotes.
     replaces: [],
   },
   {
