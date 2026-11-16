@@ -152,6 +152,13 @@ Spec 07 task 22, written in a Kiro IDE session (Opus 5.5). Provenance in `packag
 - **motion:check measures text on its set lines.** Safe area and overlap now use the lines' client rects (a turned box's bounding rect overstates it), and two texts carried by the same surface are not an overlap pair. The rule change is marked "Changed by spec 07 task 22" in `scripts/check.ts`; the contrast, orphan and surface-through-glyph assertions are unchanged.
 - **Parity covers every polished look.** `services/render/scripts/parity.ts` renders one stat-punch + hook-statement project per look besides the big-number case.
 
+## D-034 · 2026-11-16 · decided (Kiro CLI, spec 08) — Export renders with the local producer settings; hostile audio is contained; one style resolver
+Spec 08 tasks 1, 4 and 6, built headless by the Kiro builder agent (Sonnet 5.5) and entered here from a Claude Code session (the agent can't write `docs/`).
+- **Producer settings.** 720p uses the producer's `outputResolution` presets (verified on 0.9.46, so no ffmpeg scale step); 1080p is native. Renders use `quality: 'high'` and `workers: 2`: an 18 s 1080p export took 23 s wall time and peaked at 1.3 GB on a laptop. Cloud Run timings come from task 6a (needs founder approval).
+- **Uploaded voice is untrusted.** ffmpeg runs with `-protocol_whitelist file` and a demuxer forced from the file extension, so a playlist renamed `.wav` is not followed; the re-encode is cut at the export limit plus 1 s and the length is checked on the WAV.
+- **One style resolver for preview and render.** `styleFor` resolves `looks`, then `stylePacks`, then the editorial explainer. Behaviour change: a project with `styleId: 'field-notes'` used to preview in the editorial look; it now previews and renders in Field Notes.
+- **Scope.** MP4 at 720p and 1080p in every format for Nov 30; 4K and transparent WebM are Later, shown as disabled "Soon" cards. Export limit 3 minutes, 10 renders per user per day.
+
 ## D-065 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 11: projects in the account, new takes, recorded WAV, TTS path
 (Renumbered from D-034, which is spec 08's; review fixes applied 2026-11-16.)
 Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/11-dashboard-start-recording/`. Full table in that spec's `design.md` §0.
