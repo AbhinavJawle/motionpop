@@ -1582,3 +1582,13 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - 3b49ae2 feat(11-dashboard-start-recording): task 1 project summary, doc and start schemas
 - uncommitted changes: none
 <!-- /kiro-session:sess_9c4178c7-b960-4d67-879d-93aed2d67139 -->
+
+<!-- kiro-session:sess_2a48baee-f326-4b67-850a-5543dcf65294 -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T09:22:06.598Z · last stop: 2026-11-16T09:46:35.684Z · session: sess_2a48baee-f326-4b67-850a-5543dcf65294
+- commits since start: 
+  - baf85fc feat(11-dashboard-start-recording): task 21 Voice panel
+  - d3a9daf feat(11-dashboard-start-recording): task 20 Projects panel with flush before switching
+  - 2d3cc40 feat(11-dashboard-start-recording): task 7 HybridAudioStore and the persisted upload queue
+- uncommitted changes: none
+<!-- /kiro-session:sess_2a48baee-f326-4b67-850a-5543dcf65294 -->
