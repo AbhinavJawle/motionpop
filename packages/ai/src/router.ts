@@ -153,8 +153,18 @@ function parseOutput<O>(
   return { ok: false, error: z.prettifyError(parsed.error).slice(0, 800) };
 }
 
+export interface RunOptions {
+  mode?: InferenceMode;
+  /**
+   * `false` turns off the task's `cloudFallback` for this call. The app passes it for every
+   * device-routed edit and note: escalating to the cloud is a user click with its own chip, never
+   * a silent charge (spec 09 D-035). Default: the task's own `cloudFallback`.
+   */
+  allowCloud?: boolean;
+}
+
 export interface Router {
-  run<I, O>(task: TaskDef<I, O>, input: I, opts?: { mode?: InferenceMode }): Promise<RunResult<O>>;
+  run<I, O>(task: TaskDef<I, O>, input: I, opts?: RunOptions): Promise<RunResult<O>>;
 }
 
 export function createRouter(deps: {
@@ -165,7 +175,7 @@ export function createRouter(deps: {
 }): Router {
   const now = deps.now ?? (() => performance.now());
   return {
-    async run<I, O>(task: TaskDef<I, O>, rawInput: I, opts: { mode?: InferenceMode } = {}) {
+    async run<I, O>(task: TaskDef<I, O>, rawInput: I, opts: RunOptions = {}) {
       const cfg = deps.config();
       const input = task.input.safeParse(rawInput);
       if (!input.success) {
@@ -237,7 +247,8 @@ export function createRouter(deps: {
         if (result || failure() !== 'invalid-output') break;
         result = await attempt(mode, repairPrompt());
       }
-      if (!result && task.cloudFallback && !isCloudMode(mode) && !cfg.killSwitch) {
+      const mayEscalate = task.cloudFallback && opts.allowCloud !== false;
+      if (!result && mayEscalate && !isCloudMode(mode) && !cfg.killSwitch) {
         result = await attempt(
           'PREFER_IN_CLOUD',
           failure() === 'invalid-output' ? repairPrompt() : prompt,

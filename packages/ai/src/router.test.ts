@@ -151,6 +151,56 @@ describe('createRouter', () => {
     expect(p.calls[2]?.mode).toBe('PREFER_IN_CLOUD');
   });
 
+  it('allowCloud: false turns the cloud fallback off for that call (no attempt after a bad device answer)', async () => {
+    const p = scripted([answer('bad'), answer('{"n":11}'), answer('{"n":1}')]);
+    const { router, usage } = make(p);
+    await expect(
+      router.run(task({ cloudFallback: true }), { q: 'a' }, { allowCloud: false }),
+    ).rejects.toMatchObject({ reason: 'invalid-output' });
+    expect(p.calls).toHaveLength(2);
+    expect(p.calls.every((c) => c.mode === 'PREFER_ON_DEVICE')).toBe(true);
+    expect(usage).toEqual([
+      expect.objectContaining({ ok: false, ranOn: 'device', credits: 0, cloudCost: 2 }),
+    ]);
+  });
+
+  it('allowCloud: false also stops the cloud retry after a provider failure on the device', async () => {
+    const p = scripted([() => new Error('model unavailable'), answer('{"n":2}')]);
+    await expect(
+      make(p).router.run(task({ cloudFallback: true }), { q: 'a' }, { allowCloud: false }),
+    ).rejects.toMatchObject({ reason: 'provider' });
+    expect(p.calls).toHaveLength(1);
+  });
+
+  it('without the option, and with allowCloud: true, the task keeps its own fallback', async () => {
+    for (const opts of [undefined, { allowCloud: true }]) {
+      const p = scripted([answer('bad'), answer('bad'), answer('{"n":1}')]);
+      const r = await make(p).router.run(task({ cloudFallback: true }), { q: 'a' }, opts);
+      expect(r).toMatchObject({ ranOn: 'cloud', attempts: 3 });
+    }
+  });
+
+  it('allowCloud: false never blocks a call made in the cloud mode itself', async () => {
+    const p = scripted([answer('{"n":3}')]);
+    const r = await make(p).router.run(
+      task({ cloudFallback: true }),
+      { q: 'a' },
+      { mode: 'ONLY_IN_CLOUD', allowCloud: false },
+    );
+    expect(r).toMatchObject({ ranOn: 'cloud', costCredits: 2 });
+  });
+
+  it('every usage event carries cloudCost, on success, failure and the cloud', async () => {
+    const { router, usage } = make(
+      scripted([answer('{"n":1}'), answer('bad'), answer('bad'), answer('{"n":2}')]),
+    );
+    await router.run(task(), { q: 'a' });
+    await expect(router.run(task(), { q: 'a' })).rejects.toBeInstanceOf(RouterError);
+    await router.run(task(), { q: 'a' }, { mode: 'ONLY_IN_CLOUD' });
+    expect(usage.map((u) => u.cloudCost)).toEqual([2, 2, 2]);
+    expect(usage.map((u) => u.ok)).toEqual([true, false, true]);
+  });
+
   it('skips the repair after a provider failure', async () => {
     const p = scripted([() => new Error('model unavailable'), answer('{"n":2}')]);
     const r = await make(p).router.run(task({ cloudFallback: true }), { q: 'a' });
