@@ -11,3 +11,4 @@ export * from './tasks/direct-plan';
 export * from './direct/enforce';
 export * from './direct/fallback';
 export * from './direct/plan-video';
+export * from './edit/edit-doc';
