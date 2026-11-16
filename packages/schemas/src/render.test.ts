@@ -29,6 +29,10 @@ import {
   type Slot,
 } from './index';
 
+/** True when the string has no lone surrogate (`String.prototype.isWellFormed` needs ES2024 libs). */
+const isWellFormed = (s: string): boolean =>
+  !/[\ud800-\udfff]/.test(s.replace(/[\ud800-\udbff][\udc00-\udfff]/g, ''));
+
 const at = { toMillis: () => 1_700_000_000_000 };
 const REQUEST_ID = '3f2b8c1e-9a4d-4e6b-8f1a-2c3d4e5f6a7b';
 
@@ -302,6 +306,18 @@ describe('sanitizeFilename', () => {
     const emoji = sanitizeFilenameBase('a' + '🎬'.repeat(60));
     expect(emoji.length).toBeLessThanOrEqual(80);
     expect(emoji).not.toMatch(/[\ud800-\udbff]$/);
+  });
+
+  // Regression: the property test in render.property.test.ts found that a lone surrogate
+  // survived the pass and made `encodeURIComponent` throw when the download header is built.
+  it('drops lone surrogates so the name always encodes', () => {
+    for (const t of ['\ud83d', 'a\udc00b', '\ud83d🎬', 'x\ude00']) {
+      const base = sanitizeFilenameBase(t);
+      expect(isWellFormed(base)).toBe(true);
+      expect(() => encodeURIComponent(base)).not.toThrow();
+    }
+    expect(sanitizeFilename('a\udc00b', 'mp4')).toBe('ab.mp4');
+    expect(sanitizeFilename('\ud83d🎬', 'mp4')).toBe('🎬.mp4');
   });
 
   it('is idempotent and normalises to NFC', () => {
