@@ -126,6 +126,8 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         format: doc.format,
         background: 'style',
         voiceSrc: 'assets/voice.wav',
+        // The job computes the caption groups itself from the snapshot (spec 12 R4.5).
+        captions: doc.captions,
       });
       if (input.slots.length === 0) {
         throw new RenderStepError('compile-failed', 'nothing in the project can be rendered');

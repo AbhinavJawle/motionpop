@@ -1,11 +1,13 @@
 'use client';
 
-import type { Format } from '@motionpop/schemas';
+import { DEFAULT_CAPTIONS, type CaptionsSetting, type Format } from '@motionpop/schemas';
 import { ChevronDown, PenLine, Scan } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassToolbar, ToolbarDivider } from '@/components/ui/glass-toolbar';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Toggle } from '@/components/ui/toggle';
+import { Dropdown, type DropdownOption } from '@/components/ui/dropdown';
+import { setCaptions } from '@/lib/commands';
 import { Tooltip } from '@/components/ui/tooltip';
 import { slotAt } from '@/lib/notes/active-slot';
 import { styleFor } from '@/lib/composition/project-to-compile';
@@ -60,13 +62,20 @@ function PenButton() {
   );
 }
 
+/** The three caption presets (spec 12 R5.3); the trigger reads "Captions · Pop". */
+const CAPTION_PRESETS: readonly DropdownOption<CaptionsSetting['presetId']>[] = [
+  { value: 'pop', label: 'Captions · Pop', hint: 'Bold, word on a pill' },
+  { value: 'clean', label: 'Captions · Clean', hint: 'Underlined word' },
+  { value: 'boxed', label: 'Captions · Boxed', hint: 'Dark box' },
+];
+
 /** Preview workspace ("Preview workspace" in design/figma-export.css): toolbar, frame, footer. */
 export function PreviewPane() {
   const format = useEditor((s) => s.project?.format ?? '16:9');
   const styleName = useEditor((s) => (s.project ? styleFor(s.project).name : ''));
-  const captions = useEditor((s) => s.captions);
+  const captions = useEditor((s) => s.project?.captions ?? DEFAULT_CAPTIONS);
+  const exec = useEditor((s) => s.exec);
   const safeZone = useEditor((s) => s.safeZone);
-  const toggleCaptions = useEditor((s) => s.toggleCaptions);
   const toggleSafeZone = useEditor((s) => s.toggleSafeZone);
   const saveStatus = useEditor((s) => s.saveStatus);
   const generating = useEditor((s) => s.generating !== null);
@@ -86,16 +95,24 @@ export function PreviewPane() {
       <GlassToolbar label="Preview tools" className="relative z-10 mt-5 gap-0 px-0">
         <PenButton />
         <ToolbarDivider />
-        <label className="flex items-center gap-2 pr-3.5 pl-3.5">
+        <div className="flex items-center gap-2 pr-3.5 pl-3.5">
           <span className="text-[11px] leading-[14px] font-semibold text-text">CC</span>
-          <span className="text-text-2">Captions</span>
+          <Dropdown
+            label="Caption style"
+            value={captions.presetId}
+            options={CAPTION_PRESETS}
+            className="text-text-2"
+            onChange={(presetId) => {
+              if (presetId !== captions.presetId) exec(setCaptions({ presetId, enabled: true }));
+            }}
+          />
           <Toggle
-            checked={captions}
-            onCheckedChange={toggleCaptions}
+            checked={captions.enabled}
+            onCheckedChange={(enabled) => exec(setCaptions({ enabled }))}
             label="Captions"
             className="ml-1.5"
           />
-        </label>
+        </div>
         <ToolbarDivider />
         <button
           type="button"

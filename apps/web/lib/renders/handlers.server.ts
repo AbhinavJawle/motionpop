@@ -109,8 +109,8 @@ export async function createRender(
   const parsed = RenderRequestSchema.safeParse(raw);
   if (!parsed.success) return apiError('invalid');
   const { requestId, options, expectedCost, project, voicePath } = parsed.data;
-  // Captions and music are not rendered yet (spec 12): never accept a request that asks for them.
-  if (options.captions || options.music) return apiError('invalid');
+  // Music is not rendered yet (spec 12b): never accept a request that asks for it.
+  if (options.music) return apiError('invalid');
   if (!isSafeId(uid) || !isSafeId(project.id)) return apiError('invalid');
   if (!voicePathFor(uid, project.id).test(voicePath)) return apiError('invalid');
 
@@ -151,7 +151,7 @@ export async function createRender(
     title: project.title.slice(0, 120),
     format: options.format,
     resolution: options.resolution,
-    captions: false,
+    captions: options.captions,
     music: false,
     durationMs: project.durationMs,
     slotCount: available.renderable,

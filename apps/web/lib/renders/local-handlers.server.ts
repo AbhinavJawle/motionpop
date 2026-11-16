@@ -76,7 +76,7 @@ export async function createLocalRender(
   const parsed = LocalRequestSchema.safeParse(raw);
   if (!parsed.success) return apiError('invalid');
   const { requestId, options, project } = parsed.data;
-  if (options.captions || options.music) return apiError('invalid');
+  if (options.music) return apiError('invalid');
   if (!isSafeId(project.id)) return apiError('invalid');
 
   if (!voice || voice.size <= 0 || voice.bytes.length <= 0) return apiError('voice-missing');
@@ -113,7 +113,7 @@ export async function createLocalRender(
     title: project.title.slice(0, 120),
     format: options.format,
     resolution: options.resolution,
-    captions: false,
+    captions: options.captions,
     music: false,
     durationMs: project.durationMs,
     slotCount: available.renderable,

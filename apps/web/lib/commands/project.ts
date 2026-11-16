@@ -1,5 +1,5 @@
 import { produce } from 'immer';
-import type { EditorProject } from '@motionpop/schemas';
+import { DEFAULT_CAPTIONS, type CaptionsSetting, type EditorProject } from '@motionpop/schemas';
 import { CommandRejected, type Command } from './command';
 
 type Format = EditorProject['format'];
@@ -64,6 +64,28 @@ export function renameProject(title: string): Command {
       if (prev === undefined) return p;
       return produce(p, (d) => {
         d.title = prev;
+      });
+    },
+  };
+}
+
+/** Captions on/off and the preset (spec 12 R3): a project field, so export and Pip see it. */
+export function setCaptions(patch: Partial<CaptionsSetting>): Command {
+  let before: CaptionsSetting | undefined;
+  let had = false;
+  return {
+    label: patch.presetId ? 'Change caption style' : 'Toggle captions',
+    do(p) {
+      had = p.captions !== undefined;
+      before = p.captions;
+      return produce(p, (d) => {
+        d.captions = { ...(d.captions ?? DEFAULT_CAPTIONS), ...patch };
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (had && before) d.captions = before;
+        else delete d.captions;
       });
     },
   };

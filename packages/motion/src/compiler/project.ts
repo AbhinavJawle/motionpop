@@ -1,7 +1,14 @@
-import { isImageSlot, type EditorProject, type Format, type Slot } from '@motionpop/schemas';
+import {
+  DEFAULT_CAPTIONS,
+  isImageSlot,
+  type EditorProject,
+  type Format,
+  type Slot,
+} from '@motionpop/schemas';
+import { chunkCaptions } from '../captions/chunk';
 import { componentFor, isScene, lookFor } from '../registry';
 import { sceneTiming } from './scene-timing';
-import type { CompileInput, CompileSlot } from './types';
+import type { CompileCaptions, CompileInput, CompileSlot } from './types';
 
 /**
  * A slot that renders in `format`: ready, its component or scene exists and supports the format,
@@ -54,6 +61,8 @@ export interface ProjectCompileOptions {
    * itself as the master clock (spec 04 R5.1), so it passes none.
    */
   voiceSrc?: string;
+  /** Burn in captions; defaults to the project's own setting (spec 12 R3). */
+  captions?: boolean;
 }
 
 /**
@@ -73,8 +82,25 @@ export function projectCompileInput(
     mode: opts.mode,
     ...(opts.background ? { background: opts.background } : {}),
     ...(opts.voiceSrc ? { voiceSrc: opts.voiceSrc } : {}),
+    ...captionsFor(project, format, opts.captions),
     slots: project.slots
       .filter((s) => isRenderable(s, format))
       .map((s) => compileSlot(s, project.transcript)),
   };
+}
+
+/** The caption groups for a format, computed from the transcript every time (spec 12 R4.5). */
+function captionsFor(
+  project: EditorProject,
+  format: Format,
+  override: boolean | undefined,
+): { captions: CompileCaptions } | Record<string, never> {
+  const setting = project.captions ?? DEFAULT_CAPTIONS;
+  if (!(override ?? setting.enabled)) return {};
+  const groups = chunkCaptions(project.transcript.words, {
+    format,
+    presetId: setting.presetId,
+    ...(project.transcript.prosody ? { stress: project.transcript.prosody.stress } : {}),
+  });
+  return groups.length ? { captions: { presetId: setting.presetId, groups } } : {};
 }

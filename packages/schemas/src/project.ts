@@ -216,6 +216,14 @@ export function wordsInRange(
   return first < 0 ? null : { wordStart: first, wordEnd: last };
 }
 
+/** Burned-in captions (spec 12 R3–R5). Optional on old projects; read with `DEFAULT_CAPTIONS`. */
+export const CaptionsSettingSchema = z.object({
+  enabled: z.boolean(),
+  presetId: z.enum(['pop', 'clean', 'boxed']),
+});
+export type CaptionsSetting = z.infer<typeof CaptionsSettingSchema>;
+export const DEFAULT_CAPTIONS: CaptionsSetting = { enabled: true, presetId: 'pop' };
+
 /**
  * The project object before the timeline refinement (spec 11 task 1). Exported so document
  * schemas can `.omit`/`.extend` it (`.omit` does not exist on the refined schema).
@@ -243,6 +251,8 @@ export const EditorProjectBaseSchema = z.object({
   ownerId: z.string().min(1).optional(),
   /** Epoch ms of the last time the editor opened it, outside the undo history (spec 11). */
   lastOpenedAt: IntMsSchema.optional(),
+  /** Burned-in captions; absent means `DEFAULT_CAPTIONS` (spec 12). */
+  captions: CaptionsSettingSchema.optional(),
 });
 
 export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {

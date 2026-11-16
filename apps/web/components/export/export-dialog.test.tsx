@@ -154,21 +154,23 @@ describe('export dialog, options view (R1.1–R1.13)', () => {
     );
   });
 
-  it('captions, transparent and music are named, off, disabled switches that say why (R1.5, R1.7)', () => {
+  it('captions is a live switch; transparent and music are off, disabled and say why (R1.5, R1.7)', () => {
     render(<Harness />);
-    const switches = screen.getAllByRole('switch');
-    expect(switches.map((s) => s.getAttribute('aria-label'))).toEqual([
+    const all = screen.getAllByRole('switch');
+    expect(all.map((s) => s.getAttribute('aria-label'))).toEqual([
       'Captions',
       'Transparent background (for editors)',
       'Include music',
     ]);
+    expect((all[0] as HTMLButtonElement).disabled).toBe(false);
+    const switches = all.slice(1);
     for (const s of switches) {
       expect(s.getAttribute('aria-checked')).toBe('false');
       expect((s as HTMLButtonElement).disabled).toBe(true);
       const why = document.getElementById(s.getAttribute('aria-describedby') ?? '');
       expect(why?.textContent?.length).toBeGreaterThan(5);
     }
-    expect(screen.getAllByText('Soon').length).toBe(4); // three switches and 4K
+    expect(screen.getAllByText('Soon').length).toBe(3); // two switches and 4K
     expect(screen.getByText('Exports as WebM with alpha when enabled.')).toBeTruthy();
   });
 

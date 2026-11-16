@@ -49,7 +49,6 @@ export interface EditorState {
   playing: boolean;
   view: View & { fit: boolean };
   rail: RailItem;
-  captions: boolean;
   safeZone: boolean;
   dragPreview: DragPreview | null;
   saveStatus: SaveStatus;
@@ -80,7 +79,6 @@ export interface EditorState {
   setPlaying(playing: boolean): void;
   setView(view: Partial<EditorState['view']>): void;
   setRail(item: RailItem): void;
-  toggleCaptions(): void;
   toggleSafeZone(): void;
   setDragPreview(preview: DragPreview | null): void;
   setSaveStatus(status: SaveStatus): void;
@@ -117,7 +115,6 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         playing: false,
         view: { pxPerMs: 0.1, scrollMs: 0, fit: true },
         rail: 'ai',
-        captions: true,
         safeZone: false,
         dragPreview: null,
         saveStatus: 'idle',
@@ -196,10 +193,6 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         setRail: (item) =>
           set((s) => {
             s.rail = item;
-          }),
-        toggleCaptions: () =>
-          set((s) => {
-            s.captions = !s.captions;
           }),
         toggleSafeZone: () =>
           set((s) => {
