@@ -101,7 +101,10 @@ export function useEditorKeys(clock: PlaybackClock): void {
           }
           return;
         case 'Escape':
-          s.select(null);
+          // Leave draw mode first; the next Esc deselects (spec 09 R8.1). The note layer handles
+          // its own draft (a bubble being typed in) before this runs.
+          if (s.drawMode) s.setDrawMode(false);
+          else s.select(null);
           return;
       }
     };

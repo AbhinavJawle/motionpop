@@ -6,15 +6,59 @@ import { toast } from 'sonner';
 import { GlassToolbar, ToolbarDivider } from '@/components/ui/glass-toolbar';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Toggle } from '@/components/ui/toggle';
+import { Tooltip } from '@/components/ui/tooltip';
+import { slotAt } from '@/lib/notes/active-slot';
 import { styleFor } from '@/lib/composition/project-to-compile';
 import { cn } from '@/lib/cn';
 import { useEditor, type SaveStatus } from '@/lib/stores/editor';
+import { FrameNotesLayer } from '@/components/notes/frame-notes-layer';
 import { OfflineBanner } from './offline-banner';
 import { PreviewBadge } from './preview-badge';
 import { PreviewProgress } from './preview-progress';
 import { PreviewPlayer } from './preview-player';
 
 const ASPECT: Record<Format, string> = { '16:9': '16 / 9', '9:16': '9 / 16', '1:1': '1 / 1' };
+
+/**
+ * The pen (spec 09 R8.1): turns draw mode on and pauses playback; off with no slot under the
+ * playhead ("Notes go on a graphic. Move the playhead onto one.").
+ */
+function PenButton() {
+  const on = useEditor((s) => s.drawMode);
+  const setDrawMode = useEditor((s) => s.setDrawMode);
+  const hasSlot = useEditor((s) =>
+    s.project ? slotAt(s.project.slots, s.playheadMs) !== null : false,
+  );
+  const button = (
+    <button
+      type="button"
+      aria-label="Draw a note"
+      aria-pressed={on}
+      aria-disabled={!hasSlot}
+      onClick={() => {
+        if (!hasSlot) return;
+        setDrawMode(!on);
+      }}
+      className={cn(
+        'px-3.5 transition-colors',
+        !hasSlot
+          ? 'cursor-not-allowed text-text-4'
+          : on
+            ? 'text-violet'
+            : 'text-text-2 hover:text-text',
+      )}
+    >
+      <PenLine className="size-[18px]" strokeWidth={1.5} />
+    </button>
+  );
+  return hasSlot ? (
+    button
+  ) : (
+    <Tooltip content="Notes go on a graphic. Move the playhead onto one." side="bottom">
+      {button}
+    </Tooltip>
+  );
+}
 
 /** Preview workspace ("Preview workspace" in design/figma-export.css): toolbar, frame, footer. */
 export function PreviewPane() {
@@ -40,14 +84,7 @@ export function PreviewPane() {
     >
       <Ambient />
       <GlassToolbar label="Preview tools" className="relative z-10 mt-5 gap-0 px-0">
-        <button
-          type="button"
-          aria-label="Draw a note"
-          onClick={() => toast('Frame notes are on their way.')}
-          className="px-3.5 text-text-2 transition-colors hover:text-text"
-        >
-          <PenLine className="size-[18px]" strokeWidth={1.5} />
-        </button>
+        <PenButton />
         <ToolbarDivider />
         <label className="flex items-center gap-2 pr-3.5 pl-3.5">
           <span className="text-[11px] leading-[14px] font-semibold text-text">CC</span>
@@ -93,6 +130,7 @@ export function PreviewPane() {
           style={{ aspectRatio: ASPECT[format], height: 'min(405px, 100%)' }}
         >
           <PreviewPlayer />
+          <FrameNotesLayer />
           <PreviewProgress />
           <PreviewBadge />
           <OfflineBanner />

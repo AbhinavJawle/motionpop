@@ -14,7 +14,7 @@ const WEB = fileURLToPath(new URL('../..', import.meta.url));
 const ALLOWED = new Set([
   'lib/slots/generate.ts',
   'lib/slots/quick-edit.ts',
-  // The note flow (spec 09 task 20) joins when it is built.
+  // The frame-note flow (spec 09 task 20).
   'lib/notes/note-fix.ts',
   // The credits layer itself.
   'lib/credits/spend-with-ui.ts',
@@ -52,6 +52,7 @@ describe('P10 who spends credits', () => {
     // And the two flows really do spend.
     expect(callers).toContain('lib/slots/generate.ts');
     expect(callers).toContain('lib/slots/quick-edit.ts');
+    expect(callers).toContain('lib/notes/note-fix.ts');
   });
 
   it('Generate spends only after it has checked that the route is the cloud', () => {
@@ -62,10 +63,13 @@ describe('P10 who spends credits', () => {
     expect(spend).toBeGreaterThan(check);
   });
 
-  it('the quick edit spends only inside its cloud branch', () => {
-    const text = sources.find((s) => s.rel === 'lib/slots/quick-edit.ts')!.text;
-    const branch = text.indexOf("route.kind === 'cloud'");
-    expect(branch).toBeGreaterThan(-1);
-    expect(text.indexOf('spendWithUi(')).toBeGreaterThan(branch);
-  });
+  it.each(['lib/slots/quick-edit.ts', 'lib/notes/note-fix.ts'])(
+    '%s spends only inside its cloud branch',
+    (file) => {
+      const text = sources.find((s) => s.rel === file)!.text;
+      const branch = text.indexOf("route.kind === 'cloud'");
+      expect(branch).toBeGreaterThan(-1);
+      expect(text.indexOf('spendWithUi(')).toBeGreaterThan(branch);
+    },
+  );
 });

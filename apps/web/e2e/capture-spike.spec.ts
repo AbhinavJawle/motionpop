@@ -35,7 +35,12 @@ for (const format of ['16:9', '9:16'] as const) {
     for (const t of STILLS) {
       await openStill(page, t, format);
       const player = page.locator('hyperframes-player');
-      const shot = (await player.screenshot()).toString('base64');
+      const shot = (
+        await player.screenshot({
+          // The frame notes layer sits over the player; the capture is of the composition only.
+          style: '[data-frame-notes] { visibility: hidden !important }',
+        })
+      ).toString('base64');
       for (const [name, region] of Object.entries(REGIONS)) {
         // The first call includes the browser's one-off setup; the second is the steady state.
         const first = await page.evaluate<Capture, typeof region>(

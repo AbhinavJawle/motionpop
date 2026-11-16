@@ -65,6 +65,8 @@ export interface EditorState {
    * status stays as it was, so a reload mid-generate never strands a slot. At most one per project.
    */
   generating: Generating | null;
+  /** The pen is on: the preview takes strokes for a frame note (spec 09 R8.1). */
+  drawMode: boolean;
 
   load(project: EditorProject): void;
   /** Runs a command. Returns false (and records `rejection`) if the command was rejected. */
@@ -84,6 +86,7 @@ export interface EditorState {
   setSaveStatus(status: SaveStatus): void;
   setAutoFilling(slotId: string | null): void;
   setGenerating(generating: Generating | null): void;
+  setDrawMode(on: boolean): void;
 }
 
 export type EditorStore = StoreApi<EditorState>;
@@ -121,6 +124,7 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         rejection: null,
         autoFilling: null,
         generating: null,
+        drawMode: false,
 
         load: (project) =>
           set((s) => {
@@ -135,6 +139,7 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
             s.rejection = null;
             s.autoFilling = null;
             s.generating = null;
+            s.drawMode = false;
           }),
 
         exec: (cmd) => {
@@ -215,6 +220,10 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         setGenerating: (generating) =>
           set((s) => {
             s.generating = generating;
+          }),
+        setDrawMode: (on) =>
+          set((s) => {
+            s.drawMode = on;
           }),
       };
     }),

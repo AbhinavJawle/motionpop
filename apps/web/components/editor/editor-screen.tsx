@@ -56,6 +56,12 @@ export function EditorScreen({
   useAutoFill();
   useGenerateShortcut();
 
+  // The pen pauses playback (spec 09 R8.1).
+  const drawMode = useEditor((s) => s.drawMode);
+  useEffect(() => {
+    if (drawMode) clock.pause();
+  }, [drawMode, clock]);
+
   useEffect(() => {
     let cancelled = false;
     void openProject(id, repo).then((r) => {
