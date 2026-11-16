@@ -67,7 +67,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+      # The export e2e renders for real: ffmpeg, puppeteer's Chrome and the motion runtime.
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @motionpop/motion exec node scripts/build-runtime.ts
       - run: pnpm --filter @motionpop/web exec playwright install --with-deps chromium
       - run: pnpm --filter @motionpop/web e2e
       - uses: actions/upload-artifact@v4

@@ -1349,3 +1349,17 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - **Screenshots:** `apps/web/e2e-output/design/` has `export.side-by-side.png`, `export-ready.side-by-side.png`, `export.diff.png`, `export-ready.diff.png`, `export-progress.actual.png`, `export-progress-closed.actual.png`, `export-error.actual.png`, `export-9x16-720p.actual.png` and `export-cloud.actual.png`; the downloaded test videos are in `apps/web/e2e-output/export/`.
 - **Kiro features used:** the session-start hook and the spec tasks as the work list, the steering (`design-system.md`, `screens.md`, `testing.md`), fast-check properties (the cost and button rule, voice paths over random ids), component tests for the accessibility set of design §18, emulator-backed e2e with the real job process. I did not run mutation checks on the new UI tests this time; two of them (the focus steal and the `../x` voice path) did fail before the fixes, which is the only evidence I have that they can fail.
 <!-- /kiro-cli:2026-11-16-spec-08-tasks-14-19 -->
+
+<!-- kiro-session:sess_300db398-5b7d-4fc8-8bb4-66a8e4afdd50 -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T02:33:57.438Z · last stop: 2026-11-16T03:53:40.840Z · session: sess_300db398-5b7d-4fc8-8bb4-66a8e4afdd50
+- commits since start: 
+  - 7b2cae7 docs: KIRO_LOG entry for spec 08 tasks 14-19
+  - 9cc7525 test(08-render-and-export): task 19 e2e of the export path
+  - 4b86b5a test(08-render-and-export): task 18 design check of the export dialogs
+  - f52dc85 feat(08-render-and-export): task 17 ready modal, download and share page
+  - f190794 feat(08-render-and-export): task 16 progress and error states
+  - f491b34 feat(08-render-and-export): task 15 export modal
+  - 92524ab feat(08-render-and-export): task 14 client plumbing
+- uncommitted changes: none
+<!-- /kiro-session:sess_300db398-5b7d-4fc8-8bb4-66a8e4afdd50 -->
