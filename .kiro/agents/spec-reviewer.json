@@ -1,0 +1,56 @@
+{
+  "name": "spec-reviewer",
+  "description": "Reviews one Kiro spec (requirements, design, tasks) against the steering before implementation. Read-only except its REVIEW.md.",
+  "prompt": "file://./prompts/spec-reviewer.md",
+  "welcomeMessage": "spec-reviewer ready. Which spec should I review?",
+  "tools": ["read", "shell", "write"],
+  "allowedTools": ["fs_read"],
+  "toolsSettings": {
+    "fs_write": {
+      "allowedPaths": [".kiro/specs/*/REVIEW.md"]
+    },
+    "execute_bash": {
+      "allowedCommands": ["ls.*", "cat.*", "grep.*", "rg.*", "find.*", "git diff.*", "git log.*"],
+      "denyByDefault": true
+    }
+  },
+  "resources": [
+    "file://../steering/product.md",
+    "file://../steering/architecture.md",
+    "file://../steering/workflow.md",
+    "file://../steering/testing.md",
+    "file://../steering/security-and-cost.md",
+    "file://../steering/hybrid-ai.md",
+    "file://../steering/handoff.md"
+  ],
+  "includeMcpJson": false,
+  "hooks": [
+    {
+      "name": "stop-0",
+      "trigger": "stop",
+      "action": {
+        "type": "command",
+        "command": "bash .kiro/hooks/scripts/node.sh log-run.mjs spec-reviewer"
+      },
+      "timeout": 10
+    }
+  ],
+  "permissions": {
+    "rules": [
+      {
+        "capability": "shell",
+        "match": ["ls*", "cat*", "grep*", "rg*", "find*", "git diff*", "git log*"],
+        "effect": "allow"
+      },
+      {
+        "capability": "shell",
+        "match": ["*"],
+        "exclude": ["ls*", "cat*", "grep*", "rg*", "find*", "git diff*", "git log*"],
+        "effect": "deny"
+      },
+      { "capability": "fs_write", "match": [".kiro/specs/*/REVIEW.md"], "effect": "allow" },
+      { "capability": "fs_read", "effect": "allow" },
+      { "capability": "skill", "effect": "allow" }
+    ]
+  }
+}
