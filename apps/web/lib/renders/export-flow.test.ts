@@ -10,6 +10,7 @@ import {
   RENDER_ERROR_COPY,
   secondsText,
   stageLine,
+  transitionToast,
   startFailureMessage,
   viewOf,
   type ExportOptionsInput,
@@ -180,5 +181,31 @@ describe('exportOptionsState', () => {
         },
       ),
     );
+  });
+});
+
+describe('transitionToast', () => {
+  it('toasts a render that ends while the modal is closed', () => {
+    expect(
+      transitionToast('rendering', view({ status: 'done', progress: 100 }), false, false),
+    ).toEqual({
+      kind: 'ready',
+    });
+    expect(
+      transitionToast('encoding', view({ status: 'error', error: 'render-failed' }), false, false),
+    ).toEqual({ kind: 'error', message: 'Pip dropped a frame. Your credits are back.' });
+    expect(
+      transitionToast('queued', view({ status: 'error', error: 'internal' }), false, true),
+    ).toEqual({
+      kind: 'error',
+      message: 'Pip dropped a frame.',
+    });
+  });
+  it('stays quiet while the modal is open, for progress, and for renders never seen active', () => {
+    expect(transitionToast('rendering', view({ status: 'done' }), true, false)).toBeNull();
+    expect(transitionToast('queued', view({ status: 'rendering' }), false, false)).toBeNull();
+    expect(transitionToast(null, view({ status: 'done' }), false, false)).toBeNull();
+    expect(transitionToast('done', view({ status: 'done' }), false, false)).toBeNull();
+    expect(transitionToast('rendering', null, false, false)).toBeNull();
   });
 });

@@ -1,13 +1,15 @@
 'use client';
 
-import { exportCost, type RenderOptions } from '@motionpop/schemas';
+import { exportCost, type EditorProject, type RenderOptions } from '@motionpop/schemas';
 import { isRenderable } from '@motionpop/motion/compiler';
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
+import { toast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth/auth-provider';
 import {
   exportOptionsState,
   isActive,
   startFailureMessage,
+  transitionToast,
   viewOf,
 } from '@/lib/renders/export-flow';
 import { defaultOptions, exportStore, useExportUi } from '@/lib/renders/export-store';
@@ -23,6 +25,25 @@ import { VoiceError, resolveVoiceBlob } from '@/lib/renders/voice-upload';
 import type { RenderView } from '@/lib/renders/render-client';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 import { ExportDialog } from './export-dialog';
+
+/** What the dialog shows from the moment a render exists until its first snapshot arrives. */
+function queuedView(
+  renderId: string,
+  costCredits: number,
+  project: EditorProject,
+  options: RenderOptions,
+): RenderView {
+  return {
+    renderId,
+    status: 'queued',
+    progress: 0,
+    costCredits,
+    title: project.title,
+    format: options.format,
+    resolution: options.resolution,
+    durationMs: project.durationMs,
+  };
+}
 
 /**
  * Owns the export flow in the editor (spec 08 design §12–§13): starts the render, follows it
@@ -76,21 +97,12 @@ export function ExportController() {
       });
       const after = exportStore.getState();
       if (res.ok) {
-        after.follow(res.renderId, {
-          renderId: res.renderId,
-          status: 'queued',
-          progress: 0,
-          costCredits: res.costCredits,
-          title: snapshot.title,
-          format: picked.format,
-          resolution: picked.resolution,
-          durationMs: snapshot.durationMs,
-        });
+        after.follow(res.renderId, queuedView(res.renderId, res.costCredits, snapshot, picked));
         return;
       }
       if (res.error === 'render-active' && res.detail?.renderId) {
         // Another render is running: show its progress instead (R2.7).
-        after.follow(res.detail.renderId);
+        after.follow(res.detail.renderId, queuedView(res.detail.renderId, 0, snapshot, picked));
         return;
       }
       const cost = res.detail?.cost;
@@ -102,6 +114,20 @@ export function ExportController() {
     [client, config.exportCredits, free],
   );
 
+  // "Try again" and the toast's "Retry": a new request with the same options (R6.2).
+  const retry = useCallback(() => {
+    const ui = exportStore.getState();
+    const again = ui.view
+      ? { format: ui.view.format, resolution: ui.view.resolution, captions: false, music: false }
+      : ui.options;
+    ui.reset();
+    if (again) void start(again);
+  }, [start]);
+  const retryRef = useRef(retry);
+  useEffect(() => {
+    retryRef.current = retry;
+  });
+
   // A reload during a render: show its progress again.
   const active = useActiveRender();
   useEffect(() => {
@@ -112,6 +138,34 @@ export function ExportController() {
   // Follow the render, with or without the modal.
   const onView = useCallback((v: RenderView) => exportStore.getState().applyView(v), []);
   useRenderJob(client, renderId, onView);
+
+  // With the modal closed, a render that ends gets a toast (R4.5, R6.2).
+  const lastStatus = useRef<{ id: string | null; status: RenderView['status'] | null }>({
+    id: null,
+    status: null,
+  });
+  useEffect(() => {
+    const before = lastStatus.current;
+    lastStatus.current = { id: renderId, status: view?.status ?? null };
+    if (before.id !== renderId) return;
+    const t = transitionToast(before.status, view, open, free);
+    if (!t) return;
+    if (t.kind === 'ready') {
+      toast.success('Your video is ready', {
+        action: { label: 'Open', onClick: () => exportStore.getState().openAsIs() },
+      });
+    } else {
+      toast.error(t.message, {
+        action: { label: 'Retry', onClick: () => retryRef.current() },
+        classNames: {
+          actionButton:
+            'ml-auto rounded-lg bg-violet-fill px-2.5 py-1 text-[11px] font-medium text-violet-ink',
+        },
+      });
+    }
+    // Only a change of status or of the modal can need a toast.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.status, renderId, open]);
 
   if (!project || !options) return null;
   const optionsState = exportOptionsState({
@@ -137,6 +191,7 @@ export function ExportController() {
       free={free}
       onOptions={(next) => exportStore.getState().setOptions(next)}
       onExport={() => void start(options)}
+      onRetry={retry}
       onClose={() => exportStore.getState().close()}
       isActiveRender={isActive(view?.status)}
     />

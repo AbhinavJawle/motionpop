@@ -70,14 +70,12 @@ export function ProjectCard({
  * until spec 12 (R1.5, R1.7); 4K is "Soon" (R1.6).
  */
 export function OptionsView({
-  project,
   options,
   onOptions,
   state,
   startError,
   onExport,
 }: {
-  project: EditorProject;
   options: RenderOptions;
   onOptions: (next: RenderOptions) => void;
   state: ExportOptionsState;
@@ -87,8 +85,6 @@ export function OptionsView({
   const note = startError ?? state.blockNote ?? state.leftOutNote;
   return (
     <div>
-      <ProjectCard project={project} format={options.format} scenes={state.renderable} />
-
       <div className="mt-6 text-[13px] leading-[17px] text-text">Format</div>
       <div className="mt-[9px]">
         <OptionCards

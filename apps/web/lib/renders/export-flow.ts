@@ -177,3 +177,26 @@ export const RESOLUTION_CHOICES: readonly Resolution[] = ['720p', '1080p'];
 export function secondsText(durationMs: number): string {
   return `${Math.max(1, Math.round(durationMs / 1000))} sec`;
 }
+
+// ---------------------------------------------------------------------------------------------
+// Toasts when the modal is closed (design §13.2)
+
+export type TransitionToast = { kind: 'ready' } | { kind: 'error'; message: string };
+
+/**
+ * The toast a status change calls for. Only a render seen active that ends while the modal is
+ * closed gets one; a render adopted already finished, or one that ends in front of the creator,
+ * does not (the modal shows it).
+ */
+export function transitionToast(
+  prev: RenderStatus | null,
+  view: RenderView | null,
+  modalOpen: boolean,
+  free: boolean,
+): TransitionToast | null {
+  if (!view || modalOpen || !isActive(prev ?? undefined)) return null;
+  if (view.status === 'done') return { kind: 'ready' };
+  if (view.status === 'error')
+    return { kind: 'error', message: renderErrorMessage(view.error, free) };
+  return null;
+}

@@ -68,6 +68,7 @@ function Harness({
         isActiveRender={false}
         onOptions={setOptions}
         onExport={onExport}
+        onRetry={() => {}}
         onClose={onClose}
       />
     </>
