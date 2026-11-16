@@ -14,6 +14,6 @@ gcloud builds submit --project "${PROJECT}" --region "${REGION}" \
 # One task per execution, never retried (a render is charged once, R9.1), scales to zero.
 gcloud run jobs deploy motionpop-render --project "${PROJECT}" --region "${REGION}" \
   --image "${IMAGE}:${TAG}" \
-  --tasks 1 --max-retries 0 --task-timeout 60m --cpu 4 --memory 8Gi \
+  --tasks 1 --max-retries 0 --task-timeout 150m --cpu 4 --memory 8Gi \
   --service-account "render-job@${PROJECT}.iam.gserviceaccount.com" \
   --set-env-vars "GOOGLE_CLOUD_PROJECT=${PROJECT},STORAGE_BUCKET=${PROJECT}.firebasestorage.app"
