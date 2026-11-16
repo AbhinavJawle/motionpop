@@ -12,7 +12,8 @@ import type { TaskDef } from './router';
 import type { SlotWord, TaggedSpan } from './slots/types';
 import { componentFillTask } from './tasks/component-fill';
 import { directPlan } from './tasks/direct-plan';
-import { editPatchTask, paramsSchemaSummary } from './tasks/edit-patch';
+import { editContext } from './edit/edit-doc';
+import { editPatchTask } from './tasks/edit-patch';
 import { slotsDetect, slotsDetectInput } from './tasks/slots-detect';
 import { transcribeCloud } from './tasks/transcribe-cloud';
 
@@ -135,7 +136,6 @@ const SPANS: TaggedSpan[] = [
   { wordStart: 4, wordEnd: 5, kind: 'number', text: 'forty percent', value: 40, unit: '%' },
   { wordStart: 7, wordEnd: 7, kind: 'year', text: '2020.', value: 2020 },
 ];
-const summary = paramsSchemaSummary(BIG_NUMBER);
 
 interface Case {
   id: string;
@@ -147,9 +147,13 @@ const CASES: Case[] = [
     id: 'edit.patch',
     run: () =>
       measure(editPatchTask(paramsSchema), {
-        componentId: 'big-number',
-        paramsSchemaSummary: summary,
-        currentParams: { value: 40, suffix: '%', decimals: 0, label: 'Revenue grew' },
+        ...editContext(
+          BIG_NUMBER,
+          'big-number',
+          { value: 40, suffix: '%', decimals: 0, label: 'Revenue grew' },
+          undefined,
+          { speed: 1, ease: 'inOut', fade: true },
+        ),
         instruction: 'make it dollars',
       }),
   },
@@ -232,11 +236,8 @@ const CASES: Case[] = [
 ];
 
 /** Real violations today: task id → rule → why. Claude Code fixes these when scenes are wired in. */
-const PARAMS_SCHEMA_IN_PROMPT = 'sample prompt contains schema text';
-const KNOWN_VIOLATIONS: Record<string, Partial<Record<Rule, string>>> = {
-  // The prompt pastes `paramsSchemaSummary` (the component params as a JSON Schema) after "params schema:".
-  'edit.patch': { 'schema-in-prompt': PARAMS_SCHEMA_IN_PROMPT },
-};
+// `edit.patch` v2 sends paths as an enum and no schema text, so nothing is known-bad any more (spec 09 task 5).
+const KNOWN_VIOLATIONS: Record<string, Partial<Record<Rule, string>>> = {};
 
 // --- Tests ------------------------------------------------------------------------------------
 

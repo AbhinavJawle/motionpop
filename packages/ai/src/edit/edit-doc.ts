@@ -171,3 +171,20 @@ export function fieldGuide(schema: z.ZodType, paths: readonly string[]): string 
     })
     .join('\n');
 }
+
+/** What `edit.patch` and `note.fix` both send: the edit document, its paths and their guide. */
+export function editContext(
+  schema: z.ZodType,
+  componentId: string,
+  params: Record<string, unknown>,
+  timing: SlotTiming | undefined,
+  defaults: TimingDefaults,
+): { componentId: string; fieldGuide: string; paths: string[]; current: EditDoc } {
+  const paths = editablePaths(schema, params);
+  return {
+    componentId,
+    fieldGuide: fieldGuide(schema, paths),
+    paths,
+    current: editDoc(params, timing, defaults),
+  };
+}

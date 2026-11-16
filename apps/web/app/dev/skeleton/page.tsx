@@ -3,8 +3,9 @@
 import {
   applyParamsPatch,
   detectSlots,
+  editContext,
   editPatchTask,
-  paramsSchemaSummary,
+  splitEditDoc,
   tagSpans,
   type DetectSlotsResult,
 } from '@motionpop/ai';
@@ -21,6 +22,7 @@ import type { z } from 'zod';
 const BIG_NUMBER_PARAMS = (components as Record<string, { params: z.ZodType }>)['big-number']!
   .params;
 const EDIT_PATCH = editPatchTask((id) => (id === 'big-number' ? BIG_NUMBER_PARAMS : undefined));
+const TIMING_DEFAULTS = { speed: 1, ease: 'inOut', fade: true } as const;
 
 /** Walking skeleton (spec 00): voiceover → compile → HyperFrames player. Ugly on purpose. */
 export default function SkeletonPage() {
@@ -130,22 +132,29 @@ export default function SkeletonPage() {
       const router = await getRouter().catch(() => null);
       if (!router) throw new Error('AI router unavailable (Firebase not configured)');
       const schema = BIG_NUMBER_PARAMS;
-      const res = await router.run(EDIT_PATCH, {
-        componentId: 'big-number',
-        paramsSchemaSummary: paramsSchemaSummary(schema),
-        currentParams: params,
-        instruction,
-      });
+      const res = await router.run(
+        EDIT_PATCH,
+        {
+          ...editContext(schema, 'big-number', params, undefined, TIMING_DEFAULTS),
+          instruction,
+        },
+        { allowCloud: false },
+      );
       if (res.output.escalate) {
         note(
           `edit.patch escalated on ${res.ranOn}: ${res.output.message ?? 'needs a new graphic'}`,
         );
         return;
       }
-      const applied = applyParamsPatch(params, res.output.patch);
+      const applied = applyParamsPatch(
+        editContext(schema, 'big-number', params, undefined, TIMING_DEFAULTS).current,
+        res.output.patch,
+      );
       if (!applied.ok) throw new Error(applied.error);
-      setParams(applied.params);
-      compile(applied.params);
+      // The skeleton has no slot timing yet: keep the params, drop the timing part.
+      const next = splitEditDoc(applied.params, TIMING_DEFAULTS).params;
+      setParams(next);
+      compile(next);
       note(
         `edit.patch ${res.ranOn === 'device' ? '⚡ device' : '☁ cloud'} (${res.model}) in ${res.latencyMs} ms, ${res.costCredits} credits, attempt ${res.attempts}: ${JSON.stringify(res.output.patch)}`,
       );
