@@ -1,5 +1,4 @@
 import 'server-only';
-import { getStorage } from 'firebase-admin/storage';
 import {
   createShare,
   failRender,
@@ -10,10 +9,13 @@ import {
 import { contentDisposition } from '@motionpop/render';
 import { isRenderable } from '@motionpop/motion/compiler';
 import { ACTIVE_RENDER_STATUSES, RenderDocSchema, type RenderDoc } from '@motionpop/schemas';
-import { adminApp, adminDb } from '@/lib/firebase/admin.server';
+import { adminDb } from '@/lib/firebase/admin.server';
 import { serverConfig } from '@/lib/firebase/server-config.server';
 import type { CheckDeps, CreateDeps, DownloadDeps, ShareDeps } from './handlers.server';
 import type { LocalDeps } from './local-handlers.server';
+import { bucket } from './storage.server';
+
+export { bucket };
 import { launcherFor } from './launcher.server';
 import type { RenderMode } from './mode';
 
@@ -21,20 +23,6 @@ import type { RenderMode } from './mode';
 // emulators when their hosts are set), the server config and the launcher of the render mode.
 
 const logLine = (fields: Record<string, unknown>): void => console.error(JSON.stringify(fields));
-
-function bucketName(): string {
-  const e = process.env;
-  const project =
-    e['GOOGLE_CLOUD_PROJECT'] ?? e['GCLOUD_PROJECT'] ?? e['NEXT_PUBLIC_FIREBASE_PROJECT_ID'];
-  const name =
-    e['STORAGE_BUCKET'] ??
-    e['NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET'] ??
-    (project ? `${project}.firebasestorage.app` : undefined);
-  if (!name) throw new Error('no Storage bucket is configured');
-  return name;
-}
-
-export const bucket = () => getStorage(adminApp()).bucket(bucketName());
 
 async function getRenderDoc(renderId: string): Promise<RenderDoc | null> {
   const snap = await adminDb().doc(`renders/${renderId}`).get();

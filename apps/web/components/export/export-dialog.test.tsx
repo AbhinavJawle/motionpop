@@ -6,6 +6,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { exportOptionsState, type ExportOptionsInput } from '@/lib/renders/export-flow';
+import type { RenderClient } from '@/lib/renders/render-client';
 import { ExportDialog } from './export-dialog';
 
 // happy-dom's Web Animations stub rejects on cancel; motion then uses its JS driver.
@@ -65,6 +66,7 @@ function Harness({
         renderView={null}
         startError={startError}
         free={over?.mode === 'offline'}
+        client={{} as RenderClient}
         isActiveRender={false}
         onOptions={setOptions}
         onExport={onExport}

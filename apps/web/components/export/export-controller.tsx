@@ -189,6 +189,7 @@ export function ExportController() {
       renderView={view}
       startError={startError}
       free={free}
+      client={client}
       onOptions={(next) => exportStore.getState().setOptions(next)}
       onExport={() => void start(options)}
       onRetry={retry}

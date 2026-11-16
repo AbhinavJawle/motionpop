@@ -156,6 +156,12 @@ describe('export controller: the flow of one render', () => {
     // Done: no toast while the modal is open.
     act(() => f.push({ status: 'done', progress: 100 }));
     expect(toastSpy.success).not.toHaveBeenCalled();
+    // The ready dialog replaces the export dialog.
+    expect(
+      await screen.findByRole('heading', { level: 3, name: 'Your video is ready' }),
+    ).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Your video is ready' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Download video' })).toBeTruthy();
   });
 
   it('shows the error state with the code\'s message, and "Try again" sends a new request', async () => {

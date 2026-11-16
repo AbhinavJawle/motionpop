@@ -169,7 +169,7 @@ export function OptionsView({
         disabled={!state.canExport}
         onClick={onExport}
         className={cn(
-          'h-12 w-full justify-start gap-2.5 rounded-chip px-4 text-xs leading-4',
+          'h-12 w-full justify-start gap-2.5 rounded-chip px-4 pb-3 text-xs leading-4',
           note ? 'mt-5' : 'mt-[23px]',
         )}
       >
