@@ -139,6 +139,118 @@ describe('chooseRoute: the other tasks', () => {
   });
 });
 
+describe('chooseRoute: the rule table (spec 09 task 3)', () => {
+  const SOON = 'Cloud AI is coming soon' as const;
+  const SIGN_IN = 'Sign in to use cloud AI' as const;
+  const dev = { kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: false };
+  const cloud = (credits: number, insufficient = false) => ({
+    kind: 'cloud',
+    mode: 'ONLY_IN_CLOUD',
+    allowCloud: false,
+    credits,
+    insufficient,
+  });
+  const off = (reason: string) => ({ kind: 'disabled', reason });
+
+  // One row per rule, in the order of the design: [label, input, expected route].
+  const rows: [string, Partial<RouteInput>, object][] = [
+    ['prefill, device ready', { task: 'prompt.prefill' }, dev],
+    [
+      'prefill, no device',
+      { task: 'prompt.prefill', availability: 'unavailable' },
+      { kind: 'local' },
+    ],
+    [
+      'prefill, offline, no device',
+      { task: 'prompt.prefill', availability: 'unavailable', online: false },
+      { kind: 'local' },
+    ],
+    [
+      'generate, no Firebase (sign in)',
+      { task: 'generate', cloudCost: 3, cloudAvailable: false },
+      off(SIGN_IN),
+    ],
+    [
+      'generate, ServerCredits missing (coming soon)',
+      { task: 'generate', cloudCost: 3, cloudAvailable: false, cloudBlockedReason: SOON },
+      off(SOON),
+    ],
+    [
+      'generate, offline beats coming soon',
+      {
+        task: 'generate',
+        cloudCost: 3,
+        online: false,
+        cloudAvailable: false,
+        cloudBlockedReason: SOON,
+      },
+      off('Needs connection'),
+    ],
+    [
+      'generate, kill switch',
+      { task: 'generate', cloudCost: 3, killSwitch: true },
+      off('Cloud AI is paused'),
+    ],
+    ['generate, enough credits', { task: 'generate', cloudCost: 3, balance: 3 }, cloud(3)],
+    [
+      'generate, not enough credits',
+      { task: 'generate', cloudCost: 3, balance: 2 },
+      cloud(3, true),
+    ],
+    ['generate, balance loading', { task: 'generate', cloudCost: 3, balance: null }, cloud(3)],
+    ['edit, device ready and preferred', {}, dev],
+    ['edit, device ready, prefer off', { preferOnDevice: false }, cloud(1)],
+    [
+      'edit, device ready, prefer off, no cloud',
+      { preferOnDevice: false, cloudAvailable: false, cloudBlockedReason: SOON },
+      dev,
+    ],
+    ['edit, no device, cloud ok', { availability: 'unavailable' }, cloud(1)],
+    [
+      'edit, no device, offline',
+      { availability: 'unavailable', online: false },
+      off('Needs connection'),
+    ],
+    [
+      'edit, no device, ServerCredits missing',
+      { availability: 'unavailable', cloudAvailable: false, cloudBlockedReason: SOON },
+      off(SOON),
+    ],
+    [
+      'edit, no device, kill switch',
+      { availability: 'unavailable', killSwitch: true },
+      off('Cloud AI is paused'),
+    ],
+    ['edit, user clicked the cloud', { forceCloud: true }, cloud(1)],
+    [
+      'edit, user clicked the cloud, kill switch',
+      { forceCloud: true, killSwitch: true },
+      off('Cloud AI is paused'),
+    ],
+    [
+      'note, user clicked the cloud, no cloud',
+      { task: 'note.fix', forceCloud: true, cloudAvailable: false },
+      off(SIGN_IN),
+    ],
+    [
+      'edit, override ONLY_ON_DEVICE, no device',
+      { override: 'ONLY_ON_DEVICE', availability: 'unavailable' },
+      off('Needs on-device AI'),
+    ],
+    ['edit, override ONLY_IN_CLOUD', { override: 'ONLY_IN_CLOUD' }, cloud(1)],
+  ];
+  it.each(rows)('%s', (_label, input, expected) => {
+    expect(route(input)).toEqual(expected);
+  });
+
+  it('chipFor maps device to mint, cloud to the price and everything else to no chip', () => {
+    expect(chipFor(dev as never)).toEqual({ route: 'device' });
+    expect(chipFor(cloud(3) as never)).toEqual({ route: 'cloud', credits: 3 });
+    expect(chipFor({ kind: 'local' })).toBeNull();
+    expect(chipFor(off(SOON) as never)).toBeNull();
+  });
+});
+
 const TASKS: RoutedTask[] = ['edit.patch', 'note.fix', 'generate', 'prompt.prefill', 'autofill'];
 const AVAIL: Availability[] = [
   'checking',
@@ -179,6 +291,8 @@ describe('chooseRoute: no surprise spend (P4)', () => {
         }
         if (r.kind === 'device') expect(i.availability).toBe('available');
         if (r.kind === 'cloud') {
+          expect(r.credits).toBe(i.cloudCost);
+          expect(r.credits).toBeGreaterThan(0);
           expect(i.online && i.cloudAvailable && !i.killSwitch).toBe(true);
           expect(i.task === 'generate' || i.task === 'edit.patch' || i.task === 'note.fix').toBe(
             true,
@@ -188,6 +302,27 @@ describe('chooseRoute: no surprise spend (P4)', () => {
         if (i.task === 'generate') expect(r.kind === 'device' || r.kind === 'local').toBe(false);
         if (i.task === 'prompt.prefill' || i.task === 'autofill')
           expect(r.kind === 'cloud').toBe(false);
+      }),
+      { numRuns: 500 },
+    );
+  });
+
+  it('cloudAvailable: false never yields cloud, and every disabled route carries one of the known reasons', () => {
+    const reasons = new Set([
+      'Needs connection',
+      'Cloud AI is paused',
+      'Sign in to use cloud AI',
+      'Cloud AI is coming soon',
+      'Needs on-device AI',
+    ]);
+    fc.assert(
+      fc.property(inputArb, (i) => {
+        const r = chooseRoute({ ...i, cloudAvailable: false });
+        expect(r.kind === 'cloud').toBe(false);
+        const any = chooseRoute(i);
+        if (any.kind === 'disabled') expect(reasons.has(any.reason)).toBe(true);
+        if (any.kind === 'cloud')
+          expect(any.insufficient).toBe(i.balance !== null && i.balance < i.cloudCost);
       }),
       { numRuns: 500 },
     );
