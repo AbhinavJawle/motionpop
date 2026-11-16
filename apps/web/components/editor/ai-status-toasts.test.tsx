@@ -70,21 +70,17 @@ describe('AIStatusToasts', () => {
     expect(h.cloud).toHaveBeenCalledWith(
       'Using cloud AI',
       "Your browser doesn't support on-device AI yet. Everything still works.",
-      undefined,
     );
   });
 
-  it('offers "Set up on-device AI" when downloadable, and the action is a click handler', () => {
+  it('never offers the download in the editor; it points to Settings instead', () => {
     render(<AIStatusToasts />);
     set({ availability: 'downloadable' });
-    const [title, , opts] = h.cloud.mock.calls[0] as [
-      string,
-      string,
-      { action: { label: string; onClick: () => void } },
-    ];
-    expect(title).toBe('Using cloud AI');
-    expect(opts.action.label).toBe('Set up on-device AI');
-    expect(typeof opts.action.onClick).toBe('function');
+    expect(h.cloud).toHaveBeenCalledWith(
+      'Using cloud AI',
+      'Edits run in the cloud. Optional on-device AI is in Settings.',
+    );
+    expect(h.cloud.mock.calls[0]).toHaveLength(2);
   });
 
   it('keeps a persistent progress toast while downloading, then a mint toast and no progress toast', () => {

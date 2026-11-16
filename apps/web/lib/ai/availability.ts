@@ -10,6 +10,9 @@ export const READY_BODY = 'Small edits run instantly on your device, free and pr
 export const CLOUD_TITLE = 'Using cloud AI';
 export const CLOUD_BODY = "Your browser doesn't support on-device AI yet. Everything still works.";
 export const SETUP_BODY = 'Set up on-device AI for free, private edits. It downloads once.';
+/** The editor's cloud toast when the model could be downloaded: no prompt, just where to find it. */
+export const ON_DEVICE_OPTIONAL_BODY =
+  'Edits run in the cloud. Optional on-device AI is in Settings.';
 export const SETUP_ACTION = 'Set up on-device AI';
 export const SETUP_FAILED = "Couldn't set up on-device AI. Try again from the toast or Settings.";
 export const OFFLINE_BANNER =

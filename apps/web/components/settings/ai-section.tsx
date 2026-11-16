@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Toggle } from '@/components/ui/toggle';
 import { Button } from '@/components/ui/button';
 import { StatusDot } from '@/components/ui/status-dot';
@@ -9,6 +10,7 @@ import { useCredits } from '@/lib/credits/use-credits';
 import { useUsageSummary } from '@/lib/usage/use-usage-summary';
 import { SectionCard, type SettingsVariant } from './section-card';
 import { UsageChart } from './usage-chart';
+import { OnDeviceDownloadModal } from './on-device-download-modal';
 
 /** Where the Chrome flag instructions live (the README's "On-device AI in Chrome" section). */
 export const ON_DEVICE_HELP_URL =
@@ -45,6 +47,7 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
   const { balance } = useCredits();
   const usage = useUsageSummary(balance);
   const status = statusView(availability, setupProgress);
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <SectionCard
@@ -80,7 +83,7 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
           </span>
         </div>
         {availability === 'downloadable' && (
-          <Button variant="ai" size="sm" onClick={() => void setUpOnDevice()}>
+          <Button variant="ai" size="sm" onClick={() => setConfirming(true)}>
             Set up on-device AI
           </Button>
         )}
@@ -101,6 +104,12 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
           {setupError}
         </p>
       )}
+
+      <OnDeviceDownloadModal
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={() => void setUpOnDevice()}
+      />
 
       <hr className="my-5 border-white/6" />
       <UsageChart

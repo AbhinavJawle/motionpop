@@ -130,8 +130,15 @@ describe('AISection', () => {
   it('offers set-up when the model can be downloaded, and shows progress while it does', () => {
     h.status = { availability: 'downloadable', setupProgress: null };
     const { unmount } = render(<AISection variant="page" />);
+    // The download is optional and large: the button opens a warning first (founder, 2026-11-16).
     fireEvent.click(screen.getByRole('button', { name: 'Set up on-device AI' }));
-    expect(h.setUp).toHaveBeenCalled();
+    expect(h.setUp).not.toHaveBeenCalled();
+    expect(screen.getByText(/22 GB of disk space/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    expect(h.setUp).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Set up on-device AI' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Download model' }));
+    expect(h.setUp).toHaveBeenCalledOnce();
     unmount();
     h.status = { availability: 'downloading', setupProgress: 0.34 };
     render(<AISection variant="page" />);

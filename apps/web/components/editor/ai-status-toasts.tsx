@@ -2,14 +2,13 @@
 
 import { useEffect, useRef } from 'react';
 import { toast } from '@/components/ui/toast';
-import { setUpOnDevice, useAIStatus, type Availability } from '@/lib/ai/ai-status';
+import { useAIStatus, type Availability } from '@/lib/ai/ai-status';
 import {
   CLOUD_BODY,
   CLOUD_TITLE,
   READY_BODY,
   READY_TITLE,
-  SETUP_ACTION,
-  SETUP_BODY,
+  ON_DEVICE_OPTIONAL_BODY,
   SETUP_FAILED,
   SETUP_TOAST_ID,
   claimSessionToast,
@@ -22,9 +21,8 @@ import { firebaseEnabled } from '@/lib/firebase/client';
 
 /**
  * The on-device AI toasts of the editor (spec 09 R9.1, R9.2): one availability toast per session
- * (mint "On-device AI ready", violet "Using cloud AI"), a "Set up on-device AI" action when the
- * model can be downloaded (only that click starts the download, hybrid-ai.md), and a persistent
- * progress toast while it downloads. Renders nothing.
+ * (mint "On-device AI ready", violet "Using cloud AI"), and a persistent progress toast while a
+ * download started from Settings runs. The download itself is never offered here. Renders nothing.
  */
 export function AIStatusToasts(): null {
   const { availability, setupProgress } = useAIStatus();
@@ -57,17 +55,9 @@ export function AIStatusToasts(): null {
         toast.device(READY_TITLE, READY_BODY);
         break;
       case 'cloud':
-        toast.cloud(
-          CLOUD_TITLE,
-          wanted.setup ? SETUP_BODY : CLOUD_BODY,
-          wanted.setup
-            ? {
-                duration: 12_000,
-                // The click is the user gesture `initializeDeviceModel` needs.
-                action: { label: SETUP_ACTION, onClick: () => void setUpOnDevice() },
-              }
-            : undefined,
-        );
+        // No set-up prompt here (founder, 2026-11-16): the model download is optional and only
+        // starts from Settings, after the warning that names its size and requirements.
+        toast.cloud(CLOUD_TITLE, wanted.setup ? ON_DEVICE_OPTIONAL_BODY : CLOUD_BODY);
         break;
       case 'progress':
         // Drawn and kept current by the progress effect below.
