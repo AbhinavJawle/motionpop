@@ -1,0 +1,66 @@
+import { speakWithFirebase, ttsMinutes, type SpeakInput } from '@motionpop/ai';
+import { APP_CONFIG_DEFAULTS, costOf, type AppConfig } from '@motionpop/schemas';
+import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
+import { spendWithUi } from '@/lib/credits/spend-with-ui';
+import { getAILogic } from '@/lib/firebase/client';
+import { encodeWav } from '@/lib/audio/wav';
+
+/**
+ * Script → voice (spec 11 R6): Gemini TTS through AI Logic, charged per started minute before the
+ * call (the price is on the button) and refunded when it fails. Returns a WAV file that goes
+ * through the same intake as an upload, so processing never knows the difference.
+ */
+export type VoiceOutcome =
+  | { ok: true; file: File; durationMs: number; credits: number; latencyMs: number }
+  | { ok: false; reason: string; noCredits?: boolean };
+
+export interface VoiceDeps {
+  credits: CreditsClient | null;
+  config?: Pick<AppConfig, 'creditCosts' | 'imageCredits' | 'exportCredits' | 'modelTts'>;
+  /** Injected in tests. */
+  speak?: typeof speakWithFirebase;
+}
+
+export function voiceCost(text: string, speed: number, cfg = APP_CONFIG_DEFAULTS): number {
+  return costOf('tts', ttsMinutes(text, speed), cfg);
+}
+
+export function pcmToWavFile(pcm: Int16Array, sampleRate: number, name: string): File {
+  const f = new Float32Array(pcm.length);
+  for (let i = 0; i < pcm.length; i++) f[i] = (pcm[i] ?? 0) / 32768;
+  return new File([encodeWav(f, sampleRate)], name, { type: 'audio/wav' });
+}
+
+export async function generateVoice(deps: VoiceDeps, input: SpeakInput): Promise<VoiceOutcome> {
+  const text = input.text.trim();
+  if (!text) return { ok: false, reason: 'Write a script first' };
+  if (!deps.credits) return { ok: false, reason: 'Sign in to generate a voice' };
+  const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
+  const minutes = ttsMinutes(text, input.speed ?? 1);
+  const spent = await spendWithUi(
+    deps.credits,
+    { action: 'tts', units: minutes, key: newSpendKey(), refId: 'script' },
+    cfg,
+  );
+  if (!spent) return { ok: false, reason: 'Not enough credits', noCredits: true };
+  if (!spent.ok) {
+    return spent.reason === 'insufficient'
+      ? { ok: false, reason: 'Not enough credits', noCredits: true }
+      : { ok: false, reason: 'Couldn’t reserve the credits' };
+  }
+  try {
+    const r = await (deps.speak ?? speakWithFirebase)(getAILogic, cfg.modelTts, { ...input, text });
+    const file = pcmToWavFile(r.pcm, r.sampleRate, 'script-voice.wav');
+    return {
+      ok: true,
+      file,
+      durationMs: Math.round((r.pcm.length / r.sampleRate) * 1000),
+      credits: costOf('tts', minutes, cfg),
+      latencyMs: r.latencyMs,
+    };
+  } catch (err) {
+    console.warn('Voice generation failed', err);
+    await deps.credits.refund(spent.txId).catch(() => {});
+    return { ok: false, reason: 'Couldn’t generate the voice. Credits returned.' };
+  }
+}

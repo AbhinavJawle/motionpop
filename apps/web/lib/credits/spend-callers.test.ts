@@ -18,6 +18,8 @@ const ALLOWED = new Set([
   'lib/notes/note-fix.ts',
   // Pip's cloud plan (spec 10): 2 credits, refunded when the call fails.
   'lib/pip/use-pip.ts',
+  // Script → voice (spec 11): per started minute, refunded when it fails.
+  'lib/tts/generate-voice.ts',
   // The credits layer itself.
   'lib/credits/spend-with-ui.ts',
   'lib/credits/server-credits.ts',
