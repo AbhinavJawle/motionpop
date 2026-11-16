@@ -9,6 +9,35 @@ export const IntMsSchema = z.number().int().nonnegative();
 export const SlotStatusSchema = z.enum(['suggested', 'generating', 'ready', 'failed']);
 export type SlotStatus = z.infer<typeof SlotStatusSchema>;
 
+/** Per-slot timing overrides (component-library.md "timing"). Stored on the slot, not in params (D-037). */
+export const SlotTimingSchema = z.object({
+  speed: z
+    .number()
+    .min(0.5)
+    .max(2)
+    .optional()
+    .describe(
+      'Speed of entrances and exits. 0.8 = slower, 1.25 = faster. Landings stay on the spoken word',
+    ),
+  ease: z.enum(['inOut', 'out', 'linear']).optional().describe('Main ease of the motion'),
+  fade: z
+    .boolean()
+    .optional()
+    .describe('false = hold the last frame and cut at the end of the slot'),
+});
+export type SlotTiming = z.infer<typeof SlotTimingSchema>;
+
+/** At most this many versions are kept per slot; the oldest non-current one is dropped first. */
+export const VERSIONS_PER_SLOT = 20;
+
+/**
+ * A note drawn on the frame (spec 09). Shape semantics, checked by the note commands and not
+ * here, so loading a saved project never fails because of a limit (D-049):
+ * - `circle`: points = [cx, cy, rx, ry] in 0..1 of the frame; a 3-value [cx, cy, r] means rx = ry = r.
+ * - `path`: points = [x1, y1, x2, y2, …] in 0..1, an even count of 4..128 values.
+ * `tMs` is **relative to the slot start**, so a note moves with its slot (D-048): the one relative
+ * time in a project that otherwise stores absolute milliseconds.
+ */
 export const FrameNoteSchema = z.object({
   id: z.string().min(1),
   tMs: IntMsSchema,
@@ -18,6 +47,8 @@ export const FrameNoteSchema = z.object({
   }),
   text: z.string(),
   status: z.enum(['open', 'fixed']),
+  /** The version the note's fix created (set when the note is marked fixed). */
+  fixedVersionId: z.string().min(1).optional(),
 });
 export type FrameNote = z.infer<typeof FrameNoteSchema>;
 
@@ -49,6 +80,8 @@ export const SlotSchema = z
     sfx: z.array(z.object({ id: z.string().min(1), atMs: IntMsSchema })).optional(),
     /** Scenes: this slot's energy from the director's curve (spec 07 R6.1); else the project's. */
     energy: EnergySchema.optional(),
+    /** Timing overrides (speed, ease, fade). Unset keys mean the look's defaults; never an empty object. */
+    timing: SlotTimingSchema.optional(),
   })
   .refine((s) => s.endMs > s.startMs, {
     message: 'endMs must be greater than startMs',
@@ -69,6 +102,8 @@ export const VersionSchema = z.object({
   /** Epoch ms (Firestore Timestamps are converted at the adapter). */
   createdAt: IntMsSchema,
   label: z.string().optional(),
+  /** The slot's timing at this version, so a restore brings the feel back too (D-038). */
+  timing: SlotTimingSchema.optional(),
 });
 export type Version = z.infer<typeof VersionSchema>;
 

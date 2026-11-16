@@ -24,6 +24,19 @@ describe('demo fixture', () => {
     expect(said).toBe('revenue grew forty percent since 2020.');
   });
 
+  it('stores the demo note relative to its slot and finds it at playhead 5600 (D-048)', () => {
+    const p = demoProject();
+    const slot = p.slots[1]!;
+    const note = slot.notes[0]!;
+    expect(note.tMs).toBe(1400);
+    const playhead = 5600;
+    expect(playhead).toBeGreaterThanOrEqual(slot.startMs);
+    expect(playhead).toBeLessThan(slot.endMs);
+    expect(slot.notes.find((n) => n.tMs === playhead - slot.startMs)?.id).toBe('note-1');
+    // No other slot carries it.
+    expect(p.slots.filter((s) => s.notes.some((n) => n.id === 'note-1'))).toHaveLength(1);
+  });
+
   it('keeps every word inside the voiceover and in order', () => {
     for (let i = 0; i < demoWords.length; i++) {
       const w = demoWords[i]!;

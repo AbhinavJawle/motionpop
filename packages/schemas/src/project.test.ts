@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { EditorProjectSchema, timelineIssues } from './project';
+import {
+  EditorProjectSchema,
+  SlotTimingSchema,
+  VERSIONS_PER_SLOT,
+  VersionSchema,
+  timelineIssues,
+} from './project';
 
 const DURATION = 20_000;
 const WORDS = 10;
@@ -195,5 +201,82 @@ describe('timeline properties', () => {
         },
       ),
     );
+  });
+});
+
+describe('slot timing, version timing and note fixes (spec 09 task 1)', () => {
+  it('parses a slot with timing and a note that names the version that fixed it', () => {
+    const r = EditorProjectSchema.safeParse(
+      makeProject([
+        slot('a', 1000, 3000, {
+          timing: { speed: 0.8, ease: 'out', fade: false },
+          notes: [
+            {
+              id: 'n1',
+              tMs: 400,
+              shape: { kind: 'circle', points: [0.5, 0.5, 0.1, 0.2] },
+              text: 'slower',
+              status: 'fixed',
+              fixedVersionId: 'v-9',
+            },
+          ],
+        }),
+      ]),
+    );
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.slots[0]?.timing).toEqual({ speed: 0.8, ease: 'out', fade: false });
+      expect(r.data.slots[0]?.notes[0]?.fixedVersionId).toBe('v-9');
+    }
+  });
+
+  it('a slot without timing still parses, and note shape limits are not a schema concern (D-049)', () => {
+    const odd = { kind: 'path', points: [2, -1, 5] };
+    const r = EditorProjectSchema.safeParse(
+      makeProject([
+        slot('a', 1000, 3000, {
+          notes: [{ id: 'n1', tMs: 0, shape: odd, text: '', status: 'open' }],
+        }),
+      ]),
+    );
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects timing outside its range', () => {
+    expect(SlotTimingSchema.safeParse({ speed: 3 }).success).toBe(false);
+    expect(SlotTimingSchema.safeParse({ speed: 0.4 }).success).toBe(false);
+    expect(SlotTimingSchema.safeParse({ ease: 'bounce' }).success).toBe(false);
+  });
+
+  it('random valid timings round-trip through slot and version parsing', () => {
+    const timingArb = fc.record(
+      {
+        speed: fc.double({ min: 0.5, max: 2, noNaN: true }),
+        ease: fc.constantFrom('inOut', 'out', 'linear'),
+        fade: fc.boolean(),
+      },
+      { requiredKeys: [] },
+    );
+    fc.assert(
+      fc.property(timingArb, (timing) => {
+        const p = EditorProjectSchema.parse(makeProject([slot('a', 1000, 3000, { timing })]));
+        expect(p.slots[0]?.timing).toEqual(timing);
+        const v = VersionSchema.parse({
+          id: 'v1',
+          slotId: 'a',
+          componentId: 'big-number',
+          params: {},
+          source: 'user',
+          costCredits: 0,
+          createdAt: 1,
+          timing,
+        });
+        expect(v.timing).toEqual(timing);
+      }),
+    );
+  });
+
+  it('keeps 20 versions per slot', () => {
+    expect(VERSIONS_PER_SLOT).toBe(20);
   });
 });

@@ -104,7 +104,8 @@ export function demoProject(now = 0): EditorProject {
         notes: [
           {
             id: 'note-1',
-            tMs: 5600,
+            // Relative to the slot start (4200): shows at project time 5600 (D-048).
+            tMs: 1400,
             shape: { kind: 'circle', points: [0.62, 0.55, 0.06] },
             text: 'Make this slower',
             status: 'open',
