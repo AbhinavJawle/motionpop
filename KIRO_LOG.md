@@ -1274,3 +1274,20 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - **Not done / not verified:** spec 13 task 5b (cross-writer C9 on the emulator; the pieces are ready, `ledger-tools.ts` and `ledger-model.ts` exist) and everything after it; the kill switch, rate limit and judge refill through the HTTP routes (covered on the helper, not by curl, because the Auth emulator can't mark an email verified); the 400 ms deployed NFR; anything on Cloud Run (08 tasks 6a, 11).
 - **Kiro features used:** the session-start hook and the spec files as the work list, `tasks.md` notes as the record, fast-check properties and a model-based test for the ledger, hand mutation checks, the emulator suite. Context7 was not used (the `firebase-admin` APIs were checked by running them on the emulators instead).
 <!-- /kiro-cli:2026-11-16-spec-13-tasks-1-5-spec-08-task-8 -->
+
+<!-- kiro-session:sess_0e6ebe31-7366-4859-bf86-d1a297101a58 -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T01:04:22.528Z · last stop: 2026-11-16T01:47:13.175Z · session: sess_0e6ebe31-7366-4859-bf86-d1a297101a58
+- commits since start: 
+  - d938de7 docs: KIRO_LOG entry for the spec 13 tasks 1-5 and spec 08 task 8 run
+  - eb12778 feat(08-render-and-export): task 8 Firestore store, job entry and render:project on the shared ledger
+  - be11346 test(13-credits-judge-plan-settings): task 5 ledger emulator tests
+  - 86c2c97 ci: auth e2e gets a placeholder web config on CI
+  - 4be1228 feat(13-credits-judge-plan-settings): task 4 shared ledger helper and credit routes
+  - 2d607f2 feat(13-credits-judge-plan-settings): task 3 pure ledger decisions and model properties
+  - fc5728b feat(13-credits-judge-plan-settings): task 2 costOf, one price table
+  - 4855447 ci: Playwright github reporter on CI so e2e failures show as annotations
+  - c0cad04 feat(13-credits-judge-plan-settings): task 1 credit, usage and limit schemas
+  - 82903c9 docs: D-034 export settings, hostile audio, one style resolver (spec 08)
+- uncommitted changes: none
+<!-- /kiro-session:sess_0e6ebe31-7366-4859-bf86-d1a297101a58 -->
