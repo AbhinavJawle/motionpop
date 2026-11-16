@@ -1405,3 +1405,48 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - 18c1178 feat(13-credits-judge-plan-settings): task 6 judge upgrade and daily refill at sign-in
 - uncommitted changes: none
 <!-- /kiro-session:sess_732e9f39-d21d-4619-8ddc-c9a5b340e594 -->
+
+<!-- kiro-cli:2026-11-16-spec-09-tasks-1-11 -->
+### 2026-11-16 · Kiro CLI (headless, overnight) · model: claude-sonnet-5.5 · spec 09 tasks 1–11 and 24
+- **Spec / tasks:** spec `09-inspector-quick-edits-and-notes` tasks 1 to 11, in order, one commit and one checked box with a done note each; task 24 ticked with the note Claude Code asked for. Task 11b (credits wiring UI) was not in the list and is not ticked. Founder asleep; Claude Code reviews after. Nothing pushed, deployed or paid for; port 3123 was not touched (Playwright used 3200 to 3202; the one `next build` used `NEXT_DIST_DIR=.next/build-check`, so the founder's `.next` was not written; the directory is git-ignored and I could not delete it because `rm -rf` is denied for this agent).
+- **Commits (local, in order):** `a412c8d` 1, `737f9b1` 2, `f5e6aba` 3, `cc2a7f8` 4, `bf569c7` 5, `501ae26` 6, `525ab3e` 7, `6728d3e` 8, `cf2bf3b` 9, `8ea8b37` 10, `8c61b22` 11, `cb64fdf` 24.
+- **What was built:**
+  - **1** `SlotTimingSchema`, `Slot.timing`, `Version.timing`, `FrameNote.fixedVersionId`, `VERSIONS_PER_SLOT`; the demo note's `tMs` is now 1400 (slot-relative) with a test that finds it at playhead 5600.
+  - **2** `RunOptions { mode, allowCloud }` in the router. `UsageEvent.cloudCost` already existed from spec 13; tested on success, failure and cloud.
+  - **3** Adopted spec 13's `lib/ai/route.ts`. I added the 21-row rule table and the P4 extensions only.
+  - **4** `edit/edit-doc.ts` (`editDoc`, `splitEditDoc`, `editablePaths`, `fieldGuide`, `editContext`, `timingDefaultsFor`), built on the draft-7 JSON Schema of the params.
+  - **5** `edit.patch` v2 with path and op enums in the structured output, a shared `checkPatch`, no schema text in the prompt, `cloudFallback: false`; `KNOWN_VIOLATIONS` is now empty; `/dev/skeleton` moved to v2. **6** `note.fix` on the same check.
+  - **7** Commands for versions (with pruning to 20), timing, prompt, failed state and notes; the spec 04 test generators moved to `test-support.ts` for reuse.
+  - **8** `CompileSlot.timing`, `withTiming`, a per-clip style in the runtime, `exit: 'none'` in the stage, `timingCases` samples run by `motion:check`. **9** P8 in `engine/timing.property.test.ts`.
+  - **10** The availability store gained `online` and `watchConnection`; pure rules in `availability.ts`; `AIStatusToasts` and `OfflineBanner` mounted in the editor.
+  - **11** `fake-router.ts` with failure switches, the production guard (P9) and a config-scan test; the flag is set on the chromium Playwright server.
+- **Bugs the new tests found, all fixed:**
+  - `applyVersion` stored the caller's `version.params` instead of the params it applied, so a restore would have brought back the wrong content (found by the restore example test).
+  - `fieldGuide` looked `/timing/*` paths up under a `timing` property that does not exist, so those lines said "value" (found by the edit-doc tests).
+  - `parseFakeSwitches` read an absent `fakeSeed` as 0 because `Number(null)` is 0.
+  - Test-writing slips, not product bugs: undoing a command that was never run, and a base fixture with a dangling `currentVersionId`.
+- **Checks run and read:**
+  - **Whole repo:** prettier on the whole repo, `turbo run typecheck lint` (10 tasks), `turbo run test --force` (schemas 258, ai 367, motion 252, web 767, render 178, all passed).
+  - **Whole chromium Playwright project with the fake-AI flag on:** 18 passed, 1 skipped (Whisper). `next build` passed.
+  - **`motion:check`:** full runs for `stat-punch` (213 cases × 3 formats), `hook-statement` (257), `versus` (237) and `big-number` (102): 0 failures. The warnings are the old "focal already settled 80 ms" class, not new ones. One contact-sheet pass of `show-slow/fast/cut` hold-end stills in 3 formats, plain and `field-notes`: all landed, same final composition for each timing, as intended.
+  - **Mutation checks, each reverted:** ignoring `exit: 'none'` failed the fade property; removing the speed division failed 2 tests; a line with the flag in `apphosting.yaml` failed the guard test.
+- **Deviations and decisions (also in the task notes):**
+  - **Task 8, `show-slow` speed:** `motion:check` failed the first run: at speed 0.6 the ideal-length sample dropped the optional label (slower entrances and exit eat the read time). The code is consistent with the existing gate policy, so I moved the sample to 0.8, which is what "make it slower" produces, instead of weakening the gate. **Known issue:** at 0.5 to 0.6 the longest content can lose its last optional cue at ideal length.
+  - **Task 7, note commands:** they take `(slotId, noteId, …)`, not just a note id as the design table showed. No-op changes are rejected so they add no undo step.
+  - **Task 10, toasts:** local mode (no Firebase, no fake AI) shows no availability toast, because there is no cloud to fall back to and "Using cloud AI" would be untrue. The fake-AI flag is quiet unless the URL has `?aiToasts=1`, to keep design screenshots clean.
+  - **Task 11, flag scope:** `NEXT_PUBLIC_FAKE_AI=1` is set on the chromium server only, not on the auth server as the task text says, because fake AI means `LocalCredits` and the spec 13 credits e2e needs the real client. The render-failure server stays plain.
+- **Friction:** most of tasks 3, 10 and 11 had been written by spec 13 (`route.ts`, `ai-status.ts`, `LocalCredits`, the contract test), so those tasks became "adopt, extend, test the gaps". That is what the instructions asked for, but the task texts read as if the files did not exist.
+- **Context7 and MCP:** Context7 was used for tasks 6 and 10 (hybrid inference docs). Findings are in the task notes. Chrome DevTools MCP was not used.
+- **Not done / not verified:**
+  - Task 11b and tasks 12 onwards.
+  - No visual check of the offline banner or the toasts at 1440×900 (unit tests only).
+  - `services/render/scripts/parity.ts` was not run (same compile path, but not proven here).
+  - The Prompt API call is the one spec 13 wrote; I re-read the docs (`availability()` and `initializeDeviceModel(onDownloadProgress)`), not a real Chrome with Nano.
+  - The fake router has no `prompt.prefill` rule yet (task 17 adds the task).
+  - Task 25's steering and `docs/decisions.md` edits are still open (IDE).
+- **For Claude Code:**
+  - Reconcile 11b: `useCreditsClient`, the top-bar chip and the out-of-credits modal exist from spec 13, so 11b may already be done.
+  - The inspector quick-edit chip is still static; `useRoute('edit.patch')` is ready for task 12.
+  - Review the `show-slow` 0.8 decision and the known issue at 0.5.
+- **Kiro features used:** the session-start hook and spec tasks as the work list, Context7 before coding against Firebase AI Logic, fast-check properties (P1, P2, P3, P4, P8, P9), mutation checks, the headless agent's definition of done.
+<!-- /kiro-cli:2026-11-16-spec-09-tasks-1-11 -->
