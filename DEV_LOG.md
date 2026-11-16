@@ -473,3 +473,26 @@ Template:
   - `detect-perf.test.ts` can flake under full-suite load.
 - **Kiro:** run10 verified the long-script change and fixed three tests that hard-coded the old export cap. run11 verified the gallery, landing, audio and render commits and changed nothing (see KIRO_LOG).
 - **Cost this session:** about 3 minutes of TTS, two short exports and a few Cloud Run builds: cents.
+
+## 2026-11-16 (late) · Claude Code · every graphic ready on first load, every type pickable
+- **Founder ask:**
+  - A new project should open with graphics across the whole voiceover, each of a fitting type, not one or two plus captions.
+  - Add a visible add-slot button.
+  - Fix the many types that answered "Couldn't switch to that one".
+  - Engine variations come later (Fable).
+- **Built:**
+  - **Coverage.** Long sentences are cut into clauses that each carry a line. The closing sentence can be a hook. Lesson-like lines become pull quotes. `callout`, which isn't built and never rendered, is gone. The budget is one graphic per 3 s. On the long Japan script: 74 % → 88 % covered, longest empty stretch 14.1 s → 2.8 s.
+  - **Ready on open.** Auto-fill used to fill slots one by one through the model, so long videos stayed mostly empty for minutes. Now every scene slot gets its free word draft at once (one undo step), and the model refines in the background; it never overwrites a slot the user touched.
+  - **Type switching.** `lib/slots/loose.ts` makes loose drafts for picked types: versus, list, timeline, quote, hook and photo work on any narration. Stat, chart and map still refuse to invent numbers or places, each with its own message. A prompt written for the old type is cleared.
+  - **Add graphic.** A button in the timeline header adds a drafted graphic over the clause at the playhead, or the next free one. Shift-drag graphics render at once too.
+  - **Slot cards** show a glyph per type.
+- **Hosted:**
+  - An 84 s uploaded voice opened with 15 ready graphics at 0 s. The one gap was where transcription found no words.
+  - On a plain sentence, switching to versus, list, timeline, quote and hook worked. Chart, map and stat gave their reasons. Add graphic reported no room.
+- **Kiro:**
+  - run12 updated the detector tests for the intended changes.
+  - run13 verified web 1,073, ai 399 and motion 427/428; the one failure is a property-test timeout under load that passes alone.
+- **Known:**
+  - The loose drafts are plain (for example versus sides picked as the longest words).
+  - "two and a half" parses as 2.
+  - The engine's look and variation work is the next task.
