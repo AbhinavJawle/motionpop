@@ -8,7 +8,15 @@ export {
   type History,
   type HistoryResult,
 } from './history';
-export { setFormat, setStyle, renameProject, setCaptions, setAudio, setBrand } from './project';
+export {
+  setFormat,
+  setStyle,
+  renameProject,
+  setCaptions,
+  setAudio,
+  setBrand,
+  setFonts,
+} from './project';
 export { setSlotImage, usedAssetIds, type SlotImageInput } from './images';
 export { addSlot, deleteSlot, duplicateSlot, moveSlot, resizeSlot, updateParams } from './slots';
 export { PROMPT_MAX, markFailed, setSlotPrompt } from './slot-fields';

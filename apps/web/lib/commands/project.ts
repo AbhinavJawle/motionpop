@@ -3,6 +3,7 @@ import {
   AudioSettingSchema,
   BrandSchema,
   DEFAULT_CAPTIONS,
+  EditorProjectBaseSchema,
   audioOf,
   type AudioSetting,
   type Brand,
@@ -76,6 +77,30 @@ export function setBrand(brand: Brand | null): Command {
       return produce(p, (d) => {
         if (prev) d.brand = prev;
         else delete d.brand;
+      });
+    },
+  };
+}
+
+export function setFonts(fonts: EditorProject['fonts'] | null): Command {
+  let before: EditorProject['fonts'];
+  return {
+    label: fonts ? 'Change fonts' : 'Use the look’s fonts',
+    do(p) {
+      const parsed = fonts ? EditorProjectBaseSchema.shape.fonts.safeParse(fonts) : null;
+      if (parsed && !parsed.success) throw new CommandRejected('invalid fonts');
+      before = p.fonts;
+      return produce(p, (d) => {
+        if (parsed?.success && parsed.data && (parsed.data.display || parsed.data.body))
+          d.fonts = parsed.data;
+        else delete d.fonts;
+      });
+    },
+    undo(p) {
+      const prev = before;
+      return produce(p, (d) => {
+        if (prev) d.fonts = prev;
+        else delete d.fonts;
       });
     },
   };

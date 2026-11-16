@@ -7,7 +7,7 @@ export * from './engine';
 export * from './scenes';
 export * from './styles';
 export * from './registry';
-export { fontStack } from './fonts/font-faces';
+export { fontStack, primaryFamily } from './fonts/font-faces';
 export { withTiming } from './runtime/timing';
 export * from './captions/chunk';
 export { mountCaptions, pillColours, captionLayout } from './runtime/captions';

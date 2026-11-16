@@ -7,12 +7,20 @@ export const BUNDLED_FONTS = {
   Geist: 'Geist-Variable.woff2',
   'Geist Mono': 'GeistMono-Variable.woff2',
   Caveat: 'Caveat-Variable.woff2',
+  Fraunces: 'Fraunces-Variable.woff2',
+  'Space Grotesk': 'SpaceGrotesk-Variable.woff2',
+  'Bricolage Grotesque': 'BricolageGrotesque-Variable.woff2',
+  'Playfair Display': 'PlayfairDisplay-Variable.woff2',
 } as const;
 /** Weight range each bundled file covers. */
 const WEIGHTS: Record<keyof typeof BUNDLED_FONTS, string> = {
   Geist: '100 900',
   'Geist Mono': '100 900',
   Caveat: '400 700',
+  Fraunces: '100 900',
+  'Space Grotesk': '300 700',
+  'Bricolage Grotesque': '200 800',
+  'Playfair Display': '400 900',
 };
 export type BundledFamily = keyof typeof BUNDLED_FONTS;
 

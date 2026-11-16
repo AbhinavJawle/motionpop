@@ -5,6 +5,7 @@ import { componentFor, isScene, lookFor } from '../registry';
 import { sceneTiming } from './scene-timing';
 import type { CompileCaptions, CompileInput, CompileSlot } from './types';
 import type { ImageRef } from '../contract';
+import { fontStack } from '../fonts/font-faces';
 
 /**
  * A slot that renders in `format`: ready, its component or scene exists and supports the format,
@@ -21,9 +22,37 @@ export function isRenderable(slot: Slot, format?: Format): boolean {
 
 /** The look of a project (see `lookFor`), with its brand colours when it has a brand kit. */
 export function styleFor(
-  project: Pick<EditorProject, 'styleId'> & { brand?: EditorProject['brand'] },
+  project: Pick<EditorProject, 'styleId'> & {
+    brand?: EditorProject['brand'];
+    fonts?: EditorProject['fonts'];
+  },
 ) {
-  return withBrand(lookFor(project.styleId), project.brand);
+  const look = withBrand(lookFor(project.styleId), project.brand);
+  const f = project.fonts;
+  if (!f?.display && !f?.body) return look;
+  return withFonts(look, f.display, f.body);
+}
+
+const fontCache = new Map<string, ReturnType<typeof lookFor>>();
+/** The look with the project's chosen families (cached: selectors need a stable object). */
+function withFonts<L extends ReturnType<typeof lookFor>>(
+  look: L,
+  display?: string,
+  body?: string,
+): L {
+  const key = `${look.id}|${look.colors.accent}|${look.colors.accent2}|${display ?? ''}|${body ?? ''}`;
+  const hit = fontCache.get(key);
+  if (hit) return hit as L;
+  const next = {
+    ...look,
+    fonts: {
+      ...look.fonts,
+      ...(display ? { display: fontStack(display) } : {}),
+      ...(body ? { body: fontStack(body) } : {}),
+    },
+  } as L;
+  fontCache.set(key, next);
+  return next;
 }
 
 /** One slot for the compiler. Scenes also get the voice: words, stress and pauses (spec 07). */

@@ -61,7 +61,8 @@ export function ToolRail() {
                 id === 'audio' ||
                 id === 'styles' ||
                 id === 'brand' ||
-                id === 'media'
+                id === 'media' ||
+                id === 'fonts'
               ) {
                 // Spec 11 §12: the Voice and Projects panels share the left panel.
                 if (settingsOpen || useRailPanel.getState().open !== id) {

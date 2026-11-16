@@ -5,6 +5,16 @@ import { FormatSchema } from './format';
 import { EnergySchema } from './score';
 import { TranscriptSchema } from './transcript';
 
+/** Families a project may pick in the Fonts panel (every one is bundled in packages/motion, OFL). */
+export const FONT_CHOICES = [
+  'Geist',
+  'Fraunces',
+  'Space Grotesk',
+  'Bricolage Grotesque',
+  'Playfair Display',
+] as const;
+export type FontChoice = (typeof FONT_CHOICES)[number];
+
 /** Integer milliseconds, never negative (architecture.md: no float seconds). */
 export const IntMsSchema = z.number().int().nonnegative();
 
@@ -289,6 +299,12 @@ export const EditorProjectBaseSchema = z.object({
   audio: AudioSettingSchema.optional(),
   /** Brand colours over the look's accents; absent means the look's own (Brand panel). */
   brand: BrandSchema.optional(),
+  /** Type over the look's own (Fonts panel): bundled OFL families only. */
+  fonts: z
+    .object({ display: z.enum(FONT_CHOICES), body: z.enum(FONT_CHOICES) })
+    .partial()
+    .strict()
+    .optional(),
   /** Images the scenes use (spec 07 R4): generated, uploaded or from the open media search. */
   assets: z.array(ImageAssetSchema).max(60).optional(),
 });
