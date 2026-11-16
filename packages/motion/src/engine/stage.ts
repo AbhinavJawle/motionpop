@@ -688,7 +688,7 @@ export function stage(
       const from = opts.countFrom ?? 0;
       const a = formatCount(value, fmt);
       const b = formatCount(from, fmt);
-      const css = `font-weight:${style.fonts.displayWeight};font-family:${fontStack(style.fonts.display)};font-variant-numeric:tabular-nums;color:${style.colors.ink};white-space:nowrap;`;
+      const css = `font-weight:${style.fonts.displayWeight};font-family:${fontStack(style.fonts.display)};font-variant-numeric:lining-nums tabular-nums;color:${style.colors.ink};white-space:nowrap;`;
       // Fit the box to the widest string the counter will show, once.
       const { el, size } = place(id, slot, css, b.length > a.length ? b : a, false);
       if (opts.focal ?? true) el.dataset.focal = '';

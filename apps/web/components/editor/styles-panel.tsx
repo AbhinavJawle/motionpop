@@ -11,6 +11,7 @@ const STILLS: Readonly<Record<string, string>> = {
   'editorial-explainer': '/looks/editorial-explainer.jpg',
   'field-notes': '/looks/field-notes.jpg',
   'paper-collage': '/looks/paper-collage.jpg',
+  newsprint: '/looks/newsprint.jpg',
 };
 
 /**

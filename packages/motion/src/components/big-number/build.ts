@@ -130,7 +130,7 @@ export function buildBigNumber(ctx: BuildContext, p: BigNumberParams): Compositi
   const fmt: CountFormat = { prefix: p.prefix, suffix: p.suffix, decimals: p.decimals };
   const num = text(
     layout.number,
-    `font-weight:${style.fonts.displayWeight};font-family:${fontStack(style.fonts.display)};font-variant-numeric:tabular-nums;color:${style.colors.ink};white-space:nowrap;`,
+    `font-weight:${style.fonts.displayWeight};font-family:${fontStack(style.fonts.display)};font-variant-numeric:lining-nums tabular-nums;color:${style.colors.ink};white-space:nowrap;`,
     widestCount(p),
     false,
     'number',

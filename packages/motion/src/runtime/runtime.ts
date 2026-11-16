@@ -9,6 +9,7 @@ import type { RuntimeProject } from '../compiler/types';
 import { CUSTOM_ALLOW_FLAG } from '../components/custom/build';
 import { createEngine, type SlotError, type SlotWarning } from './engine';
 import { mountBackdrop } from './backdrop';
+import { mountLens } from './lens';
 import { mountCaptions } from './captions';
 import { fontStack } from '../fonts/font-faces';
 
@@ -41,6 +42,8 @@ if (project) {
   let captions: { seek(tMs: number): void } | null = null;
   const backdropHost = document.getElementById('mp-backdrop');
   const backdrop = backdropHost ? mountBackdrop(backdropHost, project) : null;
+  const lensHost = document.getElementById('mp-lens');
+  const lens = lensHost ? mountLens(lensHost, project) : null;
   // Captions measure text, so they mount once the engine has loaded the fonts (spec 12 R5).
   const ready = engine.ready.then(() => {
     const host = document.getElementById('mp-captions');
@@ -63,6 +66,7 @@ if (project) {
     lastMs = tMs;
     backdrop?.seek(tMs);
     engine.seek(tMs);
+    lens?.seek(tMs);
     captions?.seek(tMs);
   };
   // Registered synchronously so seeks that arrive before fonts are ready are not lost.

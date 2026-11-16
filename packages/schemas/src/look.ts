@@ -77,6 +77,8 @@ export const ImageTreatmentSchema = z.enum([
   'tilt',
   'duotone',
   'halftone',
+  // A torn sheet of colour behind a cutout, offset like a collage layer.
+  'backing',
 ]);
 
 const Unit = z.number().min(0).max(1);

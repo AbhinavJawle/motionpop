@@ -54,12 +54,28 @@ const server = createServer(async (req, res) => {
 await new Promise<void>((r) => server.listen(0, r));
 const port = (server.address() as { port: number }).port;
 const { MAP_FILES, mapImageId } = await import('../src/scenes/map-zoom/globe');
-const images = Object.fromEntries(
+// --image path[,keyed]: a picture for scenes with an image role (data URL, like the preview).
+const imageArg = opt('image');
+const picture = imageArg
+  ? await (async () => {
+      const [path, keyed] = imageArg.split(',');
+      const buf = await readFile(path!);
+      return {
+        src: `data:image/webp;base64,${buf.toString('base64')}`,
+        width: 1024,
+        height: 1024,
+        keyed: keyed === 'keyed',
+      };
+    })()
+  : null;
+const images: Record<string, unknown> = Object.fromEntries(
   Object.entries(MAP_FILES).map(([style, f]) => [
     mapImageId(style as keyof typeof MAP_FILES),
     { src: `http://127.0.0.1:${port}/${f}`, width: 8192, height: 4096, keyed: false },
   ]),
 );
+if (picture) images['pic'] = picture;
+const role = (scene as unknown as { imageRoles?: { id: string }[] }).imageRoles?.[0]?.id;
 
 const [w, h] = format === '16:9' ? [1920, 1080] : format === '9:16' ? [1080, 1920] : [1080, 1080];
 const out = join(pkgDir, '.check', 'sheet');
@@ -81,11 +97,17 @@ for (const lookId of lookIds) {
         content: { ...(scene.defaultContent as object), ...extra },
         variant,
         beats: [],
-        images: [],
+        images: picture && role ? [{ role, subject: 'test picture', assetId: 'pic' }] : [],
       },
     } as unknown as CompileSlot;
     const html = compileProject(
-      { format, durationMs: dur, style: looks[lookId]!, slots: [slot], images },
+      {
+        format,
+        durationMs: dur,
+        style: looks[lookId]!,
+        slots: [slot],
+        images: images as never,
+      },
       assets,
     );
     const page = await browser.newPage();

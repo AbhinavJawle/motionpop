@@ -1,0 +1,66 @@
+{
+  "id": "newsprint",
+  "name": "Newsprint",
+  "tagline": "Cut from the paper. Marked in red.",
+  "tags": ["Explainer", "Collage", "Maps"],
+  "description": "Newsprint collage: halftone cut-outs on torn colour, highlighter on the words that matter, red marker, paper maps and a 12 fps hand-made step.",
+  "colors": {
+    "bg": "#EEE8DC",
+    "ink": "#141414",
+    "muted": "#5B5650",
+    "accent": "#E2412B",
+    "accent2": "#2C64A8",
+    "highlight": "#FFD84D",
+    "positive": "#2D7A4A",
+    "negative": "#C2301E",
+    "chart": ["#C9C1B2", "#8F877A", "#E2412B"]
+  },
+  "fonts": {
+    "display": "Playfair Display",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 800
+  },
+  "texture": { "grain": 0.1, "paper": true, "vignette": 0.16 },
+  "motion": {
+    "enterEase": "outExpo",
+    "moveEase": "inOutCubic",
+    "enterMs": 500,
+    "staggerMs": 80,
+    "holdMs": 900,
+    "camera": { "pushIn": 1.04 }
+  },
+  "shape": { "radius": 0, "stroke": 3 },
+  "allowPlayful": false,
+  "energy": "lively",
+  "personality": {
+    "preset": "stepped",
+    "enter": { "text": "slam", "number": "count", "image": "pop", "shape": "draw" },
+    "overshoot": 0.07,
+    "popMax": 0.08,
+    "exitRatio": 0.45,
+    "stepFps": 12,
+    "snapMargin": 15
+  },
+  "camera": { "push": [1, 1.05], "snap": 0.06, "whip": false, "parallax": 24 },
+  "surfaces": {
+    "card": ["paper", "torn-edge", "shadow-soft", "tape"],
+    "photo": ["white-border", "tape", "tilt", "shadow-soft"],
+    "label": ["plain"],
+    "strip": ["torn-edge", "shadow-soft", "tilt"]
+  },
+  "marks": {
+    "emphasis": "highlighter",
+    "pointer": "marker-arrow",
+    "divider": "torn-rule",
+    "badge": "stamp"
+  },
+  "juice": ["camera-push", "camera-snap", "parallax-shift", "decor-draw", "texture-drift"],
+  "image": {
+    "recipe": "{subject}, archival newspaper photograph, high contrast black and white, coarse halftone print texture, sharp subject",
+    "treatment": ["key", "white-border", "backing", "halftone", "shadow-soft", "tilt"]
+  },
+  "sound": { "enter": "paper", "mark": "pen", "focal": "thud", "snap": "whoosh" },
+  "transitions": ["paper-wipe", "push", "pull", "whip"],
+  "map": { "style": "paper" }
+}

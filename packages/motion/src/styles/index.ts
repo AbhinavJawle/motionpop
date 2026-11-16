@@ -3,6 +3,7 @@ import { BUNDLED_FONTS } from '../fonts/font-faces';
 import editorialExplainerJson from './editorial-explainer.json' with { type: 'json' };
 import fieldNotesJson from './field-notes.json' with { type: 'json' };
 import paperCollageJson from './paper-collage.json' with { type: 'json' };
+import newsprintJson from './newsprint.json' with { type: 'json' };
 import testInvertedJson from './test-inverted.json' with { type: 'json' };
 
 /** Parses a pack and checks that every font family it names is bundled (spec 03, review F3). */
@@ -47,8 +48,16 @@ export const fieldNotes: Look = parseLook(fieldNotesJson);
  */
 export const paperCollage: Look = parseLook(paperCollageJson);
 
+/**
+ * Newsprint: the editorial collage explainer. Newsprint ground, halftone cut-outs on torn colour,
+ * highlighter and red marker, high-contrast serif headlines, paper maps, paper-sweep and pull-back
+ * cuts, and a 12 fps step.
+ */
+export const newsprint: Look = parseLook(newsprintJson);
+
 /** Polished looks (spec 07 R3.4). */
 export const looks: Readonly<Record<string, Look>> = {
+  [newsprint.id]: newsprint,
   [fieldNotes.id]: fieldNotes,
   [paperCollage.id]: paperCollage,
 };

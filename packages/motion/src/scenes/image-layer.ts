@@ -85,6 +85,30 @@ const jitter = (seed: number, salt: number) => {
   return (x - Math.floor(x)) * 2 - 1;
 };
 
+/** #RRGGBB → [r, g, b] in 0..1 (SVG filter tables). */
+function rgbUnit(hex: string): [string, string, string] {
+  const n = Number.parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => (v / 255).toFixed(3)) as [
+    string,
+    string,
+    string,
+  ];
+}
+
+/** A rectangle with torn edges as a clip-path polygon, deterministic per seed. */
+function tornRect(seed: number): string {
+  const pts: string[] = [];
+  const n = 14;
+  const j = (i: number, s: number) => (1.2 + (jitter(seed + s, i) + 1) * 1.1).toFixed(2);
+  for (let i = 0; i <= n; i++) pts.push(`${((i / n) * 100).toFixed(2)}% ${j(i, 1)}%`);
+  for (let i = 0; i <= n; i++)
+    pts.push(`${(100 - Number(j(i, 2))).toFixed(2)}% ${((i / n) * 100).toFixed(2)}%`);
+  for (let i = 0; i <= n; i++)
+    pts.push(`${(100 - (i / n) * 100).toFixed(2)}% ${(100 - Number(j(i, 3))).toFixed(2)}%`);
+  for (let i = 0; i <= n; i++) pts.push(`${j(i, 4)}% ${(100 - (i / n) * 100).toFixed(2)}%`);
+  return `polygon(${pts.join(',')})`;
+}
+
 /** Ease that overshoots by roughly `s` and lands exactly at 1. */
 const back = (x: number, s: number): number => {
   const p = Math.max(0, Math.min(1, x)) - 1;
@@ -171,6 +195,44 @@ export function buildImageLayer(args: {
     frame.append(inner);
   }
   if (keyed) frame.append(img);
+  // Print treatments: duotone maps the picture onto ink and the accent; halftone screens it with
+  // a dot pattern (only over the subject: the dots are masked by the cutout's own alpha).
+  const filters: string[] = [];
+  if (treat.has('duotone')) {
+    const id = `mp-duo-${seed}`;
+    const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('width', '0');
+    svg.setAttribute('height', '0');
+    svg.style.position = 'absolute';
+    const [r1, g1, b1] = rgbUnit(style.colors.ink);
+    const [r2, g2, b2] = rgbUnit(style.colors.highlight);
+    svg.innerHTML = `<filter id="${id}" color-interpolation-filters="sRGB"><feColorMatrix type="matrix" values="0.299 0.587 0.114 0 0 0.299 0.587 0.114 0 0 0.299 0.587 0.114 0 0 0 0 0 1 0"/><feComponentTransfer><feFuncR type="table" tableValues="${r1} ${r2}"/><feFuncG type="table" tableValues="${g1} ${g2}"/><feFuncB type="table" tableValues="${b1} ${b2}"/></feComponentTransfer></filter>`;
+    outer.append(svg);
+    filters.push(`url(#${id})`);
+  }
+  if (treat.has('halftone')) {
+    filters.push('contrast(1.18) saturate(0.85)');
+    const dots = doc.createElement('div');
+    const cell = Math.max(4, Math.round(frameH * 0.0055));
+    const mask = keyed
+      ? `-webkit-mask-image:url("${ref.src}");mask-image:url("${ref.src}");-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;`
+      : '';
+    dots.style.cssText = `position:absolute;inset:${keyed ? 0 : border}px;pointer-events:none;background-image:radial-gradient(circle, rgba(20,16,12,0.42) ${(cell * 0.24).toFixed(2)}px, transparent ${(cell * 0.32).toFixed(2)}px);background-size:${cell}px ${cell}px;mix-blend-mode:multiply;${mask}`;
+    frame.append(dots);
+  }
+  if (filters.length) {
+    const prev = img.style.filter;
+    img.style.filter = `${filters.join(' ')}${prev ? ` ${prev}` : ''}`;
+  }
+  // Torn edges on a photo: a jagged clip all round.
+  if (!keyed && treat.has('torn-edge')) frame.style.clipPath = tornRect(seed);
+  // A torn sheet of colour behind a cutout, offset and turned against the picture's tilt.
+  if (treat.has('backing')) {
+    const back = doc.createElement('div');
+    const colour = seed % 2 === 0 ? style.colors.accent : style.colors.accent2;
+    back.style.cssText = `position:absolute;left:${(fw * 0.06).toFixed(1)}px;top:${(fh * 0.08).toFixed(1)}px;width:${(fw * 0.92).toFixed(1)}px;height:${(fh * 0.9).toFixed(1)}px;background:${colour};clip-path:${tornRect(seed + 5)};transform:rotate(${(-jitter(seed, 4) * 5 - 3).toFixed(2)}deg);box-shadow:0 2px 6px rgba(0,0,0,0.15);`;
+    outer.append(back);
+  }
   outer.append(frame);
   if (treat.has('tape')) {
     const tape = doc.createElement('div');

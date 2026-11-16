@@ -143,6 +143,7 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
       `    <div id="${escapeAttr(s.id)}" class="clip mp-slot" data-start="${sec(s.startMs)}" data-duration="${sec(s.endMs - s.startMs)}" data-track-index="1"></div>`,
     );
   }
+  if (opaque) layers.push('    <div id="mp-lens"></div>');
   layers.push('    <div id="mp-captions"></div>');
 
   const pageBg = opaque ? style.colors.bg : 'transparent';
@@ -153,7 +154,7 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
 <style>
 ${fontFaceCss(families, assets.fonts)}
   html, body { margin: 0; background: ${pageBg}; }
-  #mp-root { position: relative; width: ${width}px; height: ${height}px; overflow: hidden; background: transparent; }
+  #mp-root { position: relative; width: ${width}px; height: ${height}px; overflow: hidden; background: transparent; font-variant-numeric: lining-nums; }
   .mp-bg { position: absolute; inset: 0; background: ${style.colors.bg}; }
   .mp-texture { position: absolute; inset: 0; pointer-events: none; }
 ${textureCss.join('\n')}

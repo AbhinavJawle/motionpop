@@ -46,6 +46,9 @@ export function mountBackdrop(host: HTMLElement, project: RuntimeProject): Backd
     'personality' in style && style.personality?.stepFps ? 1000 / style.personality.stepFps : 0;
 
   host.style.cssText = 'position:absolute;inset:0;overflow:hidden;pointer-events:none;';
+  // Stepped (collage) looks get torn paper scraps instead of soft light: blurred colour reads as
+  // dirt on newsprint.
+  if (step > 0) return mountScraps(host, project, step);
   const blobs = [
     { color: c.accent, r: 0.62, cx: 0.18, cy: 0.22, ax: 0.1, ay: 0.08, p: 23000, ph: 0.3 },
     { color: c.accent2, r: 0.7, cx: 0.86, cy: 0.78, ax: 0.09, ay: 0.1, p: 29000, ph: 2.1 },
@@ -97,6 +100,72 @@ export function mountBackdrop(host: HTMLElement, project: RuntimeProject): Backd
         band.style.opacity = (Math.sin(outCubic(since / SWEEP_MS) * Math.PI) * 1).toFixed(3);
         band.style.transform = `translate(${x.toFixed(1)}px,0) skewX(-14deg)`;
       } else band.style.opacity = '0';
+    },
+  };
+}
+
+/** A torn polygon around a rectangle, deterministic per seed (percent units). */
+function torn(seed: number): string {
+  const r = (i: number) => {
+    const x = Math.sin(seed * 91.7 + i * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+  };
+  const pts: string[] = [];
+  const n = 10;
+  for (let i = 0; i <= n; i++) pts.push(`${(i * 10).toFixed(1)}% ${(r(i) * 4).toFixed(1)}%`);
+  for (let i = 0; i <= n; i++)
+    pts.push(`${(100 - r(i + 20) * 4).toFixed(1)}% ${(i * 10).toFixed(1)}%`);
+  for (let i = 0; i <= n; i++)
+    pts.push(`${(100 - i * 10).toFixed(1)}% ${(100 - r(i + 40) * 4).toFixed(1)}%`);
+  for (let i = 0; i <= n; i++)
+    pts.push(`${(r(i + 60) * 4).toFixed(1)}% ${(100 - i * 10).toFixed(1)}%`);
+  return `polygon(${pts.join(',')})`;
+}
+
+/**
+ * Collage backdrop: two big torn scraps of tinted paper parked off the corners, drifting with a
+ * slow parallax in 12 fps steps, and nudged on every graphic's entrance.
+ */
+function mountScraps(host: HTMLElement, project: RuntimeProject, step: number): Backdrop {
+  const doc = host.ownerDocument;
+  const { width: w, height: h, style } = project;
+  const c = style.colors;
+  const tint = (hex: string, a: number) =>
+    `color-mix(in srgb, ${hex} ${Math.round(a * 100)}%, ${c.bg})`;
+  const scraps = [
+    {
+      color: tint(c.highlight, 0.45),
+      x: -0.08,
+      y: -0.12,
+      sw: 0.42,
+      sh: 0.5,
+      rot: -6,
+      seed: 2,
+      px: 1,
+    },
+    { color: tint(c.accent2, 0.18), x: 0.7, y: 0.62, sw: 0.4, sh: 0.55, rot: 8, seed: 5, px: -1 },
+  ].map((s) => {
+    const el = doc.createElement('div');
+    el.style.cssText = `position:absolute;left:${s.x * w}px;top:${s.y * h}px;width:${s.sw * w}px;height:${s.sh * h}px;background:${s.color};clip-path:${torn(s.seed)};box-shadow:0 2px 8px rgba(0,0,0,0.08);will-change:transform;`;
+    host.append(el);
+    return { ...s, el };
+  });
+  const starts = project.slots.map((s) => s.startMs).sort((a, b) => a - b);
+  return {
+    seek(raw: number) {
+      const t = Math.floor(raw / step) * step;
+      let last = -Infinity;
+      for (const s of starts) {
+        if (s <= t) last = s;
+        else break;
+      }
+      const since = t - last;
+      const nudge = since >= 0 && since < 400 ? Math.sin((since / 400) * Math.PI) : 0;
+      for (const s of scraps) {
+        const dx = s.px * (Math.sin(t / 5200 + s.seed) * w * 0.012 + nudge * w * 0.01);
+        const dy = Math.cos(t / 6100 + s.seed) * h * 0.01;
+        s.el.style.transform = `translate(${dx.toFixed(1)}px,${dy.toFixed(1)}px) rotate(${(s.rot + nudge * s.px).toFixed(2)}deg)`;
+      }
     },
   };
 }
