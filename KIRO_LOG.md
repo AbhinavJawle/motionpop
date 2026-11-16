@@ -1194,3 +1194,14 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - **Kiro features used:** the session-start hook's context, steering (handoff §9–§12 and the workspace rules), the three `REVIEW.md` files, spec 13's tasks and design for the contract, and file search by grep for the name checks. Context7 and the Firebase/Chrome MCPs were not needed for docs.
 - **What helped / what didn't:** the reviews named files and lines, so most fixes were lookups. The hard part was keeping three specs consistent with each other and with 08/09/13 without editing the latter: a change in one (the audio path, the credit prefix, the `captions` carve-out) had to be repeated in the other two, and a first Python edit script failed halfway on a string I had not read exactly, which wrote nothing and had to be redone.
 <!-- /kiro-cli:2026-11-16-spec-10-11-12-review-fixes -->
+
+<!-- kiro-session:sess_77b2d581-05fa-4ac2-89f8-3271310a44df -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T00:41:37.389Z · last stop: 2026-11-16T00:57:01.141Z · session: sess_77b2d581-05fa-4ac2-89f8-3271310a44df
+- commits since start: 
+  - 48f0fcb docs: KIRO_LOG entry for the spec 10, 11 and 12 review fixes
+  - c85d570 docs(12-formats-captions-sound): apply spec review findings F1-F16
+  - 5eda6ca docs(11-dashboard-start-recording): apply spec review findings F1-F16
+  - 99bc628 docs(10-pip-panel): apply spec review findings F1-F14
+- uncommitted changes: none
+<!-- /kiro-session:sess_77b2d581-05fa-4ac2-89f8-3271310a44df -->
