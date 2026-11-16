@@ -55,7 +55,7 @@ export function TopBar() {
       </Link>
       <span aria-hidden className="mr-4 ml-6 h-5 w-px bg-line-strong" />
       <Link
-        href="/"
+        href="/dashboard"
         className="flex items-center gap-1 text-xs leading-4 text-text-2 transition-colors hover:text-text"
       >
         <ChevronLeft className="size-4" strokeWidth={1.5} aria-hidden />

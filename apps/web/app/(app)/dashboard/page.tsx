@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
-import { DashboardPlaceholder } from '@/components/auth/dashboard-placeholder';
+import { DashboardScreen } from '@/components/dashboard/dashboard-screen';
 
 export const metadata: Metadata = { title: 'Projects · motionpop' };
 
 export default function DashboardPage() {
-  return <DashboardPlaceholder />;
+  return <DashboardScreen />;
 }

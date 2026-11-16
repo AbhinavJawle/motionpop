@@ -92,8 +92,11 @@ test.describe('Sign in (Auth emulator)', () => {
     expect(tx?.balanceAfter?.integerValue).toBe('20');
 
     await page.goto('/dashboard');
-    await expect(page.getByTestId('dashboard-title')).toHaveText('Hi, creator@example.com');
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    // Changed by spec 11 task 10: the real dashboard greets by first name ("there" without a
+    // display name) and Sign out lives in the avatar menu.
+    await expect(page.getByTestId('dashboard-title')).toHaveText(/, there\??$/);
+    await page.getByRole('button', { name: 'Account menu' }).click();
+    await page.getByRole('menuitem', { name: 'Sign out' }).click();
     await expect(page).toHaveURL(/\/sign-in/);
 
     await page.goto('/sign-in?next=%2Fdashboard');
