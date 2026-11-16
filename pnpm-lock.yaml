@@ -303,6 +303,12 @@ importers:
       firebase-admin:
         specifier: 14.5.1
         version: 14.5.1(@firebase/app-compat@0.5.22)(@firebase/app@0.16.6)
+      puppeteer:
+        specifier: ~25.13.0
+        version: 25.13.0
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       zod:
         specifier: 'catalog:'
         version: 4.6.7
@@ -313,12 +319,6 @@ importers:
       fast-check:
         specifier: 'catalog:'
         version: 4.10.2
-      puppeteer:
-        specifier: ~25.13.0
-        version: 25.13.0
-      tsx:
-        specifier: ^4.23.15
-        version: 4.23.15
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

@@ -21,7 +21,11 @@ function graph(entry: string): { file: string; spec: string }[] {
   const visit = (file: string) => {
     if (seen.has(file)) return;
     seen.add(file);
-    const src = readFileSync(file, 'utf8');
+    // `import type` is erased by the compiler and cannot pull a module into the bundle.
+    const src = readFileSync(file, 'utf8').replace(
+      /(?:import|export)\s+type\s[^;]*?from\s*['"][^'"]+['"]/g,
+      '',
+    );
     const re =
       /(?:import|export)\s[^'"]*?from\s*['"]([^'"]+)['"]|import\(\s*['"]([^'"]+)['"]\s*\)|import\s*['"]([^'"]+)['"]/g;
     for (const m of src.matchAll(re)) {

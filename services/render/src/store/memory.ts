@@ -1,14 +1,8 @@
 // In-memory render store: offline mode and tests. It applies the same rules as the Firestore
 // store (transition table, progress that never goes down, one refund per render).
-import {
-  canTransition,
-  isActiveStatus,
-  nextProgress,
-  type RenderDoc,
-  type RenderErrorCode,
-} from '@motionpop/schemas';
+import { nextProgress, type RenderDoc, type RenderErrorCode } from '@motionpop/schemas';
 import type { JobStage, RenderOutput, RenderStore, StoreWrite } from '../ports';
-import { decideFail } from './logic';
+import { canFinish, canHeartbeat, canStart, decideFail, decideProgress } from './logic';
 
 export interface MemoryLedgerEntry {
   id: string;
@@ -43,7 +37,7 @@ export class MemoryRenderStore implements RenderStore {
 
   async markStarted(renderId: string): Promise<boolean> {
     const d = this.docs.get(renderId);
-    if (!d || !canTransition(d.status, 'rendering')) return false;
+    if (!d || !canStart(d)) return false;
     const at = this.now();
     this.docs.set(renderId, {
       ...d,
@@ -57,14 +51,13 @@ export class MemoryRenderStore implements RenderStore {
 
   async progress(renderId: string, stage: JobStage, progress: number): Promise<StoreWrite> {
     const d = this.docs.get(renderId);
-    if (!d || (d.status !== 'rendering' && d.status !== 'encoding')) return 'inactive';
-    // A stage never goes back: `encoding` stays `encoding`, `rendering` may move to `encoding`.
-    const status = d.status === 'rendering' && stage === 'encoding' ? 'encoding' : d.status;
+    if (!d) return 'inactive';
+    const decision = decideProgress(d, stage, progress);
+    if (decision.kind === 'inactive') return 'inactive';
     this.docs.set(renderId, {
       ...d,
-      status,
-      // 100 is reserved for `done`.
-      progress: Math.min(99, nextProgress(d.progress, progress)),
+      status: decision.status,
+      progress: decision.progress,
       heartbeatAt: this.now(),
     });
     return 'ok';
@@ -72,14 +65,14 @@ export class MemoryRenderStore implements RenderStore {
 
   async heartbeat(renderId: string): Promise<StoreWrite> {
     const d = this.docs.get(renderId);
-    if (!d || !isActiveStatus(d.status)) return 'inactive';
+    if (!d || !canHeartbeat(d)) return 'inactive';
     this.docs.set(renderId, { ...d, heartbeatAt: this.now() });
     return 'ok';
   }
 
   async markDone(renderId: string, output: RenderOutput): Promise<StoreWrite> {
     const d = this.docs.get(renderId);
-    if (!d || !canTransition(d.status, 'done')) return 'inactive';
+    if (!d || !canFinish(d)) return 'inactive';
     this.docs.set(renderId, {
       ...d,
       status: 'done',
