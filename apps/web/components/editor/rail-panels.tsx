@@ -8,8 +8,9 @@ import { LeftPanel } from './left-panel';
 import { ProjectsPanelBody } from './projects-panel';
 import { VoicePanelBody } from './voice-panel';
 import { AudioPanelBody } from './audio-panel';
+import { StylesPanelBody } from './styles-panel';
 
-const LABELS = { voice: 'Voice', projects: 'Projects', audio: 'Audio' } as const;
+const LABELS = { voice: 'Voice', projects: 'Projects', audio: 'Audio', styles: 'Styles' } as const;
 
 /**
  * The Voice, Projects and Audio rail panels (spec 11 §12, spec 12 §8) in the shared left panel. Pip, Settings and
@@ -34,6 +35,7 @@ export function RailPanels() {
       {open === 'projects' && <ProjectsPanelBody />}
       {open === 'voice' && <VoicePanelBody />}
       {open === 'audio' && <AudioPanelBody />}
+      {open === 'styles' && <StylesPanelBody />}
     </LeftPanel>
   );
 }
