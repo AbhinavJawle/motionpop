@@ -1,5 +1,11 @@
 import { z } from 'zod';
-import { isFiller, type Transcript, type Word } from '@motionpop/schemas';
+import {
+  APP_CONFIG_DEFAULTS,
+  costOf,
+  isFiller,
+  type Transcript,
+  type Word,
+} from '@motionpop/schemas';
 import {
   TRANSCRIBE_CLOUD_SYSTEM_V1,
   transcribeCloudPromptV1,
@@ -35,7 +41,7 @@ export type TranscribeCloudOutput = z.infer<typeof TranscribeCloudOutputSchema>;
 
 /** 1 credit per started minute, at least 1 (ai-tasks.md cost table). */
 export function transcribeCloudCost(durationMs: number): number {
-  return Math.max(1, Math.ceil(durationMs / 60_000));
+  return costOf('transcribe', Math.max(1, Math.ceil(durationMs / 60_000)), APP_CONFIG_DEFAULTS);
 }
 
 /** Slack for a model that rounds the last word's end a little past the real duration. */

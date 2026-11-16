@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { SlotSuggestionSchema, type SlotSuggestion } from '@motionpop/schemas';
+import {
+  APP_CONFIG_DEFAULTS,
+  SlotSuggestionSchema,
+  costOf,
+  type SlotSuggestion,
+} from '@motionpop/schemas';
 import { SLOTS_DETECT_SYSTEM_V1, slotsDetectPromptV1 } from '../prompts/slots-detect.v1';
 import type { Router, RunResult, TaskDef } from '../router';
 import {
@@ -42,7 +47,7 @@ export type SlotsDetectOutput = z.infer<typeof SlotsDetectOutputSchema>;
 
 /** Cloud cost: 1 credit per 200 words, at least 1 (ai-tasks.md §1). */
 export const slotsDetectCost = (wordCount: number): number =>
-  Math.max(1, Math.ceil(wordCount / 200));
+  costOf('slots-detect', Math.max(1, Math.ceil(wordCount / 200)), APP_CONFIG_DEFAULTS);
 
 /**
  * `slots.detect`: on-device up to the configured word limit (400), cloud above. No automatic

@@ -44,7 +44,10 @@ export function costOf(
     if (!opts) throw new RangeError('export needs resolution and durationMs');
     return exportCost(opts.resolution, opts.durationMs, cfg.exportCredits);
   }
+  // An action never costs less than one credit: the spend response carries a positive cost.
   const unit =
-    action === 'image' ? cfg.imageCredits : (cfg.creditCosts[action] ?? DEFAULT_COSTS[action]);
+    action === 'image'
+      ? Math.max(1, cfg.imageCredits)
+      : (cfg.creditCosts[action] ?? DEFAULT_COSTS[action]);
   return unit * (isUnitAction(action) ? units : 1);
 }

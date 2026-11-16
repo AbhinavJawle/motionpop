@@ -1,6 +1,6 @@
 import { applyPatch, deepClone, validate, type Operation } from 'fast-json-patch';
 import { z } from 'zod';
-import { JsonPatchOpSchema } from '@motionpop/schemas';
+import { APP_CONFIG_DEFAULTS, JsonPatchOpSchema, costOf } from '@motionpop/schemas';
 import { EDIT_PATCH_SYSTEM_V1, editPatchPromptV1 } from '../prompts/edit-patch.v1';
 import type { TaskDef } from '../router';
 
@@ -65,7 +65,7 @@ export function editPatchTask(
     model: (cfg) => cfg.modelFast,
     system: EDIT_PATCH_SYSTEM_V1,
     prompt: editPatchPromptV1,
-    cloudCost: () => 1,
+    cloudCost: () => costOf('edit', 1, APP_CONFIG_DEFAULTS),
     cloudFallback: true,
     thinking: 'MINIMAL',
     check: (out, input) => {

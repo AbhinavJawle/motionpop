@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { APP_CONFIG_DEFAULTS, costOf } from '@motionpop/schemas';
 import { COMPONENT_FILL_SYSTEM_V1, componentFillPromptV1 } from '../prompts/component-fill.v1';
 import type { TaskDef } from '../router';
 
@@ -33,7 +34,7 @@ export const ComponentFillOutputSchema = z.object({
 export type ComponentFillOutput = z.infer<typeof ComponentFillOutputSchema>;
 
 /** Credits for Generate (the design's "☁ 3" chip). Auto-fill never reaches the cloud. */
-export const GENERATE_COST = 3;
+export const GENERATE_COST = costOf('generate', 1, APP_CONFIG_DEFAULTS);
 
 /** Repair rounds for a fill (spec 07 R1.4): the gate's reports go back to the same model. */
 export const FILL_MAX_REPAIRS = 2;
