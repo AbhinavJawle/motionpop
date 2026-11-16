@@ -29,6 +29,25 @@ jobs:
       - run: pnpm test
       - run: pnpm build
 
+  motion:
+    # motion:check per scene/component: stills in 3 formats, layout, contrast, composition.
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        id: [big-number, stat-punch, hook-statement, versus]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      # Ubuntu 24.04 blocks the unprivileged user namespaces Chrome's sandbox needs.
+      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm motion:check ${{ matrix.id }}
+
   secrets:
     runs-on: ubuntu-latest
     steps:
