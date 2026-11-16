@@ -449,3 +449,27 @@ Template:
 - **Verified on hosted:** a Japan map slot shows the terrain globe flying in, in the editor preview and in the exported 1080p MP4 (Cloud Run, software WebGL). A local `render:project` run of a Newsprint map also rendered the paper globe.
 - No Kiro runs this session.
 
+
+## 2026-11-16 (evening) · Claude Code · a fully working product first
+- **Founder ask:** make everything work end to end (marketing page, editor, dashboard) before more style work. Pasting long scripts looked broken, and 3,000 characters was too short. Keep the budget low. Use Kiro (cheap model) for the major test runs. Leave the existing styles alone.
+- **Built and deployed:**
+  - **Long scripts (D-072).** The limit is now 6,000 characters. The script moves between screens in session storage instead of the URL, and nothing is trimmed silently: a red counter plus "Trim N characters". The voice is made in parts of up to 1,200 characters with "part N of M" progress. The export cap is 8 minutes.
+  - **Render limits corrected.** My first D-072 numbers were wrong: at ~11× real time, an 8-minute map video needs ~90 min, so the 60-minute job timeout would have cut it off. The job now allows 150 min. The longest export costs about $0.50 of Cloud Run. Distributed rendering is noted as the upgrade path.
+  - **A `/styles` gallery.** The dashboard's Styles tab and "Explore styles" only showed a toast; they now open it.
+  - **Single graphic.** "Or just make a single graphic" only showed a toast. It now turns one typed line into a short project with one graphic on a silent track, with no captions.
+  - **Landing hero.** It now plays a real 1080p export (a globe flight plus a stat). The old sample was mostly empty frames.
+  - **Share page.** The poster is now the render's still.
+  - **Audio.** Deleting a project right after duplicating it no longer leaves orphaned audio. Regression test added; it fails without the fix.
+- **Hosted end-to-end checks (judge account, automated Chrome):**
+  - A 3,033-character script voiced in 3 parts (54 s), processed in 115 s → 192 s video, 29 slots.
+  - Upload (12 s to editor) and recording with a fake mic (12 s).
+  - Single graphic (6 s).
+  - Dashboard rename / duplicate / delete / search, all surviving a reload.
+  - Export of a 9 s video (240 s, of which ~2.5 min is Cloud Run cold start on a 493 MB image) → Copy share link → anonymous share page plays.
+  - `/styles` → Start with a style.
+- **Known, not fixed:**
+  - Every export pays the cold start.
+  - The dashboard thumbnail glyph shows bars for map slots.
+  - `detect-perf.test.ts` can flake under full-suite load.
+- **Kiro:** run10 verified the long-script change and fixed three tests that hard-coded the old export cap. run11 verified the gallery, landing, audio and render commits and changed nothing (see KIRO_LOG).
+- **Cost this session:** about 3 minutes of TTS, two short exports and a few Cloud Run builds: cents.
