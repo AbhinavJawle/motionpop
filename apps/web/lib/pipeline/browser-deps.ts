@@ -5,7 +5,7 @@ import { audioStore } from '../audio/audio-store';
 import { decodeForPipeline } from '../audio/decode';
 import { renderCleaned } from '../audio/render-cleaned';
 import { encodeWav } from '../audio/wav';
-import { IdbProjectRepository } from '../projects/idb-repository';
+import { projectLibrary } from '../projects/use-project-list';
 import { validateParams } from '../slots/validate-params';
 import { transcribeOnDevice } from '../transcribe/whisper-client';
 import type { PipelineDeps } from './run';
@@ -37,7 +37,7 @@ export function browserPipelineDeps(): PipelineDeps {
     renderCleaned,
     encodeWav,
     audioStore: audioStore(),
-    repo: new IdbProjectRepository(),
+    repo: projectLibrary(),
     now: () => Date.now(),
     newId: newProjectId,
     styleId: DEFAULT_STYLE_ID,

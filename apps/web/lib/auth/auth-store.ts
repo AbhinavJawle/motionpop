@@ -98,3 +98,30 @@ export function subscribeAuth(listener: () => void): () => void {
 
 export const getAuthSnapshot = (): AuthState => state;
 export const getServerAuthSnapshot = (): AuthState => LOADING;
+
+/** The signed-in uid right now, or null (loading, local mode or signed out). */
+export function currentUid(): string | null {
+  return state.status === 'signed-in' ? state.user.uid : null;
+}
+
+/** Resolves once Firebase has answered (never 'loading'); at most `timeoutMs` later. */
+export function authSettled(timeoutMs = 4000): Promise<void> {
+  if (state.status !== 'loading') return Promise.resolve();
+  return new Promise((resolve) => {
+    // A holder, not a `let`: the listener may run before `subscribeAuth` returns.
+    const sub: { stop?: () => void } = {};
+    let finished = false;
+    const done = () => {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      sub.stop?.();
+      resolve();
+    };
+    const timer = setTimeout(done, timeoutMs);
+    sub.stop = subscribeAuth(() => {
+      if (state.status !== 'loading') done();
+    });
+    if (finished) sub.stop();
+  });
+}

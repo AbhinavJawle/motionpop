@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Timeline } from '@/components/timeline/timeline';
 import { PlaybackClock } from '@/lib/editor/playback';
 import { loadVoice, type LoadedVoice } from '@/lib/editor/voice';
-import { IdbProjectRepository } from '@/lib/projects/idb-repository';
+import { projectLibrary } from '@/lib/projects/use-project-list';
 import { openProject } from '@/lib/projects/open';
 import type { ProjectLibrary } from '@/lib/projects/repository';
 import { startAutosave } from '@/lib/stores/autosave';
@@ -48,7 +48,7 @@ export function EditorScreen({
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [voice, setVoice] = useState<LoadedVoice | null>(null);
-  const repo = useMemo<ProjectLibrary>(() => new IdbProjectRepository(), []);
+  const repo = useMemo<ProjectLibrary>(() => projectLibrary(), []);
   const clock = useMemo(() => new PlaybackClock(editorStore), []);
   const projectId = useEditor((s) => s.project?.id);
   const rejection = useEditor((s) => s.rejection);

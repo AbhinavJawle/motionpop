@@ -19,7 +19,7 @@ import { START_COPY } from '@/lib/dashboard/copy';
 import { clearPending, takePending } from '@/lib/intake/pending';
 import { runPipeline, type PipelineInput } from '@/lib/pipeline/run';
 import { sampleInput, sampleWords } from '@/lib/pipeline/sample';
-import { IdbProjectRepository } from '@/lib/projects/idb-repository';
+import { projectLibrary } from '@/lib/projects/use-project-list';
 import { DropZone } from './drop-zone';
 import { StepCard } from './step-card';
 import { WordStrip } from './word-strip';
@@ -51,11 +51,13 @@ export function ProcessingScreen({ id }: { id: string }) {
   useEffect(() => {
     if (id === 'new') return;
     let live = true;
-    void new IdbProjectRepository().load(id).then((r) => {
-      if (!live) return;
-      if (r.ok) router.replace(`/editor/${encodeURIComponent(id)}`);
-      else setPhase('interrupted');
-    });
+    void projectLibrary()
+      .load(id)
+      .then((r) => {
+        if (!live) return;
+        if (r.ok) router.replace(`/editor/${encodeURIComponent(id)}`);
+        else setPhase('interrupted');
+      });
     return () => {
       live = false;
     };
