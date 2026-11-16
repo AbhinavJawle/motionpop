@@ -111,7 +111,7 @@ export const SKILLS: readonly SkillEntry[] = [
   {
     id: 'journey-along-a-timeline',
     useWhen: 'the narration walks through dates, years, steps or a sequence of events',
-    worksWith: ['kinetic-headline', 'callout', 'line-chart'],
+    worksWith: ['kinetic-headline', 'callout', 'line-chart', 'timeline'],
     defaultDurationMs: 6000,
   },
   {
@@ -200,6 +200,18 @@ export const SCENES: readonly SceneEntry[] = [
     maxMs: 12000,
     built: true,
     // Spec 07 task 33: no component listed items before (lists went to a hook-statement).
+    replaces: [],
+  },
+  {
+    id: 'timeline',
+    name: 'Timeline',
+    useWhen: 'the narration walks through 3 to 6 dated events, years or steps in time',
+    minMs: 6600,
+    idealMs: 7400,
+    maxMs: 14000,
+    built: true,
+    // Spec 07 task 33: dated events had no graphic (years without values were a data-less
+    // line-chart suggestion).
     replaces: [],
   },
 ];

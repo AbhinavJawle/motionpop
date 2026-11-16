@@ -3,7 +3,7 @@ id: journey-along-a-timeline
 name: Journey Along a Timeline
 version: 1
 use_when: the narration walks through dates, years, steps or a sequence of events
-works_with: [kinetic-headline, callout, line-chart]
+works_with: [kinetic-headline, callout, line-chart, timeline]
 energy: medium
 default_duration: 6
 ---

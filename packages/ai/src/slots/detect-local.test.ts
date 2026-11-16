@@ -12,6 +12,7 @@ import {
   sceneDraft,
   sentenceIndex,
   slotBudget,
+  timelineDraft,
   versusSides,
 } from './detect-local';
 import { tagSpans } from './tagger';
@@ -204,6 +205,54 @@ describe('scoring and mapping', () => {
         },
       },
     });
+  });
+
+  it('turns three dated events into a timeline, each cue on its year', async () => {
+    const { scenes } = await import('@motionpop/motion');
+    const t = words(
+      'In',
+      '1903',
+      'the',
+      'first',
+      'plane',
+      'flew.',
+      'In',
+      '1927',
+      'a',
+      'pilot',
+      'crossed',
+      'the',
+      'ocean.',
+      'And',
+      'in',
+      '1969',
+      'people',
+      'walked',
+      'on',
+      'the',
+      'moon.',
+    );
+    const [tl] = detectLocal(t, tagSpans(t), { maxSlots: 1 });
+    expect(tl).toMatchObject({
+      componentId: 'timeline',
+      skillId: 'journey-along-a-timeline',
+      params: {
+        content: {
+          dates: ['1903', '1927', '1969'],
+          events: [
+            'The first plane flew',
+            'A pilot crossed the ocean',
+            'People walked on the moon',
+          ],
+        },
+      },
+    });
+    expect(tl?.params['beats']).toEqual(
+      [1, 7, 15].map((w, k) => ({ cue: `e${k + 1}`, word: w - (tl?.wordStart ?? 0) })),
+    );
+    expect(scenes['timeline']?.params.safeParse(tl?.params).success).toBe(true);
+    // Two years are not a timeline.
+    expect(timelineDraft(t, tagSpans(t), 0, 12)).toBeNull();
   });
 
   it('charts three values in one sentence as one chart-story, labelled by their words', async () => {

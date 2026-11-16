@@ -442,6 +442,69 @@ export function listDraft(
   };
 }
 
+/** timeline's limits (its content schema): 3 to 6 events of 1 to 6 words, 48 characters. */
+const TIMELINE_MIN = 3;
+const TIMELINE_MAX = 6;
+const EVENT_WORDS = 6;
+const EVENT_CHARS = 48;
+const EVENT_LEAD = new Set(['and', 'then', 'so', 'but']);
+const EVENT_TRAIL = new Set(['in', 'on', 'by', 'of', 'from', 'since', 'until', 'at', 'the', 'and']);
+
+/**
+ * A timeline draft over words `ws..we` (spec 07 task 33): the tagged years as dates, each event
+ * the spoken words after its year up to the next pause, or, when the year closes its clause
+ * ("opened an office in 2023."), the words before it. Each `e` cue lands on its year. Null when
+ * fewer than 3 years come with words, so no event is invented.
+ */
+export function timelineDraft(
+  words: readonly SlotWord[],
+  spans: readonly TaggedSpan[],
+  ws: number,
+  we: number,
+): { params: Record<string, unknown>; beats: { cue: string; word: number }[] } | null {
+  const years = spans
+    .filter(
+      (s) => s.kind === 'year' && s.value !== undefined && s.wordStart >= ws && s.wordEnd <= we,
+    )
+    .slice(0, TIMELINE_MAX);
+  if (years.length < TIMELINE_MIN) return null;
+  const bare = (t: string) => t.replace(/^[^\p{L}\p{N}$€£]+|[^\p{L}\p{N}%]+$/gu, '');
+  const ends = (i: number) => /[.,;:!?]["')\]]*$/.test(words[i]?.text ?? '');
+  const isYear = (i: number) => years.some((y) => y.wordStart === i);
+  const event = (ix: number[], keepEnd: boolean): string | null => {
+    let t = ix
+      .filter((i) => !words[i]?.filler)
+      .map((i) => bare(words[i]?.text ?? ''))
+      .filter(Boolean);
+    while (t.length && EVENT_LEAD.has(t[0]!.toLowerCase())) t = t.slice(1);
+    while (t.length && EVENT_TRAIL.has(t[t.length - 1]!.toLowerCase())) t = t.slice(0, -1);
+    while (t.length > EVENT_WORDS || (t.length && t.join(' ').length > EVENT_CHARS))
+      t = keepEnd ? t.slice(1) : t.slice(0, -1);
+    const s = t.join(' ');
+    return s ? s[0]!.toUpperCase() + s.slice(1) : null;
+  };
+  const events = years.map((y) => {
+    const after: number[] = [];
+    if (!ends(y.wordEnd))
+      for (let i = y.wordEnd + 1; i <= we && !isYear(i); i++) {
+        after.push(i);
+        if (ends(i)) break;
+      }
+    if (after.filter((i) => !words[i]?.filler).length >= 2) return event(after, false);
+    const before: number[] = [];
+    for (let i = y.wordStart - 1; i >= ws && !isYear(i) && !ends(i); i--) before.unshift(i);
+    return event(before, true);
+  });
+  if (events.some((e) => !e)) return null;
+  return {
+    params: {
+      content: { dates: years.map((y) => String(y.value)), events },
+      images: [],
+    },
+    beats: years.map((y, k) => ({ cue: `e${k + 1}`, word: y.wordStart })),
+  };
+}
+
 /** A chart-story candidate over `ws..we`, or null when the words don't give a chart. */
 function chartCandidate(
   words: readonly SlotWord[],
@@ -591,6 +654,41 @@ function candidates(
         break;
       // Changed by spec 07 task 24: a 'year' sequence was a line-chart, which chart-story
       // replaces; years with a value each are charted per sentence above.
+      case 'year': {
+        // Changed by spec 07 task 33: 3 or more years in a run (each in the same sentence as
+        // the one before or the next) are a timeline, to the end of the last year's sentence.
+        // Ranked below a chart of the same years with values.
+        const run = [span];
+        for (const y of spans.filter((s) => s.kind === 'year' && s.wordStart > span.wordStart)) {
+          const prev = run[run.length - 1] as TaggedSpan;
+          if ((sentence[y.wordStart] ?? 0) - (sentence[prev.wordStart] ?? 0) > 1) break;
+          run.push(y);
+        }
+        const before = spans.find(
+          (s) =>
+            s.kind === 'year' &&
+            s.wordStart < span.wordStart &&
+            (sentence[span.wordStart] ?? 0) - (sentence[s.wordStart] ?? 0) <= 1,
+        );
+        if (run.length < TIMELINE_MIN || before) break;
+        const lastSentence = sentence[(run[run.length - 1] as TaggedSpan).wordStart];
+        let end = (run[run.length - 1] as TaggedSpan).wordEnd;
+        while (end + 1 < words.length && sentence[end + 1] === lastSentence) end++;
+        const d = timelineDraft(words, spans, span.wordStart, end);
+        if (d)
+          out.push({
+            wordStart: span.wordStart,
+            wordEnd: end,
+            score: 0.6,
+            componentId: 'timeline',
+            skillId: 'journey-along-a-timeline',
+            params: d.params,
+            needsInput: ['content'],
+            anchor: d.beats[0] as { cue: string; word: number },
+            beats: d.beats,
+          });
+        break;
+      }
       case 'name':
         out.push({
           ...base,
@@ -689,6 +787,16 @@ export function sceneDraft(
   if (s.componentId === 'chart-story') {
     // Spec 07 task 24: the values as spoken, each `v` cue on its word; no values, no chart.
     const d = chartDraft(words, spans, s.wordStart, s.wordEnd);
+    if (!d) return null;
+    return {
+      ...s,
+      params: { ...d.params, beats: d.beats.map((b) => ({ ...b, word: b.word - s.wordStart })) },
+      needsInput: ['content'],
+    };
+  }
+  if (s.componentId === 'timeline') {
+    // Spec 07 task 33: the years as spoken, each cue on its year; no dated events, no slot.
+    const d = timelineDraft(words, spans, s.wordStart, s.wordEnd);
     if (!d) return null;
     return {
       ...s,
