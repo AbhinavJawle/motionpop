@@ -37,6 +37,8 @@ describe('parseRemoteConfig', () => {
       refunds_per_day: '15',
       usage_events_per_day: '300',
       credit_costs: '{"generate":2,"tts":5}',
+      music_synth_enabled: 'true',
+      audio_default_music: 'steady-pulse',
     });
     expect(cfg).toEqual({
       routingSlotsDetectDeviceMaxWords: 250,
@@ -63,7 +65,29 @@ describe('parseRemoteConfig', () => {
       refundsPerDay: 15,
       usageEventsPerDay: 300,
       creditCosts: { generate: 2, tts: 5 },
+      musicSynthEnabled: true,
+      audioDefaultMusic: 'steady-pulse',
     });
+  });
+
+  // Spec 12 B1: the synthesized beds stay hidden and new projects start without music.
+  it('has the audio defaults of spec 12 (synth beds off, no music)', () => {
+    expect(APP_CONFIG_DEFAULTS.musicSynthEnabled).toBe(false);
+    expect(APP_CONFIG_DEFAULTS.audioDefaultMusic).toBe('none');
+  });
+
+  it.each([
+    ['music_synth_enabled', 'yes', 'musicSynthEnabled', false],
+    ['audio_default_music', 'own', 'audioDefaultMusic', 'none'],
+    ['audio_default_music', 'jazz', 'audioDefaultMusic', 'none'],
+  ] as const)('a bad audio key %s (%s) falls back to the default of %s', (key, raw, field, d) => {
+    expect(parseRemoteConfig({ [key]: raw })[field]).toEqual(d);
+  });
+
+  it('parses the audio keys alone', () => {
+    const cfg = parseRemoteConfig({ music_synth_enabled: 'TRUE', audio_default_music: 'calm-pad' });
+    expect(cfg.musicSynthEnabled).toBe(true);
+    expect(cfg.audioDefaultMusic).toBe('calm-pad');
   });
 
   // Spec 13: each new key falls back alone.

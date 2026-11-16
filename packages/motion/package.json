@@ -8,6 +8,8 @@
     "./compiler": "./src/compiler/index.ts",
     "./styles": "./src/styles/index.ts",
     "./registry": "./src/registry.ts",
+    "./sfx": "./src/sfx/index.ts",
+    "./sfx/wav": "./src/sfx/wav.ts",
     "./testing/project-fixture": "./src/testing/project-fixture.ts",
     "./dist/*": "./dist/*",
     "./package.json": "./package.json"
@@ -17,7 +19,8 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "build:runtime": "node scripts/build-runtime.ts",
-    "motion:check": "node scripts/build-runtime.ts && node scripts/run-check.ts"
+    "motion:check": "node scripts/build-runtime.ts && node scripts/run-check.ts",
+    "sfx:listen": "node scripts/sfx-listen.ts"
   },
   "dependencies": {
     "@motionpop/schemas": "workspace:*",

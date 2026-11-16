@@ -49,6 +49,10 @@ export const AppConfigSchema = z.object({
   usageEventsPerDay: NonNegInt,
   /** Partial overrides of the AI price table in `cost.ts` (spec 13 R2.1). */
   creditCosts: CreditCostsSchema,
+  /** Shows the synthesized music beds in the Audio panel; off until the founder listens (spec 12 D-067 #3). */
+  musicSynthEnabled: z.boolean(),
+  /** The music new projects start with (spec 12 R7.3). */
+  audioDefaultMusic: z.enum(['none', 'calm-pad', 'steady-pulse']),
 });
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 
@@ -78,6 +82,8 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   refundsPerDay: 30,
   usageEventsPerDay: 1000,
   creditCosts: {},
+  musicSynthEnabled: false,
+  audioDefaultMusic: 'none',
 };
 
 type Decoder = (raw: string) => unknown;
@@ -134,6 +140,8 @@ const KEYS: Record<keyof AppConfig, { key: string; decode: Decoder }> = {
   refundsPerDay: { key: 'refunds_per_day', decode: int },
   usageEventsPerDay: { key: 'usage_events_per_day', decode: int },
   creditCosts: { key: 'credit_costs', decode: creditCosts },
+  musicSynthEnabled: { key: 'music_synth_enabled', decode: bool },
+  audioDefaultMusic: { key: 'audio_default_music', decode: str },
 };
 
 /**

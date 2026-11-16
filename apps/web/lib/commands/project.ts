@@ -1,5 +1,12 @@
 import { produce } from 'immer';
-import { DEFAULT_CAPTIONS, type CaptionsSetting, type EditorProject } from '@motionpop/schemas';
+import {
+  AudioSettingSchema,
+  DEFAULT_CAPTIONS,
+  audioOf,
+  type AudioSetting,
+  type CaptionsSetting,
+  type EditorProject,
+} from '@motionpop/schemas';
 import { CommandRejected, type Command } from './command';
 
 type Format = EditorProject['format'];
@@ -86,6 +93,38 @@ export function setCaptions(patch: Partial<CaptionsSetting>): Command {
       return produce(p, (d) => {
         if (had && before) d.captions = before;
         else delete d.captions;
+      });
+    },
+  };
+}
+
+/**
+ * Music, ducking and effects settings (spec 12 R10.2): one command per committed change. A key
+ * set to `undefined` in the patch clears it (e.g. `{ musicId: undefined }` = no music). The merged
+ * result must pass `AudioSettingSchema`.
+ */
+export function setAudio(patch: Partial<AudioSetting>): Command {
+  let before: AudioSetting | undefined;
+  let had = false;
+  return {
+    label: 'Change sound',
+    do(p) {
+      const merged: Record<string, unknown> = { ...audioOf(p), ...patch };
+      for (const k of Object.keys(merged)) if (merged[k] === undefined) delete merged[k];
+      const parsed = AudioSettingSchema.safeParse(merged);
+      if (!parsed.success) {
+        throw new CommandRejected(`invalid audio settings: ${parsed.error.issues[0]?.message}`);
+      }
+      had = p.audio !== undefined;
+      before = p.audio;
+      return produce(p, (d) => {
+        d.audio = parsed.data;
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (had && before) d.audio = before;
+        else delete d.audio;
       });
     },
   };

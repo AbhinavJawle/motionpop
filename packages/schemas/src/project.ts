@@ -224,6 +224,36 @@ export const CaptionsSettingSchema = z.object({
 export type CaptionsSetting = z.infer<typeof CaptionsSettingSchema>;
 export const DEFAULT_CAPTIONS: CaptionsSetting = { enabled: true, presetId: 'pop' };
 
+/** Music choices (spec 12 R7.1): two synthesized beds or the user's own track. Absent = no music. */
+export const MusicIdSchema = z.enum(['calm-pad', 'steady-pulse', 'own']);
+export type MusicId = z.infer<typeof MusicIdSchema>;
+
+/**
+ * Music, ducking and sound effects (spec 12 design §1). Every level has a default, so `{}` parses
+ * to `DEFAULT_AUDIO`. Auto effects are derived from the slots (`placeSfx`), never stored here.
+ */
+export const AudioSettingSchema = z.object({
+  musicId: MusicIdSchema.optional(),
+  /** AudioStore ref of the user's track when `musicId` is `own`. */
+  musicSrc: z.string().min(1).optional(),
+  musicName: z.string().max(80).optional(),
+  /** Music under speech, relative to the measured voice level. */
+  musicGainDb: z.number().int().min(-40).max(0).default(-18),
+  ducking: z.boolean().default(true),
+  duckDepthDb: z.number().int().min(0).max(24).default(8),
+  autoSfx: z.boolean().default(true),
+  sfxGainDb: z.number().int().min(-24).max(6).default(0),
+  /** "Shuffle takes" bumps this. */
+  sfxSeed: z.number().int().nonnegative().default(0),
+});
+export type AudioSetting = z.infer<typeof AudioSettingSchema>;
+export const DEFAULT_AUDIO: AudioSetting = AudioSettingSchema.parse({});
+
+/** The project's audio settings, `DEFAULT_AUDIO` for projects saved before spec 12. */
+export function audioOf(p: { audio?: AudioSetting | undefined }): AudioSetting {
+  return p.audio ?? DEFAULT_AUDIO;
+}
+
 /**
  * The project object before the timeline refinement (spec 11 task 1). Exported so document
  * schemas can `.omit`/`.extend` it (`.omit` does not exist on the refined schema).
@@ -253,6 +283,8 @@ export const EditorProjectBaseSchema = z.object({
   lastOpenedAt: IntMsSchema.optional(),
   /** Burned-in captions; absent means `DEFAULT_CAPTIONS` (spec 12). */
   captions: CaptionsSettingSchema.optional(),
+  /** Music, ducking and effects; absent means `DEFAULT_AUDIO` (spec 12b, read with `audioOf`). */
+  audio: AudioSettingSchema.optional(),
 });
 
 export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {
