@@ -23,6 +23,11 @@ export function sampleInput(): SampleInput {
   return {
     file: new Blob([encodeWav(samples, SYNTH_SAMPLE_RATE)], { type: 'audio/wav' }),
     name: 'Sample voiceover',
-    words: demoWords.map((w) => ({ ...w })),
+    words: sampleWords(),
   };
+}
+
+/** The sample's words alone, for a sample that was handed over as a stored blob (spec 11). */
+export function sampleWords(): Word[] {
+  return demoWords.map((w) => ({ ...w }));
 }

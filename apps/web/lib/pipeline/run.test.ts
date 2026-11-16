@@ -713,3 +713,57 @@ describe('summaries', () => {
     expect(transcriptSummary(words, ms)).toBe(expected);
   });
 });
+
+describe('runPipeline: Start draft and pending intake (spec 11 task 8)', () => {
+  it('honours the title, format and style of the draft', async () => {
+    const h = makeHarness();
+    await runPipeline(
+      makeInput({ title: '  My launch  ', format: '9:16', styleId: 'paper-collage' }),
+      h.deps,
+      h.onEvent,
+    );
+    const r = await h.repo.load(PROJECT_ID);
+    if (!r.ok) throw new Error('not saved');
+    expect(r.project).toMatchObject({
+      title: 'My launch',
+      format: '9:16',
+      styleId: 'paper-collage',
+    });
+  });
+
+  it('skips the cut list for a generated voice and keeps its script', async () => {
+    const h = makeHarness();
+    const tts = { voiceId: 'warm', speed: 1, script: 'hello um world again' };
+    await runPipeline(makeInput({ source: 'tts', cleanup: false, tts }), h.deps, h.onEvent);
+    expect(h.renderCleaned).not.toHaveBeenCalled();
+    expect(h.events).toContainEqual({
+      type: 'step',
+      step: 'clean',
+      state: 'done',
+      detail: 'Skipped for generated voices',
+    });
+    const r = await h.repo.load(PROJECT_ID);
+    if (!r.ok) throw new Error('not saved');
+    expect(r.project.durationMs).toBe(CUT_DURATION);
+    expect(r.project.voiceover).toMatchObject({ source: 'tts', tts, cleanup: { enabled: false } });
+  });
+
+  it('reuses a stored take as the original, and leaves it in place when the run fails', async () => {
+    const h = makeHarness();
+    const storedRef = await h.audioStore.put(audioFile());
+    await runPipeline(makeInput({ storedRef, source: 'record' }), h.deps, h.onEvent);
+    const r = await h.repo.load(PROJECT_ID);
+    if (!r.ok) throw new Error('not saved');
+    expect(r.project.voiceover.originalSrc).toBe(storedRef);
+    expect(h.audioStore.size).toBe(2); // the take + the cleaned audio, no second copy
+
+    const f = makeHarness();
+    const ref = await f.audioStore.put(audioFile());
+    vi.spyOn(f.repo, 'save').mockRejectedValue(new Error('quota'));
+    await expect(
+      runPipeline(makeInput({ storedRef: ref, source: 'record' }), f.deps, f.onEvent),
+    ).rejects.toThrow();
+    expect(await f.audioStore.get(ref)).not.toBeNull();
+    expect(f.audioStore.size).toBe(1);
+  });
+});

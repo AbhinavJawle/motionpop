@@ -10,11 +10,13 @@ import {
   APP_CONFIG_DEFAULTS,
   EditorProjectSchema,
   type EditorProject,
+  type Format,
   type Look,
   type Slot,
   type SlotSuggestion,
   type Transcript,
   type Version,
+  type Voiceover,
   type Word,
 } from '@motionpop/schemas';
 import type { AudioStore } from '../audio/audio-store';
@@ -44,9 +46,21 @@ export interface PipelineInput {
   file: Blob;
   /** File name, for intake checks and the project title. */
   name: string;
-  source: 'upload' | 'record' | 'sample';
+  source: 'upload' | 'record' | 'sample' | 'tts';
   /** Use these words instead of transcribing (the synthesized sample, D-024). */
   words?: Word[];
+  /**
+   * The ref of `file` when it is already in the audio store (a pending intake, spec 11). It
+   * becomes the original audio as-is, and a failed run leaves it in place for a retry.
+   */
+  storedRef?: string;
+  /** From the Start draft (spec 11 R7). Defaults: the file name, 16:9, `deps.styleId`. */
+  title?: string;
+  format?: Format;
+  styleId?: string;
+  /** False skips the cut list (generated voices, spec 05 R6.1). Default true. */
+  cleanup?: boolean;
+  tts?: NonNullable<Voiceover['tts']>;
 }
 
 export interface TranscribeOutput {
@@ -146,6 +160,11 @@ export async function runPipeline(
   };
 
   try {
+    // The project id comes first, so every write of this run can be filed under it (design §2.4).
+    const id = deps.newId();
+    const styleId = input.styleId ?? deps.styleId;
+    const cleanupOn = input.cleanup ?? true;
+
     // Intake (R1).
     const intake = validateIntake({
       name: input.name,
@@ -192,7 +211,9 @@ export async function runPipeline(
     // Clean (R3).
     step = 'clean';
     onEvent({ type: 'step', step, state: 'active' });
-    const edl = buildEdl(t.words, audio.durationMs);
+    const edl = cleanupOn
+      ? buildEdl(t.words, audio.durationMs)
+      : { cuts: [], fillersRemoved: 0, pausesShortened: 0, skipped: undefined };
     const cuts = edl.cuts;
     const cleanedMs = cleanedDuration(audio.durationMs, cuts);
     const cleanedWords = retimeWords(t.words, cuts);
@@ -204,9 +225,13 @@ export async function runPipeline(
       type: 'step',
       step,
       state: 'done',
-      detail: edl.skipped
-        ? 'Kept your audio as it is'
-        : cleanupSummary(edl.fillersRemoved, edl.pausesShortened),
+      detail: !cleanupOn
+        ? input.source === 'tts'
+          ? 'Skipped for generated voices'
+          : 'Cleanup is off'
+        : edl.skipped
+          ? 'Kept your audio as it is'
+          : cleanupSummary(edl.fillersRemoved, edl.pausesShortened),
     });
 
     // Moments (spec 06 R1): the deterministic tagger on the cleaned words.
@@ -245,7 +270,7 @@ export async function runPipeline(
     // never stops processing: any failure plans with the built-in rules.
     step = 'plan';
     onEvent({ type: 'step', step, state: 'active', detail: 'Device first', route: 'device' });
-    const style = styleFor({ styleId: deps.styleId });
+    const style = styleFor({ styleId });
     const req = directorRequest({
       slots: placed,
       suggestions,
@@ -273,8 +298,8 @@ export async function runPipeline(
     checkAbort();
     const written: string[] = [];
     try {
-      const originalSrc = await deps.audioStore.put(input.file);
-      written.push(originalSrc);
+      const originalSrc = input.storedRef ?? (await deps.audioStore.put(input.file));
+      if (!input.storedRef) written.push(originalSrc);
       const src = cleanedPcm
         ? await deps.audioStore.put(
             new Blob([deps.encodeWav(cleanedPcm, OUTPUT_SAMPLE_RATE)], { type: 'audio/wav' }),
@@ -283,7 +308,6 @@ export async function runPipeline(
       if (src !== originalSrc) written.push(src);
 
       const now = deps.now();
-      const id = deps.newId();
       const transcript = (words: Word[], cleaned: boolean): Transcript => ({
         words,
         language: 'en',
@@ -294,10 +318,10 @@ export async function runPipeline(
       const project: EditorProject = EditorProjectSchema.parse({
         schemaVersion: 1,
         id,
-        title: titleFrom(input.name),
-        format: '16:9',
+        title: input.title?.trim().slice(0, 80) || titleFrom(input.name),
+        format: input.format ?? '16:9',
         fps: 30,
-        styleId: deps.styleId,
+        styleId,
         durationMs: cleanedMs,
         voiceover: {
           src,
@@ -311,6 +335,7 @@ export async function runPipeline(
             enabled: cuts.length > 0,
             ...(edl.skipped ? { skipped: edl.skipped } : {}),
           },
+          ...(input.tts ? { tts: input.tts } : {}),
         },
         transcript: {
           ...transcript(cleanedWords, cuts.length > 0),

@@ -15,8 +15,9 @@ import {
   STEP_TITLES,
   type ProcessingState,
 } from '@/lib/pipeline/processing-state';
+import { clearPending, takePending } from '@/lib/intake/pending';
 import { runPipeline, type PipelineInput } from '@/lib/pipeline/run';
-import { sampleInput } from '@/lib/pipeline/sample';
+import { sampleInput, sampleWords } from '@/lib/pipeline/sample';
 import { IdbProjectRepository } from '@/lib/projects/idb-repository';
 import { DropZone } from './drop-zone';
 import { StepCard } from './step-card';
@@ -40,7 +41,7 @@ function reducer(s: ProcessingState, a: Action): ProcessingState {
 export function ProcessingScreen({ id }: { id: string }) {
   const router = useRouter();
   const still = useStill();
-  const [phase, setPhase] = useState<Phase>(id === 'new' ? 'drop' : 'checking');
+  const [phase, setPhase] = useState<Phase>('checking');
   const [state, dispatch] = useReducer(reducer, undefined, initialProcessing);
   const [intakeError, setIntakeError] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
@@ -76,7 +77,9 @@ export function ProcessingScreen({ id }: { id: string }) {
         (event) => dispatch({ type: 'event', event }),
         ac.signal,
       )
-        .then(({ projectId }) => {
+        .then(async ({ projectId }) => {
+          // The project owns the stored take now; only the hand-off goes.
+          if (input.storedRef) await clearPending({ keepAudio: true });
           // Let the last check and Pip's celebration land before the editor opens.
           setTimeout(
             () => router.push(`/editor/${encodeURIComponent(projectId)}`),
@@ -89,6 +92,7 @@ export function ProcessingScreen({ id }: { id: string }) {
           console.error('[processing]', err, err instanceof Error ? err.cause : undefined);
           // Problems with the file itself go back to the drop zone with the reason.
           if (err instanceof Error && 'step' in err && err.step === 'intake') {
+            if (input.storedRef) void clearPending({ keepAudio: false });
             setIntakeError(err.message);
             setPhase('drop');
           }
@@ -97,9 +101,42 @@ export function ProcessingScreen({ id }: { id: string }) {
     [router, still],
   );
 
+  // `/processing/new` picks up a hand-off from the dashboard, Start or the recorder (spec 11).
+  useEffect(() => {
+    if (id !== 'new') return;
+    let live = true;
+    void takePending()
+      .catch(() => null)
+      .then((p) => {
+        if (!live) return;
+        if (!p) return setPhase('drop');
+        start({
+          file: p.blob,
+          name: p.meta.name,
+          source: p.meta.source,
+          storedRef: p.meta.ref,
+          title: p.draft.title,
+          format: p.draft.format,
+          cleanup: p.meta.cleanup,
+          ...(p.draft.styleId ? { styleId: p.draft.styleId } : {}),
+          ...(p.meta.tts ? { tts: p.meta.tts } : {}),
+          ...(p.meta.source === 'sample' ? { words: sampleWords() } : {}),
+        });
+      });
+    return () => {
+      live = false;
+    };
+  }, [id, start]);
+
   const cancel = () => {
     controller.current?.abort();
     controller.current = null;
+    if (lastInput.current?.storedRef) void clearPending({ keepAudio: false });
+    setPhase('drop');
+  };
+
+  const chooseAnother = () => {
+    if (lastInput.current?.storedRef) void clearPending({ keepAudio: false });
     setPhase('drop');
   };
 
@@ -197,7 +234,7 @@ export function ProcessingScreen({ id }: { id: string }) {
                       >
                         Try again
                       </Button>
-                      <Button variant="secondary" onClick={() => setPhase('drop')}>
+                      <Button variant="secondary" onClick={chooseAnother}>
                         Choose another file
                       </Button>
                     </>
