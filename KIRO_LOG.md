@@ -875,3 +875,27 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - 6cc042b feat(07-scene-engine-and-looks): task 23 versus scene
 - uncommitted changes: none
 <!-- /kiro-session:sess_4ce6f9f4-5332-4d40-8c8b-c04dcf27a272 -->
+
+### 2026-11-16 · Kiro CLI (headless, overnight) · agent: motionpop-builder · model: claude-opus-5.5 · spec writing
+- **Run:** headless `kiro-cli` in the `specs-a` worktree, founder asleep, docs only (no code changes, no installs, no push). Claude Code merges the branch later.
+- **Task:** write specs 09 (inspector, quick edits, frame notes) and 13 (credits, judge plan, settings) the Kiro way, then review each against the steering.
+- **Read:** all steering files, `docs/plan.md`, `docs/decisions.md`, the inspector, top bar, rail, preview, store and commands, auto-fill, the router and its tasks, bootstrap, plan allowance, rules and rules tests, the Playwright config and design check, and `design/screens/editor.png`, `editor-generating.png`, `export.png`, plus the inspector frames in `figma-export.css`. Checked the installed `@firebase/ai` 3.1.0 types (`initializeDeviceModel(onDownloadProgress)` exists; no public availability API) and `@hyperframes/player` 0.9.46 (no frame capture API) in the main checkout's `node_modules`.
+- **Written:**
+  - `.kiro/specs/09-inspector-quick-edits-and-notes/{requirements,design,tasks}.md`: 9 requirement groups, 9 correctness properties, 23 tasks (12 marked [kiro]), commit `e4a55ff`.
+  - `.kiro/specs/13-credits-judge-plan-settings/{requirements,design,tasks}.md`: 7 requirement groups, 8 correctness properties, 18 tasks (10 marked [kiro]), commit `7e3f546`.
+- **Key decisions recorded in the specs (D-09-1…11, D-13-1…10), to be logged in `docs/decisions.md` on merge:**
+  - Cloud escalation of a failed device edit needs a click ("Try in the cloud ☁ 1"), because automatic escalation after a mint chip breaks "cost before every credited action". This changes `ai-tasks.md` §4, D-027 and `architecture.md` flow 4.
+  - One look per video; per-slot looks moved to Later.
+  - Timing (speed, ease, fade) lives on the slot and in versions, merged into one edit document so `/timing/*` patches work without touching scene scores.
+  - `edit.patch` v2 sends the editable paths as an enum in the structured output and drops the schema text, which retires the last `KNOWN_VIOLATIONS` entry.
+  - Frame notes always send the texts inside the circled region; the JPEG crop ships only if a capture spike passes.
+  - Credits: reserve before the browser's cloud call, refund on failure, append-only ledger with idempotent ids, 30 AI spends per UTC hour, kill switch stays manual. Credits are a guard, not a security boundary, for browser-side AI calls; the spec says so.
+  - Judges get a daily top-up on sign-in below 20 % of `judgeCredits`.
+  - Settings opens from the account menu (a left panel in the editor, `/settings` elsewhere), not as a ninth rail icon.
+  - Firestore rules gain `settings` shape validation.
+- **Review pass (same run):** found and fixed before committing: "Version is unchanged" contradicted the version-timing decision; the route function ignored Remote Config routing overrides and local mode; the e2e generated on a planned component that can't generate; idempotency keys could pass the 64-character limit; the prompt box never saved its edits (added `setSlotPrompt`); frame notes had no keyboard path; the judge chip was violet (cloud colour) instead of ember (credits); the `note.fix` prompt had no examples; Context7 and Firebase MCP checks were missing from the tasks that need them.
+- **Checks run:** `prettier --check` on both spec folders (clean). No code tests: no code changed.
+- **Not done / limits:**
+  - Steering files and `docs/decisions.md` were not edited, per the run's docs-only scope and the builder agent's write permissions. Each design.md ends with "Steering updates to make on merge".
+  - Nothing verified live: Nano availability, offline on-device inference and frame capture are open and have their own tasks (09 tasks 10, 19, 23).
+  - No PNG exists for Settings or the out-of-credits modal; their design check compares against the nearest designed frames and the token table.
