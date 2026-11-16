@@ -18,8 +18,14 @@ export function posterKindFor(styleId: string): PosterKind {
   return 'editorial';
 }
 
-/** Design px (of a 256 px-wide poster) → container units. */
-const u = (px: number) => `${((px / 256) * 100).toFixed(3)}cqw`;
+/**
+ * Design px (of a 256×126 poster) → container units. Sizes and vertical positions take the
+ * smaller of the width and height scale, so a wider box (the 768×320 Continue card) keeps the
+ * layout inside it; horizontal positions (`ux`) follow the width.
+ */
+const u = (px: number) =>
+  `min(${((px / 256) * 100).toFixed(3)}cqw, ${((px / 126) * 100).toFixed(3)}cqh)`;
+const ux = (px: number) => `${((px / 256) * 100).toFixed(3)}cqw`;
 
 function Text({
   at,
@@ -37,7 +43,7 @@ function Text({
   return (
     <span
       className={cn('absolute leading-[1.12] whitespace-pre-line', className)}
-      style={{ left: u(at[0]), top: u(at[1]), fontSize: u(size), ...style }}
+      style={{ left: ux(at[0]), top: u(at[1]), fontSize: u(size), ...style }}
     >
       {children}
     </span>
@@ -60,7 +66,7 @@ function Bars({
   return (
     <span
       className="absolute flex items-end"
-      style={{ left: u(at[0]), top: u(at[1]), height: u(height), gap: u(gap) }}
+      style={{ left: ux(at[0]), top: u(at[1]), height: u(height), gap: u(gap) }}
     >
       {bars.map((b, i) => (
         <span key={i} style={{ width: u(width), height: u(b.h), background: b.c }} />
@@ -105,7 +111,7 @@ export function StylePoster({
     <div
       aria-hidden
       className={cn('relative overflow-hidden font-sans select-none', className)}
-      style={{ containerType: 'inline-size' }}
+      style={{ containerType: 'size' }}
     >
       <div className="absolute inset-0">{body(kind, h, headline !== undefined)}</div>
       {loop && (
@@ -116,7 +122,7 @@ export function StylePoster({
             kind === 'neon-data' && 'bg-[#2a2142]/90 text-[#ddd3ff]',
           )}
           style={{
-            right: u(7),
+            right: ux(7),
             bottom: u(7),
             fontSize: u(5),
             gap: u(2),
@@ -188,7 +194,7 @@ function body(kind: PosterKind, h: string, custom: boolean): ReactNode {
           />
           <span
             className="absolute bg-[#3c5a45]"
-            style={{ left: u(13), top: u(110), width: u(218), height: '1px' }}
+            style={{ left: ux(13), top: u(110), width: ux(218), height: '1px' }}
           />
           <Text at={[13, 115]} size={4} className={cn(eyebrow, 'text-[#7d917f]')}>
             A different kind of growth.
@@ -205,13 +211,11 @@ function body(kind: PosterKind, h: string, custom: boolean): ReactNode {
             {h}
           </Text>
           <span
-            className="absolute rounded-full bg-[#C9D6E3]"
-            style={{ left: u(168), top: u(28), width: u(70), height: u(70) }}
-          />
-          <span
-            className="absolute rounded-full bg-[#44709E]"
-            style={{ left: u(182), top: u(42), width: u(42), height: u(42) }}
-          />
+            className="absolute flex items-center justify-center rounded-full bg-[#C9D6E3]"
+            style={{ left: ux(168), top: u(28), width: u(70), height: u(70) }}
+          >
+            <span className="rounded-full bg-[#44709E]" style={{ width: '60%', height: '60%' }} />
+          </span>
           <Text at={[13, 108]} size={4.5} className="text-[#7a8592]">
             Space to let your story breathe.
           </Text>
@@ -226,7 +230,7 @@ function body(kind: PosterKind, h: string, custom: boolean): ReactNode {
           <span
             className="absolute flex items-center bg-[#F4EDDB] font-medium shadow-[0_1px_2px_rgb(0_0_0/0.15)]"
             style={{
-              left: u(19),
+              left: ux(19),
               top: u(36),
               padding: `${u(5)} ${u(10)}`,
               fontSize: u(fit(16, h, custom)),
@@ -238,12 +242,12 @@ function body(kind: PosterKind, h: string, custom: boolean): ReactNode {
           </span>
           <span
             className="absolute bg-[#B9BF8F]/90"
-            style={{ left: u(155), top: u(30), width: u(52), height: u(11), rotate: '8deg' }}
+            style={{ left: ux(155), top: u(30), width: u(52), height: u(11), rotate: '8deg' }}
           />
           <span
             className="absolute bg-[#E0613F] font-semibold text-[#FCEBDD]"
             style={{
-              left: u(64),
+              left: ux(64),
               top: u(70),
               padding: `${u(4)} ${u(10)}`,
               fontSize: u(14),
@@ -264,7 +268,7 @@ function body(kind: PosterKind, h: string, custom: boolean): ReactNode {
             <span
               key={y}
               className="absolute bg-white/6"
-              style={{ left: u(13), top: u(y), width: u(230), height: '1px' }}
+              style={{ left: ux(13), top: u(y), width: ux(230), height: '1px' }}
             />
           ))}
           <Text at={[13, 12]} size={4.5} className={cn(eyebrow, 'text-[#a99bd0]')}>

@@ -114,4 +114,15 @@ describe.each(makers)('%s library', (_, make) => {
     const restored = await repo.restoreBackup('a');
     expect(restored.ok && restored.project.title).toBe('Project a');
   });
+
+  it('rename keeps the content and the previous save as the backup', async () => {
+    const { repo, audio } = make();
+    const a = await seeded(audio, 'a', 10);
+    await repo.save(a);
+    await repo.rename('a', '  New name  ');
+    const r = await repo.load('a');
+    expect(r.ok && r.project).toMatchObject({ title: 'New name', updatedAt: 500, slots: a.slots });
+    const restored = await repo.restoreBackup('a');
+    expect(restored.ok && restored.project.title).toBe('Project a');
+  });
 });

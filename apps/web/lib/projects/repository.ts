@@ -72,6 +72,8 @@ export interface ProjectLibrary extends ProjectRepository {
   duplicate(id: string, newTitle: string): Promise<string>;
   /** Sets `lastOpenedAt` only: no backup rotation, `updatedAt` unchanged. */
   markOpened(id: string, atMs: number): Promise<void>;
+  /** A new title as a normal save (the previous save stays the backup). */
+  rename(id: string, title: string): Promise<void>;
 }
 
 export interface LibraryOptions {
@@ -183,6 +185,14 @@ export abstract class StoredProjectRepository implements ProjectLibrary {
     const r = parseStored(stored.current);
     if (!r.ok) return;
     await this.put(id, { ...stored, current: { ...r.project, lastOpenedAt: atMs } });
+  }
+
+  async rename(id: string, title: string): Promise<void> {
+    const next = title.trim().slice(0, 80);
+    const r = await this.load(id);
+    if (!r.ok) throw new Error(`Can't rename project ${id}: ${r.error}`);
+    if (!next || next === r.project.title) return;
+    await this.save({ ...r.project, title: next, updatedAt: this.now() });
   }
 }
 

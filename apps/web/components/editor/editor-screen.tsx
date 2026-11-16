@@ -11,7 +11,7 @@ import { PlaybackClock } from '@/lib/editor/playback';
 import { loadVoice, type LoadedVoice } from '@/lib/editor/voice';
 import { IdbProjectRepository } from '@/lib/projects/idb-repository';
 import { openProject } from '@/lib/projects/open';
-import type { ProjectRepository } from '@/lib/projects/repository';
+import type { ProjectLibrary } from '@/lib/projects/repository';
 import { startAutosave } from '@/lib/stores/autosave';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 import { ExportController } from '@/components/export/export-controller';
@@ -47,7 +47,7 @@ export function EditorScreen({
 }) {
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
   const [voice, setVoice] = useState<LoadedVoice | null>(null);
-  const repo = useMemo<ProjectRepository>(() => new IdbProjectRepository(), []);
+  const repo = useMemo<ProjectLibrary>(() => new IdbProjectRepository(), []);
   const clock = useMemo(() => new PlaybackClock(editorStore), []);
   const projectId = useEditor((s) => s.project?.id);
   const rejection = useEditor((s) => s.rejection);
@@ -67,7 +67,11 @@ export function EditorScreen({
     void openProject(id, repo).then((r) => {
       if (cancelled) return;
       if (r.ok) {
-        editorStore.getState().load(r.project);
+        // Spec 11: the dashboard's Continue card follows the last opened project. Outside the
+        // undo history; the stored copy is touched without a backup rotation.
+        const openedAt = Date.now();
+        editorStore.getState().load({ ...r.project, lastOpenedAt: openedAt });
+        void repo.markOpened(id, openedAt).catch(() => undefined);
         if (initialSlot) editorStore.getState().select(initialSlot);
         setPhase({ kind: 'ready' });
       } else if (r.error === 'invalid') {
