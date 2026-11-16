@@ -1,3 +1,4 @@
+import type { SlotTiming } from '@motionpop/schemas';
 import fc from 'fast-check';
 import { statPunchExemplars } from './exemplars';
 import type { SceneScore } from '../define';
@@ -92,4 +93,17 @@ export const edgeCases: Record<string, Score> = {
   'show-side': score('side', SHOW),
   // The example library doubles as motion:check samples (spec 07 R9.3).
   ...Object.fromEntries(statPunchExemplars.map((e) => [`ex-${e.id}`, { ...e.score, beats: [] }])),
+};
+
+/**
+ * Slot timing cases (spec 09 task 8): slower, faster and cut. Checked in 3 formats, in the plain
+ * look and in every polished look, with stills kept (`show-*`). `show-slow` is 0.8, what "make it
+ * slower" produces (ai-tasks.md §4). At 0.5 to 0.6 the longest content can lose its optional
+ * last cue at the ideal length, because the slower entrances and exit eat the read time (known
+ * issue, spec 09 task 8 note); the inspector's duration slider is the remedy.
+ */
+export const timingCases: Record<string, { params: Score; timing: SlotTiming }> = {
+  'show-slow': { params: score('hero', SHOW), timing: { speed: 0.8 } },
+  'show-fast': { params: score('hero', SHOW), timing: { speed: 1.8, ease: 'out' } },
+  'show-cut': { params: score('hero', SHOW), timing: { fade: false } },
 };

@@ -105,3 +105,22 @@ describe('projectCompileInput', () => {
     expect(projectCompileInput(p, { mode: 'render' }).style).toBe(fieldNotes);
   });
 });
+
+describe('slot timing reaches the compile input (spec 09 task 8)', () => {
+  it('carries timing for components and scenes, and leaves it out when unset', () => {
+    const withTiming = { ...bigNumberSlot('a', 0, 3000), timing: { speed: 0.8, fade: false } };
+    const scene = { ...statPunchSlot('b', 4000, 7000), timing: { ease: 'out' as const } };
+    const plain = bigNumberSlot('c', 8000, 11000);
+    const input = projectCompileInput(fixtureProject({ slots: [withTiming, scene, plain] }), {
+      mode: 'render',
+    });
+    expect(input.slots.map((s) => s.timing)).toEqual([
+      { speed: 0.8, fade: false },
+      { ease: 'out' },
+      undefined,
+    ]);
+    expect(input.slots[2]).not.toHaveProperty('timing');
+    // A copy: later edits to the project's slot do not leak into the compile input.
+    expect(input.slots[0]?.timing).not.toBe(withTiming.timing);
+  });
+});

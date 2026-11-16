@@ -37,6 +37,11 @@ export interface SceneContext extends BuildContext {
   /** Pauses in the delivery, relative to the slot start. */
   pauses?: readonly { startMs: number; endMs: number }[];
   energy?: Energy;
+  /**
+   * `none`: the clip has no exit, everything that landed holds to the last frame (the slot's
+   * `fade: false`). Set by the runtime from the slot's timing, so scenes stay unaware of it.
+   */
+  exit?: 'fade' | 'none';
 }
 
 export interface TextSlot {
@@ -322,7 +327,7 @@ export function stage(
   const enterEase = eases[style.motion.enterEase];
   const moveEase = eases[style.motion.moveEase];
   const enterMs = style.motion.enterMs;
-  const exitMs = Math.round(enterMs * (person?.exitRatio ?? 0.6));
+  const exitMs = ctx.exit === 'none' ? 0 : Math.round(enterMs * (person?.exitRatio ?? 0.6));
   const stepMs = person?.stepFps ? 1000 / person.stepFps : 0;
   const lift = h * 0.02;
   root.style.cssText = 'position:absolute;inset:0;';
@@ -1114,7 +1119,8 @@ export function stage(
         for (const a of drifters)
           a.effects.push((tMs, p) => (p.tx += px * (tMs / Math.max(1, durationMs) - 0.5)));
       }
-      if (sound.exit) soundCues.push({ atMs: exitStart, kind: 'exit', sound: sound.exit });
+      if (sound.exit && ctx.exit !== 'none')
+        soundCues.push({ atMs: exitStart, kind: 'exit', sound: sound.exit });
       soundCues.sort((x, y) => x.atMs - y.atMs);
 
       const write = (el: HTMLElement | SVGSVGElement, p: Props) => {

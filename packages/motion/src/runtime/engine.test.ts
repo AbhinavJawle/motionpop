@@ -54,7 +54,24 @@ const throwsOnSeek: MotionComponent<P> = {
   }),
 };
 
-const components = { pure, 'throws-build': throwsOnBuild, 'throws-seek': throwsOnSeek };
+/** Records what the engine hands a clip: its style's motion block and the scene `exit` option. */
+const seen: { enterMs: number; moveEase: string; exit: unknown; lookEnterMs: unknown }[] = [];
+const spy: MotionComponent<P> = {
+  ...pure,
+  id: 'spy',
+  build: (ctx) => {
+    const c = ctx as unknown as { exit?: unknown; look?: { motion: { enterMs: number } } };
+    seen.push({
+      enterMs: ctx.style.motion.enterMs,
+      moveEase: ctx.style.motion.moveEase,
+      exit: c.exit,
+      lookEnterMs: c.look?.motion.enterMs,
+    });
+    return { durationMs: ctx.durationMs, seek: () => {}, dispose: () => {} };
+  },
+};
+
+const components = { pure, spy, 'throws-build': throwsOnBuild, 'throws-seek': throwsOnSeek };
 
 function fakeFonts(loaded = true): FontLoader & { requests: string[] } {
   const requests: string[] = [];
@@ -105,6 +122,40 @@ const slot = (id: string, componentId: string, startMs: number, endMs: number, l
 const text = (id: string) => document.getElementById(id)?.textContent ?? '';
 
 beforeEach(() => document.body.replaceChildren());
+
+describe('runtime engine: slot timing (spec 09 R4.4)', () => {
+  it('builds each clip with its own style and passes fade: false as exit: none', async () => {
+    seen.length = 0;
+    hosts('a', 'b', 'c');
+    const base = editorialExplainer.motion;
+    const engine = createEngine(
+      project([
+        slot('a', 'spy', 0, 2000),
+        { ...slot('b', 'spy', 2000, 4000), timing: { speed: 0.5, ease: 'linear' as const } },
+        { ...slot('c', 'spy', 4000, 6000), timing: { fade: false } },
+      ]),
+      { doc: document, components, fonts: fakeFonts() },
+    );
+    await engine.ready;
+    expect(seen).toEqual([
+      {
+        enterMs: base.enterMs,
+        moveEase: base.moveEase,
+        exit: undefined,
+        lookEnterMs: base.enterMs,
+      },
+      {
+        enterMs: base.enterMs * 2,
+        moveEase: 'linear',
+        exit: undefined,
+        lookEnterMs: base.enterMs * 2,
+      },
+      { enterMs: base.enterMs, moveEase: base.moveEase, exit: 'none', lookEnterMs: base.enterMs },
+    ]);
+    // The project's own look is not changed by a clip's timing.
+    expect(editorialExplainer.motion.enterMs).toBe(base.enterMs);
+  });
+});
 
 describe('runtime engine', () => {
   it('loads each font family once, then builds and replays a seek made before ready', async () => {

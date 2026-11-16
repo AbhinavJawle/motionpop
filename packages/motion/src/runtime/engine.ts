@@ -14,6 +14,7 @@ import { pushIn } from '../core/camera';
 import type { SceneContext } from '../engine/stage';
 import { hashString } from '../core/rng';
 import { fontStack, primaryFamily } from '../fonts/font-faces';
+import { withTiming } from './timing';
 
 export type SlotPhase = 'fonts' | 'mount' | 'params' | 'build' | 'seek';
 
@@ -139,6 +140,9 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       if (keyMomentMs !== wantedKey) {
         warnOnce(slot.id, `key moment ${wantedKey} ms clamped to ${keyMomentMs} ms`);
       }
+      // Each clip runs with its own style: the slot's speed and ease change how it moves, while
+      // the background and texture still come from the project's look (spec 09 R4.4).
+      const clipStyle = withTiming(project.style, slot.timing);
       const cam = doc.createElement('div');
       cam.className = 'mp-cam';
       const root = doc.createElement('div');
@@ -152,14 +156,16 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
             width: project.width,
             height: project.height,
             format: project.format,
-            style: project.style,
+            style: clipStyle,
             durationMs,
             keyMomentMs,
             fps: 30,
             seed: hashString(slot.id),
             warn: (message: string) => warnOnce(slot.id, message),
             // Scene context (ignored by plain components).
-            look: project.style,
+            look: clipStyle,
+            // `fade: false`: a scene holds its last frame and cuts at the slot end (R4.3).
+            ...(slot.timing?.fade === false ? { exit: 'none' as const } : {}),
             ...(slot.words ? { words: slot.words } : {}),
             ...(slot.stress ? { stress: slot.stress } : {}),
             ...(slot.pauses ? { pauses: slot.pauses } : {}),

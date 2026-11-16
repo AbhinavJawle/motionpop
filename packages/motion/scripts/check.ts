@@ -9,6 +9,7 @@ import {
   frameToMs,
   msToFrame,
   type Format,
+  type SlotTiming,
   type StylePack,
 } from '@motionpop/schemas';
 import fc from 'fast-check';
@@ -26,6 +27,8 @@ import { editorialExplainer, looks, testInverted } from '../src/styles';
 interface Samples<P> {
   arbitrary: fc.Arbitrary<P>;
   edgeCases: Record<string, P>;
+  /** Slot timing cases (spec 09): `show-slow`, `show-fast`, `show-cut`. Checked at the ideal duration. */
+  timingCases?: Record<string, { params: P; timing: SlotTiming }>;
 }
 
 interface Case {
@@ -35,6 +38,8 @@ interface Case {
   /** Explicit slot key moment; undefined = component default. */
   keyMomentMs?: number;
   keyLabel: 'default' | 'early' | 'late';
+  /** The slot's timing overrides (speed, ease, fade). */
+  timing?: SlotTiming;
   style: StylePack;
   /** Save every still, not only failing ones. */
   keepStills: boolean;
@@ -253,6 +258,20 @@ function buildCases(): Case[] {
     style: testInverted,
     keepStills: true,
   });
+  // Slot timing (spec 09): the same checks, with stills, in the plain look and in every polished one.
+  for (const [name, t] of Object.entries(samplesMod.timingCases ?? {})) {
+    for (const style of [editorialExplainer, ...(id! in scenes ? Object.values(looks) : [])]) {
+      cases.push({
+        name: `${name}-ideal-default${style === editorialExplainer ? '' : `-${(style as { id: string }).id}`}`,
+        params: t.params,
+        timing: t.timing,
+        durationMs: ideal,
+        keyLabel: 'default',
+        style,
+        keepStills: true,
+      });
+    }
+  }
   // Scenes also run in every polished look (spec 07 R5.2): the `show-*` cases with stills, and
   // a share of the random ones.
   if (id! in scenes) {
@@ -533,6 +552,7 @@ async function main() {
             componentId: id!,
             params: c.params,
             keyMomentMs: c.keyMomentMs,
+            ...(c.timing ? { timing: c.timing } : {}),
             case: c,
             keyAbs: key,
           };

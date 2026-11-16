@@ -31,10 +31,11 @@ export function compileSlot(slot: Slot, transcript: EditorProject['transcript'])
     componentId: slot.componentId,
     params: slot.params,
   };
-  if (!isScene(slot.componentId)) return base;
+  const withTimingField: CompileSlot = slot.timing ? { ...base, timing: { ...slot.timing } } : base;
+  if (!isScene(slot.componentId)) return withTimingField;
   const t = sceneTiming(slot, transcript);
   return {
-    ...base,
+    ...withTimingField,
     ...(t.words ? { words: t.words } : {}),
     ...(t.stress ? { stress: t.stress } : {}),
     ...(t.pauses ? { pauses: t.pauses } : {}),

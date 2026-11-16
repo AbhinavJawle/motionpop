@@ -8,3 +8,4 @@ export * from './scenes';
 export * from './styles';
 export * from './registry';
 export { fontStack } from './fonts/font-faces';
+export { withTiming } from './runtime/timing';

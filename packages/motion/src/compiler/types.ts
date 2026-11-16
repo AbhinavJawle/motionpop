@@ -1,4 +1,4 @@
-import type { Energy, Look } from '@motionpop/schemas';
+import type { Energy, Look, SlotTiming } from '@motionpop/schemas';
 import type { Format, StylePack } from '../contract';
 
 /** What the compiler needs from a project. Integer milliseconds everywhere. */
@@ -18,6 +18,12 @@ export interface CompileSlot {
   pauses?: { startMs: number; endMs: number }[];
   /** Scenes only: this slot's energy from the director (spec 07 R6.1); else the project's. */
   energy?: Energy;
+  /**
+   * The slot's timing overrides (spec 09): `speed` and `ease` change how this clip moves, `fade:
+   * false` makes a scene hold its last frame instead of playing its exit. Library components
+   * ignore `fade`.
+   */
+  timing?: SlotTiming;
 }
 
 export interface CompileInput {
