@@ -152,7 +152,7 @@ export function buildBigNumber(ctx: BuildContext, p: BigNumberParams): Compositi
 
   const label = text(
     layout.label,
-    `font-weight:500;font-family:${fontStack(style.fonts.body)};color:${style.colors.ink};overflow:hidden;`,
+    `font-weight:500;font-family:${fontStack(style.fonts.body)};color:${style.colors.ink};overflow:hidden;text-wrap:balance;`,
     p.label,
     true,
     'label',
