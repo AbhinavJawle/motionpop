@@ -17,6 +17,7 @@ import { cn } from '@/lib/cn';
 import { spring } from '@/lib/motion/presets';
 import { useSettingsPanel } from '@/lib/editor/settings-panel';
 import { useEditor, type RailItem } from '@/lib/stores/editor';
+import { usePip } from '@/lib/pip/use-pip';
 
 const ITEMS: readonly { id: RailItem; label: string; icon: LucideIcon }[] = [
   { id: 'voice', label: 'Voice', icon: Mic },
@@ -49,8 +50,12 @@ export function ToolRail() {
             type="button"
             aria-pressed={active}
             onClick={() => {
+              if (id === 'ai') {
+                // The AI rail item opens and closes the Pip panel (spec 10).
+                const pip = usePip.getState();
+                pip.setOpen(rail !== 'ai' || settingsOpen ? true : !pip.open);
+              } else toast(`${label} panel is on its way.`);
               setRail(id);
-              if (id !== 'ai') toast(`${label} panel is on its way.`);
             }}
             className={cn(
               'relative flex h-[50px] w-14 flex-col items-center rounded-chip pt-[7px] transition-colors',

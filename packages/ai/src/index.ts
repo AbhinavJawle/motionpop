@@ -14,3 +14,4 @@ export * from './direct/plan-video';
 export * from './edit/edit-doc';
 export * from './tasks/note-fix';
 export * from './tasks/prompt-prefill';
+export * from './tasks/pip-plan';

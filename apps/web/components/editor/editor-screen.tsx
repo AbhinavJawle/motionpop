@@ -20,6 +20,7 @@ import { Inspector } from './inspector';
 import { PipDock } from './pip-dock';
 import { PreviewPane } from './preview-pane';
 import { SettingsPanel } from './settings-panel';
+import { PipPanel } from '@/components/pip-panel/pip-panel';
 import { ToolRail } from './tool-rail';
 import { TopBar } from './top-bar';
 import { CaptureTestHook } from './capture-test-hook';
@@ -166,6 +167,7 @@ export function EditorScreen({
       <div className="relative flex min-h-0 flex-1">
         <ToolRail />
         <SettingsPanel />
+        <PipPanel />
         <PreviewPane />
         <Inspector />
         <PipDock />

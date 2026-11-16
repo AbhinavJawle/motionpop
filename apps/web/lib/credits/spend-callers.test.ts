@@ -16,6 +16,8 @@ const ALLOWED = new Set([
   'lib/slots/quick-edit.ts',
   // The frame-note flow (spec 09 task 20).
   'lib/notes/note-fix.ts',
+  // Pip's cloud plan (spec 10): 2 credits, refunded when the call fails.
+  'lib/pip/use-pip.ts',
   // The credits layer itself.
   'lib/credits/spend-with-ui.ts',
   'lib/credits/server-credits.ts',

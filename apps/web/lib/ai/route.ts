@@ -11,7 +11,8 @@ import type { Availability } from './ai-status';
  * on the device or deterministic defaults, **never the cloud, whatever the preference** (R6.5).
  */
 export type { Availability } from './ai-status';
-export type RoutedTask = 'edit.patch' | 'note.fix' | 'generate' | 'prompt.prefill' | 'autofill';
+export type RoutedTask =
+  'edit.patch' | 'note.fix' | 'generate' | 'prompt.prefill' | 'autofill' | 'pip.plan';
 export type InferenceModeName =
   'ONLY_ON_DEVICE' | 'PREFER_ON_DEVICE' | 'PREFER_IN_CLOUD' | 'ONLY_IN_CLOUD';
 
@@ -87,7 +88,8 @@ export function chooseRoute(i: RouteInput): Route {
   if (i.task === 'prompt.prefill' || i.task === 'autofill') {
     return deviceReady ? DEVICE : { kind: 'local' };
   }
-  if (i.task === 'generate') return cloudRoute(i);
+  // Pip plans reason over the whole timeline: the cloud (hybrid-ai.md, PREFER_IN_CLOUD).
+  if (i.task === 'generate' || i.task === 'pip.plan') return cloudRoute(i);
 
   // edit.patch / note.fix
   if (i.override === 'ONLY_ON_DEVICE') return deviceReady ? DEVICE : disabled('Needs on-device AI');
@@ -109,5 +111,6 @@ export function chipFor(
 
 /** The price of a routed task's cloud route, from the one cost table. */
 export function cloudCostFor(task: RoutedTask, cfg: CostConfig = APP_CONFIG_DEFAULTS): number {
+  if (task === 'pip.plan') return costOf('pip-plan', 1, cfg);
   return costOf(task === 'generate' ? 'generate' : 'edit', 1, cfg);
 }

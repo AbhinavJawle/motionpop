@@ -21,3 +21,4 @@ export * from './render';
 export * from './credits';
 export * from './cost';
 export * from './usage';
+export * from './pip';
