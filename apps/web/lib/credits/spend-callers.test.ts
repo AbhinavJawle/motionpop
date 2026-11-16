@@ -20,6 +20,8 @@ const ALLOWED = new Set([
   'lib/pip/use-pip.ts',
   // Script → voice (spec 11): per started minute, refunded when it fails.
   'lib/tts/generate-voice.ts',
+  // Custom graphic (spec 15): 3 credits, refunded on any failure.
+  'lib/slots/custom.ts',
   // The credits layer itself.
   'lib/credits/spend-with-ui.ts',
   'lib/credits/server-credits.ts',

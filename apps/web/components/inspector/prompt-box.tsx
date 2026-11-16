@@ -9,10 +9,18 @@ import { useAIStatus } from '@/lib/ai/ai-status';
 import { getRouter } from '@/lib/ai/router-client';
 import { useRoute } from '@/lib/ai/use-route';
 import { setSlotPrompt } from '@/lib/commands';
+import { useCustom } from '@/lib/slots/use-custom';
 import { useGenerate } from '@/lib/slots/use-generate';
 import { prefillPrompt } from '@/lib/slots/prefill';
 import { beginPrefill, endPrefill, useAIActivity } from '@/lib/stores/ai-activity';
 import { editorStore } from '@/lib/stores/editor';
+
+/**
+ * The prompt saves on blur and the box remounts when the saved prompt changes, so a press that
+ * moved focus away first would remount the button under the pointer and lose the click. The
+ * click handlers save the draft themselves.
+ */
+const keepFocus = (e: { preventDefault: () => void }) => e.preventDefault();
 
 /** Prompt box element id, so double-clicking a slot can focus it (spec 04 R6.4). */
 export const INSPECTOR_PROMPT_ID = 'inspector-prompt';
@@ -27,6 +35,7 @@ export const INSPECTOR_PROMPT_ID = 'inspector-prompt';
 export function PromptBox({ slot }: { slot: Slot }) {
   const [draft, setDraft] = useState(slot.prompt);
   const gen = useGenerate(slot);
+  const custom = useCustom(slot);
   const prefill = usePrefill(slot);
   const prefilling = prefill === 'working';
   const cost = gen.route.kind === 'cloud' ? gen.route.credits : 3;
@@ -39,6 +48,10 @@ export function PromptBox({ slot }: { slot: Slot }) {
   const generate = () => {
     save();
     gen.run();
+  };
+  const makeCustom = () => {
+    save();
+    custom.run();
   };
 
   return (
@@ -55,6 +68,28 @@ export function PromptBox({ slot }: { slot: Slot }) {
           prefilling ? 'Pip is writing a prompt…' : 'Describe the graphic you want here…'
         }
       />
+      {/* Tier 2 (spec 15, not designed): the same brief, written as a new graphic by the cloud. */}
+      <Tooltip
+        content={
+          custom.disabledReason ?? 'Nothing in the library fits? Pip writes a custom graphic'
+        }
+        side="top"
+        className="absolute bottom-1 left-2"
+      >
+        <span>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={custom.disabledReason !== null || gen.busy || draft.trim().length < 3}
+            onMouseDown={keepFocus}
+            onClick={makeCustom}
+            className="h-[26px] gap-1 px-2 text-violet-ink"
+          >
+            <span>Custom</span>
+            <CostChip route="cloud" credits={custom.cost} />
+          </Button>
+        </span>
+      </Tooltip>
       <Tooltip
         content={gen.disabledReason ?? 'Generate with cloud AI'}
         shortcut={gen.disabledReason ? undefined : '⌘G'}
@@ -66,6 +101,7 @@ export function PromptBox({ slot }: { slot: Slot }) {
             variant="ai"
             size="sm"
             disabled={gen.disabledReason !== null || gen.busy}
+            onMouseDown={keepFocus}
             onClick={generate}
             className="h-[26px] w-[122px] gap-0 pr-[7px] pl-[11px]"
           >

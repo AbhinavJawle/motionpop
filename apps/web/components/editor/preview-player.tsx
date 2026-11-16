@@ -15,7 +15,8 @@ const RECOMPILE_DEBOUNCE_MS = 150;
 /**
  * The HyperFrames player showing the compiled project (spec 04 R3.3). Muted: the editor plays
  * the voiceover itself. Recompiles 150 ms after slots, params, format or style change.
- * Library-only compositions use the player's default sandbox (D-021).
+ * Library-only compositions use the player's default sandbox; any custom graphic switches it to an
+ * opaque origin (D-021, spec 15). Frame-note crops can't read an opaque frame and go without one.
  */
 export function PreviewPlayer({ onError }: { onError?: (message: string) => void }) {
   const ref = useRef<PlayerEl | null>(null);
@@ -50,6 +51,11 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
       loadCompositionAssets()
         .then((assets) => {
           if (cancelled || !ref.current) return;
+          // Generated code (spec 15) only ever runs with an opaque origin (D-021); set before the
+          // composition so it never loads same-origin, even for one frame.
+          if (input.slots.some((s) => s.componentId === 'custom')) {
+            ref.current.setAttribute('sandbox-origin', 'opaque');
+          } else ref.current.removeAttribute('sandbox-origin');
           ref.current.setAttribute('srcdoc', compileProject(input, assets));
           setAssetsError(null);
         })
