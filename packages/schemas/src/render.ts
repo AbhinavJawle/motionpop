@@ -47,7 +47,7 @@ export const isFinalStatus = (s: RenderStatus): boolean => s === 'done' || s ===
 
 /**
  * What the creator picked in the export modal. `captions` burns in the project's caption preset
- * (spec 12a); `music` stays false until spec 12b: the route rejects it as `invalid`.
+ * (spec 12a); `music` mixes the project's sound bed (effects and music, spec 12b) under the voice.
  */
 export const RenderOptionsSchema = z
   .object({

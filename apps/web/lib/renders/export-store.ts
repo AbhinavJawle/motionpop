@@ -36,11 +36,11 @@ export interface ExportUiState {
   reset(): void;
 }
 
-export const defaultOptions = (format: Format, captions = false): RenderOptions => ({
+export const defaultOptions = (format: Format, captions = false, music = true): RenderOptions => ({
   format,
   resolution: '1080p',
   captions,
-  music: false,
+  music,
 });
 
 const finished = (v: RenderView | null): boolean =>

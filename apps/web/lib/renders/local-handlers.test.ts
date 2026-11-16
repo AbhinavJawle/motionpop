@@ -101,16 +101,6 @@ describe('createLocalRender', () => {
       ['not json', () => createLocalRender(make().deps, 'nope', voice()), 'invalid'],
       ['bad shape', () => createLocalRender(make().deps, '{}', voice()), 'invalid'],
       [
-        'music',
-        () =>
-          createLocalRender(
-            make().deps,
-            text({ options: { ...REQUEST.options, music: true } }),
-            voice(),
-          ),
-        'invalid',
-      ],
-      [
         'a voice path in the body',
         () => createLocalRender(make().deps, text({ voicePath: 'x' }), voice()),
         'invalid',

@@ -124,7 +124,7 @@ export function ExportController() {
           format: ui.view.format,
           resolution: ui.view.resolution,
           captions: ui.options?.captions ?? false,
-          music: false,
+          music: ui.options?.music ?? true,
         }
       : ui.options;
     ui.reset();

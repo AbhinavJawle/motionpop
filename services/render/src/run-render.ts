@@ -124,7 +124,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     // the export goes on with the voice alone rather than failing the whole render.
     let bedSrc: string | null = null;
     try {
-      bedSrc = await prepareBed(project, compDir);
+      if (doc.music) bedSrc = await prepareBed(project, compDir);
     } catch (e) {
       log.error({ event: 'bed-failed', renderId, error: errorText(e) });
     }

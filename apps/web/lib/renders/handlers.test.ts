@@ -114,7 +114,10 @@ describe('createRender: the happy path', () => {
     await createRender(
       f.deps,
       UID,
-      body({ options: { ...OPTIONS, format: '9:16', resolution: '720p' }, expectedCost: 3 }),
+      body({
+        options: { ...OPTIONS, format: '9:16', resolution: '720p', music: true },
+        expectedCost: 3,
+      }),
     );
     const [id, render, cost, , now] = spy.mock.calls[0]!;
     expect(id).toBe(RENDER_ID);
@@ -127,7 +130,7 @@ describe('createRender: the happy path', () => {
       format: '9:16',
       resolution: '720p',
       captions: false,
-      music: false,
+      music: true,
       durationMs: 18_000,
       slotCount: 2,
       mode: 'emulator',
@@ -179,7 +182,7 @@ describe('createRender: every error of design §10', () => {
     return { r, f };
   }
 
-  it('invalid: not JSON, wrong shape, extra keys, music asked for (captions are accepted, spec 12a)', async () => {
+  it('invalid: not JSON, wrong shape, extra keys (captions and music are accepted, spec 12)', async () => {
     for (const text of [
       'not json',
       '{}',
@@ -188,7 +191,6 @@ describe('createRender: every error of design §10', () => {
       body({ requestId: 'nope' }),
       body({ expectedCost: -1 }),
       body({ expectedCost: 1.5 }),
-      body({ options: { ...OPTIONS, music: true } }),
       body({ options: { ...OPTIONS, resolution: '4k' } }),
       body({ project: { ...PROJECT, slots: 'x' } }),
     ]) {

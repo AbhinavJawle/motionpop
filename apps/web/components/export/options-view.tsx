@@ -66,8 +66,8 @@ export function ProjectCard({
 
 /**
  * The options of "Export video" (design/screens/export.png): format and resolution cards, three
- * switches, the cost row and the button. Captions, transparent background and music are "Soon"
- * until spec 12 (R1.5, R1.7); 4K is "Soon" (R1.6).
+ * switches, the cost row and the button. Transparent background is "Soon" (R1.7); 4K is "Soon"
+ * (R1.6). Captions and the sound bed are live (spec 12).
  */
 export function OptionsView({
   options,
@@ -126,10 +126,10 @@ export function OptionsView({
       />
       <SwitchRow
         className="mt-[27px]"
-        label="Include music"
-        checked={false}
-        onCheckedChange={() => {}}
-        soon="Arrives with music."
+        label="Include music and effects"
+        hint="The pops, whooshes and music you hear in the editor."
+        checked={options.music}
+        onCheckedChange={(music) => onOptions({ ...options, music })}
       />
 
       <div className="mt-[23px] h-px bg-dialog-line" />

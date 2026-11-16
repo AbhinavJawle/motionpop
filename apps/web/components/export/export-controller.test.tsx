@@ -140,7 +140,8 @@ describe('export controller: the flow of one render', () => {
       resolution: '720p',
       // Captions default to the project's setting, on for new projects (spec 12a).
       captions: true,
-      music: false,
+      // The sound bed is on by default (spec 12b).
+      music: true,
     });
     expect(input?.expectedCost).toBe(0);
     expect(input?.project.id).toBe('fixture');
