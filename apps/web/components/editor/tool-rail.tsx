@@ -55,7 +55,7 @@ export function ToolRail() {
                 // The AI rail item opens and closes the Pip panel (spec 10).
                 const pip = usePip.getState();
                 pip.setOpen(rail !== 'ai' || settingsOpen ? true : !pip.open);
-              } else if (id === 'projects' || id === 'voice') {
+              } else if (id === 'projects' || id === 'voice' || id === 'audio') {
                 // Spec 11 §12: the Voice and Projects panels share the left panel.
                 if (settingsOpen || useRailPanel.getState().open !== id) {
                   useRailPanel.setState({ open: id });

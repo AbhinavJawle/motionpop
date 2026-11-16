@@ -1,53 +1,96 @@
 'use client';
 
-import { mulberry32 } from '@motionpop/motion';
+import { audioOf } from '@motionpop/schemas';
+import { duckEnvelope } from '@motionpop/motion/sfx';
 import { useMemo } from 'react';
 import { msToX } from '@/lib/timeline/geometry';
-import { selectSlots, useEditor } from '@/lib/stores/editor';
+import { toggleRailPanel } from '@/lib/editor/rail-panel';
+import { useBedState } from '@/lib/sound/bed-state';
+import { useEditor } from '@/lib/stores/editor';
 import { useTimeline } from './timeline-context';
 
+const MUSIC_NAMES: Record<string, string> = {
+  'calm-pad': 'Calm pad',
+  'steady-pulse': 'Steady pulse',
+};
+
 /**
- * AUDIO track: the design's mint music band with SFX chips at slot cues (spec 04 R4.5).
- * Music, ducking and SFX playback land in spec 12; until then the band is a placeholder.
+ * AUDIO track (spec 12 task B6): the mint band with the effects the bed actually plays, as pills
+ * at their peaks, and the ducking line when music is on. The label says what the bed holds and
+ * opens the Audio panel.
  */
 export function AudioTrack() {
   const { view, durationMs } = useTimeline();
-  const slots = useEditor(selectSlots);
+  const project = useEditor((s) => s.project);
+  const placements = useBedState((s) => s.placements);
+  const audio = project ? audioOf(project) : null;
   const left = msToX(0, view);
   const width = msToX(durationMs, view) - left;
-  const bars = useMemo(() => {
-    const rand = mulberry32(12);
-    return Array.from({ length: 400 }, () => 2 + rand() * 9);
-  }, []);
+  const hasMusic = !!audio?.musicId;
+
+  // The ducking line: the same envelope the mix uses, drawn as a path over the band.
+  const words = project?.transcript.words;
+  const videoMs = project?.durationMs ?? 0;
+  const musicId = audio?.musicId;
+  const ducking = audio?.ducking ?? false;
+  const depthDb = audio?.duckDepthDb ?? 0;
+  const duckPath = useMemo(() => {
+    if (!words || !musicId || !ducking || width <= 0) return null;
+    const env = duckEnvelope(words, videoMs, { depthDb });
+    if (env.length === 0) return null;
+    const step = Math.max(1, Math.floor(env.length / Math.max(1, width / 2)));
+    const depth = Math.max(1, depthDb);
+    let d = '';
+    for (let i = 0; i < env.length; i += step) {
+      const x = msToX(i * 10, view) - left;
+      const y = 6 + (Math.min(depth, -(env[i] ?? 0)) / depth) * 20;
+      d += `${d ? 'L' : 'M'}${x.toFixed(1)},${y.toFixed(1)}`;
+    }
+    return d;
+  }, [words, videoMs, musicId, ducking, depthDb, view, left, width]);
+
+  const label = !audio
+    ? ''
+    : audio.musicId === 'own'
+      ? `♫ ${audio.musicName ?? 'Your track'}${audio.ducking ? ' · ducked' : ''}`
+      : audio.musicId
+        ? `♫ ${MUSIC_NAMES[audio.musicId] ?? 'Music'}${audio.ducking ? ' · ducked' : ''}`
+        : '♫ Add music';
 
   return (
     <div
       className="absolute top-1 h-[34px] overflow-hidden rounded-[7px] bg-music shadow-glass"
       style={{ left, width }}
+      data-testid="audio-track"
     >
-      <div aria-hidden className="absolute inset-y-0 left-[180px] flex items-center gap-[5.3px]">
-        {bars.slice(0, Math.max(0, Math.floor((width - 190) / 7.3))).map((h, i) => (
-          <span
-            key={i}
-            className="w-0.5 rounded-full bg-music-bar opacity-40"
-            style={{ height: h }}
+      {duckPath && (
+        <svg aria-hidden className="pointer-events-none absolute inset-0 h-full w-full">
+          <path
+            d={duckPath}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1}
+            className="text-music-bar opacity-60"
           />
-        ))}
-      </div>
-      <span className="absolute top-[9px] left-3 text-[10px] leading-[13px] font-medium text-text-2">
-        ♫ Music · ducked
-      </span>
-      {slots.flatMap((s) =>
-        (s.sfx ?? []).map((cue) => (
-          <span
-            key={`${s.id}-${cue.id}-${cue.atMs}`}
-            className="absolute top-[7px] rounded-full border border-white/8 bg-sfx px-[7px] py-[3px] text-[9px] leading-3 text-text-2"
-            style={{ left: msToX(s.startMs + cue.atMs, view) - left }}
-          >
-            • {cue.id}
-          </span>
-        )),
+        </svg>
       )}
+      <button
+        type="button"
+        onClick={() => toggleRailPanel('audio')}
+        className={`absolute top-[5px] left-1.5 z-10 rounded-md bg-music px-1.5 py-1 text-[10px] leading-[13px] font-medium ${hasMusic ? 'text-text-2' : 'text-text-3 hover:text-text-2'}`}
+      >
+        {label}
+      </button>
+      {placements.map((p) => (
+        <span
+          key={`${p.slotId}-${p.kind}-${p.atMs}`}
+          className="absolute top-[7px] -translate-x-1/2 rounded-full border border-white/8 bg-sfx px-[7px] py-[3px] text-[9px] leading-3 text-text-2"
+          style={{ left: msToX(p.atMs, view) - left }}
+          title={`${p.kind} at ${(p.atMs / 1000).toFixed(2)}s`}
+        >
+          • {p.kind}
+        </span>
+      ))}
     </div>
   );
 }

@@ -9,3 +9,4 @@ export * from './duck';
 export * from './limiter';
 export * from './mix';
 export * from './music';
+export * from './bed';

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Timeline } from '@/components/timeline/timeline';
 import { PlaybackClock } from '@/lib/editor/playback';
 import { loadVoice, type LoadedVoice } from '@/lib/editor/voice';
+import { useSoundBed } from '@/lib/sound/use-sound-bed';
 import { useVoiceState } from '@/lib/editor/voice-state';
 import { AudioElsewhereError } from '@/lib/audio/hybrid-audio-store';
 import { projectLibrary } from '@/lib/projects/use-project-list';
@@ -59,6 +60,7 @@ export function EditorScreen({
   const rejection = useEditor((s) => s.rejection);
 
   useEditorKeys(clock);
+  useSoundBed(clock, voice?.voiceLevelDb ?? null);
   useAutoFill();
   useGenerateShortcut();
 

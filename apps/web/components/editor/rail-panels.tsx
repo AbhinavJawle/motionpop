@@ -7,11 +7,12 @@ import { usePip } from '@/lib/pip/use-pip';
 import { LeftPanel } from './left-panel';
 import { ProjectsPanelBody } from './projects-panel';
 import { VoicePanelBody } from './voice-panel';
+import { AudioPanelBody } from './audio-panel';
 
-const LABELS = { voice: 'Voice', projects: 'Projects' } as const;
+const LABELS = { voice: 'Voice', projects: 'Projects', audio: 'Audio' } as const;
 
 /**
- * The Voice and Projects rail panels (spec 11 §12) in the shared left panel. Pip, Settings and
+ * The Voice, Projects and Audio rail panels (spec 11 §12, spec 12 §8) in the shared left panel. Pip, Settings and
  * these panels close each other, so only one holds the 340 px slot.
  */
 export function RailPanels() {
@@ -32,6 +33,7 @@ export function RailPanels() {
     <LeftPanel open={open !== null} label={open ? LABELS[open] : 'Panel'} onClose={closeRailPanel}>
       {open === 'projects' && <ProjectsPanelBody />}
       {open === 'voice' && <VoicePanelBody />}
+      {open === 'audio' && <AudioPanelBody />}
     </LeftPanel>
   );
 }

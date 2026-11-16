@@ -283,3 +283,36 @@ describe('PlaybackClock rate change while playing', () => {
     expect(sim.pendingCount()).toBe(1);
   });
 });
+
+describe('PlaybackClock follower (the sound bed, spec 12 §7)', () => {
+  it('follows seek, play, rate and pause, and re-seeks when it drifts past 40 ms', async () => {
+    const voice = makeAudio();
+    const bed = makeAudio();
+    clock.attachAudio(voice.element);
+    clock.attachFollower(bed.element);
+    clock.seek(1200);
+    expect(bed.audio.currentTime).toBe(1.2);
+
+    await clock.play();
+    expect(bed.audio.play).toHaveBeenCalledTimes(1);
+    await clock.play(2);
+    expect(bed.audio.playbackRate).toBe(2);
+
+    // The voice moves on; the bed lags 100 ms: the next sync (≥ 250 ms later) re-seeks it.
+    voice.audio.currentTime = 2.0;
+    bed.audio.currentTime = 1.9;
+    sim.step(300);
+    expect(bed.audio.currentTime).toBe(2.0);
+    // Within 40 ms it is left alone.
+    voice.audio.currentTime = 2.5;
+    bed.audio.currentTime = 2.48;
+    sim.step(300);
+    expect(bed.audio.currentTime).toBe(2.48);
+
+    clock.pause();
+    expect(bed.audio.pause).toHaveBeenCalled();
+    clock.attachFollower(null);
+    clock.seek(100);
+    expect(bed.audio.currentTime).toBe(2.48);
+  });
+});

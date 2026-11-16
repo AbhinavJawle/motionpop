@@ -1,4 +1,5 @@
 import type { EditorProject } from '@motionpop/schemas';
+import { voiceLevelDb } from '@motionpop/motion/sfx';
 import { encodeWav, synthVoice } from '../audio/synth-voice';
 import { DEFAULT_BUCKET_MS } from '../audio/peaks';
 import { PeaksResponseSchema } from '../audio/peaks-messages';
@@ -11,6 +12,8 @@ export interface LoadedVoice {
   url: string;
   peaks: Float32Array;
   bucketMs: number;
+  /** RMS over the spoken words, in dBFS: the level the sound bed is mixed against (spec 12 §7). */
+  voiceLevelDb: number;
   revoke(): void;
 }
 
@@ -75,6 +78,11 @@ export async function loadVoice(project: EditorProject): Promise<LoadedVoice> {
     sampleRate = buffer.sampleRate;
   }
 
+  const level = voiceLevelDb(
+    channels[0] ?? new Float32Array(0),
+    sampleRate,
+    project.transcript.words,
+  );
   const peaks = await peaksInWorker(channels, sampleRate);
-  return { url, peaks, bucketMs: DEFAULT_BUCKET_MS, revoke };
+  return { url, peaks, bucketMs: DEFAULT_BUCKET_MS, voiceLevelDb: level, revoke };
 }

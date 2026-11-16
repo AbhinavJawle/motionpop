@@ -21,6 +21,9 @@ export class PlaybackClock {
   private playing = false;
   private fallbackFrom: { wall: number; ms: number } | null = null;
   private rate = 1;
+  /** A second element that follows the clock (the sound bed, spec 12 §7). */
+  private follower: HTMLAudioElement | null = null;
+  private lastSync = 0;
 
   constructor(
     private readonly store: EditorStore,
@@ -40,6 +43,25 @@ export class PlaybackClock {
     this.audio = audio;
     audio?.addEventListener('ended', this.onEnded);
     if (audio) audio.currentTime = this.ms / 1000;
+  }
+
+  /**
+   * Makes `el` follow the clock: same position, rate, play and pause, re-seeked when it drifts
+   * more than 40 ms (checked every 250 ms while playing). `null` detaches it.
+   */
+  attachFollower(el: HTMLAudioElement | null): void {
+    this.follower?.pause();
+    this.follower = el;
+    if (!el) return;
+    el.currentTime = this.ms / 1000;
+    el.playbackRate = this.rate;
+    if (this.playing) void el.play().catch(() => {});
+  }
+
+  private syncFollower(force = false): void {
+    const f = this.follower;
+    if (!f) return;
+    if (force || Math.abs(f.currentTime * 1000 - this.ms) > 40) f.currentTime = this.ms / 1000;
   }
 
   subscribe(listener: FrameListener): () => void {
@@ -70,6 +92,7 @@ export class PlaybackClock {
   seek(ms: number, opts: { transient?: boolean } = {}): void {
     const t = Math.max(0, Math.min(this.durationMs, Math.round(ms)));
     if (this.audio) this.audio.currentTime = t / 1000;
+    if (this.follower) this.follower.currentTime = t / 1000;
     if (this.fallbackFrom) this.fallbackFrom = { wall: this.env.now(), ms: t };
     this.emit(t);
     if (!opts.transient) this.store.getState().setPlayhead(t);
@@ -81,6 +104,7 @@ export class PlaybackClock {
       if (rate === this.rate) return;
       this.rate = rate;
       if (this.audio) this.audio.playbackRate = rate;
+      if (this.follower) this.follower.playbackRate = rate;
       if (this.fallbackFrom) this.fallbackFrom = { wall: this.env.now(), ms: this.ms };
       return;
     }
@@ -99,6 +123,11 @@ export class PlaybackClock {
     } else {
       this.fallbackFrom = { wall: this.env.now(), ms: this.ms };
     }
+    if (this.playing && this.follower) {
+      this.follower.playbackRate = rate;
+      this.syncFollower(true);
+      void this.follower.play().catch(() => {});
+    }
     if (this.playing) this.loop();
   }
 
@@ -107,6 +136,7 @@ export class PlaybackClock {
     this.playing = false;
     this.env.cancelFrame(this.raf);
     this.audio?.pause();
+    this.follower?.pause();
     this.fallbackFrom = null;
     const s = this.store.getState();
     s.setPlaying(false);
@@ -129,6 +159,11 @@ export class PlaybackClock {
       return;
     }
     this.emit(Math.round(ms));
+    const now = this.env.now();
+    if (now - this.lastSync >= 250) {
+      this.lastSync = now;
+      this.syncFollower();
+    }
     this.raf = this.env.requestFrame(this.loop);
   };
 
@@ -140,6 +175,7 @@ export class PlaybackClock {
   dispose(): void {
     this.pause();
     this.attachAudio(null);
+    this.attachFollower(null);
     this.listeners.clear();
   }
 }
