@@ -429,13 +429,16 @@ function ActionCard({ m }: { m: PipEntry }) {
           {n === 0 ? 'Nothing changed' : `Updated ${n} ${n === 1 ? 'step' : 'steps'}`}
         </p>
         <div className="flex flex-col items-end gap-1 text-[11.5px]">
-          <button
-            type="button"
-            className="text-violet-ink hover:underline"
-            onClick={() => undoPipPlan(editorStore, m.id)}
-          >
-            Undo
-          </button>
+          {/* A plan restored after a reload has no undo handle; ⌘Z history still covers it. */}
+          {m.entries && (
+            <button
+              type="button"
+              className="text-violet-ink hover:underline"
+              onClick={() => undoPipPlan(editorStore, m.id)}
+            >
+              Undo
+            </button>
+          )}
           {firstSlot && (
             <button
               type="button"

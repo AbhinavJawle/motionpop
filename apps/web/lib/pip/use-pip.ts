@@ -18,10 +18,12 @@ import type { Router } from '@motionpop/ai';
 import type { EditorStore } from '@/lib/stores/editor';
 import type { Command } from '@/lib/commands/command';
 import { applyPlan, undoPlan, type ApplyDeps } from './apply';
+import { loadThread, saveThread } from './persist';
 import { codePlan, enforcePlan, pipInput, type ChipId } from './plan';
 
 /**
- * Pip's conversation (spec 10), lean: one thread per project kept for the session. A typed
+ * Pip's conversation (spec 10), lean: one thread per project, kept in this browser across reloads
+ * (`persist.ts`). A typed
  * message routes to the cloud (`pip.plan`, 2 credits, refunded on failure); without the cloud it
  * falls back to the code planner, free, and says so. Chips always build their plan in code.
  */
@@ -48,6 +50,12 @@ export const usePip = create<PipState>((set) => ({
   toggle: () => set((s) => ({ open: !s.open })),
 }));
 
+// Every change to the open project's thread is saved (messages are few and small).
+usePip.subscribe((s, prev) => {
+  if (s.projectId && s.messages !== prev.messages && s.projectId === prev.projectId)
+    saveThread(s.projectId, s.messages);
+});
+
 const THREAD = 'main';
 const msgId = () => `m-${crypto.randomUUID().slice(0, 8)}`;
 
@@ -66,10 +74,14 @@ function patch(id: string, p: Partial<PipEntry>): void {
   usePip.setState((s) => ({ messages: s.messages.map((m) => (m.id === id ? { ...m, ...p } : m)) }));
 }
 
-/** A new project starts a new conversation. */
+/** Opening a project brings back its thread from this browser (or starts an empty one). */
 export function syncPipProject(projectId: string | null): void {
   if (usePip.getState().projectId !== projectId)
-    usePip.setState({ projectId, messages: [], busy: false });
+    usePip.setState({
+      projectId,
+      messages: projectId ? loadThread(projectId) : [],
+      busy: false,
+    });
 }
 
 export function newConversation(): void {
