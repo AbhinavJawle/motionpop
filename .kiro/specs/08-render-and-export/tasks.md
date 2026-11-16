@@ -175,7 +175,7 @@ Two standing rules:
     - _**Preflight:** a composition compiled with a `big-number` slot `b` whose params do not parse reports exactly one issue, for `b`; the same composition without the bad slot reports none. `compileProject` does not parse params, so the component's `build` is what throws, in the real runtime inside Chrome._
     - _**Skipping:** the suite is skipped when ffmpeg, ffprobe, Chrome or `packages/motion/dist` is missing, with the missing tools in the suite's name. When `CI` is set a missing tool throws at import, so CI can't skip silently. Puppeteer 25's `executablePath()` is async, so the check awaits it (a first version passed a Promise to `existsSync` and skipped everything quietly; I saw the deprecation warning and fixed it)._
     - _For Claude Code (IDE, task 21): the CI `render` job must install ffmpeg and a Chrome (`pnpm --filter @motionpop/web exec playwright install --with-deps chromium` gives one, but puppeteer uses its own cache: run `pnpm --filter @motionpop/render exec puppeteer browsers install chrome` too) and build `packages/motion/dist` first. Set `CHROME_NO_SANDBOX=1` if the runner refuses Chrome's sandbox; the test reads it._
-- [ ] 10. **[kiro]** Emulator tests for the store (`apps/web/rules/export-tx.emulator.test.ts`):
+- [x] 10. **[kiro]** Emulator tests for the store (`apps/web/rules/export-tx.emulator.test.ts`):
   - P1, P2, P3 and P5 with fast-check over random concurrent sequences of start, fail, sweep and done for 1–3 users (small `numRuns`, so CI stays fast);
   - an idempotent replay;
   - the daily limit;
@@ -184,6 +184,15 @@ Two standing rules:
   - an export as the first action of the UTC day, followed by a plan-allowance call and a second export on the same day doc (review F1).
   - The Firebase MCP may be used to inspect emulator state while debugging; it never deploys.
   - — R2.5–R2.9, R4.6, R6.1
+  - _Done 2026-11-16 (headless run, claude-sonnet-5.5). `apps/web/rules/export-tx.emulator.test.ts`: 8 tests, about 60 s on the Firestore emulator (`firebase emulators:exec … "npx vitest run --config vitest.rules.config.ts rules/export-tx"`). Prettier, web typecheck and lint (0 warnings) green. `render-store.emulator.test.ts` (task 8) already covers the single-call cases (replay, daily limit, active-render conflict, the sweep clock, judge top-up), so this file is about interleavings, as the task says._
+    - _**P1 and P3:** 10 runs of 1–3 users with grants of 0–16 and a cost of 0, 3 or 5; 1–4 batches of 1–6 operations each (start, `failRender`, `sweepIfStalled`, `markStarted`, `markDone`), the operations of a batch at once. After every batch each user's balance is ≥ 0 and equals the sum of the ledger, every `balanceAfter` is ≥ 0, and each render has one spend entry (none when the cost is 0 or the start was refused) and a `refund-` entry exactly when it ended in `error` with a cost above 0._
+    - _**P2:** 2–8 concurrent identical requests make one `created`, the rest `existing`, one `export-` entry, one day count; and any interleaving (concurrent or in order) of the job's failure, the route's `start-failed`, the sweep and `markDone` ends `done` (balance 15) or `error` (balance 20, one refund), never both._
+    - _**P5:** for random balances 0–30 and costs 0–12, a start takes exactly the cost it was given or is refused `insufficient-credits` with nothing written. The `cost-changed` half of P5 (the client's `expectedCost` against the server price) is the route's: `startExport` only receives the price, so task 12's handler tests cover it._
+    - _**Sweep with a fake clock** (passed as `nowMs`): a queued render is untouched at any time up to 30 s before the stall limit and is failed and refunded after it._
+    - _**Review F1:** an export as the first action of the UTC day creates a day doc with `renders: 1` that parses (`planCloud` 0); a plan allowance on the same day doc then gives `planCloud: 1` and keeps `renders`; a second export after the first failed gives `renders: 2, planCloud: 1`. The reverse order, and an export concurrent with four allowances (`renders: 1`, `planCloud: 4`), hold too._
+    - _I checked the tests can fail: a sweep that ignores the stall guard (`isStalled(r, nowMs + 60_000_000)`) failed the sweep test (`expected 'error' to be 'queued'`), and in the earlier task 5b run, removing `failRender`'s refund write failed the ledger properties. The mutation was reverted (`git status` shows only the new file)._
+    - _One expectation of mine was wrong, not the code: a free export (cost 0) writes no ledger entry, so my first property demanded a spend entry for every render and failed on a cost of 0 with a counterexample of two operations. The helper now expects an entry only when the cost is above 0._
+
 
 ## C. Server
 
