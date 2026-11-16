@@ -101,6 +101,8 @@ export interface UsageEvent {
   ranOn: RanOn;
   model: string;
   credits: number;
+  /** What this call would cost in the cloud: what an on-device call saved (Settings, spec 13). */
+  cloudCost: number;
   latencyMs: number;
   ok: boolean;
   /** Provider calls made, repairs included. */
@@ -186,6 +188,7 @@ export function createRouter(deps: {
         ...(task.thinking ? { thinking: task.thinking } : {}),
         ...(task.media ? { media: task.media(input.data) } : {}),
       };
+      const cloudCost = task.cloudCost(input.data);
       const started = now();
       let attempts = 0;
       let lastRanOn: RanOn = isCloudMode(mode) ? 'cloud' : 'device';
@@ -248,6 +251,7 @@ export function createRouter(deps: {
           ranOn: lastRanOn,
           model,
           credits: 0,
+          cloudCost,
           latencyMs,
           ok: false,
           attempts,
@@ -255,12 +259,13 @@ export function createRouter(deps: {
         });
         throw new RouterError(task.id, lastFailure, lastError);
       }
-      const costCredits = result.ranOn === 'cloud' ? task.cloudCost(input.data) : 0;
+      const costCredits = result.ranOn === 'cloud' ? cloudCost : 0;
       deps.onUsage?.({
         task: task.id,
         ranOn: result.ranOn,
         model,
         credits: costCredits,
+        cloudCost,
         latencyMs,
         ok: true,
         attempts,

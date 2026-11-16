@@ -166,15 +166,13 @@ describe('writeUsage (emulator)', () => {
     'leaves the other counters of the day doc alone (plan allowance, AI hours, refunds)',
     async () => {
       const uid = newUid();
-      await db
-        .doc(`users/${uid}/limits/${DAY}`)
-        .set({
-          schemaVersion: 1,
-          planCloud: 2,
-          aiByHour: { '10': 4 },
-          refunds: 1,
-          updatedAt: new Date(),
-        });
+      await db.doc(`users/${uid}/limits/${DAY}`).set({
+        schemaVersion: 1,
+        planCloud: 2,
+        aiByHour: { '10': 4 },
+        refunds: 1,
+        updatedAt: new Date(),
+      });
       await writeUsage(db, uid, batch([ev()]), CAP, T0);
       const limits = await day(uid);
       expect(limits).toMatchObject({

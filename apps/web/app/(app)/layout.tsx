@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from 'react';
+import { UsageReporterHost } from '@/components/credits/usage-reporter-host';
 import { OutOfCreditsHost } from '@/components/credits/out-of-credits-modal';
 import { AuthGate } from '@/lib/auth/auth-gate';
 
@@ -8,6 +9,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <Suspense>
       <AuthGate>{children}</AuthGate>
       <OutOfCreditsHost />
+      <UsageReporterHost />
     </Suspense>
   );
 }

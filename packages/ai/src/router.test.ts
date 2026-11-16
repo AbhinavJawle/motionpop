@@ -90,7 +90,9 @@ describe('createRouter', () => {
     expect(r.model).toBe('fast-model');
     expect(p.calls[0]?.mode).toBe('PREFER_ON_DEVICE');
     expect(p.calls[0]?.jsonSchema).toMatchObject({ type: 'object' });
-    expect(usage).toEqual([expect.objectContaining({ ok: true, credits: 0, ranOn: 'device' })]);
+    expect(usage).toEqual([
+      expect.objectContaining({ ok: true, credits: 0, cloudCost: 2, ranOn: 'device' }),
+    ]);
   });
 
   it('passes the task media to the provider', async () => {
@@ -139,7 +141,7 @@ describe('createRouter', () => {
       reason: 'invalid-output',
     });
     expect(p.calls).toHaveLength(2);
-    expect(usage).toEqual([expect.objectContaining({ ok: false, credits: 0 })]);
+    expect(usage).toEqual([expect.objectContaining({ ok: false, credits: 0, cloudCost: 2 })]);
   });
 
   it('escalates to the cloud after a failed repair when cloudFallback is set', async () => {
