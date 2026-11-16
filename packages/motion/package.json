@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./compiler": "./src/compiler/index.ts",
     "./styles": "./src/styles/index.ts",
+    "./registry": "./src/registry.ts",
     "./dist/*": "./dist/*",
     "./package.json": "./package.json"
   },
