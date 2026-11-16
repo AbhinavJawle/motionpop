@@ -361,3 +361,27 @@ Template:
   - The list-stack card marker wraps only the first word of a broken label.
   - Whisper heard "Nikkei" as "knee-k".
 - **My mistake:** a background check command hung for 20 minutes because `prettier --write` with an empty file list waits on stdin.
+
+## 2026-11-16 (later) · Claude Code (Opus 5.5) · render deploy, sound everywhere, landing
+- **Render job deployed and verified (spec 08 task 6a, approved by the founder).**
+  - A hosted 10 s export reached `done`. The MP4 probes as H.264 1920×1080 30 fps with AAC; mean voice level −20 dB, peak −1 dB.
+  - **Speed:** the first export took 165 s. The producer part was 37 s; the rest was Cloud Run starting the job.
+  - **Image fix:** it now ships only chrome-headless-shell, drops dev dependencies, and turns off the producer's low-memory profile (it misread 8 GiB as low memory). The image went from 681 MB to 493 MB and producer time from 37 s to 28 s.
+  - **Still slow:** job start varies from 40 to 115 s between runs, and it dominates the wait. In one probe gen1 was slower than gen2, so the job stays on gen2.
+- **Sound in the editor (spec 12 B6, B10):**
+  - A worker mixes the bed 300 ms after each edit. The `PlaybackClock` follower keeps it within 40 ms of the voice (tested).
+  - The AUDIO track shows the effects the bed actually plays.
+  - The new Audio panel has music rows behind `musicSynthEnabled`, level, ducking, effects toggle, count, shuffle and effects level.
+  - **React Compiler lint caught two patterns:** mutating a memoised `Audio` element, and `setState` inside an effect. Both rewritten.
+- **Sound in the export (B8), built differently from the spec (D-069):** the job mixes the bed itself from the snapshot, so nothing is uploaded. Verified on hosted: the producer logged two audio clips, and the MP4 differs from the voice-only export with a clear effect at 5.2 s.
+  - Whether the effects are loud enough is the founder's listening check (B11).
+- **Export modal:** "Include music and effects" is live and on by default.
+- **Usage rows:**
+  - TTS now reports its own usage, since it bypasses the router.
+  - The reporter also flushes on `pagehide`.
+  - **Cause of the missing custom and Pip rows:** they ran through the router fine, but my Playwright scripts closed the browser inside the 15 s buffer window.
+- **Landing (spec 16, not designed):** `/` is now a public landing page, plus `/terms` and `/privacy`.
+  - The hero video is a real local export of the demo project. The editor image is a real screenshot.
+  - Prices are read from the config defaults.
+  - The privacy page names the processors (Google Cloud, Firebase, Gemini, Anthropic) because accuracy needs it. The founder should review both legal pages.
+- **`.kiro` edits in this session:** I ticked tasks in `.kiro/specs/08-*/tasks.md` and `12-*/tasks.md` with notes. These are Claude Code edits, not Kiro runs. No Kiro runs this session.
