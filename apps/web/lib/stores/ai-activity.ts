@@ -13,13 +13,27 @@ interface AIActivityState {
   ready: { slotId: string; ms: number; at: number } | null;
   /** When the last action finished, for the "Done!" bubble. */
   doneAt: number | null;
+  /** Slots whose empty prompt is being written (`prompt.prefill`, spec 09 R6.1). */
+  prefilling: readonly string[];
 }
 
 export const useAIActivity = create<AIActivityState>(() => ({
   busy: null,
   ready: null,
   doneAt: null,
+  prefilling: [],
 }));
+
+/** True when `begin` took the slot; false when it was already being written (run it once). */
+export function beginPrefill(slotId: string): boolean {
+  if (useAIActivity.getState().prefilling.includes(slotId)) return false;
+  useAIActivity.setState((s) => ({ prefilling: [...s.prefilling, slotId] }));
+  return true;
+}
+
+export function endPrefill(slotId: string): void {
+  useAIActivity.setState((s) => ({ prefilling: s.prefilling.filter((id) => id !== slotId) }));
+}
 
 export function beginActivity(kind: AIActivityKind, slotId: string): void {
   useAIActivity.setState({ busy: { kind, slotId } });
@@ -35,7 +49,7 @@ export function endActivity(result?: { slotId: string; ms: number }, now = Date.
 }
 
 export function resetActivity(): void {
-  useAIActivity.setState({ busy: null, ready: null, doneAt: null });
+  useAIActivity.setState({ busy: null, ready: null, doneAt: null, prefilling: [] });
 }
 
 /** "4.2s" from milliseconds, one decimal. */

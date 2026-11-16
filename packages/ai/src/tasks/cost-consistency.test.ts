@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { APP_CONFIG_DEFAULTS, costOf } from '@motionpop/schemas';
 import { GENERATE_COST } from './component-fill';
 import { editPatchTask } from './edit-patch';
+import { promptPrefill } from './prompt-prefill';
 import { slotsDetectCost } from './slots-detect';
 import { transcribeCloudCost } from './transcribe-cloud';
 
@@ -15,6 +16,11 @@ describe('task costs equal costOf (C8)', () => {
     expect(editPatchTask(() => undefined).cloudCost({} as never)).toBe(
       costOf('edit', 1, APP_CONFIG_DEFAULTS),
     );
+  });
+
+  it('prompt.prefill is always free', () => {
+    expect(promptPrefill.cloudCost({} as never)).toBe(0);
+    expect(promptPrefill.cloudFallback).toBe(false);
   });
 
   it('slots.detect is one credit per started 200 words', () => {

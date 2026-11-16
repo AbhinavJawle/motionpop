@@ -1,4 +1,12 @@
-import { componentFillTask, editPatchTask, editContext, noteFixTask } from '@motionpop/ai';
+import {
+  PREFILL_MAX,
+  componentFillTask,
+  editPatchTask,
+  editContext,
+  noteFixTask,
+  promptPrefill,
+  templatePrompt,
+} from '@motionpop/ai';
 import type { UsageEvent } from '@motionpop/ai';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -8,6 +16,7 @@ import {
   fillAnswer,
   parseFakeSwitches,
   patchAnswer,
+  prefillAnswer,
   routerKind,
   seededRandom,
 } from './fake-router';
@@ -253,6 +262,59 @@ describe('fake router: component.fill', () => {
     ).toEqual(BIG);
     expect(fillAnswer({ componentId: 'big-number', words: 'hello there' }).params).toMatchObject({
       label: expect.any(String),
+    });
+  });
+});
+
+describe('fake router: prompt.prefill', () => {
+  const PREFILL = {
+    slot: {
+      reason: "You said 'revenue grew forty percent since 2020'",
+      componentId: 'big-number',
+      skillId: 'data-explainer',
+      componentName: 'Big number',
+      said: 'revenue grew forty percent since 2020',
+    },
+    style: { id: 'editorial-explainer', name: 'Editorial Explainer' },
+  };
+
+  it('writes one short sentence on the device for free, and it is not the template text', async () => {
+    const r = await make().router.run(promptPrefill, PREFILL);
+    expect(r).toMatchObject({ ranOn: 'device', costCredits: 0 });
+    expect(r.output.prompt).toBe(
+      'A big number that follows “revenue grew forty percent since 2020” in an Editorial Explainer look.',
+    );
+    expect(r.output.prompt).not.toBe(
+      templatePrompt({
+        componentName: 'Big number',
+        styleName: 'Editorial Explainer',
+        said: PREFILL.slot.said,
+      }),
+    );
+  });
+
+  it('always fits 140 characters', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 1, maxLength: 80 }),
+        fc.string({ maxLength: 300 }),
+        (name, said) => {
+          const out = prefillAnswer({
+            slot: { reason: '', componentId: 'x', skillId: 'y', componentName: name, said },
+            style: { id: 's', name: 'Style' },
+          });
+          expect(out.prompt.length).toBeLessThanOrEqual(PREFILL_MAX);
+        },
+      ),
+    );
+  });
+
+  it('?device=off fails it (the app then uses the template) and ?fakeFail=all too', async () => {
+    await expect(make('?device=off').router.run(promptPrefill, PREFILL)).rejects.toMatchObject({
+      reason: 'provider',
+    });
+    await expect(make('?fakeFail=all').router.run(promptPrefill, PREFILL)).rejects.toMatchObject({
+      reason: 'provider',
     });
   });
 });

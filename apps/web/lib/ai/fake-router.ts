@@ -1,5 +1,7 @@
 import {
+  PREFILL_MAX,
   RouterError,
+  type PromptPrefillInput,
   type Router,
   type RouterConfig,
   type RunResult,
@@ -159,6 +161,24 @@ export function fillAnswer(input: {
   return { params: (componentFor(input.componentId)?.defaults ?? {}) as Json };
 }
 
+/**
+ * `prompt.prefill`: one sentence about the graphic, the spoken words and the look. Deliberately
+ * not the same text as `templatePrompt`, so a spec can tell "the device wrote it" from "the
+ * template wrote it".
+ */
+export function prefillAnswer(input: PromptPrefillInput): { prompt: string } {
+  const name = input.slot.componentName.toLowerCase();
+  const article = /^[aeiou]/.test(name) ? 'An' : 'A';
+  const words = (input.slot.said ?? '').split(/\s+/).filter(Boolean).slice(0, 6);
+  const styleArticle = /^[aeiou]/i.test(input.style.name) ? 'an' : 'a';
+  const tail = ` in ${styleArticle} ${input.style.name} look.`;
+  for (let n = words.length; n > 0; n--) {
+    const text = `${article} ${name} that follows “${words.slice(0, n).join(' ')}”${tail}`;
+    if (text.length <= PREFILL_MAX) return { prompt: text };
+  }
+  return { prompt: `${article} ${name}${tail}`.slice(0, PREFILL_MAX) };
+}
+
 // ---- the router ------------------------------------------------------------------------------
 
 const FAKE_CONFIG: RouterConfig = {
@@ -250,6 +270,8 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
         output = patchAnswer(i.instruction ?? i.note?.text ?? '', i.current, i.paths);
       } else if (task.id === 'component.fill') {
         output = fillAnswer(input as Parameters<typeof fillAnswer>[0]);
+      } else if (task.id === 'prompt.prefill') {
+        output = prefillAnswer(input as PromptPrefillInput);
       } else {
         throw fail(ranOn, 'provider', `The fake router has no answer for ${task.id}`);
       }

@@ -15,6 +15,7 @@ import { directPlan } from './tasks/direct-plan';
 import { editContext } from './edit/edit-doc';
 import { editPatchTask } from './tasks/edit-patch';
 import { noteFixTask } from './tasks/note-fix';
+import { promptPrefill } from './tasks/prompt-prefill';
 import { slotsDetect, slotsDetectInput } from './tasks/slots-detect';
 import { transcribeCloud } from './tasks/transcribe-cloud';
 
@@ -179,6 +180,20 @@ const CASES: Case[] = [
       }),
   })),
   {
+    id: 'prompt.prefill',
+    run: () =>
+      measure(promptPrefill, {
+        slot: {
+          reason: "You said 'revenue grew forty percent since 2020'",
+          componentId: 'big-number',
+          skillId: 'data-explainer',
+          componentName: 'Big number',
+          said: 'revenue grew forty percent since 2020',
+        },
+        style: { id: 'editorial-explainer', name: 'Editorial Explainer' },
+      }),
+  },
+  {
     id: 'component.fill',
     run: () =>
       measure(componentFillTask(paramsSchema), {
@@ -297,6 +312,7 @@ describe('task schema rules (ai-tasks.md)', () => {
         'direct.plan',
         'edit.patch',
         'note.fix',
+        'prompt.prefill',
         'slots.detect',
         'transcribe.cloud',
       ].sort(),
