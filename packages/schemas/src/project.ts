@@ -131,6 +131,14 @@ export const VoiceoverSchema = z.object({
   originalSrc: z.string().min(1).optional(),
   originalDurationMs: IntMsSchema.optional(),
   cleanup: CleanupSchema.optional(),
+  /** A generated voice (spec 11 task 17): what was read, by which voice, at which pace. */
+  tts: z
+    .object({
+      voiceId: z.string().min(1),
+      speed: z.number().positive(),
+      script: z.string().max(3000),
+    })
+    .optional(),
 });
 export type Voiceover = z.infer<typeof VoiceoverSchema>;
 
@@ -208,30 +216,38 @@ export function wordsInRange(
   return first < 0 ? null : { wordStart: first, wordEnd: last };
 }
 
-export const EditorProjectSchema = z
-  .object({
-    schemaVersion: z.literal(1),
-    id: z.string().min(1),
-    title: z.string(),
-    format: FormatSchema,
-    fps: z.literal(30),
-    styleId: z.string().min(1),
-    /** Beat energy for the whole video (spec 07); defaults to the look's. Slots may override. */
-    energy: EnergySchema.optional(),
-    durationMs: z.number().int().positive(),
-    voiceover: VoiceoverSchema,
-    transcript: TranscriptSchema,
-    /** The transcript of the original (uncleaned) audio, for turning cleanup off (spec 09). */
-    originalTranscript: TranscriptSchema.optional(),
-    slots: z.array(SlotSchema),
-    versions: z.array(VersionSchema),
-    /** Epoch ms. */
-    createdAt: IntMsSchema,
-    updatedAt: IntMsSchema,
-  })
-  .superRefine((p, ctx) => {
-    for (const message of timelineIssues(p)) {
-      ctx.addIssue({ code: 'custom', message, path: ['slots'] });
-    }
-  });
+/**
+ * The project object before the timeline refinement (spec 11 task 1). Exported so document
+ * schemas can `.omit`/`.extend` it (`.omit` does not exist on the refined schema).
+ */
+export const EditorProjectBaseSchema = z.object({
+  schemaVersion: z.literal(1),
+  id: z.string().min(1),
+  title: z.string(),
+  format: FormatSchema,
+  fps: z.literal(30),
+  styleId: z.string().min(1),
+  /** Beat energy for the whole video (spec 07); defaults to the look's. Slots may override. */
+  energy: EnergySchema.optional(),
+  durationMs: z.number().int().positive(),
+  voiceover: VoiceoverSchema,
+  transcript: TranscriptSchema,
+  /** The transcript of the original (uncleaned) audio, for turning cleanup off (spec 09). */
+  originalTranscript: TranscriptSchema.optional(),
+  slots: z.array(SlotSchema),
+  versions: z.array(VersionSchema),
+  /** Epoch ms. */
+  createdAt: IntMsSchema,
+  updatedAt: IntMsSchema,
+  /** Filled by the Firestore adapter (spec 11). */
+  ownerId: z.string().min(1).optional(),
+  /** Epoch ms of the last time the editor opened it, outside the undo history (spec 11). */
+  lastOpenedAt: IntMsSchema.optional(),
+});
+
+export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {
+  for (const message of timelineIssues(p)) {
+    ctx.addIssue({ code: 'custom', message, path: ['slots'] });
+  }
+});
 export type EditorProject = z.infer<typeof EditorProjectSchema>;

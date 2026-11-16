@@ -8,6 +8,8 @@ export * from './color';
 export * from './format';
 export * from './style';
 export * from './project';
+export * from './project-doc';
+export * from './start';
 export * from './user';
 export * from './limits';
 export * from './score';
