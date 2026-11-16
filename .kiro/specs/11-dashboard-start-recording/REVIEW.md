@@ -90,3 +90,28 @@ The spec is thorough. Requirements are numbered and testable, every requirement 
 - **Spec 10:** both specs need the left-panel container. This spec correctly defers to spec 10 task 1. The chat repository (spec 10 task 8) follows spec 11 task 6's provider; delete must also remove `chat` (F2).
 - **Spec 12:** `ProjectDocSchema` needs `captions` and `audio` (F10); delete and duplicate must handle `audio.musicSrc` (F2).
 - **Spec 13:** F1 and F11. This spec calls the contract; the contract must exist first.
+
+## Resolved
+
+_Applied 2026-11-16 by a headless Kiro CLI run (claude-sonnet-5.5), with Claude Code's decisions on the open choices. The findings above are kept as written. Decision ids changed in this run: spec 08 keeps D-034, so this spec's decision is now **D-065** (F7's suggestion to renumber spec 08 to D-037 is superseded)._
+
+| # | Finding | Resolution | Where |
+|---|---|---|---|
+| F1 | Credit contract late; client-callable refund open to abuse | This spec uses spec 13's `ServerCredits`, `costOf` and `useCredits` and adds no refund design. Spec 13's rules apply (own `s-{key}` spends, 15-minute window, `refundsPerDay`, a new key per attempt, so Retry works; the key regex already rejects `:`). Spec 11 refunds only when `speak()` failed. The threat model is a pointer to spec 13's "Trust model". Generate is disabled ("Cloud AI is coming soon") until spec 13 tasks 1–5 and 8 land; the interim stub is removed | R9.2–R9.5, design §0 #20, §7, §8, tasks (prerequisite, 18) |
+| F2 | Duplicate and Delete share audio and miss data | Duplicate copies every audio object into the new project's folder; delete is `DELETE /api/projects/{id}` (Admin `recursiveDelete`, so every sub-collection including `chat` goes, plus `renders`, `shares` and the Storage prefixes); tests prove independence and a clean delete | R1.6, R1.9, design §0 #17, §2.3, tasks 3, 6, 6b |
+| F3 | Nobody owns `status` and `lastRenderId` | Option (a): derived. `exported`, `rendering` and `lastRenderId` leave `ProjectDocSchema`; `renderStatusOf` joins two `renders` queries by `projectId` (new index `renders (ownerId, status, createdAt desc)`); property 10 | R1.7, R5.4, design §0 #15, §2.3, tasks 1, 9, 13 |
+| F4 | `[kiro]` task 4 edits root files | Split: task 4a is IDE with the exact rule and index diffs, task 4b is the `[kiro]` tests (and updates the old `PROJECT` fixture) | tasks 4a, 4b |
+| F5 | Audio path conflicts with spec 08; wrong D-034 rationale | One path: `users/{uid}/audio/{projectId}/{kind}-{hash16}.{ext}`, spec 08's `voicePathFor` shape; `resolveVoiceBlob` resolves `storage:` refs through `HybridAudioStore.get`, so the export uploads nothing twice (tested; no edit to spec 08). The rationale in the decision is corrected (dashboard list and second device) | R1.3, design §0 #1, #16, §2.4, task 7, D-065 |
+| F6 | `flushAutosave()` does not exist | `startAutosave` returns `{ flush, stop }`; `flush()` awaits the repository write and pending uploads and does not unsubscribe; callers and the editor store handle `flushSave` are listed; a test | R10.2, design §2.3, task 6 |
+| F7 | Decision id clash | Superseded by the instruction of this run: spec 08 keeps D-034, spec 09 D-035..D-049, spec 13 D-050..D-064; this spec is D-065, spec 10 D-066, spec 12 D-067. Reserved-ids line added to `docs/decisions.md` | docs/decisions.md |
+| F8 | One-day scope; cut order misses paste-script TTS | Cut order now ends with tasks 17–18 (Generate "Soon"); the scope paragraph names Firestore sync as the largest risk with the IDB-only fallback | tasks (scope and cut order) |
+| F9 | A finished take lives only in memory | The WAV is stored in the local `AudioStore` on stop and the pending intake holds a `ref` (meta in `sessionStorage`); `beforeunload` warning; property 11 | R8.4, R8.8, design §0 #18, §2.5, tasks 8, 15 |
+| F10 | `ProjectDocSchema` drops spec 12's fields | Derived from the new `EditorProjectBaseSchema` (`.omit` / `.extend`); round-trip test includes `captions` | design §0 #19, §2.1, task 1 |
+| F11 | Three credits hooks | One hook, `useCredits`, from spec 13 task 8; if task 10 lands first it creates the read-only file with the final signature | R2.4, design §8, task 10 |
+| F12 | Many poster iframes | At most 3 still players at once, 1.5 s fallback to the static poster, measured in task 27 with the service thumbnail as the fallback | R5.7, design §3, tasks 12, 27 |
+| F13 | No tolerance; R12.5 and R12.3 untested | 2 px / token tolerance; a forbidden-name text scan; a reduced-motion pass; R12.5 clarified | R12.1, R12.5, R12.6, tasks 23, 24 |
+| F14 | `?fixture=` / `?ai=fake` in production | `devSwitch` from spec 10 task 2c, with a production test | tasks 23, 24 |
+| F15 | Emulator tests location | Named `apps/web/rules/*.emulator.test.ts` so the `rules` CI job runs them | design §13, tasks 6, 6b |
+| F16 | Exact strings scattered | `copy.ts` per area | design §11, task 9 |
+
+**Names corrected in this run (checked against the code on 2026-11-16):** the existing `CreditsChip` has only `credits`, `onClick`, `className`, so `variant="dashboard"` is declared new; `fakeTimedWords` does not exist, so the new `scriptWords` (producing `SlotWord[]` for `tagSpans` in `packages/ai/src/slots/tagger.ts`) replaces it; `Sparkline` is declared new; `PipelineInput` is `file`, `name`, `source`, `words?` (not `blob`); `compileProject(input, assets)` and `validateIntake` (in `lib/audio/intake.ts`) are real; `unmapTime` stays declared new next to the real `mapTime`; the existing `PROJECT` rules-test fixture is named. The spec 10 REVIEW's `msgId:step.id` key problem does not arise because spec 13's key is generated by `ServerCredits`.

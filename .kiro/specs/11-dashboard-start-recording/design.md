@@ -1,12 +1,12 @@
 # Design: 11 dashboard, start and recording
 
-_Written headlessly in Kiro CLI (claude-opus-5.5), 2026-11-16. Requirements in `requirements.md`._
+_Written headlessly in Kiro CLI (claude-opus-5.5), 2026-11-16. Revised the same day (headless run, claude-sonnet-5.5) to apply every finding of `REVIEW.md`. Requirements in `requirements.md`._
 
-## 0. Decisions taken without the founder (D-034)
+## 0. Decisions taken without the founder (D-065)
 
 | # | Decision | Why | Reversible? |
 |---|---|---|---|
-| 1 | Projects move to Firestore + Storage in this spec (R1), with IndexedDB kept for local mode. | Spec 04 parked Firestore sync "until Firebase is set up"; no spec owns it, the dashboard needs a real list, judges look for meaningful Firestore use, and spec 08 export needs the audio in Storage. | Yes: repository interface unchanged. |
+| 1 | Projects move to Firestore + Storage in this spec (R1), with IndexedDB kept for local mode. | Spec 04 parked Firestore sync "until Firebase is set up"; no spec owns it, the dashboard needs a real list, judges look for meaningful Firestore use, and a project has to open on a second device. (The old text said "export needs the audio in Storage"; that is wrong, because spec 08 uploads the voice itself, to the path in row 17.) | Yes: repository interface unchanged. |
 | 2 | Project documents store times as **integer epoch ms**, not Timestamps; slot and version `params` are stored as **JSON strings** (`paramsJson`). | Integer ms everywhere (architecture "Time and units"); scene params can contain nested arrays, which Firestore rejects. Parsed with the component's zod schema on read anyway. | Yes, with a parser migration. |
 | 3 | `voiceover.peaks` is never written to Firestore. | Peaks are recomputed in the worker in ~100 ms; they would bloat the document. | Yes. |
 | 4 | A **poster slot** (`poster`) is denormalised on the project document. | Cards and the Continue card play a one-slot composition from the summary alone, so the dashboard reads one query and no sub-documents (R12.4). | Yes. |
@@ -20,6 +20,12 @@ _Written headlessly in Kiro CLI (claude-opus-5.5), 2026-11-16. Requirements in `
 | 12 | Stats formulas: "videos this week" = projects created in the last 7 local days; "graphics generated" = sum of `graphicsGenerated`; "saved" = 5 minutes per ready graphic, labelled "~" with a tooltip saying so. | Honest, computable from summaries. The 5-minute figure is a founder question. | Yes. |
 | 13 | "Shared with me" shows an empty state; sharing to accounts is not in the MVP. | Product non-goal (team collaboration). | — |
 | 14 | ⌘K focuses the capture bar; a full command palette is Later. | Smallest thing that honours the visible key. | Yes. |
+| 15 | **Render state is derived, not stored.** `ProjectDoc.status` is `draft | processing | ready` and only the client writes it; `exported`, `rendering` and `lastRenderId` are gone. The dashboard joins the project list with two `renders` queries by `projectId`. | Autosave rewrites the project document from the editor's copy and would overwrite a server-written `exported`; spec 08 needs no change (it already adds the `renders (ownerId, status)` index; this spec adds one more, see tasks 4a). Review F3 option (a). | Yes. |
+| 16 | **One audio path for the whole product:** `users/{uid}/audio/{projectId}/{kind}-{hash16}.{ext}` with `kind` ∈ `voice`, `music`; `voice-{hash16}` is exactly spec 08's `voicePathFor` shape. The editor uploads the active voice there when it is stored; spec 08's export finds it and skips its upload (its own text says "skipped when that object already exists"). | One object per voice, no second upload of up to 28 MB per first export. Review F5, option 1. | Yes. |
+| 17 | **Delete and duplicate own their audio.** Duplicate copies every audio object into the new project's folder. Delete is a server route (Admin): `recursiveDelete` of the project document (every sub-collection, including `chat`), the project's `renders` and `shares` documents, and the Storage prefixes `users/{uid}/audio/{projectId}/` and `users/{uid}/projects/{projectId}/`. | No shared objects, no orphans, no list of sub-collection names to keep in sync. Review F2. | Yes. |
+| 18 | **A finished take is stored locally at once** (the pending intake holds a reference), and the page warns before unloading while recording. | A reload or crash mid-take must not lose up to 10 minutes of voice (R8.1's promise). Review F9. | Yes. |
+| 19 | **`ProjectDocSchema` is derived from `EditorProjectBaseSchema`** (new export: the object before `superRefine`), so spec 12's `captions` and `audio` are stored without a change here. | Zod strips unknown keys; a hand-written list would silently drop fields. Review F10. | Yes. |
+| 20 | **Credits: spec 13's helper and routes only.** `useCredits`, `ServerCredits.spend/refund`, `costOf`; no interim stub, no refund design here. Generate stays disabled ("Cloud AI is coming soon") until spec 13 tasks 1–5 and 8 land. | One ledger, one hook, one refund path; spec 13 R1.4 limits refunds to the caller's own `s-{key}` spends within 15 minutes and `refundsPerDay`. Review F1, F11. | — |
 
 ## 1. Routes and components
 
@@ -32,13 +38,13 @@ app/page.tsx                      → redirect('/dashboard')        (landing is 
 
 components/dashboard/
   dashboard-screen.tsx    top bar + header + capture bar + body (empty | full) + try-a-style + footer + drop layer
-  dashboard-top-bar.tsx   80 px bar: logo, nav, CreditsChip variant="dashboard", New project, AvatarMenu
+  dashboard-top-bar.tsx   80 px bar: logo, nav, `CreditsChip` with a new `variant="dashboard"` prop (the existing chip is the editor's 70×32 "⚡ n" and has no variant), New project, AvatarMenu
   greeting.tsx            eyebrow, greeting, subline, <Pip look="cursor" props={night?['nightcap']:[]} glow/>
   capture-bar.tsx         state machine §5
   empty-card.tsx          sleeping Pip on cloud, copy, CTA
   drop-layer.tsx          window drag listeners, dashed page border, catching card (R4.3–R4.5)
   continue-card.tsx       PosterPlayer + meta + Pip popcorn
-  stat-tile.tsx           number (NumberRoll) + label + Sparkline (SVG polyline)
+  stat-tile.tsx           number (NumberRoll) + label + `Sparkline` (new, SVG polyline)
   projects-toolbar.tsx    title + count, search, sort, view toggle, tabs
   project-card.tsx        poster, meta, status chip, slot dots, ⋯ menu
   project-row.tsx         list view (not designed: same tokens, 56 px rows)
@@ -56,7 +62,12 @@ components/dashboard/poster-player.tsx   one-slot composition from a Poster (see
 components/ui/slot-dots.tsx, status-chip.tsx, avatar-menu.tsx   (new primitives, used by dashboard and editor)
 lib/projects/
   firestore-repository.ts, project-docs.ts (pure: project ↔ documents), summary.ts (pure),
-  repository-provider.ts (signed in → Firestore, else IDB), use-project-list.ts
+  render-status.ts (pure: summary + renders → the chip), use-project-list.ts, use-renders.ts
+  repository-provider.ts (signed in → Firestore, else IDB)
+lib/credits/            NOT in this spec: `useCredits`, `ServerCredits`, the modal are spec 13 (tasks 8, 9)
+lib/dev/switches.ts     `devSwitch` (spec 10 task 2c): ?fixture= is ignored in production
+lib/dashboard/copy.ts, lib/script/copy.ts   every exact user-facing string of this spec, so tests assert it once
+app/api/projects/[id]/route.ts   DELETE (Admin): recursiveDelete + renders + shares + Storage prefixes (R1.6)
 lib/audio/
   hybrid-audio-store.ts, upload-queue.ts, recorder.ts, recorder.worklet.ts, level.ts (pure)
 lib/intake/pending.ts     in-memory hand-off of a File/Blob from any entry point to /processing/new
@@ -96,31 +107,33 @@ export const PosterSchema = z.object({
   format: FormatSchema,
 });
 
-export const ProjectDocSchema = z.object({
-  schemaVersion: z.literal(1),
-  ownerId: z.string().min(1),
-  title: z.string().min(1).max(80),
-  format: FormatSchema, fps: z.literal(30),
-  styleId: z.string().min(1),
-  energy: EnergySchema.optional(),
-  durationMs: z.number().int().positive(),
-  status: z.enum(['draft', 'processing', 'ready', 'rendering', 'exported']),
-  voiceover: VoiceoverSchema.omit({ peaks: true }),
-  // spec 12 adds `captions` and `audio` here, optional with defaults.
-  slotCount: z.number().int().nonnegative(),
-  readySlotCount: z.number().int().nonnegative(),
-  graphicsGenerated: z.number().int().nonnegative(),
-  poster: PosterSchema.optional(),
-  lastRenderId: z.string().optional(),
-  lastOpenedAt: IntMs,
-  createdAt: IntMs, updatedAt: IntMs,
-}).refine((d) => d.readySlotCount <= d.slotCount);
+// packages/schemas/src/project.ts: EditorProjectSchema = EditorProjectBaseSchema.superRefine(timelineIssues)
+// (the `z.object` is exported as EditorProjectBaseSchema, new; `.omit` does not exist on the refined schema).
+// packages/schemas/src/project-doc.ts
+export const ProjectDocSchema = EditorProjectBaseSchema
+  .omit({ slots: true, versions: true, transcript: true, originalTranscript: true, voiceover: true,
+          id: true, title: true })
+  .extend({
+    ownerId: z.string().min(1),
+    title: z.string().min(1).max(80),
+    voiceover: VoiceoverSchema.omit({ peaks: true }),
+    // every other EditorProject field, including spec 12's captions and audio, comes from the base schema
+    status: z.enum(['draft', 'processing', 'ready']),      // client-written; render state is derived (§0 #15)
+    slotCount: z.number().int().nonnegative(),
+    readySlotCount: z.number().int().nonnegative(),
+    slotStates: z.array(z.enum(['ready', 'pending'])).max(12),
+    graphicsGenerated: z.number().int().nonnegative(),
+    poster: PosterSchema.optional(),
+    lastOpenedAt: IntMs,
+  })
+  .refine((d) => d.readySlotCount <= d.slotCount);
 
 export type ProjectSummary = Pick<ProjectDoc,
-  'title'|'format'|'styleId'|'durationMs'|'status'|'slotCount'|'readySlotCount'|
-  'graphicsGenerated'|'poster'|'lastRenderId'|'lastOpenedAt'|'createdAt'|'updatedAt'>
-  & { id: string; slotStates: ('ready'|'pending')[] };   // slotStates ≤ 12, for the dots
+  'title'|'format'|'styleId'|'durationMs'|'status'|'slotCount'|'readySlotCount'|'slotStates'|
+  'graphicsGenerated'|'poster'|'lastOpenedAt'|'createdAt'|'updatedAt'> & { id: string };
 ```
+
+`schemaVersion`, `format`, `fps`, `styleId`, `energy`, `durationMs`, `createdAt` and `updatedAt` come from the base schema, and so will every field added to it later (spec 12's `captions` and `audio`): they are stored with no edit here. Property 1 runs over random projects and, once spec 12a lands, includes those fields.
 
 `slotStates` is stored too (array of ≤ 12 strings), so the dots need no slot reads.
 
@@ -130,7 +143,7 @@ export type ProjectSummary = Pick<ProjectDoc,
 
 ```ts
 toDocs(p: EditorProject, ownerId: string): ProjectDocSet          // { project, transcripts, slots: Map, versions: Map }
-fromDocs(set: unknown): ParseResult<EditorProject>                 // zod on every part, then EditorProjectSchema
+fromDocs(set: unknown): ParseResult<EditorProject>                 // zod on every part, then EditorProjectSchema (the refined one, so timelineIssues runs)
 summarise(p: EditorProject, resolveKeyMoment): ProjectSummaryFields // counts, slotStates, poster
 diffDocs(prev: ProjectDocSet | null, next: ProjectDocSet): Write[] // set / delete per changed doc
 ```
@@ -147,27 +160,42 @@ interface ProjectRepository {
   load(id): Promise<LoadResult>; save(p): Promise<void>; restoreBackup(id): Promise<LoadResult>;
   list(): Promise<ProjectSummary[]>;              // new (IDB: summarise every stored project)
   subscribeList?(fn: (s: ProjectSummary[]) => void): () => void;   // Firestore onSnapshot
-  delete(id): Promise<void>;                      // new
-  duplicate(id, newTitle): Promise<string>;       // new: new ids for project, slots, versions
+  delete(id): Promise<void>;                      // new: IDB removes the project and its audio; Firestore calls DELETE /api/projects/{id} (R1.6)
+  duplicate(id, newTitle): Promise<string>;       // new: new ids for project, slots, versions, and a COPY of every audio object (R1.9)
   markOpened(id, atMs): Promise<void>;            // new: lastOpenedAt only
 }
 ```
 
+**Autosave flush (R10.2).** `startAutosave` (`lib/stores/autosave.ts`) returns one function today, held by a `useEffect` cleanup in `editor-screen.tsx`, that stops autosave and flushes. It has no callable flush. This spec changes it to return `{ flush(): Promise<void>; stop(): Promise<void> }`: `flush()` saves the pending project now, awaits the repository write and every pending upload of the open project (`HybridAudioStore.pending`), and does **not** unsubscribe; `stop()` is the old behaviour. The callers (`editor-screen.tsx` and three tests in `editor.test.ts`) change with it, and the screen registers `flush` in the editor store as `flushSave`, which the Projects panel calls. A test: a change, then `flush()` resolves only after the fake repository's `save` and the fake upload queue have both finished.
+
+**Delete and duplicate (R1.6, R1.9).**
+- `duplicate`: new ids for the project, slots and versions; each audio object the project references (`voiceover.src`, `originalSrc`, `cleanedSrc` when present, and `audio.musicSrc` once spec 12b exists) is read through `HybridAudioStore.get` and `put` again under the new project id, which gives the copy its own `voice-{hash16}` path. A test: deleting the duplicate leaves the original's audio playable, and the reverse.
+- `delete` (signed in): `DELETE /api/projects/{id}` verifies the ID token and App Check, checks `projects/{id}.ownerId == uid`, then with the Admin SDK `db.recursiveDelete(projectRef)` (every sub-collection, so `chat` and any later one go with no list to keep in sync), deletes the `renders` and `shares` documents of the project (`where('projectId','==',id)` on the caller's own), and deletes the Storage objects under `users/{uid}/audio/{id}/` and `users/{uid}/projects/{id}/`. Ledger entries stay (they are history). The route answers `{ deleted: true }`; a failure halfway can be retried because every step is idempotent and the project document goes last. The client then drops the local IDB copy. Offline, the ⋯ menu's Delete is disabled with "Needs connection".
+
 `FirestoreProjectRepository` keeps the last saved `ProjectDocSet` per id in memory for `diffDocs`. `restoreBackup` returns not-found (Firestore has no backup copy; the editor's "Restore last good version" button only shows when `hasBackup`). List query: `where('ownerId','==',uid).orderBy('updatedAt','desc').limit(100)`, needing the composite index in `firestore.indexes.json`. The Continue card takes the summary with the highest `lastOpenedAt`.
+
+**Render chips (derived, §0 #15).** `use-renders.ts` subscribes to two queries on `renders` (owner-readable under spec 08's rules): active renders `where('ownerId','==',uid), where('status','in',['queued','rendering','encoding'])` (limit 20, no ordering) and finished ones `where('ownerId','==',uid), where('status','==','done'), orderBy('createdAt','desc'), limit(100)`. `renderStatusOf(summary, renders)` (pure, `lib/projects/render-status.ts`) returns `{ kind: 'rendering', progress }` when an active render has the project's id (the one with the highest `createdAt`), else `{ kind: 'exported' }` when a finished one does, else the project's own status. Local mode has no `renders`, so the chips show the project status only. The second query needs the index `renders (ownerId asc, status asc, createdAt desc)`, an IDE edit (task 4a).
 
 Firestore is initialised with `persistentLocalCache({ tabManager: persistentMultipleTabManager() })` so edits queue offline (R1.2). Verify the current API name with Context7 before coding.
 
 ### 2.4 Audio (`HybridAudioStore`)
 
+One path for the whole product (§0 #16): `users/{uid}/audio/{projectId}/{kind}-{hash16}.{ext}`, where `kind` is `voice` or `music` and `hash16` is the first 16 hex characters of the SHA-256 of the bytes. `voice-{hash16}.{ext}` is exactly the shape spec 08's `voicePathFor(uid, projectId)` accepts.
+
 ```
-put(blob) → ref "storage:users/{uid}/audio/{key}.wav"
-  1. IDB put under {key} (instant local playback)            2. enqueue upload (IDB-persisted queue)
+put(blob, { projectId, kind }) → ref "storage:users/{uid}/audio/{projectId}/{kind}-{hash16}.{ext}"
+  1. hash the bytes, IDB put under the ref's key (instant local playback)    2. enqueue the upload (IDB-persisted queue)
 get(ref)  → IDB hit, else Storage getBlob(path), cached into IDB
 delete(ref) → Storage delete + IDB delete (best effort, logged)
-pending(projectRefs) → number of queued uploads for these refs (drives "Saving…")
+copy(ref, toProjectId) → get + put under the new project (duplicate, R1.9)
+pending(projectRefs) → number of queued uploads for these refs (drives "Saving…" and `flush()`)
 ```
 
-The queue retries with backoff (1 s, 4 s, 15 s, then on next app start). Reading a blob from another device (`getBlob`) needs a CORS rule on the Storage bucket for the app's origins; that is a one-line bucket configuration change and needs the founder's approval (open question 5), so until then a device without the local copy shows "This voiceover lives on another device" instead of failing silently. Content type `audio/wav`; size ≤ 50 MB is already enforced at intake and by `storage.rules`. `loadVoice` (spec 05) learns the `storage:` prefix. Local mode keeps `idb:` refs.
+Every voiceover ref of a project (`src`, `originalSrc`, `cleanedSrc`) lives under the project's folder, so deleting the project is a prefix delete. The pipeline must therefore **allocate the project id before the first `put`**: `runPipeline` (`lib/pipeline/run.ts`) creates the project id at the start and passes it to the store (task 8). A take that has no project yet (the recording screen, the pending intake) lives in the local IDB store only, under an `idb:` ref, until Processing assigns it an id.
+
+**Export seam (no change to spec 08's text).** Spec 08's `voice-upload.ts` computes the same `voice-{hash16}` path from the bytes and skips the upload when the object exists. Task 7 makes `resolveVoiceBlob` (spec 08 task 14) resolve `storage:` refs through `HybridAudioStore.get`, and adds one test: with the editor's upload finished, the export path performs no upload. Until then spec 08's `resolveVoiceBlob` only knows `idb:` and `synth:` refs, so spec 08 and this spec agree through that one function.
+
+The queue retries with backoff (1 s, 4 s, 15 s, then on next app start). Reading a blob from another device (`getBlob`) needs a CORS rule on the Storage bucket for the app's origins; that is a one-line bucket configuration change and needs the founder's approval (open question 5), so until then a device without the local copy shows "This voiceover lives on another device" instead of failing silently. Content type `audio/wav`; size ≤ 50 MB is already enforced at intake and by `storage.rules`. `loadVoice` (`lib/editor/voice.ts`, spec 05) learns the `storage:` prefix. Local mode keeps `idb:` refs.
 
 ### 2.5 Start draft and intake hand-off
 
@@ -186,11 +214,11 @@ export const PendingIntakeSchema = z.object({
 });
 ```
 
-`lib/intake/pending.ts` holds `{ blob, meta: PendingIntake, draft: StartDraft }` in memory only. `/processing/new` takes it on mount; with nothing pending (a reload) it shows its own drop zone, as today. `PipelineInput` grows `title?`, `format?`, `styleId?`, `cleanup?` and `source: … | 'tts'`; `runPipeline` passes them into the project it creates. The draft lives in `sessionStorage` (`mp:start-draft`), parsed with `StartDraftSchema` on read (a bad value falls back to the defaults), so a reload on `/start` keeps it.
+`lib/intake/pending.ts` holds `{ ref, meta: PendingIntake, draft: StartDraft }`: **`ref` points at a blob already stored in the local `AudioStore`** (an `idb:` ref), not at the blob in memory (§0 #18). A recorded take is written to the store the moment recording stops; an upload, a sample and a generated voice are written when they are chosen. `meta` and `draft` are small and go to `sessionStorage` (`mp:pending-intake`, parsed with `PendingIntakeSchema`), so a reload keeps the whole hand-off. `/processing/new` takes it on mount and deletes the key once Processing has started; with nothing pending it shows its own drop zone, as today. `PipelineInput` (`lib/pipeline/run.ts`: `file`, `name`, `source: 'upload' | 'record' | 'sample'`, `words?`) grows `title?`, `format?`, `styleId?`, `cleanup?`, `tts?` and `source: … | 'tts'`; `runPipeline` passes them into the project it creates and allocates the project id first (§2.4). The draft lives in `sessionStorage` (`mp:start-draft`), parsed with `StartDraftSchema` on read (a bad value falls back to the defaults), so a reload on `/start` keeps it.
 
 ## 3. Previews on the dashboard
 
-`PosterPlayer` compiles a one-slot project from a `Poster` (`compileProject` with `durationMs = slot.durationMs`, no voice) into a `<hyperframes-player>` (default sandbox: library components only, D-021). It shows a still (seek to `keyMomentMs`, paused) until hover or focus, then plays a loop. A module-level lock allows one playing player; mounting is lazy (`IntersectionObserver`). Reduced motion: still only. Projects without a poster and unbuilt Try-a-style cards show a static `StylePoster` (HTML/CSS recreation of the designed thumbnail with its exact copy, from the "Try a style" CSS frames). The "↻ 0:0N" chip shows the loop length rounded to seconds.
+`PosterPlayer` compiles a one-slot project from a `Poster` (`compileProject(input, assets)` from `packages/motion/src/compiler/compile.ts`, with `durationMs = slot.durationMs`, no voice) into a `<hyperframes-player>` (default sandbox: library components only, D-021). It shows a still (seek to `keyMomentMs`, paused) until hover or focus, then plays a loop. A module-level lock allows one playing player; mounting is lazy (`IntersectionObserver`). **Stills go through a queue of at most 3 players at a time**: a player mounts, seeks to `keyMomentMs`, draws, and is released before the next one starts (a 3-column grid shows 6 to 9 cards at once, and 9 iframes would break R12.4). A card the queue has not reached after 1.5 s shows its style's static `StylePoster` and swaps to the live still when its turn comes. Task 27 measures the dashboard with 50 projects; if it misses 1.5 s the fallback is the service-rendered thumbnail already listed under Later. Reduced motion: still only. Projects without a poster and unbuilt Try-a-style cards show a static `StylePoster` (HTML/CSS recreation of the designed thumbnail with its exact copy, from the "Try a style" CSS frames). The "↻ 0:0N" chip shows the loop length rounded to seconds.
 
 Try-a-style samples: each built style gets `styles/<id>.sample.ts` in `apps/web/lib/motion/` (a ready slot with original content taken from the design thumbnails: "Small changes. Bigger impact.", "$2.4M", "Clarity is everything.", "Cut. Paste. Make it move.", "+128%"). Today `editorial-explainer` and `paper-collage` exist; Dark Money, Clean Minimal and Neon Data show stills until spec 14 builds them.
 
@@ -251,14 +279,17 @@ Timer format `mm:ss.d` (tabular), from captured sample count, so pause never dri
 
 ```
 ScriptScreen
-  text ─► estimate.ts: words, estMs = words / (WPM[voice] × speed) × 60 000, credits = 2 × ceil(estMs / 60 000)
-       ─► tagSpans(fakeTimedWords(text)) → underline spans of kind number | place | comparison
-  Generate ─► credits.spend('tts', n, refId)      (spec 13 contract, §8)
+  text ─► estimate.ts: words, estMs = words / (WPM[voice] × speed) × 60 000, units = ceil(estMs / 60 000),
+          credits = costOf('tts', units, cfg)      (spec 13's table; no literal 2 here)
+       ─► tagSpans(scriptWords(text)) → underline spans of kind number | place | comparison
+          (`tagSpans` is in `packages/ai/src/slots/tagger.ts` and takes `SlotWord[]`; `scriptWords` is new, in
+           `lib/script/estimate.ts`: it splits the text and gives every word a synthetic 300 ms slot)
+  Generate ─► ServerCredits.spend({ action: 'tts', units, refId: `${scriptHash}-${attempt}` })   (spec 13, §8)
            ─► router.speak(ttsGenerate, { text, voiceId, speed })   ONLY_IN_CLOUD
                  chunks of ≤ 1,500 chars at sentence ends, sequential, 300 ms silence between paragraphs
                  PCM 24 kHz mono 16-bit (Firebase docs) → concat → encodeWav
            ─► pending intake { source: 'tts', cleanup: false, tts: {...} } → /processing/new
-  failure  ─► credits.refund(refId) → "Couldn't generate the voice. Nothing was charged." [Retry]
+  failure  ─► ServerCredits.refund(txId) → "Couldn't generate the voice. Nothing was charged." [Retry = new attempt, new key]
 ```
 
 `TaskDef` is JSON-only, so the router gets a sibling entry for media output:
@@ -277,18 +308,23 @@ Prompt (`prompts/tts-generate.v1.ts`): "Read the following script aloud for a na
 
 Voices (`lib/script/voices.ts`): `{ id: 'warm' | 'bright' | 'calm' | 'deep', label, providerVoice, wpm, previewSrc }`. Defaults for `providerVoice` and `wpm` come from Remote Config `tts_voices` (JSON, zod-validated, typed defaults). `previewSrc` is `/voices/<id>.wav`, made by `apps/web/scripts/voice-previews.ts` (founder go-ahead, then recorded in `docs/third-party.md` as generated audio). Without preview files, the play buttons are hidden, not broken.
 
-## 8. Credits contract (owned by spec 13)
+## 8. Credits (owned by spec 13)
 
-This spec calls, and does not implement:
+This spec implements nothing of the ledger. It uses spec 13's pieces:
 
 ```ts
-// lib/credits/client.ts (spec 13)
-spend(task: CreditReason, credits: number, refId: string): Promise<{ ok: true; balance: number } | { ok: false; reason: 'insufficient' | 'unavailable' }>
-refund(refId: string): Promise<void>        // idempotent
-useCredits(): { balance: number | null }    // users/{uid}.credits, onSnapshot
+// spec 13 task 8 (client), tasks 1–5 (server): the contract this spec calls
+useCredits(): { balance: number | null, plan, settings }              // lib/credits/use-credits.ts, one hook for the editor, the export modal and this spec
+useCreditsClient(): CreditsClient                                      // ServerCredits with Firebase and a user; LocalCredits in local mode
+creditsClient.spend({ action: 'tts', units, refId }): Promise<{ ok: true; txId; balance; cost } | { ok: false; reason: 'insufficient' | 'rate-limit' | 'paused' | 'key-used' | 'offline' | 'unavailable' }>
+creditsClient.refund(txId): Promise<void>                              // refunds only the caller's own spend, within 15 minutes, at most refundsPerDay a day
+costOf('tts', units, cfg): number                                       // packages/schemas/src/cost.ts
 ```
 
-If spec 13 has not landed when task 18 starts, task 18 implements `useCredits` (read-only) and stubs `spend`/`refund` as "allowed, free" **only in local mode**; with Firebase on, Generate stays disabled with "Credits are on their way" until spec 13 lands. No client-side balance writes, ever.
+- **The key is per attempt.** `ServerCredits` makes a fresh idempotency key for every `spend` call; Retry after a refunded failure is a new `spend`, so the fixed ledger id (`s-{key}`, then `r-{key}` for its refund) never blocks it. The `refId` (`{scriptHash}-{attempt}`) is informational only (spec 13 R1.2).
+- **Threat model (pointer, not a copy).** The TTS call runs in the browser through AI Logic, so the server can't see whether it succeeded; credits protect honest users and keep the demo's economics clear, they are not a security boundary against a modified client. Spec 13's "Trust model" owns the argument and the caps (App Check, the hourly rate limit, `refundsPerDay`, the 15-minute refund window, budgets, the kill switch). This spec adds one rule of its own: **refund only when `speak()` failed** (an error, or a reply with no audio part), never for Cancel, never after a take that was generated.
+- **Until spec 13 tasks 1–5 and 8 are done**, with Firebase on, Generate is disabled with "Cloud AI is coming soon" and nothing is stubbed; in local mode `LocalCredits` makes it free. This removes the interim "allowed, free" stub the first draft had.
+- **One hook.** The dashboard chip, the Start credits chip and the Projects panel use `useCredits()`. If spec 11 task 10 lands before spec 13 task 8, task 10 creates `lib/credits/use-credits.ts` read-only with the same signature (`users/{uid}` `onSnapshot`, parsed with `UserDocSchema`) and spec 13 task 8 extends it; no second hook is ever written. The top bar's `CREDITS_PLACEHOLDER` is removed by spec 13 task 8, not here.
 
 ## 9. Routing and cost chips
 
@@ -309,9 +345,13 @@ If spec 13 has not landed when task 18 starts, task 18 implements `useCredits` (
 | Mic denied / no device | inline error with "Upload instead" (R3.5) |
 | Mic unplugged mid-take | auto-pause, "Your mic went quiet. Pick another one to keep going." |
 | Dropped file rejected | one-line toast with the intake reason; page unchanged |
-| TTS fails | refund + message + Retry (R9.4) |
-| Out of credits | spec 13 modal "Pip needs a recharge" |
-| Delete fails halfway | the project document is deleted last, so a retry finds and finishes the rest |
+| TTS fails | `refund(txId)` + message + Retry with a new key (R9.4) |
+| Spend refused | `insufficient`: spec 13's out-of-credits modal; `rate-limit` and `paused`: spec 13's toasts; Generate stays enabled for a later try, except `paused` (disabled "Voice generation is paused") |
+| Spec 13 not landed (Firebase on) | Generate disabled, "Cloud AI is coming soon" |
+| Delete fails halfway | the route is idempotent and deletes the project document last, so a retry finishes the rest (R1.6) |
+| Delete offline | the ⋯ menu's Delete is disabled, "Needs connection" |
+| Duplicate: an audio copy fails | nothing is created (the new project document is written last); toast "Couldn't copy the audio. Nothing was duplicated." |
+| Reload with a take waiting | the pending intake and its stored take are still there; Processing resumes from them (R8.4) |
 
 ## 11. Matching the PNGs (1× exports, CSS px = PNG px)
 
@@ -323,13 +363,13 @@ If spec 13 has not landed when task 18 starts, task 18 implements `useCredits` (
 
 **Recording (`recording.png`, line 25312):** card 840×257 at (300, 480), r16; stop button: outer ring 116, fill 84 `ember-fill`, white rounded square 22; timer 28 px mono at (520, 678); waveform from x 520 to 1088, centred y 603; "Pause" 86×34 at (932, 667); "Discard" text at x 1041.
 
-Exact copy is in the requirements. The design check (tasks) measures these.
+Exact copy is in the requirements and in `copy.ts` (`lib/dashboard/copy.ts`, `lib/script/copy.ts`: the greeting lines, the empty and drag-over strings, the wake-up and drop copy, every toast), so tests assert each string once. The design check (tasks) measures these with the tolerance of R12.1: every measured region within 2 px, every colour equal to its token.
 
 ## 12. Rail panels (not designed; Pip-panel language)
 
 Both live in the 340 px `LeftPanel` container built in spec 10 task 1 (header 56 with title and actions, collapse chevron on the right edge, slide + fade 240 ms). If spec 11 is implemented first, its task 20 builds that container as specified there and ticks spec 10 task 1.
 
-- **Projects:** header "Projects" + "+" (to `/start`). Rows 64 px: 72×40 poster still, title (13 px), "01:24 · Edited 12 minutes ago" (mono 10 px), status chip. The open project has the violet selected border. Click → `flushAutosave()` (resolves after the pending debounced save) → `router.push('/editor/{id}')`.
+- **Projects:** header "Projects" + "+" (to `/start`). Rows 64 px: 72×40 poster still, title (13 px), "01:24 · Edited 12 minutes ago" (mono 10 px), status chip. The open project has the violet selected border. Click → `flushSave()` (the editor store's handle on the autosave module's `flush()`, §2.3; it resolves after the pending save and every pending upload) → `router.push('/editor/{id}')`.
 - **Voice:** header "Voice". A card with the source chip ("Recorded", "Uploaded", "Generated voice", "Sample"), duration (mono) and a 60 px waveform from the loaded peaks; "Re-record" and "Replace audio" (secondary buttons); the cleanup row "Clean up fillers and pauses" + toggle, and under it "Removed 7 ums and 3 long pauses" (mint) or the skip reason; the transcript as wrapped word buttons (13 px, `text-2`), fillers from `originalTranscript` shown struck through in `text-4` when cleanup is on. Generated voices also show the script and voice label, read-only.
 - **New take (R11.2):** a confirm modal "Record a new take?" / "A new take becomes a new project with the same title, style and settings. This one stays in Projects." → `/start/record?from={id}` or a file picker. The draft copies title + " (take 2)", format, style, and spec 12's captions/audio settings.
 - **Cleanup toggle (R11.3), `setCleanup(enabled)` command:**
@@ -343,7 +383,10 @@ Both live in the 340 px `LeftPanel` container built in spec 10 task 1 (header 56
 
 - **Unit:** greeting, stats, relative time, search, script estimate, level feedback, `toDocs`/`fromDocs`/`summarise`/`diffDocs`, capture-bar reducer, drop counter, voices config parse, `speak` with a fake provider.
 - **Rules (emulator):** `apps/web/rules/firestore.rules.test.ts` and `storage.rules.test.ts` gain the cases in tasks 4–5.
-- **Emulator integration:** `FirestoreProjectRepository` save → load round trip, diff writes, delete, duplicate, list ordering.
+- **Emulator integration** (files named `apps/web/rules/*.emulator.test.ts`, so the existing `rules` CI job runs them): `FirestoreProjectRepository` save → load round trip, diff writes, duplicate (own audio, independent), list ordering, `renderStatusOf` against real `renders` documents, and the delete route against the emulators (every sub-collection incl. `chat`, `renders`, `shares` and the Storage prefixes gone).
+- **No stray strings (R12.5):** a test renders each screen of this spec and scans the text for the forbidden-name list.
+- **Dev switches:** `?fixture=` is ignored in a production build (spec 10's `devSwitch`).
+- **Reduced motion (R12.6):** a Playwright pass with `reducedMotion: 'reduce'` over the empty state, the capture bar and the recording screen.
 - **E2E (Playwright, local mode + emulator mode):** dashboard empty → Try a sample → editor → back → full dashboard shows the card; drag a WAV onto the dashboard → Processing; record with a fake mic (`--use-fake-device-for-media-stream`, `--use-fake-ui-for-media-stream`) → review → Processing; script screen estimate and disabled Generate offline.
 - **Design check (Chrome DevTools MCP):** per screen, 1440 wide, against the PNG (tasks).
 
@@ -358,13 +401,15 @@ Both live in the 340 px `LeftPanel` container built in spec 10 task 1 (header 56
 7. **Estimate:** credits = 2 × ceil(estMs / 60 000) and is monotonic in word count and in 1/speed.
 8. **Level feedback:** louder frames never turn `good` into `quiet` (monotonic).
 9. **Cleanup toggle (task 22):** off then on returns the identical project; any toggle keeps the timeline invariants or is rejected unchanged.
+10. **Render chip priority:** for random lists of summaries and renders, `renderStatusOf` returns `rendering` iff an active render has the project's id, else `exported` iff a finished one does, else the project's status; it never reads another project's render and ignores input order.
+11. **Take survives a reload:** stop → store → new module instance → the pending intake resolves to the same bytes (fake IDB).
 
 ## 14. Proposed steering changes (to apply from the IDE)
 
 The headless agent may not write `.kiro/steering/` (its permissions), so these edits wait for an IDE or Claude Code session:
 
-1. `data-model.md`, after the free-plan line: "**How projects are stored (spec 11, D-034).** `projects/{id}` holds the project fields plus the dashboard summary (`slotCount`, `readySlotCount`, `slotStates` ≤ 12, `graphicsGenerated`, `poster`, `lastOpenedAt`); transcripts, slots and versions are sub-documents. Project-document times are integer epoch ms. Slot and version params are stored as `paramsJson` and parsed with the component schema on read. `voiceover.peaks` is never written. Audio refs are `storage:users/{uid}/audio/{key}.wav` when signed in (with a local copy) and `idb:{key}` in local mode."
-2. `data-model.md`, `Voiceover`: the `tts` comment becomes "spec 11 task 17 (was spec 05 task 12)"; add `cleanedSrc?: string` (spec 11, cleanup toggled off); `Project` gains `lastOpenedAt` and the summary fields above.
+1. `data-model.md`, after the free-plan line: "**How projects are stored (spec 11, D-065).** `projects/{id}` holds the project fields plus the dashboard summary (`slotCount`, `readySlotCount`, `slotStates` ≤ 12, `graphicsGenerated`, `poster`, `lastOpenedAt`); transcripts, slots and versions are sub-documents. Project-document times are integer epoch ms. Slot and version params are stored as `paramsJson` and parsed with the component schema on read. `voiceover.peaks` is never written. Render state is not stored on the project: the dashboard derives it from `renders`. Audio refs are `storage:users/{uid}/audio/{projectId}/{kind}-{hash16}.{ext}` when signed in (with a local copy; the same shape spec 08's `voicePathFor` accepts) and `idb:{key}` in local mode."
+2. `data-model.md`, `Voiceover`: the `tts` comment becomes "spec 11 task 17 (was spec 05 task 12)"; add `cleanedSrc?: string` (spec 11, cleanup toggled off). `Project`: `status` becomes `"draft" | "processing" | "ready"` (render state is derived from `renders`), `lastRenderId` is removed, and it gains `lastOpenedAt`, `slotStates` and the summary fields above. The `RenderJob` line stays.
 3. `design-system.md`, source-of-truth paragraph: "The editor, Pip and Export PNGs are 2× exports (2880 px); `projects*.png`, `start.png` and `recording.png` are 1× (1440 px, PNG px = CSS px)." Checked 2026-11-16 with PIL: the dashboard PNGs are 1440×1376 and 1440×2136, Start and Recording 1440×900.
 4. `ai-tasks.md` §8 `tts.generate`: "Runs through `speak()` (router media path), not `run()`. Output: 24 kHz mono 16-bit PCM, chunked at ≤ 1,500 characters. Voices are our own labels mapped in Remote Config `tts_voices`."
 5. `structure.md`: add `lib/intake/`, `lib/dashboard/`, `lib/script/`, `lib/credits/` (spec 13) and `components/editor/panels/`.
