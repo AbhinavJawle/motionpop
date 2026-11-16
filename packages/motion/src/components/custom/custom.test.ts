@@ -131,3 +131,20 @@ describe('custom sizing unit', () => {
     }
   });
 });
+
+describe('custom seek history', () => {
+  it('a style write the browser rejects never keeps a value from an earlier seek (regression)', () => {
+    g[CUSTOM_ALLOW_FLAG] = true;
+    // happy-dom (like a browser for NaN) ignores the invalid write, so without the reset the
+    // width set at t=200 survived into t=50 (found by the seek-purity property, 2026-11-16).
+    const script =
+      "const el = root.querySelector('.headline'); return { seek(t) { el.style.width = t > 100 ? '50%' : 'NaN%'; } };";
+    const a = mount(script);
+    const b = mount(script);
+    a.seek(200);
+    a.seek(50);
+    b.seek(50);
+    const roots = Array.from(document.body.children).slice(-2);
+    expect(roots[0]?.innerHTML).toBe(roots[1]?.innerHTML);
+  });
+});

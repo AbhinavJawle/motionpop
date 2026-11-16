@@ -157,9 +157,31 @@ export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
       : null;
   if (!seekFn) throw new Error('custom graphic must return { seek(tMs) }');
 
+  // Every seek starts from the state the script left after setup. A style write the browser
+  // rejects (NaN, a unit it can't parse) keeps the old value, which would make the frame depend on
+  // the seeks before it; restoring `style` and `class` first keeps seek a pure function of time.
+  const initial = [stage, ...Array.from(stage.querySelectorAll('*'))].map(
+    (el) => [el, el.getAttribute('style'), el.getAttribute('class')] as const,
+  );
+  const reset = () => {
+    for (const [el, style, cls] of initial) {
+      if (el.getAttribute('style') !== style) {
+        if (style === null) el.removeAttribute('style');
+        else el.setAttribute('style', style);
+      }
+      if (el.getAttribute('class') !== cls) {
+        if (cls === null) el.removeAttribute('class');
+        else el.setAttribute('class', cls);
+      }
+    }
+  };
+
   return {
     durationMs: ctx.durationMs,
-    seek: (tMs: number) => seekFn(Math.min(Math.max(tMs, 0), ctx.durationMs)),
+    seek: (tMs: number) => {
+      reset();
+      seekFn(Math.min(Math.max(tMs, 0), ctx.durationMs));
+    },
     dispose: () => wrap.remove(),
   };
 }
