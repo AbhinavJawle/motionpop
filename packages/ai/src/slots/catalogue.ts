@@ -105,7 +105,7 @@ export const SKILLS: readonly SkillEntry[] = [
   {
     id: 'countdown-ranking',
     useWhen: 'the narration lists or ranks items (top 3, biggest, first/second/third)',
-    worksWith: ['bar-chart', 'kinetic-headline'],
+    worksWith: ['bar-chart', 'kinetic-headline', 'list-stack'],
     defaultDurationMs: 6000,
   },
   {
@@ -190,6 +190,17 @@ export const SCENES: readonly SceneEntry[] = [
     built: true,
     // Spec 07 task 24: bars, rows and a line in one scene.
     replaces: ['bar-chart', 'line-chart'],
+  },
+  {
+    id: 'list-stack',
+    name: 'List stack',
+    useWhen: 'the narration lists or counts 3 to 5 things: steps, reasons, tips, ingredients',
+    minMs: 5600,
+    idealMs: 6400,
+    maxMs: 12000,
+    built: true,
+    // Spec 07 task 33: no component listed items before (lists went to a hook-statement).
+    replaces: [],
   },
 ];
 

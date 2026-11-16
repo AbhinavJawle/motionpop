@@ -363,6 +363,85 @@ export function chartDraft(
   };
 }
 
+/** list-stack's limits (its content schema): 3 to 5 items of 1 to 6 words, 40 characters. */
+const LIST_MIN_ITEMS = 3;
+const LIST_MAX_ITEMS = 5;
+const LIST_ITEM_WORDS = 6;
+const LIST_ITEM_CHARS = 40;
+const LIST_ORDINALS = new Set([
+  'first',
+  'firstly',
+  'second',
+  'secondly',
+  'third',
+  'thirdly',
+  'fourth',
+  'fifth',
+  'finally',
+  'lastly',
+]);
+
+/**
+ * A list-stack draft over words `ws..we` (spec 07 task 33): the items after "first", "second",
+ * "third"…, or the parts of "A, B and C", each item its spoken words (fillers and a leading
+ * "and"/"or" dropped) with its cue on its first word. Null when the words don't give 3 to 5
+ * items that fit, so the detector never shows an item nobody said.
+ */
+export function listDraft(
+  words: readonly SlotWord[],
+  ws: number,
+  we: number,
+): { params: Record<string, unknown>; beats: { cue: string; word: number }[] } | null {
+  const bare = (t: string) => t.replace(/^[^\p{L}\p{N}$€£]+|[^\p{L}\p{N}%]+$/gu, '');
+  const low = (i: number) => bare(words[i]?.text ?? '').toLowerCase();
+  const groups: number[][] = [];
+  const ord: number[] = [];
+  for (let i = ws; i <= we; i++) if (LIST_ORDINALS.has(low(i))) ord.push(i);
+  if (ord.length >= LIST_MIN_ITEMS) {
+    ord.forEach((at, k) => {
+      const g: number[] = [];
+      for (let i = at + 1; i <= Math.min(we, (ord[k + 1] ?? we + 1) - 1); i++) {
+        g.push(i);
+        if (/[.,;:!?]$/.test(words[i]?.text ?? '')) break;
+      }
+      groups.push(g);
+    });
+  } else {
+    let g: number[] = [];
+    for (let i = ws; i <= we; i++) {
+      const sep = low(i) === 'and' || low(i) === 'or';
+      if (sep && g.length) {
+        groups.push(g);
+        g = [];
+        continue;
+      }
+      if (!sep) g.push(i);
+      if (/,$/.test(words[i]?.text ?? '')) {
+        groups.push(g);
+        g = [];
+      }
+    }
+    if (g.length) groups.push(g);
+  }
+  const items = groups
+    .map((g) => g.filter((i) => !words[i]?.filler && bare(words[i]?.text ?? '')))
+    .filter((g) => g.length > 0);
+  if (items.length < LIST_MIN_ITEMS || items.length > LIST_MAX_ITEMS) return null;
+  const texts = items.map((g) => {
+    const s = g.map((i) => bare(words[i]?.text ?? '')).join(' ');
+    return s[0]!.toUpperCase() + s.slice(1);
+  });
+  if (
+    items.some((g) => g.length > LIST_ITEM_WORDS) ||
+    texts.some((t) => t.length > LIST_ITEM_CHARS)
+  )
+    return null;
+  return {
+    params: { content: { items: texts }, images: [] },
+    beats: items.map((g, k) => ({ cue: `i${k + 1}`, word: g[0] as number })),
+  };
+}
+
 /** A chart-story candidate over `ws..we`, or null when the words don't give a chart. */
 function chartCandidate(
   words: readonly SlotWord[],
@@ -477,9 +556,24 @@ function candidates(
         }
         break;
       case 'list':
-        // Changed by spec 07 task 27: a list of 3 or more is a hook-statement over the list's
-        // sentence (kinetic-headline is replaced by the scene), when the sentence fits a line.
+        // Changed by spec 07 task 33: a list of 3 to 5 items is a list-stack, each item on its
+        // first word. A list the scene can't hold (too many or too long items) stays a
+        // hook-statement over its sentence (task 27), when the sentence fits a line.
         if ((span.items ?? 0) >= 3) {
+          const d = listDraft(words, span.wordStart, span.wordEnd);
+          if (d) {
+            out.push({
+              ...base,
+              score: 0.7,
+              componentId: 'list-stack',
+              skillId: 'countdown-ranking',
+              params: d.params,
+              needsInput: ['content'],
+              anchor: d.beats[0] as { cue: string; word: number },
+              beats: d.beats,
+            });
+            break;
+          }
           const s = ranges[sentence[span.wordStart] ?? -1];
           const hook = s ? hookCandidate(words, s, 0.7, 'countdown-ranking') : null;
           if (hook) out.push(hook);
@@ -595,6 +689,16 @@ export function sceneDraft(
   if (s.componentId === 'chart-story') {
     // Spec 07 task 24: the values as spoken, each `v` cue on its word; no values, no chart.
     const d = chartDraft(words, spans, s.wordStart, s.wordEnd);
+    if (!d) return null;
+    return {
+      ...s,
+      params: { ...d.params, beats: d.beats.map((b) => ({ ...b, word: b.word - s.wordStart })) },
+      needsInput: ['content'],
+    };
+  }
+  if (s.componentId === 'list-stack') {
+    // Spec 07 task 33: the items as spoken, each cue on its first word; no list, no slot.
+    const d = listDraft(words, s.wordStart, s.wordEnd);
     if (!d) return null;
     return {
       ...s,

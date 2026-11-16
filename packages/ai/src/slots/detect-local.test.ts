@@ -7,6 +7,7 @@ import {
   chartDraft,
   detectLocal,
   hookLine,
+  listDraft,
   reasonFor,
   sceneDraft,
   sentenceIndex,
@@ -235,7 +236,8 @@ describe('scoring and mapping', () => {
     expect(chartDraft(words('5', '6', '7.'), tagSpans(words('5', '6', '7.')), 0, 2)).toBeNull();
   });
 
-  it('needs at least three list items', () => {
+  it('needs at least three list items', async () => {
+    const { scenes } = await import('@motionpop/motion');
     const l = words('Apples,', 'pears', 'and', 'plums.', 'Then', 'more', 'came', 'later.');
     const span = (items: number): TaggedSpan => ({
       wordStart: 0,
@@ -246,14 +248,49 @@ describe('scoring and mapping', () => {
     });
     // Changed by spec 07 task 27: a list of 3 is a countdown hook-statement over its sentence
     // (was kinetic-headline). With 2 items, the sentence is still the opening line's hook.
+    // Changed by spec 07 task 33: a list of 3 to 5 items that fit is a list-stack, each item
+    // on its first word; one the scene can't hold stays the hook.
     expect(detectLocal(l, [span(2)]).map((s) => [s.componentId, s.skillId, s.score])).toEqual([
       ['hook-statement', 'brand-sting', 0.58],
     ]);
     expect(detectLocal(l, [span(3)])[0]).toMatchObject({
-      componentId: 'hook-statement',
+      componentId: 'list-stack',
       skillId: 'countdown-ranking',
       score: 0.7,
-      params: { content: { line: 'Apples, pears and plums' } },
+      params: {
+        content: { items: ['Apples', 'Pears', 'Plums'] },
+        beats: [
+          { cue: 'i1', word: 0 },
+          { cue: 'i2', word: 1 },
+          { cue: 'i3', word: 3 },
+        ],
+      },
+    });
+    const long = words(
+      'Apples,',
+      'pears',
+      'and',
+      'every',
+      'single',
+      'kind',
+      'of',
+      'plum',
+      'you',
+      'can',
+      'find.',
+    );
+    // An item longer than the scene holds: no list-stack (the hook takes over where it fits).
+    expect(
+      detectLocal(long, [{ ...span(3), wordEnd: 10 }]).some((s) => s.componentId === 'list-stack'),
+    ).toBe(false);
+    expect(
+      scenes['list-stack']?.params.safeParse(detectLocal(l, [span(3)])[0]?.params).success,
+    ).toBe(true);
+    // Ordinals: the words after each one.
+    const steps = words('First,', 'plan', 'it,', 'second,', 'test', 'it,', 'third,', 'ship', 'it.');
+    expect(listDraft(steps, 0, 8)?.params).toEqual({
+      content: { items: ['Plan it', 'Test it', 'Ship it'] },
+      images: [],
     });
   });
 

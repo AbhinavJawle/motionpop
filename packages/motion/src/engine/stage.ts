@@ -330,6 +330,12 @@ export function stage(
      * cues are known (layout only). Scenes that lay out a centred block set it.
      */
     centre?: boolean;
+    /**
+     * False: the engine never adds `decor-draw` juice (a hand underline on a line already read).
+     * For scenes where a mark means something (the highlighted list item, chart value or event),
+     * so an engine underline can't read as a second emphasis. Default true.
+     */
+    decorJuice?: boolean;
   },
 ): Stage {
   const { root, width: w, height: h, format, style, durationMs } = ctx;
@@ -1099,7 +1105,8 @@ export function stage(
 
       // Juice: only what this stage can actually show.
       const canSnap = cam.snap > 0;
-      const canDecor = actors.some((a) => a.kind === 'text' && a.words > 1);
+      const canDecor =
+        spec.decorJuice !== false && actors.some((a) => a.kind === 'text' && a.words > 1);
       const wanted = look?.juice ?? DEFAULT_JUICE;
       const able = wanted.filter(
         (j) =>

@@ -589,6 +589,8 @@ export const chartStory = defineScene<ChartStoryContent>({
       cues: this.cues.filter((q) => used.has(q.id)),
       anchors: score.beats,
       centre: true,
+      // The highlight is the chart's one mark: no engine underline under a category label.
+      decorJuice: false,
     });
     const fmt = chartFormat(c);
     const items = chartItems(c);

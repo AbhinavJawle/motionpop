@@ -209,26 +209,28 @@ const CASES: Case[] = [
         },
       }),
   },
-  ...(['stat-punch', 'hook-statement', 'versus', 'chart-story'] as const).map((id) => ({
-    // Scenes are filled through the same task, with their score schema as structured output.
-    id: 'component.fill',
-    run: () =>
-      measure(componentFillTask(sceneSchema), {
-        purpose: 'generate',
-        componentId: id,
-        words: 'Our revenue grew forty percent since 2020.',
-        scene: {
-          brief: catalogueSummary([scenes[id] as never]),
-          indexedWords: TEXT.map((t, i) => `${i}:${t}`).join(' '),
-          examples: pickExemplars(exemplars[id]!, { kind: 'number', wordCount: TEXT.length }).map(
-            exemplarText,
-          ),
-        },
-        prompt: 'A bold number with an editorial feel.',
-        styleId: 'field-notes',
-        skill: { shotSequence: '', emphasis: '' },
-      }),
-  })),
+  ...(['stat-punch', 'hook-statement', 'versus', 'chart-story', 'list-stack'] as const).map(
+    (id) => ({
+      // Scenes are filled through the same task, with their score schema as structured output.
+      id: 'component.fill',
+      run: () =>
+        measure(componentFillTask(sceneSchema), {
+          purpose: 'generate',
+          componentId: id,
+          words: 'Our revenue grew forty percent since 2020.',
+          scene: {
+            brief: catalogueSummary([scenes[id] as never]),
+            indexedWords: TEXT.map((t, i) => `${i}:${t}`).join(' '),
+            examples: pickExemplars(exemplars[id]!, { kind: 'number', wordCount: TEXT.length }).map(
+              exemplarText,
+            ),
+          },
+          prompt: 'A bold number with an editorial feel.',
+          styleId: 'field-notes',
+          skill: { shotSequence: '', emphasis: '' },
+        }),
+    }),
+  ),
   {
     // Spec 07 task 27: one line per slot, 12 slots (about a minute of voiceover).
     id: 'direct.plan',
