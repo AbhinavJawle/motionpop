@@ -385,3 +385,15 @@ Template:
   - Prices are read from the config defaults.
   - The privacy page names the processors (Google Cloud, Firebase, Gemini, Anthropic) because accuracy needs it. The founder should review both legal pages.
 - **`.kiro` edits in this session:** I ticked tasks in `.kiro/specs/08-*/tasks.md` and `12-*/tasks.md` with notes. These are Claude Code edits, not Kiro runs. No Kiro runs this session.
+- **Later the same session:**
+  - **Pip's thread survives a reload:** last 40 messages per project in this browser, zod-parsed. Undo handles don't persist; a plan cut off mid-apply shows as stopped.
+  - **Styles rail panel:** a real preview still of each look (captured from the editor) and one-click restyle.
+  - **Brand kit:**
+    - `project.brand` overrides the look's accents through `styleFor`, so preview and export match.
+    - The Brand panel and the top bar chip both open it.
+    - Pip's brand chip now applies the saved kit; before, it swapped to another look.
+    - `setBrand` is a code-only step action; the model can't emit it.
+  - **Bug I introduced, then caught in the browser:** the first contrast floor (3:1) rejected the looks' own accents (Editorial's ember is 2.0:1 on its paper). It is now 1.8:1, with a test over every shipped accent.
+  - **Caption emphasis:** words were drawn in the raw accent on the dark box, and Field Notes' red was unreadable. They now use the least-lightened accent that reads at 4.5:1.
+  - **Pip dock:** it sits under an open left panel, matching pip-conversation.png.
+  - **Still toasting:** the Fonts and Media rail items. Fonts needs more bundled OFL fonts; Media needs image assets in compositions.
