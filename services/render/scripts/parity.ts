@@ -6,10 +6,15 @@
 // Metric: mean absolute difference over RGB, globally (≤ 2 %) and per 64×64 tile (≤ 10 %).
 // The tolerance absorbs H.264 compression and the YUV 4:2:0 colour round trip; a missing or
 // shifted line of text blows a tile well past 10 %. Change the thresholds deliberately.
-import { compileProject } from '@motionpop/motion/compiler';
+import { compileProject, projectCompileInput, type CompileInput } from '@motionpop/motion/compiler';
+import {
+  fixtureProject,
+  hookStatementSlot,
+  statPunchSlot,
+} from '@motionpop/motion/testing/project-fixture';
 import { editorialExplainer, looks } from '@motionpop/motion/styles';
 import { createRenderJob, executeRenderJob } from '@hyperframes/producer';
-import { FORMATS, frameToMs, msToFrame } from '@motionpop/schemas';
+import { FORMATS, frameToMs, msToFrame, type Format } from '@motionpop/schemas';
 import { spawnSync } from 'node:child_process';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -39,8 +44,6 @@ const [runtimeJs, hyperframesRuntimeJs, fontsJson, texturesJson] = await Promise
   ),
 );
 
-const format = '16:9' as const;
-const { width, height } = FORMATS[format];
 const assets = {
   runtimeJs: runtimeJs!,
   hyperframesRuntimeJs: hyperframesRuntimeJs!,
@@ -50,9 +53,9 @@ const assets = {
 
 interface Case {
   name: string;
-  style: Parameters<typeof compileProject>[0]['style'];
-  durationMs: number;
-  slots: Parameters<typeof compileProject>[0]['slots'];
+  format: Format;
+  /** What the compiler gets: written by hand, or built from a project the way the app does. */
+  input: CompileInput;
   /** Frame-aligned sample times (ms). */
   at: number[];
 }
@@ -91,49 +94,79 @@ const sceneSlots = [
 // Mid-entrance (stepped looks wobble here), key, hold with the mark drawn, the hook mid-reveal
 // and fully set.
 const sceneAt = [700, 1600, 3600, 6400, 11500];
+// Spec 08 task 5: the same comparison for inputs built from an `EditorProject` through
+// `projectCompileInput`, the one function the preview and the render job share. One case per
+// format, and the middle one in a polished look (`lookFor` resolves the project's style id).
+const projectCase = (name: string, format: Format, styleId: string): Case => ({
+  name,
+  format,
+  input: projectCompileInput(
+    fixtureProject({
+      format,
+      styleId,
+      durationMs: 13400,
+      slots: [statPunchSlot('a', 0, 4600), hookStatementSlot('b', 5000, 13400)],
+    }),
+    { mode: 'render', format },
+  ),
+  at: sceneAt,
+});
 const CASES: Case[] = [
   {
     name: 'big-number',
-    style: editorialExplainer,
-    durationMs: 8000,
-    slots: [
-      {
-        id: 'a',
-        startMs: 0,
-        endMs: 3600,
-        componentId: 'big-number',
-        params: {
-          value: 40,
-          suffix: '%',
-          label: 'Revenue growth since 2020',
-          context: 'The bigger picture',
+    format: '16:9',
+    input: {
+      format: '16:9',
+      mode: 'render',
+      style: editorialExplainer,
+      durationMs: 8000,
+      slots: [
+        {
+          id: 'a',
+          startMs: 0,
+          endMs: 3600,
+          componentId: 'big-number',
+          params: {
+            value: 40,
+            suffix: '%',
+            label: 'Revenue growth since 2020',
+            context: 'The bigger picture',
+          },
         },
-      },
-      {
-        id: 'b',
-        startMs: 4000,
-        endMs: 8000,
-        componentId: 'big-number',
-        keyMomentMs: 1500,
-        params: {
-          value: 987654321.99,
-          prefix: '$',
-          suffix: 'bn',
-          decimals: 2,
-          label: 'Nine digits with decimals',
+        {
+          id: 'b',
+          startMs: 4000,
+          endMs: 8000,
+          componentId: 'big-number',
+          keyMomentMs: 1500,
+          params: {
+            value: 987654321.99,
+            prefix: '$',
+            suffix: 'bn',
+            decimals: 2,
+            label: 'Nine digits with decimals',
+          },
         },
-      },
-    ],
+      ],
+    },
     // Mid-count, key moment, hold, exit, second slot's key moment.
     at: [600, 1200, 2600, 3500, 5500],
   },
   ...Object.values(looks).map((look) => ({
     name: look.id,
-    style: look,
-    durationMs: 13400,
-    slots: sceneSlots,
+    format: '16:9' as const,
+    input: {
+      format: '16:9' as const,
+      mode: 'render' as const,
+      style: look,
+      durationMs: 13400,
+      slots: sceneSlots,
+    },
     at: sceneAt,
   })),
+  projectCase('project-16x9', '16:9', 'editorial-explainer'),
+  projectCase('project-9x16-field-notes', '9:16', 'field-notes'),
+  projectCase('project-1x1', '1:1', 'editorial-explainer'),
 ];
 
 await rm(outDir, { recursive: true, force: true });
@@ -144,10 +177,8 @@ process.exit(failed ? 1 : 0);
 /** Renders one case both ways and compares its frames. True when any frame is over budget. */
 async function runCase(c: Case): Promise<boolean> {
   const dir = join(outDir, c.name);
-  const html = compileProject(
-    { format, durationMs: c.durationMs, style: c.style, mode: 'render', slots: c.slots },
-    assets,
-  );
+  const { width, height } = FORMATS[c.format];
+  const html = compileProject(c.input, assets);
   const frames = c.at.map((ms) => msToFrame(ms, FPS));
   const compDir = join(dir, 'composition');
   await mkdir(compDir, { recursive: true });

@@ -8,6 +8,7 @@
     "./compiler": "./src/compiler/index.ts",
     "./styles": "./src/styles/index.ts",
     "./registry": "./src/registry.ts",
+    "./testing/project-fixture": "./src/testing/project-fixture.ts",
     "./dist/*": "./dist/*",
     "./package.json": "./package.json"
   },

@@ -48,6 +48,26 @@ export function statPunchSlot(id: string, startMs: number, endMs: number): Slot 
   };
 }
 
+/** A ready `hook-statement` scene slot with a valid score and no beats (the safe default). */
+export function hookStatementSlot(id: string, startMs: number, endMs: number): Slot {
+  return {
+    ...bigNumberSlot(id, startMs, endMs),
+    componentId: 'hook-statement',
+    skillId: 'opening-hook',
+    params: {
+      variant: 'center',
+      content: {
+        eyebrow: 'The problem',
+        line: 'Nobody tells you the real reason prices keep going up',
+        emphasis: 'real reason',
+        subline: 'It starts with one number',
+      },
+      beats: [],
+      images: [],
+    },
+  };
+}
+
 export function fixtureProject(
   overrides: Partial<Pick<EditorProject, 'format' | 'styleId' | 'slots' | 'durationMs'>> = {},
 ): EditorProject {
