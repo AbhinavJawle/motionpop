@@ -1,4 +1,0 @@
-# The root .gitignore ignores `renders/` (local exports) at any depth, which also hides the render
-# feature's own source folders (`lib/renders`, `app/api/renders`, `components/export`...). Re-include them.
-# Cleaner fix for the root file (Claude Code): change `renders/` to `/renders/` there, then delete this file.
-!renders/
