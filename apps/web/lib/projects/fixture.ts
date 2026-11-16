@@ -155,3 +155,43 @@ export function demoProject(now = 0): EditorProject {
     updatedAt: now,
   });
 }
+
+/**
+ * What `/editor/demo` opens: the demo project with today's scenes in place of the legacy
+ * `big-number` and `title-card` (which clip in 9:16). `demoProject` stays as it is because many
+ * tests pin its shape.
+ */
+export function showcaseProject(now = 0): EditorProject {
+  const p = demoProject(now);
+  const stat = {
+    variant: 'hero',
+    content: {
+      value: 40,
+      suffix: '%',
+      decimals: 0,
+      label: 'Revenue grew',
+      context: 'SINCE 2020',
+      countFrom: 0,
+    },
+    beats: [],
+    images: [],
+  };
+  const hook = (line: string) => ({ content: { line }, beats: [], images: [] });
+  const slots = p.slots.map((s) => {
+    if (s.id === 'slot-1') {
+      return {
+        ...s,
+        componentId: 'hook-statement',
+        params: hook("Let's look at the numbers"),
+        status: 'ready' as const,
+      };
+    }
+    if (s.id === 'slot-2') return { ...s, componentId: 'stat-punch', params: stat };
+    if (s.id === 'slot-4') {
+      return { ...s, componentId: 'hook-statement', params: hook("Here's what comes next") };
+    }
+    return s;
+  });
+  const versions = p.versions.map((v) => ({ ...v, componentId: 'stat-punch', params: stat }));
+  return EditorProjectSchema.parse({ ...p, slots, versions });
+}

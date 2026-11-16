@@ -1,5 +1,12 @@
 import type { Energy, Look, SlotTiming } from '@motionpop/schemas';
 import type { Format, StylePack } from '../contract';
+import type { CaptionGroup, CaptionPresetId } from '../captions/chunk';
+
+/** Captions for the overlay (spec 12 R4–R5); groups come from `chunkCaptions`, never stored. */
+export interface CompileCaptions {
+  presetId: CaptionPresetId;
+  groups: CaptionGroup[];
+}
 
 /** What the compiler needs from a project. Integer milliseconds everywhere. */
 export interface CompileSlot {
@@ -40,6 +47,8 @@ export interface CompileInput {
   mode?: 'preview' | 'render';
   /** Voiceover URL or relative asset path (e.g. "assets/voice.wav"). */
   voiceSrc?: string;
+  /** Burned-in captions; absent means none. */
+  captions?: CompileCaptions;
   slots: CompileSlot[];
 }
 
@@ -54,5 +63,6 @@ export interface RuntimeProject {
   /** Beat energy for scenes; defaults to the look's. */
   energy?: Energy;
   mode?: 'preview' | 'render';
+  captions?: CompileCaptions;
   slots: CompileSlot[];
 }

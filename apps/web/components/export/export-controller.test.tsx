@@ -138,7 +138,8 @@ describe('export controller: the flow of one render', () => {
     expect(input?.options).toEqual({
       format: '9:16',
       resolution: '720p',
-      captions: false,
+      // Captions default to the project's setting, on for new projects (spec 12a).
+      captions: true,
       music: false,
     });
     expect(input?.expectedCost).toBe(0);

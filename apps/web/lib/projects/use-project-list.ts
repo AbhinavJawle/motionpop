@@ -1,8 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { useAuth } from '../auth/auth-provider';
+import { authSettled, currentUid } from '../auth/auth-store';
+import { firebaseEnabled } from '../firebase/client';
+import { firestoreCloud } from './firestore-cloud';
 import { IdbProjectRepository } from './idb-repository';
 import type { ProjectLibrary, ProjectListing } from './repository';
+import { SyncedLibrary } from './synced-library';
 
 export type ProjectList =
   | { kind: 'loading' }
@@ -10,15 +15,28 @@ export type ProjectList =
   | { kind: 'error'; message: string };
 
 let shared: ProjectLibrary | undefined;
-/** The browser's project library (IndexedDB until the Firestore adapter lands, R1.4). */
+/**
+ * The browser's project library (R1.4): IndexedDB, mirrored to Firestore for the signed-in owner
+ * when Firebase is configured (D-068). Editor, Processing, the pipeline and the dashboard share it.
+ */
 export function projectLibrary(): ProjectLibrary {
-  shared ??= new IdbProjectRepository();
+  shared ??= firebaseEnabled()
+    ? new SyncedLibrary({
+        local: new IdbProjectRepository(),
+        cloud: firestoreCloud(),
+        uid: currentUid,
+        ready: () => authSettled(),
+      })
+    : new IdbProjectRepository();
   return shared;
 }
 
 /** The dashboard's list, with a `reload` after a rename, duplicate or delete. */
 export function useProjectList(): { list: ProjectList; reload: () => Promise<void> } {
   const [list, setList] = useState<ProjectList>({ kind: 'loading' });
+  // Signing in (or out) changes which projects exist, so the list loads again.
+  const auth = useAuth();
+  const uid = auth.status === 'signed-in' ? auth.user.uid : null;
 
   const reload = useCallback(async () => {
     try {
@@ -40,7 +58,7 @@ export function useProjectList(): { list: ProjectList; reload: () => Promise<voi
     return () => {
       live = false;
     };
-  }, []);
+  }, [uid]);
 
   return { list, reload };
 }

@@ -12,6 +12,7 @@ import {
   isContentWord,
   layoutHookStatement,
   type HookStatementContent,
+  hookFromWords,
 } from './index';
 
 const FORMAT_IDS: Format[] = ['16:9', '9:16', '1:1'];
@@ -201,5 +202,20 @@ describe('scene catalogue', () => {
     expect(text).toContain('eyebrow? (');
     expect(text).not.toMatch(/"type"|\$schema|properties/);
     expect(text.length).toBeLessThan(2500);
+  });
+});
+
+describe('hookFromWords ends on a sentence (founder QA, 2026-11-16)', () => {
+  it('cuts at the full stop instead of running into the next sentence', () => {
+    const w = "And this is only the beginning. Here's what comes next.".split(' ');
+    expect(hookFromWords(w)).toEqual({ line: 'And this is only the beginning' });
+  });
+  it('keeps a question mark and a line with no sentence end', () => {
+    expect(hookFromWords('Why does it matter? Because'.split(' '))).toEqual({
+      line: 'Why does it matter?',
+    });
+    expect(hookFromWords('Let us look at the numbers'.split(' '))).toEqual({
+      line: 'Let us look at the numbers',
+    });
   });
 });

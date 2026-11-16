@@ -1,3 +1,5 @@
+import type { PipPlanInput } from '@motionpop/ai';
+import type { PipModelOutput } from '@motionpop/schemas';
 import {
   PREFILL_MAX,
   RouterError,
@@ -209,6 +211,56 @@ function failsBy(sw: FakeSwitches, taskId: string, input: unknown): boolean {
   return false;
 }
 
+/** A keyword planner standing in for `pip.plan` (dev and e2e only). */
+export function pipAnswer(i: PipPlanInput): PipModelOutput {
+  const m = i.message.toLowerCase();
+  const none = { slot: 'none', choice: 'none', atWord: -1, instruction: '' };
+  const steps: PipModelOutput['steps'] = [];
+  if (/caption/.test(m)) {
+    const choice = /\boff\b|remove|hide/.test(m)
+      ? 'off'
+      : (['pop', 'clean', 'boxed'].find((p) => m.includes(p)) ?? 'on');
+    steps.push({ ...none, action: 'setCaptions', choice, label: 'Update captions style' });
+  }
+  if (/vertical|9:16|shorts|reel/.test(m))
+    steps.push({ ...none, action: 'setFormat', choice: '9:16', label: 'Switch to 9:16' });
+  if (/square|1:1/.test(m))
+    steps.push({ ...none, action: 'setFormat', choice: '1:1', label: 'Switch to 1:1' });
+  if (/title/.test(m) && i.project.words[0]) {
+    steps.push({
+      ...none,
+      action: 'addSlot',
+      atWord: i.project.words[0][0],
+      choice: i.project.components[0]?.id ?? 'none',
+      instruction: 'An opening title',
+      label: 'Add opening title',
+    });
+  }
+  if (/brand|colou?r|style|look/.test(m)) {
+    const other = i.project.styles.find((s) => s.id !== i.project.styleId);
+    if (other)
+      steps.push({ ...none, action: 'setStyle', choice: other.id, label: `Apply ${other.name}` });
+  }
+  if (/slower|faster|bigger|smaller|change|make/.test(m) && !steps.length) {
+    const targets =
+      i.scope !== 'video'
+        ? i.project.slots.filter((s) => s.ref === i.scope)
+        : i.project.slots.filter((s) => s.status === 'ready');
+    for (const s of targets.slice(0, 4))
+      steps.push({
+        ...none,
+        action: 'updateSlot',
+        slot: s.ref,
+        instruction: i.message.slice(0, 200),
+        label: `Update ${s.name}`,
+      });
+  }
+  return {
+    reply: steps.length ? 'Here’s the plan' : 'I can’t do that one yet',
+    steps: steps.slice(0, 8),
+  };
+}
+
 export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
   const sw = parseFakeSwitches(opts.search ?? '');
   const latency = opts.latencyMs ?? sw.latencyMs ?? 300;
@@ -272,6 +324,8 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
         output = fillAnswer(input as Parameters<typeof fillAnswer>[0]);
       } else if (task.id === 'prompt.prefill') {
         output = prefillAnswer(input as PromptPrefillInput);
+      } else if (task.id === 'pip.plan') {
+        output = pipAnswer(input as PipPlanInput);
       } else {
         throw fail(ranOn, 'provider', `The fake router has no answer for ${task.id}`);
       }

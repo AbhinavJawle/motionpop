@@ -5,7 +5,6 @@ import { motion } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { toast } from '@/components/ui/toast';
-import { Tooltip } from '@/components/ui/tooltip';
 import { cn } from '@/lib/cn';
 import { DASHBOARD_COPY, START_COPY as C } from '@/lib/dashboard/copy';
 import { handOffFile, handOffSample, PROCESSING_NEW } from '@/lib/intake/hand-off';
@@ -220,12 +219,12 @@ function UploadCard({
   );
 }
 
-/**
- * Paste script. Voice generation (`tts.generate`, tasks 17–18) is not wired yet, so the
- * action is disabled with "Soon"; the typed text is kept so nothing is lost.
- */
+/** Paste script: the typed text goes to `/start/script` (task 18), where the voice is made. */
 function ScriptCard({ initial }: { initial: string }) {
+  const router = useRouter();
   const [text, setText] = useState(initial.slice(0, 3000));
+  const open = () =>
+    router.push(text.trim() ? `/start/script?text=${encodeURIComponent(text)}` : '/start/script');
   return (
     <Card
       testId="start-script"
@@ -237,28 +236,30 @@ function ScriptCard({ initial }: { initial: string }) {
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            open();
+          }
+        }}
         maxLength={3000}
         rows={2}
         aria-label="Script"
         placeholder={C.script.placeholder}
         className="mb-[22px] h-[46px] w-full resize-none rounded-chip bg-transparent px-[13px] pt-[15px] text-xs leading-4 text-text outline-none placeholder:text-text-body focus:bg-black/20"
       />
-      <Tooltip content="Voice generation is on its way. Record or upload for now.">
-        <button
-          type="button"
-          disabled
-          aria-disabled
-          className="flex w-full cursor-not-allowed items-center justify-between text-xs leading-4 font-medium text-violet-ink-2/60"
-        >
-          <span className="flex items-center gap-2">
-            {C.script.cta}
-            <span className="rounded-md bg-violet/14 px-1.5 py-0.5 text-[9px] leading-3 text-violet-ink">
-              Soon
-            </span>
-          </span>
-          <ArrowRight className="size-4 text-violet/50" strokeWidth={1.75} aria-hidden />
-        </button>
-      </Tooltip>
+      <button
+        type="button"
+        onClick={open}
+        className="group flex w-full items-center justify-between text-xs leading-4 font-medium text-violet-ink-2"
+      >
+        {C.script.cta}
+        <ArrowRight
+          className="size-4 text-violet transition-transform group-hover:translate-x-0.5"
+          strokeWidth={1.75}
+          aria-hidden
+        />
+      </button>
     </Card>
   );
 }

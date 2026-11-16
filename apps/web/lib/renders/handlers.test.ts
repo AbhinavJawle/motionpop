@@ -179,7 +179,7 @@ describe('createRender: every error of design §10', () => {
     return { r, f };
   }
 
-  it('invalid: not JSON, wrong shape, extra keys, captions or music asked for', async () => {
+  it('invalid: not JSON, wrong shape, extra keys, music asked for (captions are accepted, spec 12a)', async () => {
     for (const text of [
       'not json',
       '{}',
@@ -188,7 +188,6 @@ describe('createRender: every error of design §10', () => {
       body({ requestId: 'nope' }),
       body({ expectedCost: -1 }),
       body({ expectedCost: 1.5 }),
-      body({ options: { ...OPTIONS, captions: true } }),
       body({ options: { ...OPTIONS, music: true } }),
       body({ options: { ...OPTIONS, resolution: '4k' } }),
       body({ project: { ...PROJECT, slots: 'x' } }),

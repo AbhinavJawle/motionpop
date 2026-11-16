@@ -265,14 +265,19 @@ function candidates(
       .map((w) => clean(w.text))
       .join(' ');
     const question = /\?["')\]]*$/.test(words[r.end]?.text ?? '');
+    // "And this is…", "So here's…": the claim opener comes after a joining word.
+    const opener = text.replace(/^(and|but|so|now|okay|ok|well|because)\s+/i, '');
     const kind =
       k === 0
         ? { score: 0.58, skill: 'brand-sting' }
         : question
           ? { score: 0.56, skill: 'calm-explanation' }
-          : CLAIM_OPENERS.test(text)
+          : CLAIM_OPENERS.test(opener)
             ? { score: 0.55, skill: 'calm-explanation' }
-            : null;
+            : // Coverage (founder, 2026-11-16: half a video with an empty frame reads as a gimmick):
+              // any other sentence that fits a line is a low-ranked hook, so plain stretches get
+              // the spoken line when the budget has room and nothing better claims them.
+              { score: 0.3, skill: 'calm-explanation' };
     const hook = kind ? hookCandidate(words, r, kind.score, kind.skill) : null;
     if (hook) out.push(hook);
   });
@@ -464,7 +469,8 @@ export function slotBudget(words: readonly SlotWord[]): number {
   const first = words[0];
   const last = words[words.length - 1];
   if (!first || !last) return 0;
-  return Math.max(1, Math.round((last.endMs - first.startMs) / 5000));
+  // About one graphic per 3.5 s of voice (was 5 s, which left long empty stretches).
+  return Math.max(1, Math.round((last.endMs - first.startMs) / 3500));
 }
 
 export function detectLocal(

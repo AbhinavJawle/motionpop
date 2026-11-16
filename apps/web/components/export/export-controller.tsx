@@ -65,7 +65,9 @@ export function ExportController() {
   const costOverride = useExportUi((s) => s.costOverride);
 
   const free = client.mode === 'offline';
-  const options = storedOptions ?? (project ? defaultOptions(project.format) : null);
+  const options =
+    storedOptions ??
+    (project ? defaultOptions(project.format, project.captions?.enabled ?? true) : null);
 
   const start = useCallback(
     async (picked: RenderOptions) => {
@@ -118,7 +120,12 @@ export function ExportController() {
   const retry = useCallback(() => {
     const ui = exportStore.getState();
     const again = ui.view
-      ? { format: ui.view.format, resolution: ui.view.resolution, captions: false, music: false }
+      ? {
+          format: ui.view.format,
+          resolution: ui.view.resolution,
+          captions: ui.options?.captions ?? false,
+          music: false,
+        }
       : ui.options;
     ui.reset();
     if (again) void start(again);

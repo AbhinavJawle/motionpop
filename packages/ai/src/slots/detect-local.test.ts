@@ -65,7 +65,8 @@ describe('detectLocal on the demo transcript', () => {
   // opening line a hook-statement draft. The stat leads in only as far as "revenue", the first
   // word 900 ms before "forty" (was back to "Our"), so it doesn't open on an empty frame.
   it('suggests the 40 % moment as a ready-to-render stat-punch, anchored on "forty"', () => {
-    expect(out).toHaveLength(2);
+    // Three since the coverage pass (2026-11-16): the closing stretch gets its spoken line.
+    expect(out).toHaveLength(3);
     expect(out[1]).toMatchObject({
       componentId: 'stat-punch',
       skillId: 'shocking-stat-reveal',
@@ -91,9 +92,15 @@ describe('detectLocal on the demo transcript', () => {
       params: { content: { line: "Let's look at the numbers" }, beats: [{ cue: 'line', word: 0 }] },
       needsInput: ['content'],
     });
-    // "And this is only the beginning." opens with no claim word, and the claim "Here's what
-    // comes next." starts its last word 440 ms before the transcript ends (a hook needs 1.3 s).
-    expect(out.some((s) => s.wordStart >= 12)).toBe(false);
+    // "And this is only the beginning." is a claim after its joining word (2026-11-16), so it
+    // is a hook too; "Here's what comes next." still starts its last word too late to be one.
+    expect(out[2]).toMatchObject({
+      componentId: 'hook-statement',
+      wordStart: 12,
+      wordEnd: 17,
+      params: { content: { line: 'And this is only the beginning' } },
+    });
+    expect(out.some((s) => s.wordStart >= 18)).toBe(false);
   });
 
   it('makes the closing claim a hook when the voice leaves time to read it', () => {
@@ -231,8 +238,8 @@ describe('helpers', () => {
     expect(sentenceIndex(words('Hi.', 'You?', '"Yes!"', 'ok'))).toEqual([0, 1, 2, 3]);
   });
 
-  it('budgets one slot per 5 s of speech, at least one', () => {
-    expect(slotBudget(DEMO)).toBe(3);
+  it('budgets one slot per 3.5 s of speech, at least one', () => {
+    expect(slotBudget(DEMO)).toBe(4);
     expect(slotBudget(words('hi'))).toBe(1);
     expect(slotBudget([])).toBe(0);
   });
@@ -466,6 +473,10 @@ describe('detectLocal with the real tagger', () => {
   it('gives the same suggestions as the hand-made spans', () => {
     const out = detectLocal(DEMO, tagSpans(DEMO));
     expect(out).toEqual(detectLocal(DEMO, DEMO_SPANS));
-    expect(out.map((s) => s.componentId)).toEqual(['hook-statement', 'stat-punch']);
+    expect(out.map((s) => s.componentId)).toEqual([
+      'hook-statement',
+      'stat-punch',
+      'hook-statement',
+    ]);
   });
 });

@@ -85,6 +85,7 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
     mode: input.mode ?? 'preview',
     slots: input.slots,
     ...(input.energy ? { energy: input.energy } : {}),
+    ...(input.captions && input.captions.groups.length ? { captions: input.captions } : {}),
   };
 
   const opaque = background === 'style';

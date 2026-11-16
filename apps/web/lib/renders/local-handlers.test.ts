@@ -101,11 +101,11 @@ describe('createLocalRender', () => {
       ['not json', () => createLocalRender(make().deps, 'nope', voice()), 'invalid'],
       ['bad shape', () => createLocalRender(make().deps, '{}', voice()), 'invalid'],
       [
-        'captions',
+        'music',
         () =>
           createLocalRender(
             make().deps,
-            text({ options: { ...REQUEST.options, captions: true } }),
+            text({ options: { ...REQUEST.options, music: true } }),
             voice(),
           ),
         'invalid',

@@ -112,9 +112,9 @@ export function OptionsView({
       <SwitchRow
         className="mt-[30px]"
         label="Captions"
-        checked={false}
-        onCheckedChange={() => {}}
-        soon="Arrives with captions."
+        hint="Burned into the video, word by word."
+        checked={options.captions}
+        onCheckedChange={(captions) => onOptions({ ...options, captions })}
       />
       <SwitchRow
         className="mt-[21px]"

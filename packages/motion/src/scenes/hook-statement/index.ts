@@ -40,7 +40,11 @@ export function hookFromWords(words: readonly string[]): HookStatementContent | 
     if (out.length === 8 || [...out, w].join(' ').length > 90) break;
     out.push(w);
   }
-  const line = out.join(' ').replace(/[,;:]+$/, '');
+  // End on a sentence when one ends inside the cut (never "…the beginning. Here's what"); a
+  // question mark stays, a full stop goes, like the detector's draft.
+  const end = out.findIndex((w) => /[.!?]["')\]]*$/.test(w));
+  const kept = end >= 2 && end < out.length - 1 ? out.slice(0, end + 1) : out;
+  const line = kept.join(' ').replace(/[.,;:!]+$/, '');
   return line ? { line } : null;
 }
 

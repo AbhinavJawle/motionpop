@@ -1,7 +1,14 @@
-import { isImageSlot, type EditorProject, type Format, type Slot } from '@motionpop/schemas';
+import {
+  DEFAULT_CAPTIONS,
+  isImageSlot,
+  type EditorProject,
+  type Format,
+  type Slot,
+} from '@motionpop/schemas';
+import { chunkCaptions } from '../captions/chunk';
 import { componentFor, isScene, lookFor } from '../registry';
 import { sceneTiming } from './scene-timing';
-import type { CompileInput, CompileSlot } from './types';
+import type { CompileCaptions, CompileInput, CompileSlot } from './types';
 
 /**
  * A slot that renders in `format`: ready, its component or scene exists and supports the format,
@@ -54,6 +61,8 @@ export interface ProjectCompileOptions {
    * itself as the master clock (spec 04 R5.1), so it passes none.
    */
   voiceSrc?: string;
+  /** Burn in captions; defaults to the project's own setting (spec 12 R3). */
+  captions?: boolean;
 }
 
 /**
@@ -65,6 +74,9 @@ export function projectCompileInput(
   opts: ProjectCompileOptions,
 ): CompileInput {
   const format = opts.format ?? project.format;
+  const slots = project.slots
+    .filter((s) => isRenderable(s, format))
+    .map((s) => compileSlot(s, project.transcript));
   return {
     format,
     durationMs: project.durationMs,
@@ -73,8 +85,35 @@ export function projectCompileInput(
     mode: opts.mode,
     ...(opts.background ? { background: opts.background } : {}),
     ...(opts.voiceSrc ? { voiceSrc: opts.voiceSrc } : {}),
-    slots: project.slots
-      .filter((s) => isRenderable(s, format))
-      .map((s) => compileSlot(s, project.transcript)),
+    ...captionsFor(project, format, opts.captions, slots),
+    slots,
   };
+}
+
+/**
+ * Scenes that put the spoken words on screen themselves. Captions step aside while one shows,
+ * so the viewer never reads the same line twice (founder QA, 2026-11-16).
+ */
+export const VERBATIM_SCENES: ReadonlySet<string> = new Set([
+  'hook-statement',
+  'quote',
+  'kinetic-headline',
+]);
+
+/** The caption groups for a format, computed from the transcript every time (spec 12 R4.5). */
+function captionsFor(
+  project: EditorProject,
+  format: Format,
+  override: boolean | undefined,
+  slots: readonly CompileSlot[],
+): { captions: CompileCaptions } | Record<string, never> {
+  const setting = project.captions ?? DEFAULT_CAPTIONS;
+  if (!(override ?? setting.enabled)) return {};
+  const verbatim = slots.filter((s) => VERBATIM_SCENES.has(s.componentId));
+  const groups = chunkCaptions(project.transcript.words, {
+    format,
+    presetId: setting.presetId,
+    ...(project.transcript.prosody ? { stress: project.transcript.prosody.stress } : {}),
+  }).filter((g) => !verbatim.some((s) => g.openMs < s.endMs && g.closeMs > s.startMs));
+  return groups.length ? { captions: { presetId: setting.presetId, groups } } : {};
 }

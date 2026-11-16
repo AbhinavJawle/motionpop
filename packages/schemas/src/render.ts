@@ -46,8 +46,8 @@ export const isFinalStatus = (s: RenderStatus): boolean => s === 'done' || s ===
 // Options, request, doc
 
 /**
- * What the creator picked in the export modal. `captions` and `music` stay false until spec 12:
- * the route rejects true as `invalid` (the modal shows both disabled with "Soon").
+ * What the creator picked in the export modal. `captions` burns in the project's caption preset
+ * (spec 12a); `music` stays false until spec 12b: the route rejects it as `invalid`.
  */
 export const RenderOptionsSchema = z
   .object({
