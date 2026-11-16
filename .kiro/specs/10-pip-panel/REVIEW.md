@@ -74,3 +74,26 @@ The design is careful: code plans the route and the cost, the model's output is 
 - **Spec 11:** the left-panel container is built here first (task 1); spec 11 task 20 relies on it. The chat repository follows spec 11 task 6; delete must remove `chat` (spec 11 F2). The rules list in F1 must also cover spec 11's sub-collections.
 - **Spec 12:** F4.
 - **Spec 13:** F2. Also the 30 cloud generations per hour limit applies to a plan of six generations; a refused spend skips the step with the reason (design §7.2 says so).
+
+## Resolved
+
+_Applied 2026-11-16 by a headless Kiro CLI run (claude-sonnet-5.5), with Claude Code's decisions on the open choices. The findings above are kept as written._
+
+| # | Finding | Resolution | Where |
+|---|---|---|---|
+| F1 | A chat rule next to the wildcard validates nothing | The wildcard is replaced by explicit `transcript`, `slots`, `versions` and `chat` blocks, with `validChatMessage` and `projectOwnerAfter` (a new project and its first slots go in one batch). Exact diff in design §8. The rule edit is IDE task 4a; the tests, including "an unknown sub-collection name is denied", are task 4b | design §8, tasks 4a, 4b, R7.4 |
+| F2 | The credit contract is late and the refund path is open to abuse | Spec 10 uses spec 13's `ServerCredits`, `costOf` and `useCredits` and adds no refund design. Cloud paths are disabled ("Cloud AI is coming soon") until spec 13 tasks 1–5 and 8 land. `refId` is `{msgId}-{stepNo}-{attempt}` (no `:`), the idempotency key is made per attempt by `ServerCredits`, `edit` is added by spec 13 task 1, and a refund happens only when a call fails (never on Undo, never for a discarded in-flight result). Spec 13's own ledger ids are `s-{key}` and `r-{key}` | R8.2, R6.4, design §0 #12, §7, tasks (prerequisite section, 2, 7, 11) |
+| F3 | The estimate contradicts the apply logic | Option (b): a failed device edit never spends; the step is "Skipped · Needs the cloud" with a per-step "Ask in the cloud ☁ 1" button. `planCost` counts generations only, so Apply all never spends more than the estimate. Property 7 is reworded, and a new property 8 covers "refund only on failure" | R5.5, R5.8, design §4, §7, §11 |
+| F4 | `setCaptions` depends on a bigger spec 12 task | New task 2b builds only the `captions` field and the `setCaptions` command; spec 12a task 1 lists it as done. `enforcePipPlan` drops `setCaptions` steps ("Captions styles are on their way") while `PIP_CAPTIONS_READY` is false; spec 12a task 8 flips it | tasks 2b, design §5, §7.2 |
+| F5 | A `[kiro]` task edits `firestore.rules` | Split into IDE task 4a (the exact diff) and `[kiro]` task 4b (the tests) | tasks 4a, 4b |
+| F6 | The default-open panel changes `editor.png` checks | `?rail=` overrides the default in development and test builds; the default applies to a first visit only; every existing e2e and design check that measures the preview passes `rail=none` (listed in task 1). Decision: first visit opens the AI panel | R1.4, task 1, design §0 #13 |
+| F7 | Projects is missing from the coming-soon list | Added, with its line | R1.3, task 1 |
+| F8 | Steering changes are incomplete | `hybrid-ai.md` row and rule, the `RanOn` note and the explicit rules sketch in `data-model.md` are added to design §12; R4.2 says a device plan is single-turn | R4.2, design §12 |
+| F9 | The honest brand-colours reply breaks journey 2 | Decision: journey 2 in `product.md` changes (exact text in design §12 item 6); the chip keeps the honest reply. Open question 1 says what moving brand colours forward would take | design §0 #6, §12, open question 1 |
+| F10 | Missing tests for R9.3 and R8.5 | A timing test (best of 5, CI margin), a panel-open Playwright assertion, and a test that no message text reaches `console` or a usage event | tasks 3, 11, 12, design §11 |
+| F11 | `?ai=fake` and `?fixture=` in production | One helper `lib/dev/switches.ts` (task 2c) with a production test; spec 11 and spec 09 reuse it | R9.4, task 2c |
+| F12 | `dismissed` has no setter | Removed from `PlanStateSchema`, with a rejection test | design §2, task 2 |
+| F13 | Code plans in the usage chart | Decision: code plans write no usage event; the message carries `ranOn: 'code'` | R8.6, design §0 #14 |
+| F14 | `addSlot` credits unstated | Stated: free even when the device fill falls to `safeScoreFromWords` | design §4 |
+
+**Also changed in this run:** D-035 is renumbered D-066 (spec 09 owns D-035 to D-049); `docs/decisions.md` has the reserved-ids line. `SlotThumb` is marked new (the timeline's `slot-card.tsx` has no thumbnail to reuse), and `lib/credits/` is marked as spec 13's.

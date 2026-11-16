@@ -2,6 +2,8 @@
 
 Format: `D-NNN · date · status (decided/open/superseded)` — context, options, decision, reason, consequences.
 
+**Reserved ids (parallel spec runs).** D-034: spec 08. D-035 to D-049: spec 09. D-050 to D-064: spec 13. D-065: spec 11. D-066: spec 10. D-067: spec 12. Take the next free number above D-067 for anything else, and check this line first.
+
 ## D-001 · 2026-11-13 · decided — Product
 Motionpop: transcript-first AI motion graphics editor; graphics follow the voiceover. Rejected: AI animated story shorts for app marketing (needs heavy human direction per video; buyers won't give input), a generic AI video generator without a wedge.
 
@@ -160,13 +162,20 @@ Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/11-d
 - **"Try a sample" sits on the Upload card** of `/start`, a deliberate small deviation from `start.png`, because judges need it and the design has no place for it.
 - **Open:** the 5-minutes-per-graphic figure behind "~saved", the voice preview spend (about $0.01), the Storage CORS rule for a second device.
 
-## D-035 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 10: Pip plans, routes and one undo
+## D-066 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 10: Pip plans, routes and one undo
+(Renumbered from D-035, which is spec 09's; review fixes applied 2026-11-16.)
 Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/10-pip-panel/`. Full table in that spec's `design.md` §0.
 - **Suggestion chips are planned in code**, free and instant; typed messages go to `pip.plan`. That is why the designed empty state can honestly say "⚡ free · on-device".
 - **Code picks the route before sending** (`ONLY_ON_DEVICE` for slot-scoped requests that fit the device budget, else `ONLY_IN_CLOUD`), so the hint shown is the route used. A failed device plan offers "Ask in the cloud ☁ 2" instead of escalating. This replaces `PREFER_IN_CLOUD` in `ai-tasks.md` §6 (steering change proposed in the spec).
 - **The model's step is flat** (`action, slot, choice, atWord, instruction, label`, all required, with sentinels), because structured output has no `anyOf` and free `args` objects break the schema rules. Code computes every credit figure.
 - **Steps land one by one in one undo entry** (`amendTop` amends the plan's history entry with a growing composite), matching the design's mid-apply frame. Undo on the action card stops and undoes the whole plan; a user ⌘Z on the plan stops it too.
-- **Open:** a minimal brand-colours override for "Use brand colours everywhere" (journey 2) before spec 16; whether chips should also use Gemini Nano.
+- **A failed device edit never spends credits by itself.** The step is skipped with "Ask in the cloud ☁ 1", so Apply all spends at most the estimate (generations only) and the hint equals what runs.
+- **Credits are spec 13's, with no new refund design.** `ServerCredits.spend` before a cloud call, `refund` only when the call fails, never on Undo. Every cloud path of spec 10 stays disabled ("Cloud AI is coming soon") until spec 13 tasks 1–5 and 8 land.
+- **The project sub-collections get explicit rules, not a wildcard.** Firestore ORs matching rules, so a `chat` rule beside `match /{sub}/{doc=**}` validates nothing. An unknown sub-collection name is denied. `projectOwnerAfter` (`getAfter`) lets the first save of a project write its sub-documents in one batch.
+- **Panel default and checks:** the AI panel opens on a first visit; `?rail=` overrides it in development and test builds; checks against `editor.png` pass `rail=none`.
+- **Brand colours in the demo:** journey 2 in `product.md` changes to "fill the empty slots and add an opening title" because brand kits are spec 16; the designed chip gets the honest reply.
+- **Carve-out:** `captions` and `setCaptions` are built in spec 10 (task 2b) so Pip can use them first; the plan drops `setCaptions` steps until spec 12a renders the presets. Code-built plans write no usage event.
+- **Open:** a minimal brand-colours field before spec 16 if the founder wants brand colours in the demo; whether chips should also use Gemini Nano.
 
 ## D-036 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 12: one mixed bed, captions in code, music behind a listening check
 Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/12-formats-captions-sound/`. Full table in that spec's `design.md` §0.
