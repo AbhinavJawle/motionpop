@@ -31,7 +31,12 @@ export default defineConfig({
   workers: 1,
   retries: 0,
   timeout: 90_000,
-  reporter: [['list'], ['html', { outputFolder: 'e2e-output/report', open: 'never' }]],
+  // On CI the `github` reporter turns failures into check annotations (readable without logs).
+  reporter: [
+    ...(process.env['CI'] ? ([['github']] as const) : []),
+    ['list'],
+    ['html', { outputFolder: 'e2e-output/report', open: 'never' }],
+  ],
   use: {
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
