@@ -230,6 +230,10 @@ describe('P2: charged once, refunded at most once', () => {
             const { renderId, render } = request(uid, randomUUID());
             expect((await startExport(db, renderId, render, 5, CFG, NOON)).kind).toBe('created');
             const store = new FirestoreRenderStore(db);
+            // The job is mid-encode, so a `done` can really compete with the failure paths (on a
+            // queued render it would be refused and the render would stay queued).
+            await store.markStarted(renderId);
+            await store.progress(renderId, 'encoding', 90);
             const run = (p: Path) => {
               switch (p) {
                 case 'job':

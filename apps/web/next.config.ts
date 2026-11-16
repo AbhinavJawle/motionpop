@@ -12,6 +12,9 @@ const config: NextConfig = {
     '@motionpop/ai',
     '@motionpop/render',
   ],
+  // The development-only offline render route loads Chrome and the HyperFrames producer at run
+  // time (`@motionpop/render/offline`). They are Node tools, not bundle material.
+  serverExternalPackages: ['@hyperframes/producer', 'puppeteer', 'tsx'],
   reactStrictMode: true,
   // On App Hosting the web config arrives as FIREBASE_WEBAPP_CONFIG; inline it as NEXT_PUBLIC_*.
   env: webappConfigEnv(process.env),

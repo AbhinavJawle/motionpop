@@ -8,6 +8,7 @@ import {
   RenderErrorCodeSchema,
   RenderOptionsSchema,
   RenderRequestSchema,
+  RenderStatusResponseSchema,
   ShareDocSchema,
   canTransition,
   exportAvailability,
@@ -22,6 +23,7 @@ import {
   renderPaths,
   sanitizeFilename,
   sanitizeFilenameBase,
+  toRenderStatus,
   voicePathFor,
   RenderStatusSchema,
   type Format,
@@ -450,5 +452,48 @@ describe('exportAvailability', () => {
       exportAvailability({ durationMs: 180_000, slots: [slot('a')] }, { format: '16:9' }, ctx())
         .reasons,
     ).toEqual([]);
+  });
+});
+
+describe('toRenderStatus', () => {
+  const doc = RenderDocSchema.parse({
+    schemaVersion: 1,
+    ownerId: 'u1',
+    projectId: 'p1',
+    requestId: '3b241101-e2bb-4255-8caf-4136c566a962',
+    title: 'Launch',
+    format: '16:9',
+    resolution: '1080p',
+    captions: false,
+    music: false,
+    durationMs: 18000,
+    slotCount: 2,
+    status: 'error',
+    progress: 40,
+    costCredits: 5,
+    mode: 'cloud',
+    inputPath: 'users/u1/projects/p1/renders/r1/input/project.json',
+    voicePath: 'users/u1/audio/p1/voice-0123456789abcdef.wav',
+    error: 'render-failed',
+    errorMessage: 'internal detail that must not be sent',
+    createdAt: new Date(),
+  });
+
+  it('keeps the public fields and drops paths, messages and timestamps', () => {
+    const r = toRenderStatus('r1', doc);
+    expect(RenderStatusResponseSchema.parse(r)).toEqual(r);
+    expect(r).toEqual({
+      renderId: 'r1',
+      status: 'error',
+      progress: 40,
+      error: 'render-failed',
+      costCredits: 5,
+      title: 'Launch',
+      format: '16:9',
+      resolution: '1080p',
+      durationMs: 18000,
+    });
+    expect(JSON.stringify(r)).not.toContain('users/');
+    expect(JSON.stringify(r)).not.toContain('internal detail');
   });
 });

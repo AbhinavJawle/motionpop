@@ -286,11 +286,12 @@ describe('childProcessLauncher with a real process', () => {
     expect(r.executionName).toMatch(/^local-\d+$/);
     const file = join(logDir, `${ID}.log`);
     let text = '';
-    for (let i = 0; i < 100 && !text.includes('unrecorded'); i++) {
+    // Starting tsx and the job takes seconds on a busy machine (all packages test at once).
+    for (let i = 0; i < 600 && !text.includes('unrecorded'); i++) {
       await new Promise((done) => setTimeout(done, 100));
       text = await readFile(file, 'utf8').catch(() => '');
     }
     expect(text).toContain('unrecorded');
     expect(text).toContain(ID);
-  });
+  }, 90_000);
 });

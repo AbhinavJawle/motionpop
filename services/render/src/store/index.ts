@@ -7,3 +7,4 @@ export * from './logic';
 export * from './ids';
 export * from './firestore';
 export { MemoryRenderStore } from './memory';
+export * from './shares';

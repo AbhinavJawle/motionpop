@@ -164,6 +164,52 @@ export const CreateRenderResponseSchema = z.object({
 });
 export type CreateRenderResponse = z.infer<typeof CreateRenderResponseSchema>;
 
+/**
+ * What the status and check routes answer: the render doc without paths or timestamps (the
+ * client reads the doc itself through Firestore in cloud and emulator modes; offline mode polls).
+ */
+export const RenderStatusResponseSchema = z.object({
+  renderId: z.string().min(1),
+  status: RenderStatusSchema,
+  progress: z.number().int().min(0).max(100),
+  error: RenderErrorCodeSchema.optional(),
+  costCredits: z.number().int().nonnegative(),
+  title: z.string().max(120),
+  format: FormatSchema,
+  resolution: ResolutionSchema,
+  durationMs: IntMsSchema,
+  sizeBytes: z.number().int().nonnegative().optional(),
+});
+export type RenderStatusResponse = z.infer<typeof RenderStatusResponseSchema>;
+
+/** The public view of a render doc. */
+export function toRenderStatus(renderId: string, d: RenderDoc): RenderStatusResponse {
+  return {
+    renderId,
+    status: d.status,
+    progress: d.progress,
+    ...(d.error ? { error: d.error } : {}),
+    costCredits: d.costCredits,
+    title: d.title,
+    format: d.format,
+    resolution: d.resolution,
+    durationMs: d.durationMs,
+    ...(d.sizeBytes !== undefined ? { sizeBytes: d.sizeBytes } : {}),
+  };
+}
+
+/** `GET /api/renders/{id}/download`: a short-lived URL (or, in emulator mode, a route to stream from). */
+export const DownloadResponseSchema = z.object({ url: z.string().min(1) });
+export type DownloadResponse = z.infer<typeof DownloadResponseSchema>;
+
+export const CreateShareRequestSchema = z.object({ renderId: z.string().min(1).max(128) }).strict();
+export type CreateShareRequest = z.infer<typeof CreateShareRequestSchema>;
+export const CreateShareResponseSchema = z.object({
+  shareId: z.string().min(1),
+  url: z.string().min(1),
+});
+export type CreateShareResponse = z.infer<typeof CreateShareResponseSchema>;
+
 export const RenderApiErrorCodeSchema = z.enum([
   'invalid',
   'too-large',
