@@ -39,7 +39,8 @@ export function compileSlot(slot: Slot, transcript: EditorProject['transcript'])
     params: slot.params,
   };
   const withTimingField: CompileSlot = slot.timing ? { ...base, timing: { ...slot.timing } } : base;
-  if (!isScene(slot.componentId)) return withTimingField;
+  // Scenes and custom graphics get the voice (a custom script can land beats on words).
+  if (!isScene(slot.componentId) && slot.componentId !== 'custom') return withTimingField;
   const t = sceneTiming(slot, transcript);
   return {
     ...withTimingField,

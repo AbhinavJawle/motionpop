@@ -6,6 +6,7 @@
 import { components } from '../components';
 import { scenes } from '../scenes';
 import type { RuntimeProject } from '../compiler/types';
+import { CUSTOM_ALLOW_FLAG } from '../components/custom/build';
 import { createEngine, type SlotError, type SlotWarning } from './engine';
 import { mountCaptions } from './captions';
 import { fontStack } from '../fonts/font-faces';
@@ -26,6 +27,9 @@ declare global {
 
 const project = window.__MP_PROJECT__;
 if (project) {
+  // Inside the composition (sandboxed preview iframe or the render page) generated graphics may
+  // run; the app never sets this, so they can't run in its own origin (spec 15).
+  (window as unknown as Record<string, unknown>)[CUSTOM_ALLOW_FLAG] = true;
   const engine = createEngine(project, {
     doc: document,
     components: { ...components, ...scenes },
