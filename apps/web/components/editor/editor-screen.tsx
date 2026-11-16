@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Timeline } from '@/components/timeline/timeline';
 import { PlaybackClock } from '@/lib/editor/playback';
 import { loadVoice, type LoadedVoice } from '@/lib/editor/voice';
+import { useVoiceState } from '@/lib/editor/voice-state';
 import { AudioElsewhereError } from '@/lib/audio/hybrid-audio-store';
 import { projectLibrary } from '@/lib/projects/use-project-list';
 import { openProject } from '@/lib/projects/open';
@@ -111,6 +112,11 @@ export function EditorScreen({
     if (phase.kind !== 'ready' || !project) return;
     let loaded: LoadedVoice | null = null;
     let cancelled = false;
+    useVoiceState.setState({
+      status: 'loading',
+      peaks: null,
+      seek: (ms) => clock.seek(ms),
+    });
     loadVoice(project)
       .then((v) => {
         if (cancelled) return v.revoke();
@@ -120,8 +126,13 @@ export function EditorScreen({
         clock.attachAudio(audio);
         if (initialMs !== undefined) clock.seek(initialMs);
         setVoice(v);
+        useVoiceState.setState({ status: 'ready', peaks: v.peaks, bucketMs: v.bucketMs });
       })
       .catch((e: unknown) => {
+        if (cancelled) return;
+        useVoiceState.setState({
+          status: e instanceof AudioElsewhereError ? 'elsewhere' : 'error',
+        });
         if (e instanceof AudioElsewhereError) {
           // Storage refused the read and this browser has no copy (design §2.4).
           toast(e.message, {

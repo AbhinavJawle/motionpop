@@ -6,6 +6,7 @@ import { closeRailPanel, useRailPanel } from '@/lib/editor/rail-panel';
 import { usePip } from '@/lib/pip/use-pip';
 import { LeftPanel } from './left-panel';
 import { ProjectsPanelBody } from './projects-panel';
+import { VoicePanelBody } from './voice-panel';
 
 const LABELS = { voice: 'Voice', projects: 'Projects' } as const;
 
@@ -30,6 +31,7 @@ export function RailPanels() {
   return (
     <LeftPanel open={open !== null} label={open ? LABELS[open] : 'Panel'} onClose={closeRailPanel}>
       {open === 'projects' && <ProjectsPanelBody />}
+      {open === 'voice' && <VoicePanelBody />}
     </LeftPanel>
   );
 }
