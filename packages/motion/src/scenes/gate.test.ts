@@ -90,7 +90,8 @@ describe('safe defaults', () => {
     expect(statPunchFromWords('no digits here'.split(' '))).toBeNull();
     expect(
       hookFromWords('So, why does this keep happening to us every single year?'.split(' ')),
-    ).toEqual({ line: 'So, why does this keep happening to us' });
+      // Changed 2026-11-16: the whole question fits the line's 14 words, so it is no longer cut at 8.
+    ).toEqual({ line: 'So, why does this keep happening to us every single year?' });
   });
 
   it('always passes the repairable gates, for random words, scenes, formats and durations', () => {

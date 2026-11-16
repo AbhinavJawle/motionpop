@@ -33,17 +33,39 @@ export const hookStatementContent = z.object({
 });
 export type HookStatementContent = z.infer<typeof hookStatementContent>;
 
-/** Safe default from the slot's words: its first words, at most 8 and 90 characters. */
+/** The line's limits (its content schema): at most 14 words and 90 characters. */
+const LINE_WORDS = 14;
+const LINE_CHARS = 90;
+
+/**
+ * Safe default from the slot's words: the first sentence when it fits the line's limits, else
+ * the most of it that does, cut at a comma or after a content word, never on grammar ("…why index
+ * funds quietly beat most professional investors", not "…quietly beat"). A question mark stays, a
+ * full stop goes, like the detector's draft.
+ */
 export function hookFromWords(words: readonly string[]): HookStatementContent | null {
+  const all = words.map((x) => x.trim()).filter(Boolean);
   const out: string[] = [];
-  for (const w of words.map((x) => x.trim()).filter(Boolean)) {
-    if (out.length === 8 || [...out, w].join(' ').length > 90) break;
+  for (const w of all) {
+    if (out.length === LINE_WORDS || [...out, w].join(' ').length > LINE_CHARS) break;
     out.push(w);
   }
-  // End on a sentence when one ends inside the cut (never "…the beginning. Here's what"); a
-  // question mark stays, a full stop goes, like the detector's draft.
+  // End on a sentence when one ends inside the cut (never "…the beginning. Here's what").
   const end = out.findIndex((w) => /[.!?]["')\]]*$/.test(w));
-  const kept = end >= 2 && end < out.length - 1 ? out.slice(0, end + 1) : out;
+  let kept = end >= 2 && end < out.length - 1 ? out.slice(0, end + 1) : out;
+  if (end < 0 && kept.length < all.length) {
+    // Cut mid-sentence: prefer the last clause break, else drop trailing grammar words.
+    let comma = -1;
+    kept.forEach((w, i) => {
+      if (i >= 3 && /[,;:]["')\]]*$/.test(w)) comma = i;
+    });
+    if (comma >= 0) kept = kept.slice(0, comma + 1);
+    else {
+      let n = kept.length;
+      while (n > 3 && !isContentWord(kept[n - 1] ?? '')) n--;
+      kept = kept.slice(0, n);
+    }
+  }
   const line = kept.join(' ').replace(/[.,;:!]+$/, '');
   return line ? { line } : null;
 }

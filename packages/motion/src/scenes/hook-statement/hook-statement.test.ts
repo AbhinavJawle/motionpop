@@ -13,6 +13,7 @@ import {
   layoutHookStatement,
   type HookStatementContent,
   hookFromWords,
+  hookStatementContent,
 } from './index';
 
 const FORMAT_IDS: Format[] = ['16:9', '9:16', '1:1'];
@@ -221,5 +222,38 @@ describe('hookFromWords ends on a sentence (founder QA, 2026-11-16)', () => {
     expect(hookFromWords('Let us look at the numbers'.split(' '))).toEqual({
       line: 'Let us look at the numbers',
     });
+  });
+});
+
+describe('hookFromWords keeps the whole thought (hosted QA, 2026-11-16)', () => {
+  it('keeps a sentence up to the line limit instead of 8 words', () => {
+    const w = "Let's talk about why index funds quietly beat most professional investors. In".split(
+      ' ',
+    );
+    expect(hookFromWords(w)).toEqual({
+      line: "Let's talk about why index funds quietly beat most professional investors",
+    });
+  });
+  it('a sentence longer than the limit ends at a comma, else never on grammar', () => {
+    const comma =
+      'Over the last ten years, most of the money managers who promised more did worse than the index'.split(
+        ' ',
+      );
+    expect(hookFromWords(comma)).toEqual({ line: 'Over the last ten years' });
+    const noComma =
+      'People who try to pick the winners every single year usually end up with the losers instead'.split(
+        ' ',
+      );
+    const line = hookFromWords(noComma)?.line ?? '';
+    expect(line.split(' ').length).toBeLessThanOrEqual(14);
+    expect(isContentWord(line.split(' ').at(-1) ?? '')).toBe(true);
+  });
+  it('every result fits the line schema', () => {
+    fc.assert(
+      fc.property(fc.array(fc.stringMatching(/^[A-Za-z',.?]{1,12}$/), { maxLength: 30 }), (w) => {
+        const r = hookFromWords(w);
+        if (r) expect(hookStatementContent.safeParse(r).success).toBe(true);
+      }),
+    );
   });
 });
