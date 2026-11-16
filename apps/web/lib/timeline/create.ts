@@ -1,4 +1,5 @@
 import type { EditorProject, Slot } from '@motionpop/schemas';
+import { graphicForWords } from '@/lib/slots/graphic-types';
 import { limitsFor } from './constraints';
 import { wordsInRange } from './invariants';
 
@@ -29,13 +30,10 @@ export function slotForWords(
     else return null; // the words are already covered by a slot
   }
 
-  const spoken = words
-    .slice(i0, i1 + 1)
-    .map((w) => w.text)
-    .join(' ');
-  const wantsNumber = /\d|percent|million|billion|thousand|hundred/i.test(spoken);
-  // A number gets a big number if its limits fit the gap; otherwise a title card (global limits).
-  const candidates = wantsNumber ? ['big-number', 'title-card'] : ['title-card'];
+  // A place gets a map, a number a stat punch, otherwise a hook statement; the hook (the
+  // shortest scene) is the fallback when the first choice's limits don't fit the gap.
+  const best = graphicForWords(words.slice(i0, i1 + 1).map((w) => w.text));
+  const candidates = best === 'hook-statement' ? [best] : [best, 'hook-statement'];
 
   for (const componentId of candidates) {
     const { minMs, maxMs } = limitsFor(componentId);

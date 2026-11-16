@@ -8,12 +8,9 @@ import { slotForWords } from './create';
 describe('slotForWords', () => {
   const p = demoProject();
 
-  it('widens a short word to the 1 s minimum inside its gap', () => {
-    // "Our" (3550–3980) sits between slot 1 (ends 3180) and slot 2 (starts 4200).
-    const s = slotForWords(p, 5, 5, 'new')!;
-    expect([s.startMs, s.endMs]).toEqual([3200, 4200]);
-    expect(s.componentId).toBe('title-card');
-    expect(timelineIssues(addSlot(s).do(p))).toEqual([]);
+  it('gives up when the gap is shorter than the shortest graphic', () => {
+    // "Our" (3550–3980) sits in a 1 s gap between slot 1 (ends 3180) and slot 2 (starts 4200).
+    expect(slotForWords(p, 5, 5, 'new')).toBeNull();
   });
 
   it('returns null when the words are already under a slot', () => {
@@ -27,7 +24,7 @@ describe('slotForWords', () => {
     expect(s.startMs).toBe(5580);
     expect(s.endMs).toBe(8180);
     expect(s.reason).toBe("You said 'forty percent since 2020'"); // the widened range covers more words
-    expect(s.componentId).toBe('big-number');
+    expect(s.componentId).toBe('stat-punch');
     expect(timelineIssues(addSlot(s).do(empty))).toEqual([]);
   });
 

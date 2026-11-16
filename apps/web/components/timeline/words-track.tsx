@@ -169,7 +169,11 @@ export function WordsTrack() {
       if (!st.project) return;
       const id = `slot-${crypto.randomUUID().slice(0, 8)}`;
       const slot = slotForWords(st.project, anchor, hovered, id);
-      if (!slot) return st.reject('Add graphic', 'Those words already have a graphic.');
+      if (!slot)
+        return st.reject(
+          'Add graphic',
+          'Those words already have a graphic, or there’s no room for one.',
+        );
       if (st.exec(addSlot(slot))) st.select(id);
     };
     const onUp = () => finish(true);

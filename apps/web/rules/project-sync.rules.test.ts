@@ -6,6 +6,7 @@ import {
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   limit,
   query,
@@ -51,6 +52,19 @@ async function push(uid: string) {
 }
 
 describe('project sync against the rules (spec 11 R1)', () => {
+  it('a project not uploaded yet reads as missing, so the client can upload it', async () => {
+    const db = env.authenticatedContext('alice').firestore();
+    const snap = await assertSucceeds(getDoc(doc(db, 'projects', 'never-synced')));
+    expect(snap.exists()).toBe(false);
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'projects', 'x')));
+  });
+
+  it("someone else's project still can't be read", async () => {
+    await push('alice');
+    const bob = env.authenticatedContext('bob').firestore();
+    await assertFails(getDoc(doc(bob, 'projects', 'demo')));
+  });
+
   it('the owner creates a project with its slots, versions and transcript', async () => {
     const db = await push('alice');
     const slots = await assertSucceeds(getDocs(collection(db, 'projects', 'demo', 'slots')));

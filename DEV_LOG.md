@@ -423,3 +423,23 @@ Template:
   - The `cut-the-curve`, `motion-doctrine` and `hyperframes-registry` skills are used as references.
 - No Kiro runs this session.
 
+## 2026-11-16 (night) · Claude Code · globe maps, seams, Newsprint
+- **Founder ask:** research how creators make great motion graphics now and implement it. Start with the editorial collage explainer style. Maps should look realistic, in several styles.
+- **Research applied:**
+  - Transitions: arrivals decelerate, exits accelerate and are shorter. Matched seams with a blur peak. Three to five kinds of transition per film.
+  - Collage explainer grammar: 12 fps step, boiling textures, halftone cut-outs, torn paper, tape, marker.
+  - Maps fly in from a globe.
+- **Built (D-071):**
+  - WebGL globe in four styles (satellite, relief, paper, night) with a d3 vector overlay and a fly-in camera.
+  - Seams between graphics (slide, zoom, pull, whip, paper) with a key-moment guard.
+  - A lens layer (paper sweep, texture boil) and collage paper scraps behind the graphics on stepped looks.
+  - Picture treatments (duotone, halftone, torn edge, colour backing).
+  - The new Newsprint look. Numbers are set in lining figures everywhere.
+  - `sheet` script: renders any scene in any look at chosen times, with an optional picture, so visuals can be reviewed without the editor.
+- **Checked:**
+  - Sheets of the globe in all four styles, and Newsprint with a cut-out picture.
+  - `motion:check hook-statement`: 0 failures. Before the fixes it had 190 failures. The cause was seams moving slots during the check, plus Newsprint's red at 4.41:1. Seams are now off in the check, the key-moment guard is unit-tested, and the red is 4.7:1.
+  - Motion suite: 426 tests green.
+- **Not yet verified:** WebGL in the render job (the producer uses SwiftShader). I'm checking it with a hosted export after the deploy.
+- No Kiro runs this session.
+

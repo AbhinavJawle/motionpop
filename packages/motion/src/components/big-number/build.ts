@@ -1,5 +1,5 @@
 import type { BuildContext, Composition } from '../../contract';
-import { formatCount, countAt, type CountFormat } from '../../core/count';
+import { formatCount, countAt, withYear, type CountFormat } from '../../core/count';
 import { eases } from '../../core/ease';
 import { progress, tween } from '../../core/interp';
 import { insetForCamera, safeArea } from '../../core/safe-area';
@@ -61,7 +61,11 @@ export function bigNumberTimings(
 
 /** The widest string the counter shows: the box is fitted to it once, at build. */
 export function widestCount(p: BigNumberParams): string {
-  const fmt: CountFormat = { prefix: p.prefix, suffix: p.suffix, decimals: p.decimals };
+  const fmt: CountFormat = withYear(p.value, {
+    prefix: p.prefix,
+    suffix: p.suffix,
+    decimals: p.decimals,
+  });
   const a = formatCount(p.value, fmt);
   const b = formatCount(p.countFrom, fmt);
   return b.length > a.length ? b : a;

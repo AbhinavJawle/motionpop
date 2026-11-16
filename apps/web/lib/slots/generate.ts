@@ -9,6 +9,8 @@ import type { EditorStore } from '@/lib/stores/editor';
 import { componentFillInput } from './component-fill-input';
 import { newVersion } from './new-version';
 import { sceneFillInput, sceneGate } from './scene-fill';
+import { askedGraphicType } from './graphic-types';
+import { switchGraphic } from './switch-graphic';
 import { validateParams } from './validate-params';
 
 /**
@@ -80,6 +82,14 @@ export async function generateSlot(
   if (route.kind === 'disabled') return { outcome: 'blocked', reason: route.reason };
   if (route.kind !== 'cloud') return { outcome: 'blocked', reason: 'Needs cloud AI' };
   if (store.getState().generating) return { outcome: 'blocked', reason: PIP_IS_ON_IT };
+
+  // A prompt that names another graphic type ("a map of…", "as a chart") switches the slot to
+  // it first (free, one undo step), so Generate makes what the creator asked for.
+  const asking = store.getState().project?.slots.find((s) => s.id === slotId);
+  const asked = asking ? askedGraphicType(asking.prompt, asking.componentId) : null;
+  // Drafting the new type measures text, so it needs a document (always there in the app).
+  const doc = deps.doc ?? (typeof document === 'undefined' ? undefined : document);
+  if (asked && sceneFor(asked) && doc) switchGraphic(store, slotId, asked, doc);
 
   const project = store.getState().project;
   const slot = project?.slots.find((s) => s.id === slotId);

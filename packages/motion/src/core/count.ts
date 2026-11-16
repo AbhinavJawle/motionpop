@@ -7,6 +7,25 @@ export interface CountFormat {
   decimals?: number;
   /** BCP 47 locale for thousands separators. Defaults to "en-US". */
   locale?: string;
+  /** Thousands separators (default true). Years turn them off: 1989, never 1,989. */
+  grouping?: boolean;
+}
+
+/** A bare whole number from 1000 to 2199 with no prefix and no unit (or "s", as in 1990s) is a year. */
+export function looksLikeYear(value: number, fmt: CountFormat = {}): boolean {
+  return (
+    Number.isInteger(value) &&
+    value >= 1000 &&
+    value <= 2199 &&
+    !(fmt.decimals ?? 0) &&
+    !fmt.prefix &&
+    (!fmt.suffix || fmt.suffix.trim() === 's' || fmt.suffix.trim() === "'s")
+  );
+}
+
+/** The format with separators off when the value reads as a year. */
+export function withYear(value: number, fmt: CountFormat): CountFormat {
+  return looksLikeYear(value, fmt) ? { ...fmt, grouping: false } : fmt;
 }
 
 /** Formats a number exactly as the final frame shows it. */
@@ -19,6 +38,7 @@ export function formatCount(value: number, fmt: CountFormat = {}): string {
   const body = shown.toLocaleString(fmt.locale ?? 'en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
+    useGrouping: fmt.grouping ?? true,
   });
   return `${fmt.prefix ?? ''}${body}${fmt.suffix ?? ''}`;
 }

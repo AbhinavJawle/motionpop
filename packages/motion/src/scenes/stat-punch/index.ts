@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Format } from '../../contract';
-import type { CountFormat } from '../../core/count';
+import { withYear, type CountFormat } from '../../core/count';
 import type { Box } from '../../core/safe-area';
 import { enter, mark, stage, type TextSlot } from '../../engine/stage';
 import { defineScene } from '../define';
@@ -195,7 +195,11 @@ export const statPunch = defineScene<StatPunchContent>({
     const c = score.content;
     const st = stage(ctx, { cues: this.cues, anchors: score.beats, centre: true });
     const slots = layoutStatPunch(variant, ctx.format, ctx.height, st.safe, Boolean(c.context));
-    const fmt: CountFormat = { prefix: c.prefix, suffix: c.suffix, decimals: c.decimals };
+    const fmt: CountFormat = withYear(c.value, {
+      prefix: c.prefix,
+      suffix: c.suffix,
+      decimals: c.decimals,
+    });
     if (slots.context && c.context) {
       st.on('context', enter(st.text('context', c.context, slots.context, { role: 'eyebrow' })));
     }

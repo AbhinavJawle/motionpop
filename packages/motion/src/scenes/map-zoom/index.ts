@@ -73,7 +73,13 @@ export function placeTarget(name: string): PlaceTarget | null {
  * can draw (longest first, so "New York" beats "York"). Null when none does.
  */
 export function mapFromWords(words: readonly string[]): MapZoomContent | null {
-  const clean = words.map((w) => w.replace(/^[^\p{L}]+|[^\p{L}.]+$/gu, '').replace(/\.$/, ''));
+  // Possessives count ("Japan's market" is about Japan).
+  const clean = words.map((w) =>
+    w
+      .replace(/^[^\p{L}]+|[^\p{L}.]+$/gu, '')
+      .replace(/\.$/, '')
+      .replace(/['’]s$/u, ''),
+  );
   for (let i = 0; i < clean.length; i++) {
     for (let len = Math.min(3, clean.length - i); len >= 1; len--) {
       const run = clean.slice(i, i + len);

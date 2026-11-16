@@ -64,7 +64,10 @@ service cloud.firestore {
 
     match /projects/{pid} {
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
-      allow read, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+      // A missing project reads as missing (resource == null), so a project made before sign-in
+      // or before cloud sync can find out it is not uploaded yet and upload itself.
+      allow read: if signedIn() && (resource == null || resource.data.ownerId == request.auth.uid);
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
       allow update: if signedIn()
         && resource.data.ownerId == request.auth.uid
         && request.resource.data.ownerId == resource.data.ownerId;
