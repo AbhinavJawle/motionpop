@@ -19,6 +19,8 @@ export interface ExportUiState {
   options: RenderOptions | null;
   /** Why the last request was refused (shown in the options view). */
   startError: string | null;
+  /** The price the server named when it refused ours (`cost-changed`); shown until options change. */
+  costOverride: number | null;
 
   /** The Export button: opens the options, or progress when a render is running. */
   openFromButton(): void;
@@ -27,7 +29,7 @@ export interface ExportUiState {
   close(): void;
   setOptions(options: RenderOptions): void;
   beginStart(): void;
-  failStart(message: string): void;
+  failStart(message: string, costOverride?: number): void;
   follow(renderId: string, view?: RenderView | null): void;
   applyView(view: RenderView): void;
   /** Forget the current render (back to the options). */
@@ -52,6 +54,7 @@ export function createExportStore() {
     view: null,
     options: null,
     startError: null,
+    costOverride: null,
 
     openFromButton() {
       // A finished render was already shown (or toasted): the button starts a new export.
@@ -66,13 +69,13 @@ export function createExportStore() {
       else set({ open: false });
     },
     setOptions(options) {
-      set({ options, startError: null });
+      set({ options, startError: null, costOverride: null });
     },
     beginStart() {
       set({ starting: true, startError: null });
     },
-    failStart(message) {
-      set({ starting: false, startError: message });
+    failStart(message, costOverride) {
+      set({ starting: false, startError: message, costOverride: costOverride ?? null });
     },
     follow(renderId, view = null) {
       set({ starting: false, renderId, view, startError: null });

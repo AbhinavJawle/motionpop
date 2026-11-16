@@ -22,6 +22,9 @@ export function Modal({
   description,
   children,
   className,
+  closeClassName,
+  contentClassName,
+  hideHeading,
 }: {
   open: boolean;
   onClose: () => void;
@@ -29,6 +32,12 @@ export function Modal({
   description?: string;
   children: ReactNode;
   className?: string;
+  /** Moves the ✕ (the ready dialog sits it 4 px higher). */
+  closeClassName?: string;
+  /** Replaces the default `mt-6` gap above the content. */
+  contentClassName?: string;
+  /** Keep the heading for assistive tech but draw it yourself (the ready dialog). */
+  hideHeading?: boolean;
 }) {
   const mounted = useSyncExternalStore(
     subscribeNoop,
@@ -38,12 +47,18 @@ export function Modal({
   const titleId = useId();
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
+  // The latest `onClose` without re-running the focus effect: a new callback on every render of
+  // the parent must not steal focus back to the panel.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
 
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') onCloseRef.current();
       if (e.key === 'Tab' && panelRef.current) {
         // Minimal focus trap: wrap Tab within the dialog.
         const items = panelRef.current.querySelectorAll<HTMLElement>(
@@ -68,7 +83,7 @@ export function Modal({
       window.removeEventListener('keydown', onKey);
       previous?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!mounted) return null;
   return createPortal(
@@ -100,19 +115,31 @@ export function Modal({
               size="icon"
               aria-label="Close"
               onClick={onClose}
-              className="absolute top-6 right-6 [&_svg]:size-5"
+              className={cn('absolute top-6 right-6 [&_svg]:size-5', closeClassName)}
             >
               <X strokeWidth={1.5} aria-hidden />
             </Button>
-            <h2 id={titleId} className="pr-10 text-2xl leading-[31px] font-semibold">
+            <h2
+              id={titleId}
+              className={cn(
+                'pr-10 text-2xl leading-[31px] font-semibold',
+                hideHeading && 'sr-only',
+              )}
+            >
               {title}
             </h2>
             {description && (
-              <p id={descId} className="mt-1 text-[13px] leading-[17px] text-text-2">
+              <p
+                id={descId}
+                className={cn(
+                  'mt-1 text-[13px] leading-[17px] text-text-2',
+                  hideHeading && 'sr-only',
+                )}
+              >
                 {description}
               </p>
             )}
-            <div className="mt-6">{children}</div>
+            <div className={contentClassName ?? 'mt-6'}>{children}</div>
           </motion.div>
         </motion.div>
       )}

@@ -100,6 +100,8 @@ export interface ExportOptionsInput {
   /** The live balance; null while unknown (and always in offline mode). */
   balance: number | null;
   online: boolean;
+  /** The server's price after `cost-changed`: replaces the table's until the options change. */
+  costOverride?: number | null;
   isRenderable: (slot: Slot, format: Format) => boolean;
 }
 
@@ -133,7 +135,8 @@ export function exportOptionsState(i: ExportOptionsInput): ExportOptionsState {
   });
   const cost = free
     ? null
-    : exportCost(i.options.resolution, i.project.durationMs, i.config.exportCredits);
+    : (i.costOverride ??
+      exportCost(i.options.resolution, i.project.durationMs, i.config.exportCredits));
 
   let blockNote: string | null = null;
   if (!i.config.exportsEnabled) blockNote = 'Exports are paused for a moment. Try again soon.';

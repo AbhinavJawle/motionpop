@@ -50,6 +50,15 @@
   --color-ember-tint: #33252b; /* selected option card */
   --color-ember-ink: #ffad85; /* text on ember tint */
   --color-option: #1b1823; /* unselected option card */
+  --color-ember-edge: #a7664e; /* selected option card border */
+  --color-dialog-line: #34303f; /* dialog dividers and option card borders */
+  --color-dialog-card: #17151e; /* project card in the export dialog */
+  --color-toggle-on: #a38aff; /* export dialog switch, on */
+  --color-toggle-off: #3b354a; /* export dialog switch, off */
+  --color-ready-card: #1b1823; /* file card in the ready dialog */
+  --color-secondary-btn: #24202f; /* outline button fill (Copy share link) */
+  --color-secondary-btn-line: #403849; /* outline button border */
+  --color-violet-icon: #c4b3ff; /* link icon */
   --color-dialog: rgb(19 18 26 / 0.96); /* modal surface (blur 16) */
   --color-scrim: rgb(5 5 9 / 0.79); /* modal backdrop */
   --color-violet-thumb: #d2c8ff; /* slider handle */

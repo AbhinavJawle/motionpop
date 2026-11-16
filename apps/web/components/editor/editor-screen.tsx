@@ -13,6 +13,7 @@ import { openProject } from '@/lib/projects/open';
 import type { ProjectRepository } from '@/lib/projects/repository';
 import { startAutosave } from '@/lib/stores/autosave';
 import { editorStore, useEditor } from '@/lib/stores/editor';
+import { ExportController } from '@/components/export/export-controller';
 import { Inspector } from './inspector';
 import { PipDock } from './pip-dock';
 import { PreviewPane } from './preview-pane';
@@ -157,6 +158,7 @@ export function EditorScreen({
         <Inspector />
         <PipDock />
       </div>
+      <ExportController />
       <Timeline clock={clock} peaks={voice?.peaks ?? null} bucketMs={voice?.bucketMs ?? 10} />
     </div>
   );
