@@ -1,15 +1,15 @@
 'use client';
-import { componentFillTask, skillEntry, type ComponentFillInput, type Router } from '@motionpop/ai';
+import { componentFillTask, type Router } from '@motionpop/ai';
 import { type Scene } from '@motionpop/motion';
 import type { AppConfig, EditorProject, Slot, Version } from '@motionpop/schemas';
 import { useEffect } from 'react';
 import { getRouter } from '@/lib/ai/router-client';
 import { applyAutoFill, sameSlot } from '@/lib/commands/auto-fill';
-import { spokenText } from '@/lib/editor/slot-display';
 import { loadAppConfig } from '@/lib/firebase/remote-config';
 import { sceneFor, schemaFor } from '@/lib/motion/registry';
 import { editorStore, useEditor, type EditorStore } from '@/lib/stores/editor';
 import { autoFillQueue } from './auto-fill-plan';
+import { componentFillInput } from './component-fill-input';
 import { sceneFallback, sceneFillInput, sceneGate } from './scene-fill';
 import { validateParams } from './validate-params';
 
@@ -74,15 +74,7 @@ async function fillComponent(
   slot: Slot,
 ): Promise<Filled | null> {
   try {
-    const input: ComponentFillInput = {
-      purpose: 'autofill',
-      componentId: slot.componentId,
-      words: spokenText(slot, project.transcript.words),
-      prompt: slot.prompt || slot.reason,
-      currentParams: slot.params,
-      styleId: project.styleId,
-      skill: { shotSequence: '', emphasis: skillEntry(slot.skillId)?.useWhen ?? '' },
-    };
+    const input = componentFillInput(project, slot, 'autofill');
     const res = await router.run(FILL, input);
     return {
       params: res.output.params,

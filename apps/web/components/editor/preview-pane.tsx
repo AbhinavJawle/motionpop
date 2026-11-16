@@ -11,6 +11,7 @@ import { cn } from '@/lib/cn';
 import { useEditor, type SaveStatus } from '@/lib/stores/editor';
 import { OfflineBanner } from './offline-banner';
 import { PreviewBadge } from './preview-badge';
+import { PreviewProgress } from './preview-progress';
 import { PreviewPlayer } from './preview-player';
 
 const ASPECT: Record<Format, string> = { '16:9': '16 / 9', '9:16': '9 / 16', '1:1': '1 / 1' };
@@ -24,6 +25,7 @@ export function PreviewPane() {
   const toggleCaptions = useEditor((s) => s.toggleCaptions);
   const toggleSafeZone = useEditor((s) => s.toggleSafeZone);
   const saveStatus = useEditor((s) => s.saveStatus);
+  const generating = useEditor((s) => s.generating !== null);
   const sceneTotal = useEditor((s) => s.project?.slots.length ?? 0);
   const sceneIndex = useEditor((s) => {
     const sel = s.project?.slots.find((x) => x.id === s.selectedSlotId);
@@ -91,6 +93,7 @@ export function PreviewPane() {
           style={{ aspectRatio: ASPECT[format], height: 'min(405px, 100%)' }}
         >
           <PreviewPlayer />
+          <PreviewProgress />
           <PreviewBadge />
           <OfflineBanner />
           {safeZone && <SafeZoneOverlay format={format} />}
@@ -102,15 +105,16 @@ export function PreviewPane() {
           SCENE {String(sceneIndex).padStart(2, '0')} / {String(sceneTotal).padStart(2, '0')}
         </span>
         <span className="text-text-2">{styleName}</span>
-        <SaveIndicator status={saveStatus} />
+        <SaveIndicator status={saveStatus} generating={generating} />
       </footer>
     </section>
   );
 }
 
-function SaveIndicator({ status }: { status: SaveStatus }) {
-  const text =
-    status === 'saving'
+function SaveIndicator({ status, generating }: { status: SaveStatus; generating: boolean }) {
+  const text = generating
+    ? 'Generating motion…'
+    : status === 'saving'
       ? 'Saving…'
       : status === 'error'
         ? 'Couldn’t save · retrying on next change'
@@ -118,7 +122,9 @@ function SaveIndicator({ status }: { status: SaveStatus }) {
   return (
     <span role="status" className="flex items-center gap-2 text-text-2">
       <StatusDot
-        tone={status === 'error' ? 'error' : status === 'saving' ? 'warn' : 'mint'}
+        tone={
+          generating ? 'mint' : status === 'error' ? 'error' : status === 'saving' ? 'warn' : 'mint'
+        }
         className="size-[5px]"
       />
       {text}

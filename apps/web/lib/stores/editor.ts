@@ -32,6 +32,13 @@ export interface DragPreview {
   snapped: boolean;
 }
 
+export type GeneratePhase = 'preparing' | 'animating';
+export interface Generating {
+  slotId: string;
+  phase: GeneratePhase;
+  startedAt: number;
+}
+
 export interface EditorState {
   project: EditorProject | null;
   /** Increments on every `load`, so autosave can tell a load from an edit. */
@@ -53,6 +60,11 @@ export interface EditorState {
    * the project keeps `suggested`, so a reload or an autosave mid-fill never strands a slot.
    */
   autoFilling: string | null;
+  /**
+   * The slot a Generate is working on (spec 09 R6.4, R6.8). UI-only like `autoFilling`: the stored
+   * status stays as it was, so a reload mid-generate never strands a slot. At most one per project.
+   */
+  generating: Generating | null;
 
   load(project: EditorProject): void;
   /** Runs a command. Returns false (and records `rejection`) if the command was rejected. */
@@ -71,6 +83,7 @@ export interface EditorState {
   setDragPreview(preview: DragPreview | null): void;
   setSaveStatus(status: SaveStatus): void;
   setAutoFilling(slotId: string | null): void;
+  setGenerating(generating: Generating | null): void;
 }
 
 export type EditorStore = StoreApi<EditorState>;
@@ -107,6 +120,7 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         saveStatus: 'idle',
         rejection: null,
         autoFilling: null,
+        generating: null,
 
         load: (project) =>
           set((s) => {
@@ -120,6 +134,7 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
             s.saveStatus = 'saved';
             s.rejection = null;
             s.autoFilling = null;
+            s.generating = null;
           }),
 
         exec: (cmd) => {
@@ -196,6 +211,10 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         setAutoFilling: (slotId) =>
           set((s) => {
             s.autoFilling = slotId;
+          }),
+        setGenerating: (generating) =>
+          set((s) => {
+            s.generating = generating;
           }),
       };
     }),

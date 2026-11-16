@@ -72,13 +72,22 @@ export interface SlotCardText {
   subtitle: string;
 }
 
-export function slotCardText(slot: Slot): SlotCardText {
+/** The card subtitles of a Generate in progress (spec 09 R6.4). */
+export const GENERATE_PHASE_TEXT = {
+  preparing: 'Preparing motion…',
+  animating: 'Animating…',
+} as const;
+
+export function slotCardText(slot: Slot, phase?: keyof typeof GENERATE_PHASE_TEXT): SlotCardText {
   const name = componentName(slot.componentId);
   switch (slot.status) {
     case 'suggested':
       return { title: SKILL_NAMES[slot.skillId] ?? name, subtitle: 'Suggested' };
     case 'generating':
-      return { title: firstClause(slot.prompt), subtitle: `Generating ${name.toLowerCase()}` };
+      return {
+        title: firstClause(slot.prompt),
+        subtitle: phase ? GENERATE_PHASE_TEXT[phase] : `Generating ${name.toLowerCase()}`,
+      };
     case 'failed':
       return { title: name, subtitle: "Couldn't generate" };
     case 'ready':

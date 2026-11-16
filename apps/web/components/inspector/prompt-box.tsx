@@ -9,7 +9,7 @@ import { useAIStatus } from '@/lib/ai/ai-status';
 import { getRouter } from '@/lib/ai/router-client';
 import { useRoute } from '@/lib/ai/use-route';
 import { setSlotPrompt } from '@/lib/commands';
-import { schemaFor } from '@/lib/motion/registry';
+import { useGenerate } from '@/lib/slots/use-generate';
 import { prefillPrompt } from '@/lib/slots/prefill';
 import { beginPrefill, endPrefill, useAIActivity } from '@/lib/stores/ai-activity';
 import { editorStore } from '@/lib/stores/editor';
@@ -20,26 +20,25 @@ export const INSPECTOR_PROMPT_ID = 'inspector-prompt';
 /**
  * "Graphic prompt · editable": 72 px, soft body text at 12/18, with "✦ Generate" and the "☁ 3"
  * chip at the bottom right (122×26, 4 px from the bottom, 12 px from the right). The prompt is
- * saved on the slot when the box loses focus (spec 09 R6.1). Generate itself is task 18: until
- * then the button explains why it is off.
+ * saved on the slot when the box loses focus (spec 09 R6.1). Generate runs the cloud fill for 3
+ * credits (R6.2); when it can't, the tooltip says why (R6.3, R6.8). A click saves the draft first,
+ * so the model reads what is on screen.
  */
 export function PromptBox({ slot }: { slot: Slot }) {
   const [draft, setDraft] = useState(slot.prompt);
-  const route = useRoute('generate');
+  const gen = useGenerate(slot);
   const prefill = usePrefill(slot);
   const prefilling = prefill === 'working';
-  const planned = schemaFor(slot.componentId) === undefined;
-  const cost = route.kind === 'cloud' ? route.credits : 3;
-  const tip = planned
-    ? 'Coming soon'
-    : route.kind === 'disabled'
-      ? route.reason
-      : 'Cloud generation is on its way';
+  const cost = gen.route.kind === 'cloud' ? gen.route.credits : 3;
 
   const save = () => {
     const next = draft.trim();
     if (next === slot.prompt.trim()) return;
     editorStore.getState().exec(setSlotPrompt(slot.id, next));
+  };
+  const generate = () => {
+    save();
+    gen.run();
   };
 
   return (
@@ -56,12 +55,18 @@ export function PromptBox({ slot }: { slot: Slot }) {
           prefilling ? 'Pip is writing a prompt…' : 'Describe the graphic you want here…'
         }
       />
-      <Tooltip content={tip} side="top" className="absolute right-3 bottom-1">
+      <Tooltip
+        content={gen.disabledReason ?? 'Generate with cloud AI'}
+        shortcut={gen.disabledReason ? undefined : '⌘G'}
+        side="top"
+        className="absolute right-3 bottom-1"
+      >
         <span>
           <Button
             variant="ai"
             size="sm"
-            disabled
+            disabled={gen.disabledReason !== null || gen.busy}
+            onClick={generate}
             className="h-[26px] w-[122px] gap-0 pr-[7px] pl-[11px]"
           >
             <span>✦ Generate</span>

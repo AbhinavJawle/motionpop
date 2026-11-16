@@ -98,11 +98,47 @@ describe('PromptBox pre-fill (R6.1)', () => {
     expect(slot().prompt).toBe('A big, confident 40% with a warm highlight and an editorial feel.');
   });
 
-  it('Generate is off with the reason, until task 18', () => {
+  it('Generate is on, shows ☁ 3, and a click saves the draft and adds a "Generated" version', async () => {
     editorStore.getState().load(demoProject(0));
+    render(<PromptBox slot={slot('slot-4')} />);
+    const button = screen.getByRole('button', { name: /Generate/ }) as HTMLButtonElement;
+    expect(button.disabled).toBe(false);
+    expect(button.textContent).toContain('3');
+    const box = screen.getByLabelText('Graphic prompt');
+    fireEvent.change(box, { target: { value: 'A calm number in orange.' } });
+    fireEvent.click(button);
+    expect(slot('slot-4').prompt).toBe('A calm number in orange.');
+    await waitFor(() => {
+      const current = slot('slot-4').currentVersionId;
+      const v = editorStore.getState().project!.versions.find((x) => x.id === current);
+      expect(v).toMatchObject({ label: 'Generated', source: 'ai-cloud' });
+    });
+  });
+
+  it('Generate is off offline', () => {
+    editorStore.getState().load(demoProject(0));
+    // The hook follows the browser's connection state, so the browser must be offline.
+    Object.defineProperty(window.navigator, 'onLine', { value: false, configurable: true });
+    try {
+      useAIStatusStore.setState({ availability: 'available', online: false });
+      render(<PromptBox slot={slot()} />);
+      expect((screen.getByRole('button', { name: /Generate/ }) as HTMLButtonElement).disabled).toBe(
+        true,
+      );
+    } finally {
+      Object.defineProperty(window.navigator, 'onLine', { value: true, configurable: true });
+    }
+  });
+
+  it('while another slot generates, Generate is off ("Pip is on it")', () => {
+    editorStore.getState().load(demoProject(0));
+    act(() =>
+      editorStore.getState().setGenerating({ slotId: 'slot-4', phase: 'animating', startedAt: 0 }),
+    );
     render(<PromptBox slot={slot()} />);
     expect((screen.getByRole('button', { name: /Generate/ }) as HTMLButtonElement).disabled).toBe(
       true,
     );
+    act(() => editorStore.getState().setGenerating(null));
   });
 });

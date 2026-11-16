@@ -6,7 +6,7 @@ import { motion, type HTMLMotionProps } from 'motion/react';
 import { forwardRef, type CSSProperties } from 'react';
 import { Shimmer } from '@/components/ui/shimmer';
 import { cn } from '@/lib/cn';
-import { slotCardText, thumbnailValue } from '@/lib/editor/slot-display';
+import { slotCardText, thumbnailValue, type GENERATE_PHASE_TEXT } from '@/lib/editor/slot-display';
 import { breathe, springPop } from '@/lib/motion/presets';
 import { useStill } from '@/lib/motion/use-still';
 
@@ -16,6 +16,8 @@ export interface SlotCardProps extends Omit<HTMLMotionProps<'div'>, 'children' |
   selected: boolean;
   /** Card width in px (the slot's duration on the timeline). */
   width: number;
+  /** The Generate phase while this slot is being generated (the card's subtitle). */
+  phase?: keyof typeof GENERATE_PHASE_TEXT;
 }
 
 /**
@@ -24,11 +26,11 @@ export interface SlotCardProps extends Omit<HTMLMotionProps<'div'>, 'children' |
  * (violet → ember border + bloom), has a note (red dot), failed (red outline + retry).
  */
 export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotCard(
-  { entry: slot, selected, width, className, style, ...rest },
+  { entry: slot, selected, width, phase, className, style, ...rest },
   ref,
 ) {
   const still = useStill();
-  const { title, subtitle } = slotCardText(slot);
+  const { title, subtitle } = slotCardText(slot, phase);
   const hasNote = slot.notes.some((n) => n.status === 'open');
   const thumb = slot.status === 'ready' ? thumbnailValue(slot) : null;
   const compact = width < 120;

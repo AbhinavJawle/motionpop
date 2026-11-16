@@ -2,6 +2,7 @@
 
 import type { Slot } from '@motionpop/schemas';
 import { ContentSection } from './content-section';
+import { FailedNotice } from './failed-notice';
 import { InspectorHeader } from './header';
 import { PromptBox } from './prompt-box';
 import { QuickEditRow } from './quick-edit-row';
@@ -20,6 +21,7 @@ export function InspectorBody({ slot }: { slot: Slot }) {
     <>
       <InspectorHeader slot={slot} />
       <YouSaid slot={slot} />
+      {slot.status === 'failed' && <FailedNotice slot={slot} />}
       <PromptBox key={`${slot.id}:${slot.prompt}`} slot={slot} />
       <QuickEditRow key={`quick:${slot.id}`} slot={slot} />
       <ContentSection key={`content:${slot.id}`} slot={slot} />

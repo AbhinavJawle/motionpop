@@ -1,6 +1,7 @@
 'use client';
 
 import { useAutoFill } from '@/lib/slots/use-auto-fill';
+import { useGenerateShortcut } from '@/lib/slots/use-generate';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { Pip } from '@/components/pip/pip';
@@ -52,6 +53,7 @@ export function EditorScreen({
 
   useEditorKeys(clock);
   useAutoFill();
+  useGenerateShortcut();
 
   useEffect(() => {
     let cancelled = false;

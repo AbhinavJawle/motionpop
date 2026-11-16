@@ -67,12 +67,13 @@ function exemplarKind(slot: Slot): ExemplarKind {
 /**
  * The `component.fill` input for a scene slot (spec 07 task 27, ai-tasks.md §3): the scene's
  * catalogue entry, the slot's words with their indexes (beats name them), and the 2 closest
- * hand-approved examples. Auto-fill only: on the device, free.
+ * hand-approved examples. `purpose` is `autofill` (the device, free) or `generate` (the cloud).
  */
 export function sceneFillInput(
   scene: Scene<unknown>,
   project: EditorProject,
   slot: Slot,
+  purpose: ComponentFillInput['purpose'] = 'autofill',
 ): ComponentFillInput {
   const words = project.transcript.words.slice(slot.wordStart, slot.wordEnd + 1).map((w) => w.text);
   const examples = pickExemplars(exemplars[scene.id] ?? [], {
@@ -80,7 +81,7 @@ export function sceneFillInput(
     wordCount: words.length,
   }).map(exemplarText);
   return {
-    purpose: 'autofill',
+    purpose,
     componentId: scene.id,
     words: words.join(' ').slice(0, 2000),
     scene: {
