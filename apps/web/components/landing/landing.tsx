@@ -183,11 +183,11 @@ export function Landing() {
                 muted
                 loop
                 playsInline
-                aria-label="A video exported from Motionpop: a title, a 40 percent stat and captions on an 18 second voiceover"
+                aria-label="A video exported from Motionpop: the globe flies to Japan, then a 34-year stat lands, with captions on a generated voice"
               />
             </div>
             <p className="mt-3 text-center font-mono text-[11px] text-text-3">
-              Exported from Motionpop: an 18-second voiceover, its graphics and captions, untouched.
+              Exported from Motionpop at 1080p: a pasted script, its voice, a map, a stat and captions.
             </p>
           </div>
         </section>
