@@ -104,3 +104,29 @@ Two contract gaps sit in this table, and F3 covers the schedule. The first, whic
 4. **F4, F5** A refused refund or a closed tab costs the user credits silently, and a judge can run dry mid-review. Raise the refund cap, show a toast, and refill on a refused judge spend.
 5. **F6, F7** The Playwright config and CI do not run `credits.spec.ts`, and a 2,000-document usage read per Settings visit costs real quota.
 6. **F8** `photoURL` and `lastSeenAt` can still be written with the wrong type, which locks the account out the way D-13-10 describes for `settings`.
+
+## Resolved
+
+_Applied on 2026-11-16 in a headless run (claude-sonnet-5.5), using Claude Code's decisions on the open choices: spec 08 owns the transaction pattern and the fixed ledger ids and this spec generalises it as the one server spend helper; one `costOf` in `packages/schemas`; `DailyLimitsSchema` changed in one place; the kill switch blocks every cloud spend including exports; the seam block of tasks is listed exactly; steering and decision edits are an IDE task; tasks that need MCP servers the builder lacks are marked IDE; the CI Playwright job is added by Claude Code. Spec 08 was not edited: its R2.8 already says exports are refused while the kill switch is on._
+
+| Finding | Where it is fixed |
+|---|---|
+| **F1** replayed key after a refund | `requirements.md` R1.3 (`key-used`); `design.md` Schemas (`SpendResponseSchema` reason `key-used`), Ledger (`decideSpend` takes `refunded`; step 1 of the order), Client (`ServerCredits` retries once on a fresh key), Failure handling, C3, D-13-12; `tasks.md` tasks 3, 5 and 8 |
+| **F2** two ledger paths, opposite kill-switch rules, two cost tables, limits-doc conflict | `requirements.md` R1.6, R1.7, R2.1, R3.2 and the "Owned by spec 08" paragraph; `design.md` "The seams with specs 08 and 09" (pattern, ids, costs, kill switch, limits doc, balance hook, landing order), Ledger (`SpendSpec` with both id schemes; no `ServerSpend`), Costs (`packages/schemas/src/cost.ts`, export through 08's `exportCost`), D-13-4, D-13-9, D-13-11; `tasks.md` tasks 1 (touches no `planCloud` or `renders`), 2, 4 (helper, refactor of `startExport`/`failRender`), 5b and the cross-writer property C9 (R1.7) |
+| **F3** client half scheduled too late | `design.md` "With spec 09 (Generate): exactly which tasks must land first" table; `tasks.md` "Order and the seams" table (1, 2, 3, 4, 5, 8, 9 before spec 09's Generate; 1 and 2 before 09 task 3) and the cloud route disabled until `ServerCredits` exists (R5.5, D-13-15) |
+| **F4** refused refund and closed tab cost credits silently | `requirements.md` R1.4 (`refundsPerDay` 30) and R1.8 (toast); `design.md` Config keys, Client, Failure handling (closed-tab row), D-13-1; `tasks.md` tasks 8 and 9 |
+| **F5** judge can run dry mid-review | `requirements.md` R4.3; `design.md` `decideSpend` step 4 (refill on a refused spend), Judge plan, C6, D-13-7; `tasks.md` tasks 3, 5 and 6 |
+| **F6** e2e config and CI | `tasks.md` task 17 (`testMatch`/`testIgnore`, `NEXT_PUBLIC_FAKE_AI` on the auth server, `?fakeFail=generate`) and task 19 (CI Playwright job, IDE, done by Claude Code) |
+| **F7** usage reads and writes too expensive | `requirements.md` R7.5 and the Settings read budget; `design.md` Usage (day counters and histogram in `limits/{day}`, Settings reads 14 docs), schemas (`UsageDayCountersSchema`, `LATENCY_BOUNDS_MS`), C7, D-13-13; `tasks.md` tasks 10 and 12 |
+| **F8** `photoURL` and `lastSeenAt` client-writable | `requirements.md` R6.6; `design.md` Rules (type check, `lastSeenAt` server-only), D-13-10; `tasks.md` task 7 |
+| **F9** `units` on fixed-price actions | `requirements.md` R1.2; `design.md` Schemas (`UNIT_ACTIONS`, `superRefine`), C8, D-13-14; `tasks.md` tasks 1 and 2 |
+| **F10** builder tooling (MCP) | `tasks.md` header note, task 7 (Firebase MCP validation marked IDE; the rules edit stays `[kiro]` because `firestore.rules` is on the agent's allowed paths, with the diff-in-the-note fallback) and task 18 (Chrome DevTools MCP half marked IDE, Playwright half `[kiro]`) |
+| **F11** usage is self-reported | `requirements.md` R7.6; `design.md` Trust model, UsageChart footnote, D-051; `tasks.md` task 13 |
+| **F12** keepalive flush and the ID token | `requirements.md` R7.2; `design.md` Usage (`UsageReporter` token cache); `tasks.md` task 11 |
+| **F13** decision ids | `design.md` "Decisions" (D-13-N labelled with D-050 to D-064; D-034 is spec 08's, D-035 to D-049 are spec 09's); `tasks.md` task 20 |
+| **F14** traceability | `tasks.md` task 8 cites R2.2 and R5.5; R1.6 is now implemented by tasks 1 to 5b and cited there |
+| **F15** judge Google sign-in | `requirements.md` R4.2; `design.md` Judge plan; `tasks.md` tasks 6 (test) and 16 (founder checks both sign-in methods) |
+| **F16** read-path rules tests | `design.md` Rules and Testing approach; `tasks.md` task 7 |
+| **F17** steering updates | `design.md` "Steering updates to make on merge"; `tasks.md` task 20 lists each exact edit, including the `UserDoc.settings` note in `data-model.md` and the judge line in `hackathon-compliance.md` |
+
+Open for the founder: nothing new. The first-draft decision that exports run while the kill switch is on is reversed (D-058), so a judge pressing Export during a kill-switch event sees "Exports are paused for a moment. Try again soon."
