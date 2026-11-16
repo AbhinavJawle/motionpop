@@ -149,3 +149,13 @@ Spec 07 task 22, written in a Kiro IDE session (Opus 5.5). Provenance in `packag
 - **Tilt is fitted, not fixed.** Carried text and its marks turn with their paper about its centre. The stage tries 1, 0.6 and 0.3 of the look's tilt and keeps the first that leaves every turned line inside the safe area and clear of other text, else 0. The design's -4°/+5° was rejected: 9:16 lines left the safe area.
 - **motion:check measures text on its set lines.** Safe area and overlap now use the lines' client rects (a turned box's bounding rect overstates it), and two texts carried by the same surface are not an overlap pair. The rule change is marked "Changed by spec 07 task 22" in `scripts/check.ts`; the contrast, orphan and surface-through-glyph assertions are unchanged.
 - **Parity covers every polished look.** `services/render/scripts/parity.ts` renders one stat-punch + hook-statement project per look besides the big-number case.
+
+## D-034 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 11: projects in the account, new takes, recorded WAV, TTS path
+Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/11-dashboard-start-recording/`. Full table in that spec's `design.md` §0.
+- **Projects move to Firestore + Storage in spec 11**, IndexedDB stays for local mode. No spec owned the sync (spec 04 parked it), the dashboard needs a real list, and export needs the audio in Storage.
+- **Storage shape:** project-document times are integer epoch ms; slot and version params are JSON strings (`paramsJson`), because scene params can nest arrays; `voiceover.peaks` is never written; a `poster` slot and counts are denormalised so the dashboard reads one query.
+- **A new take is a new project** ("{title} (take 2)"); the old one stays. Slots belong to words, so a new take can't be mapped honestly.
+- **Recording is a 24 kHz mono WAV from an AudioWorklet**, not MediaRecorder WebM: intake and Storage accept MP3/WAV/M4A, and 10 minutes fit under 50 MB.
+- **`tts.generate` moves from spec 05 task 12 to spec 11** and gets a media path in the router (`speak()`), because it returns audio, not JSON. Voices use our own labels; provider ids come from Remote Config. Speed is a delivery instruction in the prompt (the speech config has no rate field, per the Firebase "Generate speech" page read via Context7 on 2026-11-16); how well the model follows it is not measured yet.
+- **"Try a sample" sits on the Upload card** of `/start`, a deliberate small deviation from `start.png`, because judges need it and the design has no place for it.
+- **Open:** the 5-minutes-per-graphic figure behind "~saved", the voice preview spend (about $0.01), the Storage CORS rule for a second device.
