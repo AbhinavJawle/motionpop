@@ -42,7 +42,7 @@ Two standing rules:
     - _Draft D-034 lines for the IDE (the builder agent can't write `docs/`): "Export 720p uses the producer's `outputResolution` presets (verified on 0.9.46); 1080p is native. Renders use `quality: 'high'`, `workers: 2` (18 s 1080p: 23 s wall, 1.3 GB peak on a laptop)."_
     - _First-run cost: the first render of each process took ~16 s for a 4.6 s clip against 9–11 s for the following ones (Chrome and font warm-up), which is a hint for the cold-start measurement in 6a._
     - _Follow-up in design: §1.1 and §14 now say the 720p check passed. Checks: prettier, typecheck and lint on `services/render` (the script has no unit tests; it is a measurement tool)._
-- [ ] 2. **Schemas** in `packages/schemas/src/render.ts`, with unit tests:
+- [x] 2. **Schemas** in `packages/schemas/src/render.ts`, with unit tests:
   - `RenderOptions` (720p and 1080p only), `RenderRequest`, `RenderDoc` (with invariants), `RenderErrorCode`, `ShareDoc`, the API response and error schemas;
   - `exportCost`, `renderPaths`, `sanitizeFilename`, `canTransition`, `nextProgress`, `outputResolutionFor`, `exportAvailability` (image slots count as left out, review F5), `voicePathFor`, `isSafeId`;
   - the four config keys with typed defaults (`exportsEnabled`, `exportMaxMs`, `rendersPerUserPerDay`, `exportCredits`);
@@ -50,6 +50,13 @@ Two standing rules:
   - `DailyLimitsSchema`: `planCloud` gets `.default(0)` and a `renders` counter with `.default(0)`. Keep the existing tests passing, and add cases for a day doc with only `renders` and a day doc with only `planCloud` (review F1);
   - `renderIdFor` and `newShareId` are not here: they need Node `crypto` and live in `services/render/src/store/ids.ts` (task 8).
   - — R1.8, R1.11, R2.4, R3.5, R4.1, R5.3, R8.5
+  - _Done 2026-11-16 (headless run, claude-sonnet-5.5). `packages/schemas/src/render.ts` plus `render.test.ts` (new), and edits to `limits.ts`, `config.ts`, `project.ts` (exports `IntMsSchema`) and `index.ts`. Typecheck, lint (0 warnings) and `pnpm -s turbo run typecheck lint test --force` are green across all packages (schemas 155 tests)._
+    - _Built as designed, with these specifics: `renderDocIssues` is the invariant check (queued ⇒ progress 0; done ⇒ progress 100 and `outputPath`; progress 100 only when done; an error code exactly when the status is `error`); `canTransition` rejects same-status moves, so progress-only updates are not transitions; `nextProgress` rounds, clamps and ignores non-numbers; `exportAvailability(project, { format }, { isRenderable, maxMs })` takes the component check as a callback (the schemas package can't see the registry), counts image slots (`params.images` non-empty) as left out, and returns `{ renderableIds, renderable, leftOut, reasons }` with reasons `nothing-to-render` and `too-long`; `renderPaths` also returns `inputDir`, and `video.mp4` is the only output name._
+    - _Additions beyond the list: `RENDER_API_ERROR_STATUS` (HTTP status per API error, design §10), `isActiveStatus` and `isFinalStatus`, `ExportCreditsSchema`, and `sanitizeFilenameBase` (the idempotent part of `sanitizeFilename`)._
+    - _`sanitizeFilename` decisions: strips control, format and line-separator characters (bidi overrides can fake an extension) but keeps the zero width joiner so emoji sequences survive; Windows device names (`CON`, `NUL`, `COM1`…) fall back to "motionpop video"; the cap is 80 UTF-16 units and never ends on half a surrogate pair; the function re-runs its pass until stable (at most 4 times), so idempotence holds by construction. Task 3 property-tests this._
+    - _F1 done: `planCloud` and `renders` both `.default(0)`; `limits.test.ts` covers a doc with only `renders`, only `planCloud` and both. The existing plan-allowance code already writes with `merge`, so nothing else changed there. The emulator test of the whole sequence is in task 10._
+    - _F12 done: `IntMsSchema` is exported from `project.ts`. Config: `exportsEnabled`, `exportMaxMs` (positive), `rendersPerUserPerDay` and `exportCredits` with Remote Config keys `exports_enabled`, `export_max_ms`, `renders_per_user_per_day`, `export_credits`; a bad value falls back to its own default (tests)._
+    - _Not done here by design: `renderIdFor` and `newShareId` (task 8, `store/ids.ts`), and the Remote Config template in the Firebase console (IDE, with the founder; the typed defaults apply until then)._
 - [ ] 3. **[kiro]** Property tests for task 2:
   - P4 (pure transition and progress rules over random event sequences);
   - P6 (cost function);

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_EXPORT_CREDITS, ExportCreditsSchema } from './render';
 
 /** Firebase AI Logic inference modes (hybrid-ai.md). */
 export const InferenceModeSchema = z.enum([
@@ -31,6 +32,14 @@ export const AppConfigSchema = z.object({
   imageCredits: NonNegInt,
   /** Free cloud `direct.plan` calls per user per day; on-device plans are unlimited. */
   planFreeCloudPerDay: NonNegInt,
+  /** Pause exports without the global kill switch (spec 08). */
+  exportsEnabled: z.boolean(),
+  /** The longest video that may be exported, in ms (3 minutes). */
+  exportMaxMs: z.number().int().positive(),
+  /** Renders a user may start per UTC day. */
+  rendersPerUserPerDay: NonNegInt,
+  /** Credits per started minute for each export resolution. */
+  exportCredits: ExportCreditsSchema,
 });
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 
@@ -52,6 +61,10 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   imagesPerVideoMax: 6,
   imageCredits: 2,
   planFreeCloudPerDay: 10,
+  exportsEnabled: true,
+  exportMaxMs: 180_000,
+  rendersPerUserPerDay: 10,
+  exportCredits: DEFAULT_EXPORT_CREDITS,
 };
 
 type Decoder = (raw: string) => unknown;
@@ -88,6 +101,10 @@ const KEYS: Record<keyof AppConfig, { key: string; decode: Decoder }> = {
   imagesPerVideoMax: { key: 'images_per_video_max', decode: int },
   imageCredits: { key: 'image_credits', decode: int },
   planFreeCloudPerDay: { key: 'plan_free_cloud_per_day', decode: int },
+  exportsEnabled: { key: 'exports_enabled', decode: bool },
+  exportMaxMs: { key: 'export_max_ms', decode: int },
+  rendersPerUserPerDay: { key: 'renders_per_user_per_day', decode: int },
+  exportCredits: { key: 'export_credits', decode: json },
 };
 
 /**

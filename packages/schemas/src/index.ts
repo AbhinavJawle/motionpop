@@ -15,3 +15,4 @@ export * from './look';
 export * from './asset';
 export * from './plan';
 export * from './gate';
+export * from './render';
