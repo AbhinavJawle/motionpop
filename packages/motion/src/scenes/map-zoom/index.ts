@@ -1,4 +1,4 @@
-import { geoPath } from 'd3-geo';
+import { geoGraticule10, geoPath } from 'd3-geo';
 import { z } from 'zod';
 import type { Format } from '../../contract';
 import { eases } from '../../core/ease';
@@ -210,6 +210,17 @@ export const mapZoom = defineScene<MapZoomContent>({
     svg.setAttribute('aria-hidden', 'true');
     svg.style.cssText = 'position:absolute;left:0;top:0;overflow:visible;';
     const cam = doc.createElementNS(SVG, 'g');
+    // The graticule: lines of latitude and longitude that draw in as the camera sets off.
+    const grid = doc.createElementNS(SVG, 'path');
+    grid.setAttribute('d', path(geoGraticule10()) ?? '');
+    grid.setAttribute('fill', 'none');
+    grid.setAttribute('stroke', colors.ink);
+    grid.setAttribute('stroke-opacity', '0.09');
+    grid.setAttribute('stroke-width', '1');
+    grid.setAttribute('vector-effect', 'non-scaling-stroke');
+    grid.setAttribute('pathLength', '1000');
+    grid.setAttribute('stroke-dasharray', '1000');
+    cam.append(grid);
     const land = doc.createElementNS(SVG, 'path');
     land.setAttribute('d', list.map((f) => path(f) ?? '').join(''));
     land.setAttribute('fill', colors.ink);
@@ -219,14 +230,32 @@ export const mapZoom = defineScene<MapZoomContent>({
     land.setAttribute('vector-effect', 'non-scaling-stroke');
     cam.append(land);
     const lit = target ? litCountries(target, list) : [];
+    const litD = lit.map((f) => path(f) ?? '').join('');
+    // The target lifts off the map: a shadow stays on the paper, the country rises above it.
+    const lift = doc.createElementNS(SVG, 'path');
+    lift.setAttribute('d', litD);
+    lift.setAttribute('fill', colors.ink);
+    lift.setAttribute('fill-opacity', '0');
+    cam.append(lift);
+    // Its outline traces before it fills.
+    const trace = doc.createElementNS(SVG, 'path');
+    trace.setAttribute('d', litD);
+    trace.setAttribute('fill', 'none');
+    trace.setAttribute('stroke', colors.accent);
+    trace.setAttribute('stroke-width', '2.5');
+    trace.setAttribute('stroke-linejoin', 'round');
+    trace.setAttribute('vector-effect', 'non-scaling-stroke');
+    trace.setAttribute('pathLength', '1000');
+    trace.setAttribute('stroke-dasharray', '1000');
+    trace.setAttribute('stroke-dashoffset', '1000');
     const fill = doc.createElementNS(SVG, 'path');
-    fill.setAttribute('d', lit.map((f) => path(f) ?? '').join(''));
+    fill.setAttribute('d', litD);
     fill.setAttribute('fill', colors.accent);
     fill.setAttribute('stroke', colors.ink);
     fill.setAttribute('stroke-width', '1.5');
     fill.setAttribute('stroke-opacity', '0.5');
     fill.setAttribute('vector-effect', 'non-scaling-stroke');
-    cam.append(fill);
+    cam.append(fill, trace);
     svg.append(cam);
     // A city or micro-state: a pin with a ring (in frame space, so it never scales).
     const point = target?.kind === 'point' ? proj([target.lon, target.lat]) : null;
@@ -273,7 +302,9 @@ export const mapZoom = defineScene<MapZoomContent>({
       const lead = Math.max(1, place.landMs - place.startMs);
       const x = ease(Math.min(1, Math.max(0, (tMs - place.startMs) / lead)));
       const e = startShare + (1 - startShare) * x;
-      const k = Math.exp(Math.log(end.k) * e);
+      // After landing the camera keeps a slow push (4 % over the next six seconds).
+      const after = Math.min(1, Math.max(0, (tMs - place.landMs) / 6000));
+      const k = Math.exp(Math.log(end.k) * e) * (1 + 0.04 * after * (2 - after));
       const cx = w / 2 + (end.cx - w / 2) * e;
       const cy = h / 2 + (end.cy - h / 2) * e;
       const fx = w / 2 + (end.fx - w / 2) * e;
@@ -286,10 +317,28 @@ export const mapZoom = defineScene<MapZoomContent>({
         'transform',
         `translate(${tx.toFixed(2)} ${ty.toFixed(2)}) scale(${k.toFixed(4)})`,
       );
-      // The place fills as the camera arrives, and holds.
+      // The grid draws in over the first half of the flight.
+      const g = Math.min(
+        1,
+        Math.max(
+          0,
+          (tMs - place.startMs + 200) / Math.max(400, (place.landMs - place.startMs) * 0.6),
+        ),
+      );
+      grid.setAttribute('stroke-dashoffset', (1000 * (1 - eases.outCubic(g))).toFixed(1));
+      // The outline traces in the last stretch of the flight, then the place fills and lifts.
+      const tr = Math.min(1, Math.max(0, (tMs - (place.landMs - 700)) / 650));
+      trace.setAttribute('stroke-dashoffset', (1000 * (1 - eases.inOutCubic(tr))).toFixed(1));
       const lit = Math.min(1, Math.max(0, (tMs - (place.landMs - 250)) / 350));
       fill.setAttribute('fill-opacity', (0.95 * lit).toFixed(3));
       fill.setAttribute('stroke-opacity', (0.5 * lit).toFixed(3));
+      // The lift: overshoots a touch and settles; offset in frame pixels, divided by the zoom.
+      const up = Math.min(1, Math.max(0, (tMs - (place.landMs - 100)) / 450));
+      const rise = up === 0 ? 0 : 1 + 1.6 * (up - 1) ** 3 + 0.6 * (up - 1) ** 2;
+      const dy = (-Math.min(w, h) * 0.012 * rise) / k;
+      fill.setAttribute('transform', `translate(0 ${dy.toFixed(3)})`);
+      trace.setAttribute('transform', `translate(0 ${dy.toFixed(3)})`);
+      lift.setAttribute('fill-opacity', (0.16 * Math.min(1, up * 1.5)).toFixed(3));
       land.setAttribute('fill-opacity', (0.1 + 0.04 * (1 - lit)).toFixed(3));
       if (point) {
         const px = point[0] * k + tx;
