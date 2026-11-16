@@ -876,6 +876,47 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - uncommitted changes: none
 <!-- /kiro-session:sess_4ce6f9f4-5332-4d40-8c8b-c04dcf27a272 -->
 
+<!-- kiro-cli:2026-11-16-specs-10-11-12 -->
+### 2026-11-16 (night) · Kiro CLI, headless · agent: motionpop-builder · model: claude-opus-5.5 · spec writing: 10, 11, 12
+- **Spec / task:** write specs `11-dashboard-start-recording`, `10-pip-panel` and `12-formats-captions-sound` (requirements in EARS, design, tasks), in that order, then review each against the steering. Docs only, in the separate worktree on branch `specs-b`; Claude Code merges it later.
+- **Prompt (short):** "Headless overnight run … never ask questions, decide and record decisions in the spec. Docs only … Write these specs the Kiro way … review each spec strictly against the steering and fix gaps … one commit per spec … append one KIRO_LOG entry … do not push."
+- **What I read:** all of `.kiro/steering/`, `docs/plan.md`, `docs/decisions.md`, specs 04–07 (tasks and the relevant requirements), the code in `apps/web/components`, `apps/web/lib` and `packages/ai/src` that these specs build on (tool rail, Pip dock, editor screen and store, commands and history, repository and IndexedDB stores, pipeline input, processing screen, router, plan allowance, compiler and runtime, safe area, audio track, schemas for project, user and config, the rules files), and the Figma CSS frames for the Pip and Projects screens. I looked at `projects-empty.png`, `projects-drag-over.png`, `projects.png`, `start.png`, `recording.png`, `pip-empty.png` and `pip-conversation.png`.
+- **MCP and skills:** Context7 (Firebase AI Logic docs) for the speech-generation API: `responseModalities: [AUDIO]`, `speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName`, `inlineDataParts()`, raw PCM at 24 kHz mono 16-bit, and no speed field. Its sample uses the Gemini Developer API backend, so spec 11 task 17 re-checks the Agent Platform backend. Skills read: `captions-overlay` (rail-first, overlay not a reserved band) and `hyperframes` with its `sound.md` and `captions.md` references. I did not run the `npx hyperframes events` beacon the skill asks for (handoff §7 forbids it).
+- **Outcome:**
+  - `c7dc42b docs(11-dashboard-start-recording): spec`: 12 requirement groups, design with 14 decisions (D-034), 27 tasks (10 marked [kiro]). Projects move to Firestore + Storage here, because no spec owned the sync. Spec 05 task 12 (`tts.generate`) moves to spec 11, with a note added in spec 05's `tasks.md`.
+  - `2bd7018 docs(10-pip-panel): spec`: 9 requirement groups, design with 10 decisions (D-035), 14 tasks (6 [kiro]). Includes the shared left-panel container that specs 11 and 12 use.
+  - `1f47c52 docs(12-formats-captions-sound): spec`: 11 requirement groups, design with 11 decisions (D-036), 21 tasks (8 [kiro]).
+  - Decisions D-034, D-035 and D-036 appended to `docs/decisions.md` as "proposed, awaiting founder".
+  - A last small commit with cross-spec dependency fixes found in the final review (spec 10 chat repository vs spec 11 task 6; spec 11 panels vs spec 10's coming-soon panels), plus this entry.
+- **Found while reviewing against the steering and fixed in the specs:**
+  - `projects*.png`, `start.png` and `recording.png` are **1× exports** (1440 px wide; measured with PIL). `design-system.md` says all PNGs are 2×. The design checks use device scale 1 for those screens.
+  - No spec owned Firestore project sync or a credits spend/refund route. Spec 11 now owns the sync. Specs 10 and 11 call a credits contract that spec 13 must provide (spec 11 design §8), with a safe interim (disabled with Firebase on, free only in local mode).
+  - `pip.plan` as written in `ai-tasks.md` §6 (`args: Record<string, unknown>`, model-computed `estimatedCredits`, PREFER_IN_CLOUD) conflicts with the schema rules and the no-surprise-spend rule. Spec 10 uses a flat step with enums and sentinels, code-computed credits, and a route that code chooses before sending.
+  - The edit.patch cloud fallback has no credit reason in `CreditReasonSchema`; spec 10 task 2 adds `edit`.
+  - Storage `getBlob` from a second device needs a bucket CORS rule, a production change. It is an open question, and the UI says where the audio lives instead of failing.
+  - The HyperFrames sound guide advises against music written in code. Steering says synthesized and no stock libraries. Spec 12 keeps synthesized beds behind a Remote Config flag until the founder listens, and adds "Your own track".
+  - Spec 12 replaces Web Audio with pure JS DSP for effects, beds and ducking (a deviation from `tech.md`, proposed as a steering change), so the bed is byte-identical in the worker and in Node.
+- **What didn't work:**
+  - Writing `.kiro/steering/` was denied by the agent's permission rule (`deny fs_write … .kiro/steering/**`) on three edits: two in `data-model.md` and one in `design-system.md`. This matches handoff §7 (the headless agent writes `apps/`, `packages/`, `services/`, `skills/`, `.kiro/specs/`). I did not work around it. Each spec ends with a "Proposed steering changes" section for an IDE session to apply: spec 11 §14, spec 10 §12, spec 12 §12.
+  - One commit failed because a previous shell `cd` into the spec folder made the relative path wrong. I re-ran it from the workspace root; nothing was lost.
+  - The worktree has no `node_modules`, so `npx prettier --check` downloaded prettier 3.10.1 into the npx cache (not the repo) for one check of the new Markdown. It reported the files clean. `.kiro/specs/**` appears to be outside Prettier's scope (it matched no files there on the second run). Nothing was installed in the repo.
+- **Checks run:** Prettier on the touched Markdown (above). No typecheck, lint or tests: no code changed.
+- **Not verified:** every pixel measurement taken from the PNGs for the Pip conversation state is approximate (from the image, not the CSS); spec 10 task 13 refines them from the CSS frame. The voice ids for `gemini-3.8-flash-tts` are not checked; they live in Remote Config.
+- **Kiro features used:** custom agent `motionpop-builder` (headless Kiro CLI), steering (always and fileMatch rules loaded), the session-start hook's context, specs (three new, EARS), MCP (Context7), skills (`captions-overlay`, `hyperframes`), property-based tests planned per spec (9, 7 and 10 properties), the agent's permission rules (which blocked steering writes, as designed).
+- **Open questions for the founder:** listed at the end of each spec's `tasks.md` (spec 11: 5, spec 10: 3, spec 12: 3).
+<!-- /kiro-cli:2026-11-16-specs-10-11-12 -->
+
+<!-- kiro-session:sess_a8a5bfae-e447-489b-a56c-56e320582d9e -->
+### 2026-11-15 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-15T23:52:02.151Z · last stop: 2026-11-16T00:31:49.311Z · session: sess_a8a5bfae-e447-489b-a56c-56e320582d9e
+- commits since start: 
+  - 695a227 docs: KIRO_LOG entry for the specs 10-12 headless run, cross-spec fixes
+  - 1f47c52 docs(12-formats-captions-sound): spec
+  - 2bd7018 docs(10-pip-panel): spec
+  - c7dc42b docs(11-dashboard-start-recording): spec
+- uncommitted changes: none
+<!-- /kiro-session:sess_a8a5bfae-e447-489b-a56c-56e320582d9e -->
+
 ### 2026-11-16 · Kiro CLI (headless, overnight) · agent: motionpop-builder · model: claude-opus-5.5 · spec writing
 - **Run:** headless `kiro-cli` in the `specs-a` worktree, founder asleep, docs only (no code changes, no installs, no push). Claude Code merges the branch later.
 - **Task:** write specs 09 (inspector, quick edits, frame notes) and 13 (credits, judge plan, settings) the Kiro way, then review each against the steering.
@@ -1027,6 +1068,16 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - `?? .kiro/specs/08-render-and-export/REVIEW.md`
 <!-- /kiro-session:sess_771316f7-e4cd-4e09-afdc-b454db81fc13 -->
 
+<!-- kiro-session:sess_e52511a3-a865-4f24-a4bb-2571f49bc6cc -->
+### 2026-11-16 · Kiro CLI · agent: spec-reviewer (auto-logged by Stop hook)
+- started: unknown · last stop: 2026-11-16T00:41:00.554Z · session: sess_e52511a3-a865-4f24-a4bb-2571f49bc6cc
+- commits since start: unknown (no start time recorded; see git log)
+- uncommitted changes: 
+  - `?? .kiro/specs/10-pip-panel/REVIEW.md`
+  - `?? .kiro/specs/11-dashboard-start-recording/REVIEW.md`
+  - `?? .kiro/specs/12-formats-captions-sound/REVIEW.md`
+<!-- /kiro-session:sess_e52511a3-a865-4f24-a4bb-2571f49bc6cc -->
+
 ### 2026-11-16 · Kiro CLI (headless, overnight) · model: claude-sonnet-5.5 · spec 08 review fixes and tasks 1–3
 - **Spec / tasks:** spec `08-render-and-export`: apply `REVIEW.md` (F1–F18) to the three spec files, then tasks 1, 2 and 3. Founder asleep; Claude Code reviews after. Nothing pushed, deployed, installed or paid for.
 - **Prompt (short):** apply every review finding using Claude Code's decisions on the open choices (F2 cloud skeleton after task 6 as `[approval]`, F5 option a, F7 4K and WebM to "Later"); record the founder defaults; one docs commit, then one commit each for tasks 1, 2 and 3; Context7 before the spike; definition of done per `handoff.md` §11.
@@ -1120,3 +1171,37 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - 7ced6a3 docs(09-inspector-quick-edits-and-notes): apply spec review findings F1-F16
 - uncommitted changes: none
 <!-- /kiro-session:sess_0ce76b39-19ee-4317-9a4e-98a80b7865ce -->
+
+<!-- kiro-cli:2026-11-16-spec-10-11-12-review-fixes -->
+## 2026-11-16 · Kiro CLI (headless, overnight) · model claude-sonnet-5.5 · agent: the default chat agent · specs 10, 11 and 12, applying the spec-reviewer findings
+- **Task:** apply every finding of `10/REVIEW.md` (F1–F14), `11/REVIEW.md` (F1–F16) and `12/REVIEW.md` (F1–F16) with Claude Code's decisions, docs only, no push. Commits: `99bc628` (spec 10), `5eda6ca` (spec 11), `c85d570` (spec 12). Each commit includes that spec's `decisions.md` entry and a "Resolved" table appended to its `REVIEW.md`.
+- **Decisions applied (Claude Code's, not mine)**
+  - Credits: specs 10 and 11 use spec 13's helper, routes, `ServerCredits`, `costOf` and `useCredits`, add no refund design, and disable every cloud path ("Cloud AI is coming soon") until spec 13 tasks 1–5 land. 10 F1: explicit sub-collection rules instead of the wildcard (IDE task with the exact diff). 10 F3: no silent spend, a per-step "Ask in the cloud ☁ 1" button.
+  - 12 F1: split into 12a (formats, safe zone, captions, captions in export) and 12b (sound). 12 F2: the spec 08 changes became tasks inside spec 12. 12 F3: device-refined captions dropped. 11 F2, F3, F5, F6: done as described in its Resolved table.
+  - Decision ids: spec 08 keeps D-034, spec 09 D-035..D-049, spec 13 D-050..D-064. This branch's D-034, D-035, D-036 are now D-065 (spec 11), D-066 (spec 10), D-067 (spec 12) in `docs/decisions.md` and in every spec 10, 11 and 12 file. D-065's wrong audio claim ("export needs the audio in Storage") is corrected. I wrote `docs/decisions.md` directly (the run could write it), so there is no pending edit for Claude Code there. The older KIRO_LOG entries that cite D-034..D-036 are left as written.
+- **Choices I made inside those decisions (overturn any of them)**
+  - **One folder for 12**, `12-formats-captions-sound`, with task sections A (12a) and B (12b) and ids `A1…`, `B1…`. Reason: the session hook, the spec list in `workflow.md` and the cross-references all key on the folder. Two folders `12a`/`12b` would need those edited.
+  - **Ledger ids.** The brief said "spend-/refund-". Spec 13's design uses `s-{key}` / `r-{key}` for AI spends and `export-{renderId}` / `refund-{renderId}` for exports, so the specs cite those. If you want the longer prefixes, spec 13 is where it changes.
+  - **Spec 13 task 8 is a prerequisite too.** The brief named tasks 1–5. `ServerCredits`/`useCredits` (task 8) is the client of that route, and spec 13's own seam table keeps the cloud disabled until it exists, so the specs say "tasks 1–5 and 8".
+  - **Spec 10:** first visit opens the AI panel, `?rail=` overrides it in dev/test builds only, and every `editor.png` check passes `rail=none`. A new shared `lib/dev/switches.ts` (`devSwitch`) is task 2c. `captions` and `setCaptions` are carved out as task 2b. Code-built plans write no usage event. Journey 2 in `product.md` is to be changed to "fill the empty slots and add an opening title" because brand kits are spec 16 (exact text in design §12 item 6; it is an IDE edit and is not applied).
+  - **Spec 10 rules diff** adds `projectOwnerAfter()` (`getAfter`) for create/update of sub-documents. The review did not ask for it: with `get()` the first save of a new project (project document and slots in one batch, spec 11 task 6) would be denied. This is the one change I made on my own judgement. Tests 10 4b and 11 4b cover a one-batch first save and a 60-slot batch.
+  - **Spec 11:** render state is derived (option a): the project document has `status: draft | processing | ready` only; chips come from two `renders` queries, which need a new index `renders (ownerId, status, createdAt desc)` (IDE diff in 11 task 4a). Delete is a server route doing `recursiveDelete` plus `renders`, `shares` and Storage prefixes (new task 6b). The audio path is `users/{uid}/audio/{projectId}/{kind}-{hash16}.{ext}`, which is spec 08's `voicePathFor` shape, so no spec 08 edit is needed beyond `resolveVoiceBlob` handling `storage:` refs (a test in 11 task 7). `startAutosave` returns `{ flush, stop }`. `ProjectDocSchema` is derived from a new `EditorProjectBaseSchema`.
+  - **Spec 12:** `platformZones()` adds no geometry beyond `safeArea`'s numbers; the 9:16 "Platform buttons" strip is the 6 % side margin between 50 % and 80 % of the height, labelled an illustration. The caption/graphic overlap gets a report-only `motion:check` line with a 15 % threshold (my number, to be tuned with the stills in A11).
+- **Names checked against the code (grep, 2026-11-16):** real: `validateIntake`, `buildEdl`, `mapTime`, `loadVoice`, `tagSpans` (in `packages/ai/src/slots/tagger.ts`), `compileProject`, `slotForWords`, `PlaybackClock`, `composite`, `applyAutoFill`, `readWavHeader`, `SegmentedPills`. Marked new: `fakeTimedWords` (replaced by `scriptWords`), `Sparkline`, `SlotThumb`, `buildAll`, `unmapTime`, `CreditsChip variant`, `devSwitch`. Corrected: `decodeWavHeader` and `FormatPills` do not exist; `projectToCompile` is `previewCompileInput` today and `projectCompileInput` after spec 08 task 4.
+- **Checks run and read:** `npx prettier --check` on the three spec folders and `docs/decisions.md` (clean, before each commit). I grepped the three specs for the old ids (`D-034`..`D-036`), `flushAutosave`, `credits.spend`, `on their way` stubs and the removed names; the only hits are the intended ones.
+- **What I could not verify:** nothing was run (docs only). The `getAfter` rule, the 20-access-call limit for a 60-slot batch, and `recursiveDelete` behaviour are untested until the emulator tasks run. I did not read spec 08's job or route code (it is not built past task 3), so the 12 A8/B8 change list is written against spec 08's design and tasks. The root-file edits (`firestore.rules`, `firestore.indexes.json`, `storage.rules`, steering, `product.md`) are IDE tasks with their diffs in the specs; none is applied.
+- **For Claude Code on merge:** the three spec commits are independent of specs 08, 09 and 13 (I did not touch their files). `docs/decisions.md` conflicts only if the other branch also edited its top or D-034..D-064; the reserved-ids line near the top names the ranges.
+- **Kiro features used:** the session-start hook's context, steering (handoff §9–§12 and the workspace rules), the three `REVIEW.md` files, spec 13's tasks and design for the contract, and file search by grep for the name checks. Context7 and the Firebase/Chrome MCPs were not needed for docs.
+- **What helped / what didn't:** the reviews named files and lines, so most fixes were lookups. The hard part was keeping three specs consistent with each other and with 08/09/13 without editing the latter: a change in one (the audio path, the credit prefix, the `captions` carve-out) had to be repeated in the other two, and a first Python edit script failed halfway on a string I had not read exactly, which wrote nothing and had to be redone.
+<!-- /kiro-cli:2026-11-16-spec-10-11-12-review-fixes -->
+
+<!-- kiro-session:sess_77b2d581-05fa-4ac2-89f8-3271310a44df -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T00:41:37.389Z · last stop: 2026-11-16T00:57:01.141Z · session: sess_77b2d581-05fa-4ac2-89f8-3271310a44df
+- commits since start: 
+  - 48f0fcb docs: KIRO_LOG entry for the spec 10, 11 and 12 review fixes
+  - c85d570 docs(12-formats-captions-sound): apply spec review findings F1-F16
+  - 5eda6ca docs(11-dashboard-start-recording): apply spec review findings F1-F16
+  - 99bc628 docs(10-pip-panel): apply spec review findings F1-F14
+- uncommitted changes: none
+<!-- /kiro-session:sess_77b2d581-05fa-4ac2-89f8-3271310a44df -->

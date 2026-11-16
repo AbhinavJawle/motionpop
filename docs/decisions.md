@@ -2,6 +2,8 @@
 
 Format: `D-NNN · date · status (decided/open/superseded)` — context, options, decision, reason, consequences.
 
+**Reserved ids (parallel spec runs).** D-034: spec 08. D-035 to D-049: spec 09. D-050 to D-064: spec 13. D-065: spec 11. D-066: spec 10. D-067: spec 12. Take the next free number above D-067 for anything else, and check this line first.
+
 ## D-001 · 2026-11-13 · decided — Product
 Motionpop: transcript-first AI motion graphics editor; graphics follow the voiceover. Rejected: AI animated story shorts for app marketing (needs heavy human direction per video; buyers won't give input), a generic AI video generator without a wedge.
 
@@ -149,3 +151,48 @@ Spec 07 task 22, written in a Kiro IDE session (Opus 5.5). Provenance in `packag
 - **Tilt is fitted, not fixed.** Carried text and its marks turn with their paper about its centre. The stage tries 1, 0.6 and 0.3 of the look's tilt and keeps the first that leaves every turned line inside the safe area and clear of other text, else 0. The design's -4°/+5° was rejected: 9:16 lines left the safe area.
 - **motion:check measures text on its set lines.** Safe area and overlap now use the lines' client rects (a turned box's bounding rect overstates it), and two texts carried by the same surface are not an overlap pair. The rule change is marked "Changed by spec 07 task 22" in `scripts/check.ts`; the contrast, orphan and surface-through-glyph assertions are unchanged.
 - **Parity covers every polished look.** `services/render/scripts/parity.ts` renders one stat-punch + hook-statement project per look besides the big-number case.
+
+## D-065 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 11: projects in the account, new takes, recorded WAV, TTS path
+(Renumbered from D-034, which is spec 08's; review fixes applied 2026-11-16.)
+Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/11-dashboard-start-recording/`. Full table in that spec's `design.md` §0.
+- **Projects move to Firestore + Storage in spec 11**, IndexedDB stays for local mode. No spec owned the sync (spec 04 parked it), the dashboard needs a real list, and a project must open on a second device. (The first draft said "export needs the audio in Storage"; that was wrong: spec 08 uploads the voice itself.)
+- **Storage shape:** project-document times are integer epoch ms; slot and version params are JSON strings (`paramsJson`), because scene params can nest arrays; `voiceover.peaks` is never written; a `poster` slot and counts are denormalised so the dashboard reads one query.
+- **The project-document schema is derived from `EditorProjectBaseSchema`**, so fields added later (spec 12's `captions` and `audio`) are stored without an edit; zod would strip a hand-written list.
+- **Render state is derived, not stored.** `status` is `draft | processing | ready`, client-written; the dashboard joins `renders` by `projectId` (an active render shows `Rendering p%`, a finished one `Exported`). Autosave would overwrite a server-written field. New index `renders (ownerId, status, createdAt desc)`.
+- **One audio path for the product:** `users/{uid}/audio/{projectId}/{kind}-{hash16}.{ext}`; `voice-{hash16}` is spec 08's `voicePathFor` shape, so export finds the object and uploads nothing twice. Delete is a server route (`recursiveDelete`, `renders`, `shares`, Storage prefixes); duplicate copies the audio, so no two projects share an object.
+- **A finished take is stored locally at once** and the page warns before unloading while recording.
+- **Credits are spec 13's only:** `ServerCredits.spend({ action: 'tts', units })` with a new key per attempt, a refund only when `speak()` failed, `costOf('tts', units)`; Generate is disabled until spec 13 tasks 1–5 and 8 land. The threat model is spec 13's "Trust model": browser-side AI calls can't be verified by the server, so the caps (App Check, hourly rate limit, `refundsPerDay`, 15-minute refund window, budgets, kill switch) are what bound abuse.
+- **A new take is a new project** ("{title} (take 2)"); the old one stays. Slots belong to words, so a new take can't be mapped honestly.
+- **Recording is a 24 kHz mono WAV from an AudioWorklet**, not MediaRecorder WebM: intake and Storage accept MP3/WAV/M4A, and 10 minutes fit under 50 MB.
+- **`tts.generate` moves from spec 05 task 12 to spec 11** and gets a media path in the router (`speak()`), because it returns audio, not JSON. Voices use our own labels; provider ids come from Remote Config. Speed is a delivery instruction in the prompt (the speech config has no rate field, per the Firebase "Generate speech" page read via Context7 on 2026-11-16); how well the model follows it is not measured yet.
+- **"Try a sample" sits on the Upload card** of `/start`, a deliberate small deviation from `start.png`, because judges need it and the design has no place for it.
+- **Open:** the 5-minutes-per-graphic figure behind "~saved", the voice preview spend (about $0.01), the Storage CORS rule for a second device.
+
+## D-066 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 10: Pip plans, routes and one undo
+(Renumbered from D-035, which is spec 09's; review fixes applied 2026-11-16.)
+Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/10-pip-panel/`. Full table in that spec's `design.md` §0.
+- **Suggestion chips are planned in code**, free and instant; typed messages go to `pip.plan`. That is why the designed empty state can honestly say "⚡ free · on-device".
+- **Code picks the route before sending** (`ONLY_ON_DEVICE` for slot-scoped requests that fit the device budget, else `ONLY_IN_CLOUD`), so the hint shown is the route used. A failed device plan offers "Ask in the cloud ☁ 2" instead of escalating. This replaces `PREFER_IN_CLOUD` in `ai-tasks.md` §6 (steering change proposed in the spec).
+- **The model's step is flat** (`action, slot, choice, atWord, instruction, label`, all required, with sentinels), because structured output has no `anyOf` and free `args` objects break the schema rules. Code computes every credit figure.
+- **Steps land one by one in one undo entry** (`amendTop` amends the plan's history entry with a growing composite), matching the design's mid-apply frame. Undo on the action card stops and undoes the whole plan; a user ⌘Z on the plan stops it too.
+- **A failed device edit never spends credits by itself.** The step is skipped with "Ask in the cloud ☁ 1", so Apply all spends at most the estimate (generations only) and the hint equals what runs.
+- **Credits are spec 13's, with no new refund design.** `ServerCredits.spend` before a cloud call, `refund` only when the call fails, never on Undo. Every cloud path of spec 10 stays disabled ("Cloud AI is coming soon") until spec 13 tasks 1–5 and 8 land.
+- **The project sub-collections get explicit rules, not a wildcard.** Firestore ORs matching rules, so a `chat` rule beside `match /{sub}/{doc=**}` validates nothing. An unknown sub-collection name is denied. `projectOwnerAfter` (`getAfter`) lets the first save of a project write its sub-documents in one batch.
+- **Panel default and checks:** the AI panel opens on a first visit; `?rail=` overrides it in development and test builds; checks against `editor.png` pass `rail=none`.
+- **Brand colours in the demo:** journey 2 in `product.md` changes to "fill the empty slots and add an opening title" because brand kits are spec 16; the designed chip gets the honest reply.
+- **Carve-out:** `captions` and `setCaptions` are built in spec 10 (task 2b) so Pip can use them first; the plan drops `setCaptions` steps until spec 12a renders the presets. Code-built plans write no usage event.
+- **Open:** a minimal brand-colours field before spec 16 if the founder wants brand colours in the demo; whether chips should also use Gemini Nano.
+
+## D-067 · 2026-11-16 · proposed (Kiro CLI spec run, awaiting founder) — Spec 12: one mixed bed, captions in code, music behind a listening check
+(Renumbered from D-036, which clashed; review fixes applied 2026-11-16.)
+Written headlessly in Kiro CLI (claude-opus-5.5) while writing `.kiro/specs/12-formats-captions-sound/`. Full table in that spec's `design.md` §0.
+- **One pre-mixed bed WAV** (music with ducking plus every effect) is the only extra audio, mixed by pure JS DSP in a worker and played by the preview. Export uploads the same file (keyed by a hash of its inputs) as one `<audio id="bed">`, so preview and export match by construction and the render service needs no DSP.
+- **Effects are synthesized from noise and transients, not tones.** **Synthesized music sits behind `music_synth_enabled` (default off) until the founder listens.** "Your own track" is always available and "No music" is the default. Reason: steering rules out stock libraries (D-016), and the HyperFrames sound guide says music written in code can't be judged without ears.
+- **Captions are rail-only and grouped in code only** (3 / 4 / 5 words for 9:16 / 1:1 / 16:9, pop 3; breaks at sentence ends and 150 ms pauses; tagged spans kept whole; fillers dropped). **Device-refined captions (`captions.chunk`) are removed:** the render job has no Gemini Nano, so a refined preview would differ from the export. Backings guarantee 4.5:1 for white text even over a white frame (text inset by the feather width).
+- **Captions and audio settings are project fields with undoable commands**; the editor's UI-only captions flag goes away. Auto effects are derived from the slots, not stored.
+- **Levels are relative to a measured voice level** (RMS over word regions, an approximation); full loudness normalisation is left to export.
+- **Split in two deliverables, one folder:** 12a formats and captions (must ship Nov 26, including captions in the export) and 12b sound (first to cut, cut as one block). The spec 08 changes each needs are listed as tasks inside spec 12 (spec 08's files are not edited): `captions: true` accepted and groups computed in the job; `bedPath`, `music: true`, a bed Storage path and the audio parity cases.
+- **Safe-zone geometry has one source:** `platformZones()` next to `safeArea()`; it adds no numbers of its own. Caption/graphic overlap is measured by a report-only `motion:check` line, not prevented.
+- **One WAV encoder** (`encodeWav16` in `packages/motion`); the bed is 24 kHz mono, so music is band-limited to 12 kHz in the export (a 44.1 kHz export-only bed is Later). The listening check uses the exported MP4, and a real-producer test asserts the click lands within one frame and 1 dB.
+- **Audio objects follow spec 11's path:** music under `users/{uid}/audio/{projectId}/`, the bed under `users/{uid}/projects/{projectId}/bed/`; spec 11's delete removes both and duplicate copies the music; the last 3 beds are kept.
+- **Open:** music default and the listening check, the caption default preset, the 9:16 caption height, 24 versus 44.1 kHz for the exported bed.

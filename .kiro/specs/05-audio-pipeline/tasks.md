@@ -14,3 +14,4 @@ Tasks marked **[kiro]** are executed by Kiro CLI (`motionpop-builder`) and logge
 - [ ] 10. Measure a 3-minute voiceover end to end (cached model) and log it in DEV_LOG; record D-024 (step order, 24 kHz output). — NFR
 - [ ] 11. _(blocked: Firebase)_ `transcribe.cloud` fallback through `packages/ai` with the cost shown first; `timingQuality: "approx"` warning. — R2.5
 - [ ] 12. _(blocked: Firebase)_ `tts.generate` for script → voice, cleanup off by default. — R6.1
+  - _Note (2026-11-16, Kiro CLI spec run): moved to spec 11 task 17 (router `speak()` + task) and task 18 (the screen). Tick this box when spec 11 task 17 is done._
