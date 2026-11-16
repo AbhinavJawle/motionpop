@@ -274,6 +274,8 @@ export function refundCredits(
   cfg: Pick<LedgerConfig, 'refundsPerDay'>,
   nowMs: number,
 ): Promise<RefundResponse> {
+  // The route's schema only lets `s-` ids through; the helper does not rely on that.
+  if (!txId.startsWith('s-')) return Promise.resolve({ ok: false, reason: 'not-refundable' });
   const spec: RefundSpec = {
     uid,
     kind: 'ai',
