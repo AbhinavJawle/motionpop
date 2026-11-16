@@ -21,6 +21,7 @@ import { audioRefsOf } from '@/lib/projects/summary';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 import { ExportController } from '@/components/export/export-controller';
 import { AIStatusToasts } from './ai-status-toasts';
+import { PictureNudge } from './picture-nudge';
 import { Inspector } from './inspector';
 import { PipDock } from './pip-dock';
 import { PreviewPane } from './preview-pane';
@@ -212,6 +213,7 @@ export function EditorScreen({
       </div>
       <ExportController />
       <AIStatusToasts />
+      <PictureNudge />
       <CaptureTestHook />
       <Timeline clock={clock} peaks={voice?.peaks ?? null} bucketMs={voice?.bucketMs ?? 10} />
     </div>

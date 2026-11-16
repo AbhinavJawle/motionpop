@@ -64,6 +64,36 @@ interface Mounted {
   cam: HTMLElement;
   root: HTMLElement;
   composition: Composition;
+  /** The slot holds its last frame and cuts (`fade: false`): no exit seam. */
+  holds: boolean;
+}
+
+/**
+ * The seam between graphics ("cut the curve"): the outgoing graphic accelerates left and fades
+ * by a third of its travel, the incoming one arrives mid-motion from the right and settles, on
+ * mirrored power-4 eases so the speed matches at the cut. Partial travel (12 % of the frame),
+ * a light blur at the cut. Returns the wrapper's offset, opacity and blur at slot time `local`.
+ */
+export const SEAM_MS = 320;
+export function seamAt(
+  local: number,
+  durationMs: number,
+  width: number,
+  holds: boolean,
+): { x: number; opacity: number; blur: number } {
+  const travel = width * 0.12;
+  if (local < SEAM_MS) {
+    const p = Math.max(0, local / SEAM_MS);
+    const e = 1 - (1 - p) ** 4;
+    return { x: travel * (1 - e), opacity: 0.35 + 0.65 * Math.min(1, p * 2.2), blur: 8 * (1 - e) };
+  }
+  const left = durationMs - local;
+  if (!holds && left < SEAM_MS) {
+    const p = Math.max(0, Math.min(1, 1 - left / SEAM_MS));
+    const e = p ** 4;
+    return { x: -travel * e, opacity: Math.max(0, 1 - p / 0.3), blur: 8 * e };
+  }
+  return { x: 0, opacity: 1, blur: 0 };
 }
 
 const PLACEHOLDER_TEXT = "Couldn't render";
@@ -181,6 +211,7 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
           cam,
           root,
           composition,
+          holds: slot.timing?.fade === false,
         });
       } catch (e) {
         fail(slot.id, 'build', e);
@@ -205,7 +236,11 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       if (local < 0 || local > s.durationMs) continue;
       // Stage scenes plan their own camera (push capped during read time, snap-zooms).
       const scale = s.composition.camera?.(local) ?? pushIn(local, s.durationMs, pushAmount);
-      s.cam.style.transform = `scale(${scale})`;
+      const seam = seamAt(local, s.durationMs, project.width, s.holds);
+      s.cam.style.transform =
+        seam.x === 0 ? `scale(${scale})` : `translate(${seam.x.toFixed(1)}px,0) scale(${scale})`;
+      s.cam.style.opacity = seam.opacity === 1 ? '' : seam.opacity.toFixed(3);
+      s.cam.style.filter = seam.blur > 0.2 ? `blur(${seam.blur.toFixed(1)}px)` : '';
       try {
         s.composition.seek(local);
       } catch (e) {
