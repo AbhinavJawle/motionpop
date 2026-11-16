@@ -1,6 +1,14 @@
 'use client';
 
-import { Maximize, Pause, Play, SkipBack, SkipForward, SlidersHorizontal } from 'lucide-react';
+import {
+  Maximize,
+  Pause,
+  Play,
+  Plus,
+  SkipBack,
+  SkipForward,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { motion } from 'motion/react';
 import { useRef } from 'react';
 import { toast } from 'sonner';
@@ -10,7 +18,9 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { formatTimecode } from '@/lib/editor/slot-display';
 import { buttonMotion } from '@/lib/motion/presets';
 import { clampScroll, DEFAULT_ZOOM_LIMITS, fitView } from '@/lib/timeline/geometry';
-import { useEditor } from '@/lib/stores/editor';
+import { addSlot } from '@/lib/commands';
+import { slotAtPlayhead } from '@/lib/timeline/add-graphic';
+import { editorStore, useEditor } from '@/lib/stores/editor';
 import { useFrame, useTimeline } from './timeline-context';
 
 const FRAME_MS = 1000 / 30;
@@ -26,6 +36,16 @@ export function sliderToZoom(v: number, fitPxPerMs: number): number {
   const lo = Math.log(fitPxPerMs);
   const hi = Math.log(DEFAULT_ZOOM_LIMITS.maxPxPerMs);
   return Math.exp(lo + (Math.max(0, Math.min(100, v)) / 100) * (hi - lo));
+}
+
+/** "Add graphic": a drafted slot at the playhead (or the next clause with room), selected. */
+function addGraphicHere(atMs: number) {
+  const st = editorStore.getState();
+  if (!st.project) return;
+  const id = `slot-${crypto.randomUUID().slice(0, 8)}`;
+  const slot = slotAtPlayhead(st.project, atMs, id, document);
+  if (!slot) return st.reject('Add graphic', 'Every part of the voiceover already has a graphic.');
+  if (st.exec(addSlot(slot))) st.select(id);
 }
 
 /** Timeline header row (editor.png; "Transcript and timeline controls"): 48 px. */
@@ -63,6 +83,17 @@ export function TimelineHeader() {
       <span className="ml-[39px]">
         <SyncedChip />
       </span>
+      <Tooltip content="Add a graphic at the playhead (or shift-drag across words)">
+        <motion.button
+          type="button"
+          {...buttonMotion}
+          onClick={() => addGraphicHere(clock.currentMs)}
+          className="ml-4 inline-flex h-7 items-center gap-1.5 rounded-chip border border-violet/40 bg-violet/12 px-2.5 text-[12px] leading-4 font-medium text-violet-ink transition-colors hover:bg-violet/20"
+        >
+          <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
+          Add graphic
+        </motion.button>
+      </Tooltip>
 
       <div className="absolute left-[calc(50%-165px)] flex items-center">
         <TransportButton

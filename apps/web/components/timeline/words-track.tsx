@@ -4,7 +4,7 @@ import type { Word } from '@motionpop/schemas';
 import { useLayoutEffect, useMemo, useRef, type PointerEvent as ReactPointerEvent } from 'react';
 import { addSlot } from '@/lib/commands';
 import { msToX, xToMs } from '@/lib/timeline/geometry';
-import { slotForWords } from '@/lib/timeline/create';
+import { draftedSlotForWords } from '@/lib/timeline/add-graphic';
 import { declutterWords, estimateText, type MeasureText } from '@/lib/timeline/declutter';
 import { editorStore, selectSelectedSlot, selectWords, useEditor } from '@/lib/stores/editor';
 import { useFrame, useTimeline } from './timeline-context';
@@ -168,7 +168,7 @@ export function WordsTrack() {
       const st = editorStore.getState();
       if (!st.project) return;
       const id = `slot-${crypto.randomUUID().slice(0, 8)}`;
-      const slot = slotForWords(st.project, anchor, hovered, id);
+      const slot = draftedSlotForWords(st.project, anchor, hovered, id, document);
       if (!slot)
         return st.reject(
           'Add graphic',
