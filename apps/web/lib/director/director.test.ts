@@ -86,8 +86,8 @@ describe('directorRequest (spec 07 task 27)', () => {
       ['hook-statement', 'punch', 3],
       ['stat-punch', 'hero', 3],
     ]);
-    // A plain style pack has no motifs; a look's marks are its motifs.
-    expect(r?.input.motifs).toEqual([]);
+    // A look's marks are its motifs (Editorial is a full look now: highlighter, arrow, rule, chip).
+    expect(r?.input.motifs.length).toBeGreaterThan(0);
     expect(request(fieldNotes)?.input.motifs.length).toBeGreaterThan(0);
   });
 

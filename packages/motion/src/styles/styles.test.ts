@@ -1,4 +1,4 @@
-import { StylePackSchema } from '@motionpop/schemas';
+import { LookSchema, StylePackSchema } from '@motionpop/schemas';
 import { describe, expect, it } from 'vitest';
 import { editorialExplainer, parseStylePack, stylePacks, testInverted } from './index';
 
@@ -8,8 +8,8 @@ describe('style packs', () => {
     expect(stylePacks['editorial-explainer']).toBe(editorialExplainer);
   });
 
-  it('both packs pass the schema', () => {
-    expect(StylePackSchema.safeParse(editorialExplainer).success).toBe(true);
+  it('both packs pass the schema (Editorial is a full look)', () => {
+    expect(LookSchema.safeParse(editorialExplainer).success).toBe(true);
     expect(StylePackSchema.safeParse(testInverted).success).toBe(true);
   });
 
@@ -21,7 +21,7 @@ describe('style packs', () => {
   });
 
   it('rejects a pack that names an unbundled font', () => {
-    const raw = { ...editorialExplainer, fonts: { ...editorialExplainer.fonts, body: 'Inter' } };
+    const raw = { ...testInverted, fonts: { ...testInverted.fonts, body: 'Inter' } };
     expect(() => parseStylePack(raw)).toThrow(/not bundled/);
   });
 });

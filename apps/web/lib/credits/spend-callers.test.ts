@@ -22,6 +22,9 @@ const ALLOWED = new Set([
   'lib/tts/generate-voice.ts',
   // Custom graphic (spec 15): 3 credits, refunded on any failure.
   'lib/slots/custom.ts',
+  // A painted picture (spec 07 R4): imageCredits each, refunded when it fails.
+  'lib/images/generate.ts',
+  'lib/slots/custom.ts',
   // The credits layer itself.
   'lib/credits/spend-with-ui.ts',
   'lib/credits/server-credits.ts',

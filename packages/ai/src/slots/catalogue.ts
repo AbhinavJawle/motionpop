@@ -83,7 +83,7 @@ export const SKILLS: readonly SkillEntry[] = [
   {
     id: 'calm-explanation',
     useWhen: 'the narration explains a concept, definition or key idea without numbers',
-    worksWith: ['kinetic-headline', 'callout', 'quote'],
+    worksWith: ['kinetic-headline', 'callout', 'quote', 'photo-evidence'],
     defaultDurationMs: 5000,
   },
   {
@@ -222,6 +222,17 @@ export const SCENES: readonly SceneEntry[] = [
     useWhen: 'the narration names a country, city, continent or region',
     minMs: 3500,
     idealMs: 5000,
+    maxMs: 10000,
+    built: true,
+    replaces: [],
+  },
+  {
+    id: 'photo-evidence',
+    name: 'Photo',
+    useWhen:
+      'the narration describes a concrete thing worth seeing: an object, place, animal, invention, artefact or scene',
+    minMs: 2600,
+    idealMs: 5200,
     maxMs: 10000,
     built: true,
     replaces: [],

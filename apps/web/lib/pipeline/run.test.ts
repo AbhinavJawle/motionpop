@@ -635,8 +635,9 @@ describe('runPipeline: slot detection (spec 06)', () => {
     const loaded = await h.repo.load(PROJECT_ID);
     if (!loaded.ok) throw new Error('not saved');
     const [hook, stat] = loaded.project.slots;
-    expect(stat).toMatchObject({ params: { variant: 'hero' }, energy: 'lively' });
-    expect(hook).toMatchObject({ energy: 'steady' });
+    // The default look is lively, so the peak climbs one step past it.
+    expect(stat).toMatchObject({ params: { variant: 'hero' }, energy: 'hype' });
+    expect(hook).toMatchObject({ energy: 'lively' });
     expect(['center', 'left', 'punch']).toContain(hook?.params.variant);
     // The v1 version carries the planned score.
     expect(loaded.project.versions[0]?.params).toMatchObject({ variant: 'hero' });

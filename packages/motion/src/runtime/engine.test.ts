@@ -5,7 +5,7 @@ import type { MotionComponent } from '../contract';
 import type { RuntimeProject } from '../compiler/types';
 import { hashString } from '../core/rng';
 import { editorialExplainer } from '../styles';
-import { createEngine, fontRequests, type FontLoader } from './engine';
+import { createEngine, fontRequests, SEAM_MS, seamAt, type FontLoader } from './engine';
 
 const params = z.object({ label: z.string() });
 type P = z.infer<typeof params>;
@@ -302,14 +302,30 @@ describe('runtime engine', () => {
     await engine.ready;
     const cam = document.querySelector<HTMLElement>('#cam > .mp-cam');
     expect(cam?.firstElementChild?.className).toBe('mp-slot-root');
+    // The seam slides the wrapper in and out at the edges; the push-in is the scale.
     engine.seek(0);
-    expect(cam?.style.transform).toBe('scale(1)');
+    expect(cam?.style.transform).toMatch(/^translate\([\d.]+px,0\) scale\(1\)$/);
     engine.seek(2000);
-    expect(cam?.style.transform).toBe(`scale(${editorialExplainer.motion.camera.pushIn})`);
+    expect(cam?.style.transform).toMatch(
+      new RegExp(`scale\\(${editorialExplainer.motion.camera.pushIn}\\)$`),
+    );
     expect(seeds).toEqual([hashString('cam')]);
   });
 
   it('derives one font request per unique primary family', () => {
     expect(fontRequests(project([]))).toEqual(['400 16px "Geist"', '400 16px "Geist Mono"']);
+  });
+
+  it('seams: the incoming graphic arrives mid-motion, the outgoing one leaves the same way', () => {
+    const inAt0 = seamAt(0, 3000, 1920, false);
+    expect(inAt0.x).toBeCloseTo(1920 * 0.12);
+    expect(inAt0.opacity).toBeCloseTo(0.35);
+    expect(seamAt(SEAM_MS, 3000, 1920, false)).toEqual({ x: 0, opacity: 1, blur: 0 });
+    expect(seamAt(1500, 3000, 1920, false)).toEqual({ x: 0, opacity: 1, blur: 0 });
+    const out = seamAt(3000, 3000, 1920, false);
+    expect(out.x).toBeCloseTo(-1920 * 0.12);
+    expect(out.opacity).toBe(0);
+    // A held slot cuts: no exit half.
+    expect(seamAt(3000, 3000, 1920, true)).toEqual({ x: 0, opacity: 1, blur: 0 });
   });
 });

@@ -411,7 +411,7 @@ describe('exportAvailability', () => {
     expect(r).toEqual({ renderableIds: ['a'], renderable: 1, leftOut: 2, reasons: [] });
   });
 
-  it('leaves image slots out even when the component says it can render', () => {
+  it('keeps image slots in: pictures render in preview and export alike', () => {
     const withImage = slot('img', { params: { images: [{ assetId: 'x' }] } });
     const emptyImages = slot('plain', { params: { images: [] } });
     expect(isImageSlot(withImage)).toBe(true);
@@ -421,8 +421,8 @@ describe('exportAvailability', () => {
       { format: '1:1' },
       ctx(() => true),
     );
-    expect(r.renderableIds).toEqual(['plain']);
-    expect(r.leftOut).toBe(1);
+    expect(r.renderableIds).toEqual(['img', 'plain']);
+    expect(r.leftOut).toBe(0);
   });
 
   it('passes the chosen format to the component check', () => {
