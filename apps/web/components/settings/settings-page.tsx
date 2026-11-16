@@ -52,7 +52,7 @@ export function SettingsPage() {
   return (
     <div className="min-h-dvh min-w-[1280px] bg-bg text-text">
       <header className="sticky top-0 z-30 flex h-14 items-center border-b border-white/6 bg-raised-grad pr-7 pl-5">
-        <Link href="/" className="flex items-center gap-[7px]" aria-label="motionpop home">
+        <Link href="/dashboard" className="flex items-center gap-[7px]" aria-label="motionpop home">
           <PipAvatar size={24} ring={false} />
           <span className="text-[19px] leading-[25px] font-semibold tracking-[-0.2px]">
             motionpop

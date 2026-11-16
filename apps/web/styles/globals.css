@@ -134,6 +134,13 @@
 @utility bg-ember-grad {
   background: linear-gradient(90deg, #ff7a3d 0%, #ff4d6d 100%);
 }
+/* The ember gradient as text colour (the landing headline). */
+@utility text-ember-grad {
+  background-image: linear-gradient(90deg, #ff7a3d 0%, #ff4d6d 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+}
 @utility bg-ember-fill {
   background: linear-gradient(180deg, #ffa064 0%, #ff683c 100%);
 }
