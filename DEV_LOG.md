@@ -338,3 +338,26 @@ Template:
   - **Seen in the stills:** the first label strip spanned the full box rather than the text, and the 9:16 card touched the frame edge. Fixed with text line boxes and an edge margin.
   - **Result:** in `field-notes`, the hook now sits on a torn paper card and the stat label on a torn paper clipping. Both scenes: `motion:check` 180 cases × 3 formats, 0 failures.
 - **Reordered:** I moved the eval harness (task 19) after the director (27) and `paper-collage` (22), because it measures that pipeline. This follows the cut order in `tasks.md`.
+
+## 2026-11-16 · Claude Code (Opus 5.5) · hosted deploy, judge account, first paid calls, map scene, merges
+- **Approved by the founder today:** hosted deploy, bucket CORS, real paid test calls kept to cents, judge account.
+- **Map scene (spec 07 task 29, Claude Code):** `map-zoom` on d3-geo + Natural Earth (public domain), with zoom, pin and spotlight variants. Every gazetteer place resolves; a test enforces it. `motion:check`: 207 cases × 3 formats, 0 failures. The detector now suggests a map for every named place, with no input needed.
+- **Merged Kiro's work:** run-12s (sound engine) and run-07s (chart-story, list-stack, timeline, quote). Conflicts in the scene registry, catalogue and detector resolved by keeping both sides. Suites green after the merge: motion 403, ai 392, web 1036.
+- **Hosted on App Hosting:**
+  - The web build now builds the motion runtime first, and Next traces `packages/motion/dist` into the standalone server.
+  - `JUDGE_EMAILS` is an App Hosting secret.
+  - Bucket CORS applied from `storage-cors.json`.
+- **Judge account:** email/password, verified through the Admin API. On first sign-in it got 500 credits, so the server-side judge grant works on the hosted build.
+- **End to end on the hosted URL, signed in as the judge:**
+  - **Upload:** a 75 s voiceover reached the editor in 138 s, including the one-time 80 s voice-model download. It produced 13 slots, and the Japan map played on the word.
+  - **Tier-2 custom graphic:** one real call, ready in 21.6 s, 3 credits.
+  - **TTS:** one real call, ready in 4.2 s, 2 credits.
+- **Bugs found by those runs:**
+  - The TTS voice spoke the delivery note "Read naturally" aloud. Fixed: the bare script goes to the model at the natural pace.
+  - Usage rows named the cloud model for on-device runs. Fixed: they now say `gemini-nano`.
+- **Not a bug, but a testing trap:** Playwright's Chromium ships a stub `LanguageModel` that echoes its input ("On-device model is not available in Chromium"). The app took it for Nano and logged those calls as on-device. Headless runs therefore cannot prove the hybrid route; that needs real Chrome.
+- **Still open:**
+  - TTS and tier-2 calls don't write usage rows, because they bypass the router.
+  - The list-stack card marker wraps only the first word of a broken label.
+  - Whisper heard "Nikkei" as "knee-k".
+- **My mistake:** a background check command hung for 20 minutes because `prettier --write` with an empty file list waits on stdin.
