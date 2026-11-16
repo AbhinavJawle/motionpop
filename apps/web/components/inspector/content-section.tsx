@@ -7,7 +7,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { StatusDot } from '@/components/ui/status-dot';
 import { cn } from '@/lib/cn';
 import { commitField } from '@/lib/inspector/commit-field';
-import { contentForm, type Field } from '@/lib/inspector/content-form';
+import { contentForm, foldOptional, type Field } from '@/lib/inspector/content-form';
 import { schemaFor } from '@/lib/motion/registry';
 import { editorStore } from '@/lib/stores/editor';
 import { useStill } from '@/lib/motion/use-still';
@@ -16,6 +16,7 @@ import {
   CompactField,
   DataTable,
   EnumField,
+  MoreRow,
   RowsField,
   TitleField,
   type Commit,
@@ -57,6 +58,13 @@ export function ContentSection({ slot }: { slot: Slot }) {
     () => (schema ? contentForm(schema, slot.params) : []),
     [schema, slot.params],
   );
+
+  // Optional empty fields sit behind "More". Once opened, every field stays in its place, so a
+  // row that gets filled does not jump out from under the cursor.
+  const [more, setMore] = useState(false);
+  const { shown, folded } = foldOptional(fields);
+  const visible = more ? fields : shown;
+  const showMore = more || folded.length > 0;
 
   const commit: Commit = (field, value) => {
     const r = commitField(editorStore, slot.id, field, value, { doc: document });
@@ -103,15 +111,20 @@ export function ContentSection({ slot }: { slot: Slot }) {
         ) : fields.length === 0 ? (
           <p className="mt-[7px] text-[11px] leading-4 text-text-3">Nothing to edit here.</p>
         ) : (
-          blocks(fields).map((b, i) => (
-            <Fragment key={i}>
-              {b.kind === 'table' ? (
-                <DataTable fields={b.fields} commit={commit} />
-              ) : (
-                <FieldView field={b.field} commit={commit} />
-              )}
-            </Fragment>
-          ))
+          <VisibleBlocks
+            fields={visible}
+            commit={commit}
+            more={
+              showMore ? (
+                <MoreRow
+                  open={more}
+                  count={folded.length}
+                  onToggle={() => setMore(!more)}
+                  controls="inspector-content-body"
+                />
+              ) : null
+            }
+          />
         )}
         {warning && (
           <p
@@ -124,6 +137,45 @@ export function ContentSection({ slot }: { slot: Slot }) {
         )}
       </motion.div>
     </section>
+  );
+}
+
+/** The form's blocks; the "More" row ends the last table, or stands alone in its own group. */
+function VisibleBlocks({
+  fields,
+  commit,
+  more,
+}: {
+  fields: Field[];
+  commit: Commit;
+  more: React.ReactNode;
+}) {
+  const list = blocks(fields);
+  const last = list.at(-1);
+  const inTable = last?.kind === 'table';
+  return (
+    <>
+      {list.map((b, i) => (
+        // Keyed by the table's own name, not its index: opening More adds fields before it, and
+        // the table (with the focused More button) must not remount.
+        <Fragment key={b.kind === 'table' ? `table:${b.fields[0]?.path ?? ''}` : b.field.path}>
+          {b.kind === 'table' ? (
+            <DataTable
+              fields={b.fields}
+              commit={commit}
+              footer={i === list.length - 1 ? more : undefined}
+            />
+          ) : (
+            <FieldView field={b.field} commit={commit} />
+          )}
+        </Fragment>
+      ))}
+      {more && !inTable && (
+        <div className="mt-2 overflow-hidden rounded-lg bg-card shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]">
+          {more}
+        </div>
+      )}
+    </>
   );
 }
 

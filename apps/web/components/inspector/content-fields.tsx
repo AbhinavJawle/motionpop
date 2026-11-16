@@ -1,6 +1,7 @@
 'use client';
 
-import { useId, useState, type KeyboardEvent } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { useId, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Dropdown } from '@/components/ui/dropdown';
 import { Toggle } from '@/components/ui/toggle';
 import { cn } from '@/lib/cn';
@@ -178,9 +179,12 @@ function TableRow({
 export function DataTable({
   fields,
   commit,
+  footer,
 }: {
   fields: Extract<Field, { kind: 'number' | 'short' }>[];
   commit: Commit;
+  /** The "More" row, when this table is the last block of the form. */
+  footer?: ReactNode;
 }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const onError = (path: string, message: string | null) =>
@@ -206,9 +210,48 @@ export function DataTable({
             onError={onError}
           />
         ))}
+        {footer}
       </div>
       <ErrorText id="content-table-error" message={Object.values(errors)[0] ?? null} />
     </div>
+  );
+}
+
+/**
+ * "More": one table-styled row that holds the optional fields that are empty (prefix, decimals,
+ * count from and the like), so a form with many of them keeps TIMING and VERSIONS on screen.
+ * A real button: Tab reaches it, Enter and Space toggle it.
+ */
+export function MoreRow({
+  open,
+  count,
+  onToggle,
+  controls,
+}: {
+  open: boolean;
+  count: number;
+  onToggle: () => void;
+  controls: string;
+}) {
+  return (
+    <button
+      type="button"
+      aria-expanded={open}
+      aria-controls={controls}
+      onClick={onToggle}
+      className="flex h-5 w-full items-center pl-[11px] text-left outline-none hover:bg-card-3 focus-visible:bg-card-3 focus-visible:shadow-violet-glow"
+    >
+      <span className="w-[187px] shrink-0 font-mono text-[10px] leading-[13px] text-text-2">
+        {open ? 'Less' : 'More'}
+        {!open && count > 0 && <span className="ml-1.5 text-text-3">{count} optional</span>}
+      </span>
+      <span className="flex-1" />
+      <ChevronDown
+        className={cn('mr-[9px] size-3 text-text-2 transition-transform', open && 'rotate-180')}
+        strokeWidth={1.5}
+        aria-hidden
+      />
+    </button>
   );
 }
 

@@ -24,10 +24,13 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('ContentSection (spec 09 R2)', () => {
-  it('shows the title field, the data table and the compact context field of a big number', () => {
+  it('shows the title field and the data table of a big number; the filled context sits behind More', () => {
     render(<ContentSection slot={slot()} />);
     expect((screen.getByLabelText('Label') as HTMLInputElement).value).toBe('Revenue grew');
+    expect(screen.queryByLabelText('Context')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /^More/ }));
     expect((screen.getByLabelText('Context') as HTMLInputElement).value).toBe('The bigger picture');
+    fireEvent.click(screen.getByRole('button', { name: /^Less/ }));
     expect((screen.getByLabelText('Value') as HTMLInputElement).value).toBe('40');
     expect((screen.getByLabelText('Suffix') as HTMLInputElement).value).toBe('%');
   });
@@ -114,5 +117,40 @@ describe('ContentSection (spec 09 R2)', () => {
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(toggle);
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('folds the empty optional rows into one More row that opens with click, Enter and Space', () => {
+    render(<ContentSection slot={slot()} />);
+    // Filled rows stay; prefix, decimals and count from sit behind More.
+    expect(screen.getByLabelText('Value')).toBeTruthy();
+    expect(screen.getByLabelText('Suffix')).toBeTruthy();
+    expect(screen.queryByLabelText('Prefix')).toBeNull();
+    expect(screen.queryByLabelText('Decimals')).toBeNull();
+    expect(screen.queryByLabelText('Count from')).toBeNull();
+    const more = screen.getByRole('button', { name: /^More/ });
+    expect(more.getAttribute('aria-expanded')).toBe('false');
+    expect(more.tagName).toBe('BUTTON'); // keyboard: Tab focus, Enter and Space click a button
+    fireEvent.click(more);
+    for (const l of ['Prefix', 'Decimals', 'Count from', 'Context']) {
+      expect(screen.getByLabelText(l)).toBeTruthy();
+    }
+    expect(screen.getByRole('button', { name: /^Less/ }).getAttribute('aria-expanded')).toBe(
+      'true',
+    );
+  });
+
+  it('a row filled inside More stays where it is, and the row stays after the fold closes', () => {
+    const { rerender } = render(<ContentSection slot={slot()} />);
+    fireEvent.click(screen.getByRole('button', { name: /^More/ }));
+    const prefix = screen.getByLabelText('Prefix');
+    fireEvent.change(prefix, { target: { value: '$' } });
+    fireEvent.keyDown(prefix, { key: 'Enter' });
+    expect(slot().params['prefix']).toBe('$');
+    rerender(<ContentSection slot={slot()} />);
+    expect(screen.getByLabelText('Prefix')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /^Less/ }));
+    // Filled rows stay visible; only the two empty ones fold again.
+    expect(screen.getByLabelText('Prefix')).toBeTruthy();
+    expect(screen.queryByLabelText('Decimals')).toBeNull();
   });
 });

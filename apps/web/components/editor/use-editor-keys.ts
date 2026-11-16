@@ -13,6 +13,20 @@ function typingInField(target: EventTarget | null): boolean {
 }
 
 /**
+ * A focused button, switch or menu item takes Space itself (it is how a keyboard user presses
+ * it), so Space must not also start playback. A slot card keeps Space as play/pause.
+ */
+export function takesSpace(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.closest('[data-slot-id]')) return false;
+  if (target.tagName === 'BUTTON') return true;
+  const role = target.getAttribute('role');
+  return (
+    role !== null && ['button', 'switch', 'checkbox', 'menuitem', 'option', 'tab'].includes(role)
+  );
+}
+
+/**
  * Editor keyboard map (spec 04 R6.4, R7.1). Space play/pause · J/K/L shuttle · ←/→ one frame
  * · ⇧←/→ one second · ⌘Z / ⇧⌘Z · Delete/Backspace delete slot · ⌘D duplicate · Esc deselect.
  * With a slot focused, arrows nudge the slot instead of the playhead.
@@ -48,6 +62,7 @@ export function useEditorKeys(clock: PlaybackClock): void {
 
       switch (e.key) {
         case ' ':
+          if (takesSpace(e.target)) return;
           e.preventDefault();
           shuttle = 0;
           clock.toggle();

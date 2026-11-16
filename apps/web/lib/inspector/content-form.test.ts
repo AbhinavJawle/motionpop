@@ -5,6 +5,8 @@ import { schemaFor } from '@/lib/motion/registry';
 import {
   contentForm,
   displayValue,
+  foldOptional,
+  isFoldable,
   labelOf,
   parseFieldInput,
   setField,
@@ -288,6 +290,102 @@ describe('P6 content form round-trip', () => {
         }
       }),
       { numRuns: 150 },
+    );
+  });
+});
+
+describe('foldOptional (the "More" row)', () => {
+  const shownPaths = (id: string, params: Record<string, unknown>) =>
+    paths(foldOptional(form(id, params)).shown);
+  const foldedPaths = (id: string, params: Record<string, unknown>) =>
+    paths(foldOptional(form(id, params)).folded);
+
+  it('big-number as the demo has it: prefix, decimals and count from fold, and so does the filled context (budget)', () => {
+    const params = { value: 40, suffix: '%', label: 'Revenue grew', context: 'The bigger picture' };
+    expect(shownPaths('big-number', params)).toEqual(['/label', '/value', '/suffix']);
+    expect(foldedPaths('big-number', params)).toEqual([
+      '/context',
+      '/prefix',
+      '/decimals',
+      '/countFrom',
+    ]);
+  });
+
+  it('a filled secondary text stays when the form is short; the title and numbers never fold for room', () => {
+    // The filled emphasis stays; only the empty optional texts fold.
+    const noTable = foldOptional(form('hook-statement', hook));
+    expect(paths(noTable.shown)).toEqual(['/content/line', '/content/emphasis']);
+    const wide = {
+      ...bigNumber,
+      context: 'The bigger picture',
+      prefix: '$',
+      decimals: 2,
+      countFrom: 5,
+    };
+    const { shown } = foldOptional(form('big-number', wide));
+    expect(paths(shown)).toEqual([
+      '/label',
+      '/value',
+      '/prefix',
+      '/suffix',
+      '/decimals',
+      '/countFrom',
+    ]);
+  });
+
+  it('a value equal to the schema default counts as not set; any other value stays visible', () => {
+    expect(foldedPaths('big-number', bigNumber)).toEqual([
+      '/context',
+      '/prefix',
+      '/decimals',
+      '/countFrom',
+    ]);
+    const filled = { ...bigNumber, prefix: '$', decimals: 1, countFrom: 10 };
+    expect(foldedPaths('big-number', filled)).toEqual(['/context']);
+  });
+
+  it('never folds a required field, the title, a filled field, a switch or rows', () => {
+    // An empty required number and an empty title stay in view.
+    expect(shownPaths('big-number', {})).toEqual(['/label', '/value']);
+    const sw: Field = { kind: 'bool', path: '/x', label: 'X', value: undefined };
+    expect(isFoldable(sw)).toBe(false);
+    const rowsField: Field = { kind: 'rows', path: '/r', label: 'R', rows: [] };
+    expect(isFoldable(rowsField)).toBe(false);
+  });
+
+  it('folds optional empty texts and enums for scenes too', () => {
+    const f = form('stat-punch', statPunch);
+    const { shown, folded } = foldOptional(f);
+    expect(shown.length + folded.length).toBe(f.length);
+    for (const x of shown) expect(isFoldable(x)).toBe(false);
+    for (const x of folded) expect(isFoldable(x)).toBe(true);
+  });
+
+  it('property: shown and folded partition the form and keep its order', () => {
+    fc.assert(
+      fc.property(
+        fc.record({
+          value: fc.option(fc.integer({ min: -999, max: 999 }), { nil: undefined }),
+          prefix: fc.option(fc.constantFrom('', '$', '€'), { nil: undefined }),
+          suffix: fc.option(fc.constantFrom('', '%', 'M'), { nil: undefined }),
+          decimals: fc.option(fc.integer({ min: 0, max: 2 }), { nil: undefined }),
+          label: fc.option(fc.string({ maxLength: 20 }), { nil: undefined }),
+          context: fc.option(fc.string({ maxLength: 20 }), { nil: undefined }),
+          countFrom: fc.option(fc.integer({ min: 0, max: 5 }), { nil: undefined }),
+        }),
+        (raw) => {
+          const params = Object.fromEntries(Object.entries(raw).filter(([, v]) => v !== undefined));
+          const all = form('big-number', params);
+          const { shown, folded } = foldOptional(all);
+          expect([...shown, ...folded].sort((a, b) => a.path.localeCompare(b.path))).toEqual(
+            [...all].sort((a, b) => a.path.localeCompare(b.path)),
+          );
+          const order = (xs: Field[]) => xs.map((x) => all.indexOf(x));
+          expect(order(shown)).toEqual([...order(shown)].sort((a, b) => a - b));
+          expect(order(folded)).toEqual([...order(folded)].sort((a, b) => a - b));
+          for (const x of folded) if (x.kind === 'number') expect(x.required).toBe(false);
+        },
+      ),
     );
   });
 });

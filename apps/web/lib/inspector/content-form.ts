@@ -30,6 +30,8 @@ export type Field =
       int: boolean;
       required: boolean;
       focal: boolean;
+      /** The schema's default, if it has one (a value equal to it counts as not set). */
+      default?: number;
     }
   /** ≤ 8 characters: a prefix or a suffix. Shown as a table row. */
   | { kind: 'short'; path: string; label: string; value: string | undefined; max: number }
@@ -163,6 +165,7 @@ export function contentForm(
         int: child['type'] === 'integer',
         required: required.has(key),
         focal: false,
+        ...(typeof child['default'] === 'number' ? { default: child['default'] } : {}),
       });
     } else if (child['type'] === 'boolean') {
       bools.push({ kind: 'bool', path, label, value: typeof v === 'boolean' ? v : undefined });
@@ -199,6 +202,85 @@ export function contentForm(
   if (focal) focal.focal = true;
 
   return [...ordered, ...table, ...enums, ...bools, ...rows];
+}
+
+/**
+ * Whether a field is optional and has nothing in it (or only its schema default), so the inspector can fold it into the
+ * "More" row (review of spec 09 task 12: a big number's five table rows pushed TIMING and
+ * VERSIONS below the fold). Required fields, the title, filled fields, switches and `{ label,
+ * value }` rows are never folded: a switch's unset state is a default the user should see.
+ */
+export function isFoldable(field: Field): boolean {
+  switch (field.kind) {
+    case 'number':
+      return !field.required && (field.value === undefined || field.value === field.default);
+    case 'short':
+      return field.value === undefined || field.value === '';
+    case 'text':
+      return !field.required && !field.title && field.value === '';
+    case 'enum':
+      return !field.required && field.value === undefined;
+    case 'bool':
+    case 'rows':
+      return false;
+  }
+}
+
+/**
+ * Height in px of the rows of the content form that may be shown at once. The design's chart
+ * has a title and a three-row table (about 103 px with the More row); a little over that fits
+ * the inspector at 1440×900 with TIMING and VERSIONS still on screen.
+ */
+export const CONTENT_BUDGET_PX = 112;
+const TABLE_GAP = 8;
+const MORE_ROW = 20;
+
+/** Rough height of a field as the inspector draws it (a table row 20, a field 28 + 8 gap). */
+function costOf(field: Field): number {
+  switch (field.kind) {
+    case 'number':
+    case 'short':
+      return 20;
+    case 'text':
+      return field.title ? 35 : 36;
+    case 'enum':
+    case 'bool':
+      return 36;
+    case 'rows':
+      return 20 * field.rows.length + TABLE_GAP;
+  }
+}
+
+/**
+ * The fields to show and the ones that sit behind "More", in display order. Folded first: the
+ * optional empty fields (`isFoldable`). Then, if what is left would not fit the budget, the
+ * optional filled secondary texts and dropdowns, last in line first, so the inspector keeps
+ * TIMING and VERSIONS on screen. Required fields, the title, switches and rows never fold.
+ */
+export function foldOptional(fields: Field[]): { shown: Field[]; folded: Field[] } {
+  const folded = new Set<Field>(fields.filter(isFoldable));
+  const keep = fields.filter((f) => !folded.has(f));
+  const hasTable = keep.some((f) => f.kind === 'number' || f.kind === 'short');
+  const used = (list: Field[], reserveMore: boolean) =>
+    list.reduce((sum, f) => sum + costOf(f), 0) +
+    (hasTable ? TABLE_GAP : 0) +
+    (reserveMore ? MORE_ROW : 0);
+  // Candidates to fold for room: optional texts and dropdowns, the last first.
+  const candidates = keep
+    .filter(
+      (f) => (f.kind === 'text' && !f.required && !f.title) || (f.kind === 'enum' && !f.required),
+    )
+    .reverse();
+  let current = keep;
+  for (const c of candidates) {
+    if (used(current, folded.size > 0) <= CONTENT_BUDGET_PX) break;
+    current = current.filter((f) => f !== c);
+    folded.add(c);
+  }
+  return {
+    shown: fields.filter((f) => !folded.has(f)),
+    folded: fields.filter((f) => folded.has(f)),
+  };
 }
 
 /** A copy of `params` with the value at JSON pointer `path` set; `undefined` removes the key. */
