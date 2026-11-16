@@ -1,4 +1,5 @@
 import { Suspense, type ReactNode } from 'react';
+import { CreditsTestHooks } from '@/components/credits/credits-test-hooks';
 import { UsageReporterHost } from '@/components/credits/usage-reporter-host';
 import { OutOfCreditsHost } from '@/components/credits/out-of-credits-modal';
 import { AuthGate } from '@/lib/auth/auth-gate';
@@ -10,6 +11,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <AuthGate>{children}</AuthGate>
       <OutOfCreditsHost />
       <UsageReporterHost />
+      <CreditsTestHooks />
     </Suspense>
   );
 }

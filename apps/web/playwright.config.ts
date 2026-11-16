@@ -56,12 +56,12 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'chromium', testIgnore: /(auth|export-emulator)\.spec\.ts/, use: desktop },
+    { name: 'chromium', testIgnore: /(auth|export-emulator|credits)\.spec\.ts/, use: desktop },
     // Real Firebase client against the Auth, Firestore and Storage emulators (needs Java). The
     // export spec adds the real job entry point as a child process (spec 08 task 19).
     {
       name: 'auth',
-      testMatch: /(auth|export-emulator)\.spec\.ts/,
+      testMatch: /(auth|export-emulator|credits)\.spec\.ts/,
       use: { ...desktop, baseURL: AUTH_URL },
     },
   ],

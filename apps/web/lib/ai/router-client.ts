@@ -16,6 +16,11 @@ export function onAIUsage(fn: (e: UsageEvent) => void): () => void {
   return () => listeners.delete(fn);
 }
 
+/** Tells every listener about a usage event (the router calls it; dev and test builds can too). */
+export function emitAIUsage(e: UsageEvent): void {
+  listeners.forEach((l) => l(e));
+}
+
 export function getRouter(): Promise<Router | null> {
   routerPromise ??= (async () => {
     if (!firebaseEnabled()) return null;
@@ -26,7 +31,7 @@ export function getRouter(): Promise<Router | null> {
     return createRouter({
       provider: firebaseProvider(getAILogic),
       config: () => config,
-      onUsage: (e) => listeners.forEach((l) => l(e)),
+      onUsage: emitAIUsage,
     });
   })().catch((err: unknown) => {
     routerPromise = null; // let the next call retry
