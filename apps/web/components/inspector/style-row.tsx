@@ -13,10 +13,10 @@ import { SectionLabel } from './parts';
  * The look as a 38×24 tile with three bars (design: "Bar chart version" in the Style row): two
  * muted from the look's chart colours and the accent, at the design's positions.
  */
-export function StyleSwatch({ colors }: { colors: { chart: string[]; accent: string } }) {
+export function StyleSwatch({ colors }: { colors: { accent: string } }) {
   const bars = [
-    { c: colors.chart[0], h: 3.8 },
-    { c: colors.chart[1] ?? colors.chart[0], h: 5.8 },
+    { c: 'var(--color-glyph)', h: 3.8 },
+    { c: 'var(--color-glyph)', h: 5.8 },
     { c: colors.accent, h: 8 },
   ];
   return (

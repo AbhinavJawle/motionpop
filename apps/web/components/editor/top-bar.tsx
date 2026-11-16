@@ -18,13 +18,21 @@ import { useCreditsBalance } from '@/lib/credits/use-credits-client';
 import { openSettingsPanel } from '@/lib/editor/settings-panel';
 import { isActive } from '@/lib/renders/export-flow';
 import { exportStore, useExportUi } from '@/lib/renders/export-store';
-import { selectCanRedo, selectCanUndo, useEditor } from '@/lib/stores/editor';
+import { NO_SELECTION_TOAST, scrollToVersions } from '@/lib/inspector/versions-view';
+import { editorStore, selectCanRedo, selectCanUndo, useEditor } from '@/lib/stores/editor';
 
 const FORMATS: readonly { value: Format; label: string }[] = [
   { value: '16:9', label: '16:9' },
   { value: '9:16', label: '9:16' },
   { value: '1:1', label: '1:1' },
 ];
+
+/** The history button (spec 09 R5.5): to VERSIONS in the inspector, or a hint when no graphic is selected. */
+function showVersions() {
+  const selected = editorStore.getState().selectedSlotId !== null;
+  const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!selected || !scrollToVersions(document, still)) toast(NO_SELECTION_TOAST);
+}
 
 /** Editor top bar (editor.png; "Top bar" in design/figma-export.css): 56 px. */
 export function TopBar() {
@@ -79,10 +87,7 @@ export function TopBar() {
           <IconAction label="Redo" shortcut="⇧⌘Z" disabled={!canRedo} onClick={redo}>
             <Redo2 className="size-[18px]" strokeWidth={1.5} />
           </IconAction>
-          <IconAction
-            label="Version history"
-            onClick={() => toast('Version history is on its way.')}
-          >
+          <IconAction label="Version history" onClick={showVersions}>
             <History className="size-[18px]" strokeWidth={1.5} />
           </IconAction>
         </div>
