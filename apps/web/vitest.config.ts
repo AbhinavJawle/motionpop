@@ -4,7 +4,14 @@ import { defineConfig } from 'vitest/config';
 // Next compiles with `jsx: preserve`; tests need a real JSX transform and the `@/` alias.
 export default defineConfig({
   oxc: { jsx: { runtime: 'automatic' } },
-  resolve: { alias: { '@': fileURLToPath(new URL('.', import.meta.url)) } },
+  resolve: {
+    alias: {
+      '@': fileURLToPath(new URL('.', import.meta.url)),
+      // `server-only` throws outside a React Server environment; tests import server modules
+      // directly (the rules config does the same).
+      'server-only': fileURLToPath(new URL('./rules/empty-module.ts', import.meta.url)),
+    },
+  },
   test: {
     // Not a performance budget (timing tests assert their own): under the full forced suite
     // property tests took 5–8 s and hit the 5 s default (2026-11-15).
