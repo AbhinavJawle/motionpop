@@ -102,3 +102,28 @@ Details are in F1, F2, F3 and F9.
 4. **F4** `tMs` becomes slot-relative but the demo note stores 5600 (absolute). Change the fixture to 1400.
 5. **F5** No task writes the steering and decisions, and D-09-1 overturns D-027. Add an IDE task.
 6. **F6, F8** Task 22 needs MCP the builder does not have, and Playwright is not in CI.
+
+## Resolved
+
+_Applied on 2026-11-16 in a headless run (claude-sonnet-5.5), using Claude Code's decisions on the open choices: spec 13 owns the one server spend helper and the `costOf` table; the seam lists exactly which spec 13 tasks land before Generate (the ledger, `costOf`, `ServerCredits`, the out-of-credits modal and the wired credits chip) and the cloud route stays disabled until `ServerCredits` exists; steering and decision edits are an IDE task, with D-09-1 recorded as a new decision that supersedes D-027; tasks that need MCP servers the builder lacks are marked IDE; Playwright in CI is added by Claude Code. Decision ids are now D-035 to D-049 (D-034 is spec 08's, D-050 to D-064 are spec 13's)._
+
+| Finding | Where it is fixed |
+|---|---|
+| **F1** a retried spend key is a free cloud call | `requirements.md` R6.2 (new key per attempt, reuse only for a network resend); `design.md` Credits seam (`LocalCredits` answers `key-used`, contract test over both clients), Generate step 2, Quick edit step 3, P5 (spend-refund-spend), D-09-13 / D-047; `tasks.md` tasks 11 and 18. The server half is spec 13's R1.3 and `key-used` |
+| **F2** hosted build could run real cloud calls against fake credits | `requirements.md` R6.3 (new clause "Cloud AI is coming soon"); `design.md` Credits seam (the `useCreditsClient()` table, `cloudAvailable` false until `ServerCredits`), RouteInput `cloudBlockedReason`, Route rule 2, Failure handling, D-09-12 / D-046; `tasks.md` tasks 3 and 11b |
+| **F3** seam tasks not scheduled together, nothing wires the chip | `tasks.md` "Dependency on spec 13" table (13 tasks 1, 2, 3, 4, 5, 8, 9 and the 09 task each must precede), new task 11b (hook, chip wiring, stub modal, `CREDITS_PLACEHOLDER` removed), tasks 3 and 11 (import `CreditAction` and `costOf`, do not write them); the same table is in spec 13's `tasks.md` and `design.md` |
+| **F4** `tMs` slot-relative vs the fixture's 5600 | `requirements.md` R8.3 (fixture stores 1400); `design.md` Edge cases, D-09-14 / D-048; `tasks.md` task 1 (fixture change and a test at playhead 5600) and task 25 (`data-model.md` note) |
+| **F5** no task writes steering and decisions | `tasks.md` task 25 (IDE, exact edits, D-035 supersedes D-027's escalation rule, includes `prompt.prefill` ONLY_ON_DEVICE and `tMs`); `design.md` "Steering updates" and the decision-id mapping |
+| **F6** `[kiro]` tasks that need MCP servers | `tasks.md` header note and task 22 (screenshots marked IDE, the Playwright region stays `[kiro]`); spec 13 task 18 gets the same split |
+| **F7** fake router has no way to fail | `design.md` Fake AI (`?fakeFail`, `?fakeFailRate`, `?fakeSeed`, and the build-time `NEXT_PUBLIC_FAKE_AI` check, P9); `tasks.md` task 11 (both Playwright servers set the flag) |
+| **F8** Playwright not in CI | `tasks.md` task 24 (IDE, done by Claude Code, one shared job with specs 08 and 13; the motion matrix note); task 21 says it is a gate once task 24 lands |
+| **F9** scene-fill helper is auto-fill only | `design.md` What changes where (Generate row) and Generate step 4; `tasks.md` task 18 (`purpose` parameter, shared `component-fill-input.ts`) |
+| **F10** demo quick edit depends on the timing tasks | `tasks.md` "Order, with checkpoints" (demo path first, then timing, then notes, then the rest; "change 40 to 45" is the fallback demo edit) |
+| **F11** note shape refine breaks the schema policy | `requirements.md` R8.2; `design.md` Schemas (no refine, commands check), D-09-15 / D-049; `tasks.md` tasks 1 and 7 (`addNote` / `updateNote` check the shape, P3 covers it) |
+| **F12** traceability gaps | `tasks.md` task 18 cites R1.3, task 7 cites R6.1 |
+| **F13** "no code path charges credits" stronger than tested | `requirements.md` non-functional line reworded; `design.md` P10 (spend call sites); `tasks.md` task 18 |
+| **F14** `LocalCredits` ids | `design.md` Credits seam (`s-{key}`, `r-{key}`, one contract test over both clients); `tasks.md` task 11 |
+| **F15** region text needs the same-origin iframe | `design.md` Edge cases (spec 15 must provide another way for opaque-origin previews) |
+| **F16** task 6 and 10 "before coding" checks | kept; task 6 now says to put the Context7 finding in the task note |
+
+Open for the founder: nothing new. Task 24 and task 25 are IDE tasks for Claude Code or the founder; the builder agent can't do them.

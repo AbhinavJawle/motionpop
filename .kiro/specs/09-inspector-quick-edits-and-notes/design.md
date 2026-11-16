@@ -1,6 +1,6 @@
 # Design: 09 inspector, quick edits and frame notes
 
-Written headlessly by Kiro CLI (`motionpop-builder`, Opus 5.5), 2026-11-16. Decisions made without the founder are listed in "Decisions" at the end, each with its reason, so they can be overturned in one place.
+Written headlessly by Kiro CLI (`motionpop-builder`, Opus 5.5), 2026-11-16. Revised the same day (headless run, claude-sonnet-5.5) to apply every finding of `REVIEW.md`; the mapping is in its "Resolved" section. Decisions made without the founder are listed in "Decisions" at the end, each with its reason, so they can be overturned in one place. Decision ids are the final `docs/decisions.md` ids (D-035 to D-049), with the draft label `D-09-N` kept beside each so the text above still reads.
 
 ## Overview
 
@@ -39,7 +39,8 @@ Inspector ── chooseRoute(task, status, prefs, killSwitch, balance) ──►
 
 | Area | File | New / changed |
 |---|---|---|
-| Schemas | `packages/schemas/src/project.ts` | `SlotTimingSchema`, `Slot.timing?`, `Version.timing?`, `FrameNote.fixedVersionId?`, circle shape doc, `VERSIONS_PER_SLOT = 20` |
+| Schemas | `packages/schemas/src/project.ts` | `SlotTimingSchema`, `Slot.timing?`, `Version.timing?`, `FrameNote.fixedVersionId?`, circle shape doc (no refine on the shape), `VERSIONS_PER_SLOT = 20` |
+| Fixture | `apps/web/lib/projects/fixture.ts` | the demo note's `tMs` becomes slot-relative (5600 → 1400) |
 | Router | `packages/ai/src/router.ts` | `run(…, { mode, allowCloud })`; `UsageEvent.cloudCost` |
 | Tasks | `packages/ai/src/tasks/edit-patch.ts`, `prompts/edit-patch.v2.ts` | path enum, field guide, gate option; no schema text |
 | Tasks | `packages/ai/src/tasks/note-fix.ts`, `prompts/note-fix.v1.ts` | new |
@@ -47,9 +48,10 @@ Inspector ── chooseRoute(task, status, prefs, killSwitch, balance) ──►
 | Edit doc | `packages/ai/src/edit/edit-doc.ts` | `editDoc`, `splitEditDoc`, `editablePaths`, `fieldGuide` (pure, shared by both tasks) |
 | Motion | `packages/motion/src/compiler/types.ts`, `runtime/`, `engine/stage.ts` | `CompileSlot.timing`; `withTiming(style, timing)`; stage `exit: 'none'` |
 | App AI | `apps/web/lib/ai/route.ts`, `availability.ts`, `ai-status.ts`, `fake-router.ts` | new |
-| Credits seam | `apps/web/lib/credits/client.ts`, `local-credits.ts` | `CreditsClient` interface, local implementation (spec 13 adds the server one) |
+| Credits seam | `apps/web/lib/credits/client.ts`, `local-credits.ts`, `use-credits-client.ts` | `CreditsClient` interface, local implementation, the hook that picks one (spec 13 adds `ServerCredits`); `CreditAction` is imported from `@motionpop/schemas` (spec 13 task 1), not written here |
+| Credits UI | `apps/web/components/editor/top-bar.tsx`, `apps/web/components/credits/out-of-credits-modal.tsx` (stub) | the chip reads the credits client; a stub modal that spec 13 task 9 replaces (task 11b) |
 | Commands | `apps/web/lib/commands/versions.ts`, `notes.ts`, `timing.ts` | new commands |
-| Generate | `apps/web/lib/slots/generate.ts` | the flow, testable with fakes |
+| Generate | `apps/web/lib/slots/generate.ts`, `scene-fill.ts`, `component-fill-input.ts` | the flow, testable with fakes; `sceneFillInput` takes a `purpose` and the component input moves out of `use-auto-fill.ts` into one shared builder, so Generate and auto-fill share it |
 | Content form | `apps/web/lib/inspector/content-form.ts` | schema → form model (pure) |
 | Notes | `apps/web/lib/notes/geometry.ts`, `capture.ts`, `region-text.ts` | pure geometry; frame capture (spike) |
 | UI | `apps/web/components/inspector/*` | sections split out of `components/editor/inspector.tsx` |
@@ -76,7 +78,9 @@ export type SlotTiming = z.infer<typeof SlotTimingSchema>;
 // Shape semantics (documented in the schema, no type change, so the demo fixture still parses):
 //   kind 'circle': points = [cx, cy, rx, ry] in 0..1 of the frame; a 3-value [cx, cy, r] means rx = ry = r.
 //   kind 'path':   points = [x1, y1, x2, y2, …] in 0..1, at most 64 points.
-// A refine checks the lengths (3 or 4 for circles; even and 4..128 for paths) and the 0..1 range.
+// The lengths (3 or 4 for circles; even and 4..128 for paths) and the 0..1 range are checked by the note
+// commands (`addNote`, `updateNote`), not by a refine: `project.ts` documents that limits are enforced by
+// commands so loading a saved project never fails because of a limit (review F11).
 
 export const VERSIONS_PER_SLOT = 20;
 ```
@@ -182,10 +186,11 @@ export interface RouteInput {
   online: boolean;
   preferOnDevice: boolean;      // users/{uid}.settings.preferOnDevice (spec 13); true in local mode
   killSwitch: boolean;          // Remote Config
-  cloudAvailable: boolean;      // false in local mode (no Firebase) or signed out
+  cloudAvailable: boolean;      // false in local mode, signed out, or while ServerCredits does not exist (see the table above)
+  cloudBlockedReason?: 'Sign in to use cloud AI' | 'Cloud AI is coming soon';   // copy when cloudAvailable is false
   override?: InferenceMode;     // Remote Config routingOverrides[task], if any
   balance: number | null;       // null while loading
-  cloudCost: number;            // 1 for edits and notes, 3 for generate
+  cloudCost: number;            // costOf('edit' | 'generate') from @motionpop/schemas (spec 13 task 2); 1 and 3 today
   forceCloud?: boolean;         // the user clicked "Try in the cloud"
 }
 
@@ -193,7 +198,7 @@ export type Route =
   | { kind: 'device'; mode: 'ONLY_ON_DEVICE'; allowCloud: false }
   | { kind: 'cloud'; mode: 'ONLY_IN_CLOUD'; allowCloud: false; credits: number; insufficient: boolean }
   | { kind: 'local' }                                        // deterministic code (prefill template)
-  | { kind: 'disabled'; reason: 'Needs connection' | 'Cloud AI is paused' | 'Sign in to use cloud AI' | 'Needs on-device AI' };
+  | { kind: 'disabled'; reason: 'Needs connection' | 'Cloud AI is paused' | 'Sign in to use cloud AI' | 'Cloud AI is coming soon' | 'Needs on-device AI' };
 
 export function chooseRoute(i: RouteInput): Route;
 export function chipFor(r: Route): { route: 'device' } | { route: 'cloud'; credits: number } | null;
@@ -201,7 +206,7 @@ export function chipFor(r: Route): { route: 'device' } | { route: 'cloud'; credi
 
 Rules, in order:
 1. `prompt.prefill`: `available` → device; else local. Never cloud.
-2. `generate`: offline → disabled "Needs connection"; no cloud → "Sign in to use cloud AI"; kill switch → "Cloud AI is paused"; else cloud with `insufficient = balance !== null && balance < cloudCost`.
+2. `generate`: offline → disabled "Needs connection"; no cloud → "Sign in to use cloud AI" (or "Cloud AI is coming soon" when Firebase is configured and the user is signed in but `ServerCredits` does not exist; `RouteInput` carries `cloudBlockedReason` for the copy); kill switch → "Cloud AI is paused"; else cloud with `insufficient = balance !== null && balance < cloudCost`.
 3. `edit.patch` / `note.fix`: `available` and (`preferOnDevice` or offline or no cloud) and not `forceCloud` → device. Else offline → disabled "Needs connection". Else no cloud → "Sign in to use cloud AI". Else kill switch → "Cloud AI is paused". Else cloud(1).
 4. `checking` counts as not available, so the first second after load shows ☁ 1 rather than a mint chip that could turn into a charge.
 5. Remote Config overrides (hybrid-ai.md "Remote Config can override"): `PREFER_IN_CLOUD` / `ONLY_IN_CLOUD` for an edit or note act like `preferOnDevice: false`; `ONLY_ON_DEVICE` forbids the cloud for that task (no device → disabled "Needs on-device AI", and no "Try in the cloud"). Overrides never make `prompt.prefill` cloud or `generate` device.
@@ -215,34 +220,46 @@ The router always receives `allowCloud: false`; escalation is a new user action 
 - **Setup:** the "Set up on-device AI" toast action calls `initializeDeviceModel` on a model created with `ONLY_ON_DEVICE`, streams progress into a persistent toast "Setting up on-device AI · 34 %", and switches to `available` at the end with the mint toast. Never blocks, never starts without the click.
 - **Connection:** `navigator.onLine` plus `online` / `offline` events. Offline shows `OfflineBanner` over the preview (glass card, `warn` dot, exact copy from screens.md).
 - **Toasts:** one per session (sessionStorage key), the exact strings in R9.1.
-- **Local mode** (no Firebase): availability is `unavailable` unless the fake router is on. With no Firebase there is no cloud at all, so cloud actions are disabled with the tooltip "Sign in to use cloud AI" (D-09-11). `chooseRoute` gets this as `killSwitch`-like input `cloudAvailable: false`, which yields `disabled` with that reason.
+- **Local mode** (no Firebase): availability is `unavailable` unless the fake router is on. With no Firebase there is no cloud at all, so cloud actions are disabled with the tooltip "Sign in to use cloud AI" (D-09-11). `chooseRoute` gets this as `cloudAvailable: false`, which yields `disabled` with that reason. The same input is false while `ServerCredits` is missing, with the reason "Cloud AI is coming soon" (D-09-12).
 
 ## Credits seam (`apps/web/lib/credits/client.ts`)
 
 ```ts
-export type CreditAction = 'generate' | 'edit' | 'pip-plan' | 'custom' | 'image';   // spec 13 owns the full list
+import type { ClientCreditAction } from '@motionpop/schemas';   // spec 13 task 1; not written here
 export type SpendResult =
   | { ok: true; txId: string; balance: number }
-  | { ok: false; reason: 'insufficient' | 'rate-limit' | 'paused' | 'offline' | 'unavailable'; balance?: number };
+  | { ok: false; reason: 'insufficient' | 'rate-limit' | 'paused' | 'key-used' | 'offline' | 'unavailable'; balance?: number };
 
 export interface CreditsClient {
   balance(): number | null;
   subscribe(fn: (balance: number | null) => void): () => void;
-  spend(req: { action: CreditAction; units?: number; key: string; refId?: string }): Promise<SpendResult>;
+  spend(req: { action: ClientCreditAction; units?: number; key: string; refId?: string }): Promise<SpendResult>;
   refund(txId: string): Promise<void>;
 }
 ```
 
-- `LocalCredits` (this spec): in memory, starts at 120 (the design's chip; demo only, resets on reload), never below 0, idempotent by `key`. Used in local mode and by unit tests.
-- `ServerCredits` (spec 13): `/api/credits/spend` and `/refund`, balance from a Firestore snapshot.
-- `useCreditsClient()` picks one. The top bar's `CREDITS_PLACEHOLDER` goes away when spec 13 wires the chip; until then the chip reads `LocalCredits`.
+- `LocalCredits` (this spec): in memory, starts at 120 (the design's chip; demo only, resets on reload), never below 0, idempotent by `key`. It behaves like the server: the spend id is `s-{key}`, the refund id `r-{key}`, a repeated key answers the first result, and **a key whose spend was refunded answers `key-used`** (review F14, F1). Used in local mode, with the fake router, and by unit tests.
+- `ServerCredits` (spec 13 task 8): `/api/credits/spend` and `/refund`, balance from a Firestore snapshot.
+- **Contract test.** One `describe.each([LocalCredits, ServerCredits-with-a-fake-fetch])` file runs the same cases against both (spend, replay, insufficient, refund once, spend-refund-spend with one key never `ok: true`). Task 11 writes it with `LocalCredits`; spec 13 task 8 adds the `ServerCredits` row, with the fake fetch backed by spec 13's pure `decideSpend` / `decideRefund`.
+- **`useCreditsClient()`** (`use-credits-client.ts`):
+
+  | Situation | Client | `cloudAvailable` | Cloud actions |
+  |---|---|---|---|
+  | Firebase not configured (local mode) | `LocalCredits` | false | disabled "Sign in to use cloud AI" |
+  | `NEXT_PUBLIC_FAKE_AI=1` (tests, dev) | `LocalCredits` | true | run against local credits and the fake router |
+  | Firebase configured, signed out | none | false | disabled "Sign in to use cloud AI" |
+  | Firebase configured, signed in, `ServerCredits` not built yet | none | **false** | disabled "Cloud AI is coming soon" |
+  | Firebase configured, signed in, `ServerCredits` available | `ServerCredits` | true | run |
+
+  `LocalCredits` is never used with Firebase configured outside the fake-AI flag, so a hosted build can't run real cloud calls against fake credits (review F2, D-09-12). A unit test covers this table. Task 11b ships the hook, the chip wiring and the stub modal before spec 13 task 8 swaps in `ServerCredits`.
+- The top bar's `CREDITS_PLACEHOLDER` goes away in task 11b (the chip reads `useCreditsClient().balance()`); spec 13 task 8 changes the source to `useCredits`.
 
 ## Flows
 
 ### Quick edit
 1. Row shows `chipFor(chooseRoute({ task: 'edit.patch', … }))`. Disabled routes disable the input with the reason as tooltip.
 2. Submit → `const doc = editDoc(slot.params, slot.timing, defaults)`, `paths = editablePaths(schema, slot.params)`.
-3. Cloud route: `credits.spend({ action: 'edit', key })` first; `insufficient` → out-of-credits modal (spec 13), stop.
+3. Cloud route: `credits.spend({ action: 'edit', key })` first, with a new key per attempt (D-047); `insufficient` → out-of-credits modal (the stub from task 11b, then spec 13's), stop.
 4. `router.run(editPatchTask(schemaFor, { gate, timingDefaults }), input, { mode: route.mode, allowCloud: false })`.
 5. Success: `splitEditDoc(applied)` → `exec(applyVersion(slot.id, { params, timing, version }))`; badge "Ready in X.Xs"; the row clears.
 6. `escalate` → message + "Generate ☁ 3" button (runs the Generate flow). Device failure → "Couldn't do that on your device." + "Try in the cloud ☁ 1" (`forceCloud`). Cloud failure → refund, toast "Couldn't make that edit" with Retry.
@@ -265,9 +282,9 @@ export async function generateSlot(deps: GenerateDeps, slotId: string): Promise<
 type GenerateOutcome = 'ready' | 'failed' | 'kept' | 'discarded' | 'no-credits' | 'blocked';
 ```
 1. Route check (`generate`); blocked → no call. `insufficient` → modal, `no-credits`.
-2. `credits.spend({ action: 'generate', key: randomKey(), refId: slotId })` (a 32-character random key per click; a retry of the same click reuses it); not ok → modal or toast by reason.
+2. `credits.spend({ action: 'generate', key: randomKey(), refId: slotId })`: a **new** 32-character random key for every attempt (a click, a Retry and a "Try again" each draw their own). The only reuse is a network resend of the same attempt when no response arrived. After a refund the same key can never be spent again (spec 13 answers `key-used`), so a retry can't be a free cloud call (D-09-13). Not ok → modal or toast by reason (`key-used` takes a fresh key once).
 3. `store.setGenerating({ slotId, phase: 'preparing', startedAt })` (UI only, like `autoFilling`: the stored status stays as it was, so a reload mid-generate never strands a slot).
-4. Build input: scenes via the existing `sceneFillInput` (catalogue entry, indexed words, 2 exemplars) and `sceneGate`; components via the spec 06 input; `purpose: 'generate'`, `prompt: slot.prompt`, `currentParams: slot.params`. Phase `animating`. `router.run(task, input, { mode: 'ONLY_IN_CLOUD' })` (2 repairs inside the price, ai-tasks §3).
+4. Build input: scenes via `sceneFillInput` (catalogue entry, indexed words, 2 exemplars) and `sceneGate`; components via the component input. `sceneFillInput` today hard-codes `purpose: 'autofill'`, and the component input is built inline in `use-auto-fill.ts`; task 18 adds a `purpose` parameter to the first and extracts the second into `component-fill-input.ts`, so Generate and auto-fill share one builder per kind (review F9). Generate passes `purpose: 'generate'`, `prompt: slot.prompt`, `currentParams: slot.params`. Phase `animating`. `router.run(task, input, { mode: 'ONLY_IN_CLOUD' })` (2 repairs inside the price, ai-tasks §3).
 5. Before applying: the slot is gone, or its `componentId`, `wordStart` or `wordEnd` changed → refund, `discarded`. Else `validateParams` → `applyVersion` (source `ai-cloud`, `model`, `costCredits: 3`, label "Generated") → `ready`.
 6. Failure → refund. Slot not ready → `exec(markFailed(slotId, "Couldn't generate"))` (persisted `status: 'failed'`, `error`), outcome `failed`. Slot ready → toast with Retry, outcome `kept`.
 7. `finally` → `setGenerating(null)`. One Generate per project: a second click while one runs is refused with "Pip is on it".
@@ -350,7 +367,8 @@ export function setField(params: Record<string, unknown>, path: string, value: u
 - `component.fill` generate: the scene's safe default from the words, else the current params.
 - `prompt.prefill`: the template.
 - `ranOn`: `device` unless the URL has `?device=off`, then `cloud`; latency 300 ms.
-It is ignored when `process.env.NODE_ENV === 'production'` (unit test). When on, `availability` reads `available` from it (`unavailable` with `?device=off`), and `cloudAvailable` is true, so the cloud paths run against `LocalCredits`.
+- Failure injection (spec 13's e2e needs it): `?fakeFail=generate|edit|note|all` makes the matching calls throw after the latency, and `?fakeFailRate=0.3` with `?fakeSeed=7` fails a seeded fraction (task 11 builds it, with a unit test). The router's failure path then runs the real refund flow.
+- It is ignored when `process.env.NODE_ENV === 'production'` (unit test, P9). `NEXT_PUBLIC_*` values are inlined at build, so the runtime guard alone is not enough: a unit test also reads `apphosting.yaml`, every `.env*` committed file and the CI build steps and fails if any of them sets `NEXT_PUBLIC_FAKE_AI`. Both Playwright web servers (`chromium` and `auth`) set it in their own env. When on, `availability` reads `available` from it (`unavailable` with `?device=off`), and `cloudAvailable` is true, so the cloud paths run against `LocalCredits`.
 
 ## Failure handling
 
@@ -359,6 +377,7 @@ It is ignored when `process.env.NODE_ENV === 'production'` (unit test). When on,
 | Nano unavailable | violet toast once; edit/note chips show ☁ 1; prefill uses the template |
 | Nano download needed | "Set up on-device AI" action; progress toast; cloud route meanwhile |
 | Offline | banner; Generate and cloud fallbacks disabled "Needs connection"; device edits work |
+| Firebase on, `ServerCredits` not built | cloud actions disabled "Cloud AI is coming soon"; no call, no spend |
 | Kill switch | cloud actions disabled "Cloud AI is paused"; device edits work |
 | Device answer invalid after repair | "Couldn't do that on your device." + "Try in the cloud ☁ 1" |
 | `escalate: true` | message + "Generate ☁ 3" |
@@ -373,7 +392,8 @@ It is ignored when `process.env.NODE_ENV === 'production'` (unit test). When on,
 ## Edge cases
 
 - A slot with `componentId` not in the registry (planned components like `map-zoom` in the fixture): CONTENT shows "This graphic isn't available yet."; quick edit and notes disabled; Generate disabled with "Coming soon"; versions still listed.
-- Notes on a slot that is then moved: `tMs` is relative to the slot start, so the note moves with it. A note whose `tMs` is beyond a shortened slot is clamped for display.
+- Notes on a slot that is then moved: `tMs` is relative to the slot start, so the note moves with it. A note whose `tMs` is beyond a shortened slot is clamped for display. Every other time in the project is absolute (`architecture.md`), so this is the one relative time; task 1 changes the demo fixture's note from 5600 to 1400 and a test checks the note shows at playhead 5600 (D-09-14).
+- `regionText` reads `data-text` from the same-origin player iframe. Tier-2 previews are opaque-origin (D-021), so their region text is empty; spec 15 must provide another way (a `postMessage` from the composition) before notes work on custom graphics.
 - Undo of a fixed note restores both the params and the note's `open` status (one composite).
 - A quick edit that changes nothing (empty patch) is a check failure ("the patch is empty"), not a no-op version.
 - A version restore on a slot whose component changed since (duplicate then swap): versions with another `componentId` are shown greyed and can't be restored.
@@ -384,7 +404,7 @@ It is ignored when `process.env.NODE_ENV === 'production'` (unit test). When on,
 - **Unit (Vitest):** edit doc, editable paths, field guide; `chooseRoute` table; content form; note geometry; commands; `generateSlot` with fake router and `LocalCredits`; `withTiming`; prefill template; fake router production guard.
 - **Property (fast-check), required by testing.md:** quick-edit patches keep params valid (P1); commands `undo(do(s)) == s` and invariants (P3); plus the properties below.
 - **Motion:** `assertSeekPure` with random timings; `motion:check stat-punch` and `hook-statement` with timing samples (`show-slow`, `show-fast`, `show-cut`) in 3 formats; contact sheet review of the new samples in plain and `field-notes`.
-- **E2E (Playwright, local mode + fake AI):** `apps/web/e2e/inspector-hybrid.spec.ts` (task 21).
+- **E2E (Playwright, local mode + fake AI):** `apps/web/e2e/inspector-hybrid.spec.ts` (task 21), run in CI by the Playwright job (task 24, IDE, done by Claude Code).
 - **Design check:** inspector, generating panel and frame note against the PNGs at 1440×900 with the Chrome DevTools MCP, plus an `inspector` region in the existing Playwright design check (task 22).
 - **Rules:** no new Firestore or Storage paths in this spec; the existing project subcollection tests cover versions and notes. Spec 13 tests `settings.preferOnDevice`.
 - **Manual (founder, headed Chrome with the Nano flag):** task 23.
@@ -395,32 +415,40 @@ It is ignored when `process.env.NODE_ENV === 'production'` (unit test). When on,
 - **P2 Edit doc round-trip.** `splitEditDoc(editDoc(p, t, d), d)` equals `{ p, t }` with default-valued timing keys removed; `editablePaths` never contains `/beats` or `/images` prefixes and has at most 40 entries.
 - **P3 Commands.** For every new command and random valid projects: `undo(do(s)) == s`; random sequences keep the timeline invariants; every slot's `currentVersionId`, when set, names a version that exists; no slot has more than 20 versions.
 - **P4 No surprise spend.** For every `RouteInput`: a `device` or `local` route has `allowCloud: false` and no credits; offline never yields `cloud`; `generate` is never `device`; a `cloud` route always carries `credits === cloudCost > 0`; `checking` never yields `device`.
-- **P5 Generate accounting.** With `LocalCredits` and a fake router that fails at random, after any sequence of Generate calls the balance equals the start minus 3 × successes, is never negative, and every failure or discard is refunded exactly once.
+- **P5 Generate accounting.** With a fake router that fails at random, and with **both** `LocalCredits` and a `ServerCredits` backed in memory by spec 13's pure `decideSpend` / `decideRefund` (a fake fetch), after any sequence of Generate calls the balance equals the start minus 3 × successes, is never negative, every failure or discard is refunded exactly once, and a spend, refund, spend with one key never returns `ok: true` (every attempt draws a new key).
 - **P6 Content form round-trip.** For random valid content, committing every field with its current value leaves params deep-equal; `setField` never mutates its input.
 - **P7 Note geometry.** For random strokes in the frame: the fitted shape's points are in [0, 1], the region has `w, h ≥ 0.04` and lies inside the frame, and the crop rectangle's longest side is ≤ 512 px with the region's aspect ratio within 1 px.
 - **P8 Timing keeps voice sync.** For random scores, words and `speed` in [0.5, 2], anchored cues land within ± 80 ms of their word whenever the slot allows (as spec 07 task 10), and `fade: false` keeps every landed actor visible until the clip's last frame. `seek(t)` stays pure.
-- **P9 Fake router guard.** In production mode `getRouter()` never returns the fake.
+- **P9 Fake router guard.** In production mode `getRouter()` never returns the fake, and no committed hosting or build config sets `NEXT_PUBLIC_FAKE_AI`.
+- **P10 Spend call sites.** A lint-style test scans `apps/web` and fails if any file other than `lib/slots/generate.ts` and the edit/note flow calls `credits.spend`, and checks that the edit/note flow only calls it inside a branch where `route.kind === 'cloud'`.
 
-## Decisions (made headlessly, 2026-11-16; to log in `docs/decisions.md` on merge)
+## Decisions (made headlessly, 2026-11-16; to log in `docs/decisions.md` as D-035 to D-049, task 25)
 
-- **D-09-1 Escalation to the cloud is a click, not automatic.** `ai-tasks.md` §4 says "Invalid → repair once → cloud" and D-027 lets `edit.patch` escalate (1 credit). That would charge after a mint "free · on-device" chip, which breaks `security-and-cost.md` ("show the cost before every credited action") and `hybrid-ai.md` ("show the route before the action"). The stricter rule wins: the router gets `allowCloud: false`, and the user sees "Try in the cloud ☁ 1". Also, a PREFER mode lets the SDK fall back to the cloud on its own when Nano is missing, so the app always passes an explicit ONLY_* mode.
-- **D-09-2 One look per video.** The STYLE row changes the whole video's look (SetStyle). Per-slot looks (`Slot.styleId`, in the data model) need per-clip backgrounds and textures in the compiler and break the "consistent graphics" promise; moved to Later.
-- **D-09-3 Timing lives on the slot, not in params.** Scenes' params are scores (D-028); putting `timing` inside them would change every score schema and the AI's fill schema. The edit document merges `{ ...params, timing }` so `/timing/*` patch paths still work as ai-tasks.md describes. `component-library.md`'s shared `timing` block is updated on merge to say so.
-- **D-09-4 Versions carry timing.** `VersionSchema.timing` (optional) so restoring a version restores its feel.
-- **D-09-5 Fade = exit or cut.** On (default, today's behaviour) plays the scene's exit; off holds and cuts. Library components keep their exit (toggle disabled). Saved projects render unchanged.
-- **D-09-6 Ease choices are three plus "Look default".** `inOut`, `out`, `linear` from component-library.md, mapped onto the existing ease names.
-- **D-09-7 Version thumbnails are glyphs, not rendered stills,** for Nov 30. A still per version needs an off-screen player per tile.
-- **D-09-8 Edit and note share the edit-doc helper, and v2 of the prompt drops the schema text** (paths as an enum in the structured output). This retires the last known schema-rule violation.
-- **D-09-9 Frame notes always send region text; the JPEG crop ships only if the capture spike passes.** There is no player capture API.
-- **D-09-10 Generate lives in this spec** (spec 06 moved it here) and needs spec 13's ledger core on the hosted path; local mode uses `LocalCredits` at 120.
-- **D-09-11 Local mode cloud actions** show "Sign in to use cloud AI" (no Firebase, no cloud).
+The draft label is kept in front of each final id. D-034 is spec 08's; spec 13 takes D-050 to D-064.
 
-## Steering updates to make on merge (the headless agent can't write steering)
+- **D-09-1 / D-035 Escalation to the cloud is a click, not automatic. Supersedes D-027's `edit.patch` escalation rule.** D-027 and `ai-tasks.md` §4 say "Invalid → repair once → cloud" (1 credit). That would charge after a mint "free · on-device" chip, which breaks `security-and-cost.md` ("show the cost before every credited action") and `hybrid-ai.md` ("show the route before the action"). The stricter rule wins: the router gets `allowCloud: false`, and the user sees "Try in the cloud ☁ 1". Also, a PREFER mode lets the SDK fall back to the cloud on its own when Nano is missing, so the app always passes an explicit ONLY_* mode. D-027 stays in force for everything else (the router contract, usage logging); the decisions entry for D-035 says "Supersedes D-027 (edit.patch escalation only)".
+- **D-09-2 / D-036 One look per video.** The STYLE row changes the whole video's look (SetStyle). Per-slot looks (`Slot.styleId`, in the data model) need per-clip backgrounds and textures in the compiler and break the "consistent graphics" promise; moved to Later.
+- **D-09-3 / D-037 Timing lives on the slot, not in params.** Scenes' params are scores (D-028); putting `timing` inside them would change every score schema and the AI's fill schema. The edit document merges `{ ...params, timing }` so `/timing/*` patch paths still work as ai-tasks.md describes. `component-library.md`'s shared `timing` block is updated on merge to say so.
+- **D-09-4 / D-038 Versions carry timing.** `VersionSchema.timing` (optional) so restoring a version restores its feel.
+- **D-09-5 / D-039 Fade = exit or cut.** On (default, today's behaviour) plays the scene's exit; off holds and cuts. Library components keep their exit (toggle disabled). Saved projects render unchanged.
+- **D-09-6 / D-040 Ease choices are three plus "Look default".** `inOut`, `out`, `linear` from component-library.md, mapped onto the existing ease names.
+- **D-09-7 / D-041 Version thumbnails are glyphs, not rendered stills,** for Nov 30. A still per version needs an off-screen player per tile.
+- **D-09-8 / D-042 Edit and note share the edit-doc helper, and v2 of the prompt drops the schema text** (paths as an enum in the structured output). This retires the last known schema-rule violation.
+- **D-09-9 / D-043 Frame notes always send region text; the JPEG crop ships only if the capture spike passes.** There is no player capture API.
+- **D-09-10 / D-044 Generate lives in this spec** (spec 06 moved it here). On the hosted path it needs the spec 13 block (tasks 1, 2, 3, 4, 5, 8, 9); local mode and the fake-AI flag use `LocalCredits` at 120.
+- **D-09-11 / D-045 Local mode cloud actions** show "Sign in to use cloud AI" (no Firebase, no cloud).
+- **D-09-12 / D-046 The cloud route is disabled until `ServerCredits` exists.** `LocalCredits` is used only without Firebase or with `NEXT_PUBLIC_FAKE_AI=1`. With Firebase on and no `ServerCredits`, `cloudAvailable` is false with the copy "Cloud AI is coming soon". Reason: a hosted build with fake credits would run real, unmetered cloud calls on the Blaze account (review F2).
+- **D-09-13 / D-047 Every spend attempt draws a new key; a refunded key answers `key-used` on the server.** A retry reusing a key after a refund would be a free cloud call (review F1). The client rule and spec 13's server rule are two halves of one guard, and P5 tests both.
+- **D-09-14 / D-048 `FrameNote.tMs` is slot-relative** (notes move with their slot). It is the one relative time in a project that otherwise uses absolute milliseconds; the fixture's note becomes 1400 (review F4).
+- **D-09-15 / D-049 Note shape limits are checked by the note commands, not the schema,** following `project.ts`'s policy that a saved project never fails to load because of a limit (review F11).
 
-- `ai-tasks.md` §4: input becomes `{ componentId, fieldGuide, paths, current, instruction }`; escalation needs a click (D-09-1). §4b: add `regionText`; image optional (D-09-9).
-- `component-library.md`: the shared `timing` block is slot-level (D-09-3), with `fade` meaning exit vs cut (D-09-5).
-- `data-model.md`: `Slot.timing`, `Version.timing`, `FrameNote.fixedVersionId`, circle points `[cx, cy, rx, ry]`.
-- `hybrid-ai.md` routing table: edit.patch and note.fix run ONLY_ON_DEVICE or ONLY_IN_CLOUD as chosen by `chooseRoute`, never PREFER at call time.
-- `architecture.md` flow 4 and its failure table: "Invalid → one repair → cloud" becomes "Invalid → one repair → offer the cloud (☁ 1, a click)" (D-09-1).
+## Steering updates to make on merge (the headless agent can't write steering; task 25 lists each exact edit)
+
+- `docs/decisions.md`: D-035 to D-049 as above. D-035 supersedes D-027's `edit.patch` escalation.
+- `ai-tasks.md` §2: `prompt.prefill` is ONLY_ON_DEVICE with a template fallback, never cloud. §4: input becomes `{ componentId, fieldGuide, paths, current, instruction }`; "Invalid → repair once → cloud" becomes "→ offer the cloud (☁ 1) as a click" (D-035). §4b: add `regionText`; image optional (D-043).
+- `hybrid-ai.md` routing table: `prompt.prefill` row becomes ONLY_ON_DEVICE (captions keeps its own fallback); `edit.patch` and `note.fix` run ONLY_ON_DEVICE or ONLY_IN_CLOUD as chosen by `chooseRoute`, never PREFER at call time.
+- `component-library.md`: the shared `timing` block is slot-level (D-037), with `fade` meaning exit vs cut (D-039).
+- `data-model.md`: `Slot.timing`, `Version.timing`, `FrameNote.fixedVersionId`, circle points `[cx, cy, rx, ry]`, and `FrameNote.tMs` is relative to the slot start (D-048).
+- `architecture.md` flow 4 and its failure table: "Invalid → one repair → cloud" becomes "Invalid → one repair → offer the cloud (☁ 1, a click)" (D-035).
 - `structure.md`: new folders `apps/web/lib/{credits,notes,inspector}`, `packages/ai/src/edit/`.
-- `screens.md`: the new strings "Sign in to use cloud AI", "Needs on-device AI", "Coming soon" (Generate on a planned component), "Pip is on it", "Couldn't do that on your device.", "Try in the cloud ☁ 1", "What should change?", "Still there?", and the setup toasts.
+- `screens.md`: the new strings "Sign in to use cloud AI", "Cloud AI is coming soon", "Needs on-device AI", "Coming soon" (Generate on a planned component), "Pip is on it", "Couldn't do that on your device.", "Try in the cloud ☁ 1", "What should change?", "Still there?", and the setup toasts.
