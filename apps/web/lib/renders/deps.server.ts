@@ -8,7 +8,12 @@ import {
 } from '@motionpop/render/store';
 import { contentDisposition } from '@motionpop/render';
 import { isRenderable } from '@motionpop/motion/compiler';
-import { ACTIVE_RENDER_STATUSES, RenderDocSchema, type RenderDoc } from '@motionpop/schemas';
+import {
+  ACTIVE_RENDER_STATUSES,
+  APP_CONFIG_DEFAULTS,
+  RenderDocSchema,
+  type RenderDoc,
+} from '@motionpop/schemas';
 import { adminDb } from '@/lib/firebase/admin.server';
 import { serverConfig } from '@/lib/firebase/server-config.server';
 import type { CheckDeps, CreateDeps, DownloadDeps, ShareDeps } from './handlers.server';
@@ -120,7 +125,9 @@ export async function localDeps(): Promise<LocalDeps> {
   const rt = offlineRuntime();
   const launcher = launcherFor('offline', { runOffline: (id) => runOffline(id) });
   return {
-    config: serverConfig,
+    // No Firebase in offline mode: the typed defaults, not a Remote Config call that would wait
+    // for credentials that do not exist (it cost the first export 10 s).
+    config: async () => APP_CONFIG_DEFAULTS,
     now: () => new Date(),
     isRenderable,
     putBlob: (path, data) => rt.blobs.put(path, data),

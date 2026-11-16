@@ -3,10 +3,14 @@ import { defineConfig, devices } from '@playwright/test';
 /** Own ports: the everyday dev server uses 3123 and must not be touched. */
 const PORT = 3200;
 const AUTH_PORT = 3201;
+/** Offline mode with `MP_RENDER_FAKE_FAIL=producer`: the failing-render path of the export spec. */
+const FAIL_PORT = 3202;
 const AUTH_EMULATOR_PORT = 9099;
 const FIRESTORE_EMULATOR_PORT = 8080;
+const STORAGE_EMULATOR_PORT = 9199;
 const BASE_URL = `http://127.0.0.1:${PORT}`;
 const AUTH_URL = `http://127.0.0.1:${AUTH_PORT}`;
+const FAIL_URL = `http://127.0.0.1:${FAIL_PORT}`;
 
 /**
  * Local mode: blank Firebase config so the editor specs run without an account or network.
@@ -52,9 +56,14 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'chromium', testIgnore: /auth\.spec\.ts/, use: desktop },
-    // Real Firebase client against the Auth + Firestore emulators (needs Java).
-    { name: 'auth', testMatch: /auth\.spec\.ts/, use: { ...desktop, baseURL: AUTH_URL } },
+    { name: 'chromium', testIgnore: /(auth|export-emulator)\.spec\.ts/, use: desktop },
+    // Real Firebase client against the Auth, Firestore and Storage emulators (needs Java). The
+    // export spec adds the real job entry point as a child process (spec 08 task 19).
+    {
+      name: 'auth',
+      testMatch: /(auth|export-emulator)\.spec\.ts/,
+      use: { ...desktop, baseURL: AUTH_URL },
+    },
   ],
   webServer: [
     {
@@ -68,12 +77,22 @@ export default defineConfig({
       stderr: 'pipe',
     },
     {
-      command: `npx -y firebase-tools@latest emulators:start --only auth,firestore --project motionpop-48409`,
+      command: `npx -y firebase-tools@latest emulators:start --only auth,firestore,storage --project motionpop-48409`,
       cwd: '../..',
       url: `http://127.0.0.1:${AUTH_EMULATOR_PORT}/`,
       reuseExistingServer: true,
       // SIGTERM lets firebase-tools stop its Java emulators; the default hard kill orphaned them.
       gracefulShutdown: { signal: 'SIGTERM', timeout: 10_000 },
+      timeout: 180_000,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      // Offline mode again, with the producer made to fail (only `offlineDeps` reads the variable).
+      command: `NEXT_DIST_DIR=.next/e2e-fail pnpm exec next dev -p ${FAIL_PORT} --hostname 127.0.0.1`,
+      url: `${FAIL_URL}/editor/demo`,
+      env: { ...LOCAL_ENV, MP_RENDER_FAKE_FAIL: 'producer' },
+      reuseExistingServer: false,
       timeout: 180_000,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -86,6 +105,9 @@ export default defineConfig({
         // Admin SDK (bootstrap route) talks to the emulators and needs no credentials.
         FIREBASE_AUTH_EMULATOR_HOST: `127.0.0.1:${AUTH_EMULATOR_PORT}`,
         FIRESTORE_EMULATOR_HOST: `127.0.0.1:${FIRESTORE_EMULATOR_PORT}`,
+        // Storage (the export spec uploads the voice and the job writes the video there).
+        FIREBASE_STORAGE_EMULATOR_HOST: `127.0.0.1:${STORAGE_EMULATOR_PORT}`,
+        STORAGE_BUCKET: 'motionpop-48409.firebasestorage.app',
         GOOGLE_CLOUD_PROJECT: 'motionpop-48409',
         // Without credentials the Admin SDK probes the GCE metadata server (~5 s per first call).
         METADATA_SERVER_DETECTION: 'none',
