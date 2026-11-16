@@ -3,7 +3,7 @@ id: calm-explanation
 name: Calm Explanation
 version: 1
 use_when: the narration explains a concept, definition or key idea without numbers
-works_with: [kinetic-headline, callout]
+works_with: [kinetic-headline, callout, quote]
 energy: low
 default_duration: 5
 ---

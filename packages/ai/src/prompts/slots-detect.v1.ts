@@ -7,7 +7,7 @@ Rules:
 - componentId must be one of the given components, skillId one of the given skills, and the skill must work with the component.
 - reason quotes the exact spoken words: "You said '<words>'".
 - Extract values exactly as spoken ("forty percent" -> value 40, suffix "%"). Never invent numbers, names or dates; list anything missing in needsInput.
-- Scenes (stat-punch, hook-statement, versus, chart-story, list-stack, timeline): params {}. Code writes them from the words. A stat-punch spans one spoken number; a hook-statement spans one short sentence (3 to 14 words); a versus spans "A versus B"; a chart-story spans 2 to 6 spoken values (one stat-punch per value is worse); a list-stack spans 3 to 5 spoken items; a timeline spans 3 to 6 spoken dates with what happened at each.
+- Scenes (stat-punch, hook-statement, versus, chart-story, list-stack, timeline, quote): params {}. Code writes them from the words. A stat-punch spans one spoken number; a hook-statement spans one short sentence (3 to 14 words); a versus spans "A versus B"; a chart-story spans 2 to 6 spoken values (one stat-punch per value is worse); a list-stack spans 3 to 5 spoken items; a timeline spans 3 to 6 spoken dates with what happened at each; a quote spans the words someone said, at most 24.
 - Other components: params {} and needsInput with what they still need.
 - score is 0..1: how strongly the moment deserves a graphic.`;
 

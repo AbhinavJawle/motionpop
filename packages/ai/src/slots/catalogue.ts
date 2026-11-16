@@ -92,7 +92,7 @@ export const SKILLS: readonly SkillEntry[] = [
   {
     id: 'calm-explanation',
     useWhen: 'the narration explains a concept, definition or key idea without numbers',
-    worksWith: ['kinetic-headline', 'callout'],
+    worksWith: ['kinetic-headline', 'callout', 'quote'],
     defaultDurationMs: 5000,
   },
   {
@@ -212,6 +212,17 @@ export const SCENES: readonly SceneEntry[] = [
     built: true,
     // Spec 07 task 33: dated events had no graphic (years without values were a data-less
     // line-chart suggestion).
+    replaces: [],
+  },
+  {
+    id: 'quote',
+    name: 'Quote',
+    useWhen: 'the narration quotes someone or reads out words someone said or wrote',
+    minMs: 3000,
+    idealMs: 10800,
+    maxMs: 15000,
+    built: true,
+    // callout stays planned: it also covers people, terms and labels, not only quotes.
     replaces: [],
   },
 ];

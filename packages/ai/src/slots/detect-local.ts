@@ -505,6 +505,48 @@ export function timelineDraft(
   };
 }
 
+/** quote's limits (its content schema): at most 24 words and 140 characters. */
+const QUOTE_MAX_WORDS = 24;
+const QUOTE_MAX_CHARS = 140;
+const OPENS_QUOTE = /^["“]/;
+const CLOSES_QUOTE = /["”]["')\].,!?;:]*$/;
+
+/**
+ * A quote draft over words `ws..we` (spec 07 task 33): the words inside the first pair of quote
+ * marks, as spoken, the quote cue on the first of them. Who said it is left to auto-fill (the
+ * words don't say it reliably). Null without a closed quote that fits.
+ */
+export function quoteDraft(
+  words: readonly SlotWord[],
+  ws: number,
+  we: number,
+): { params: Record<string, unknown>; beats: { cue: string; word: number }[] } | null {
+  let open = -1;
+  for (let i = ws; i <= we; i++)
+    if (open < 0 && OPENS_QUOTE.test(words[i]?.text.trim() ?? '')) open = i;
+  if (open < 0) return null;
+  let close = -1;
+  for (let i = open; i <= we && close < 0; i++) {
+    // The opening word's own mark doesn't close the quote.
+    const t = words[i]?.text.trim() ?? '';
+    if (CLOSES_QUOTE.test(i === open ? t.slice(1) : t)) close = i;
+  }
+  if (close < 0) return null;
+  const said = words
+    .slice(open, close + 1)
+    .filter((w) => !w.filler)
+    .map((w) =>
+      w.text
+        .trim()
+        .replace(/^["“]+/, '')
+        .replace(/["”]+(?=[.,!?;:]*$)/, ''),
+    )
+    .filter(Boolean);
+  const quote = said.join(' ').replace(/[,;:]+$/, '');
+  if (!quote || said.length > QUOTE_MAX_WORDS || quote.length > QUOTE_MAX_CHARS) return null;
+  return { params: { content: { quote }, images: [] }, beats: [{ cue: 'quote', word: open }] };
+}
+
 /** A chart-story candidate over `ws..we`, or null when the words don't give a chart. */
 function chartCandidate(
   words: readonly SlotWord[],
@@ -560,6 +602,19 @@ function candidates(
             : null;
     const hook = kind ? hookCandidate(words, r, kind.score, kind.skill) : null;
     if (hook) out.push(hook);
+    // Spec 07 task 33: words in quote marks are a quote, ranked above a hook of the same sentence.
+    const q = quoteDraft(words, r.start, r.end);
+    if (q)
+      out.push({
+        wordStart: r.start,
+        wordEnd: r.end,
+        score: 0.62,
+        componentId: 'quote',
+        skillId: 'calm-explanation',
+        params: q.params,
+        needsInput: ['content'],
+        anchor: q.beats[0] as { cue: string; word: number },
+      });
     // Spec 07 task 24: a sentence that gives three or more values in one unit, or two values with
     // a year each, is a chart-story from the first of them to the sentence end. It ranks
     // above a single stat, so "12 in March, 19 in April and 31 in May" becomes one chart.
@@ -787,6 +842,29 @@ export function sceneDraft(
   if (s.componentId === 'chart-story') {
     // Spec 07 task 24: the values as spoken, each `v` cue on its word; no values, no chart.
     const d = chartDraft(words, spans, s.wordStart, s.wordEnd);
+    if (!d) return null;
+    return {
+      ...s,
+      params: { ...d.params, beats: d.beats.map((b) => ({ ...b, word: b.word - s.wordStart })) },
+      needsInput: ['content'],
+    };
+  }
+  if (s.componentId === 'quote') {
+    // Spec 07 task 33: the quoted words as spoken; without quote marks, the slot's first
+    // sentence when it fits (the narration reads the words out), else nothing.
+    const d =
+      quoteDraft(words, s.wordStart, s.wordEnd) ??
+      (() => {
+        const line = hookLine(words, s.wordStart, s.wordEnd);
+        let first = s.wordStart;
+        while (first < s.wordEnd && words[first]?.filler) first++;
+        return line
+          ? {
+              params: { content: { quote: line }, images: [] },
+              beats: [{ cue: 'quote', word: first }],
+            }
+          : null;
+      })();
     if (!d) return null;
     return {
       ...s,

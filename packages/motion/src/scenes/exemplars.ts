@@ -2,6 +2,7 @@ import { chartStoryExemplars } from './chart-story/exemplars';
 import type { Exemplar } from './exemplar';
 import { hookStatementExemplars } from './hook-statement/exemplars';
 import { listStackExemplars } from './list-stack/exemplars';
+import { quoteExemplars } from './quote/exemplars';
 import { statPunchExemplars } from './stat-punch/exemplars';
 import { timelineExemplars } from './timeline/exemplars';
 import { versusExemplars } from './versus/exemplars';
@@ -14,4 +15,5 @@ export const exemplars: Record<string, readonly Exemplar<unknown>[]> = {
   'chart-story': chartStoryExemplars as Exemplar<unknown>[],
   'list-stack': listStackExemplars as Exemplar<unknown>[],
   timeline: timelineExemplars as Exemplar<unknown>[],
+  quote: quoteExemplars as Exemplar<unknown>[],
 };

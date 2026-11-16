@@ -210,7 +210,15 @@ const CASES: Case[] = [
       }),
   },
   ...(
-    ['stat-punch', 'hook-statement', 'versus', 'chart-story', 'list-stack', 'timeline'] as const
+    [
+      'stat-punch',
+      'hook-statement',
+      'versus',
+      'chart-story',
+      'list-stack',
+      'timeline',
+      'quote',
+    ] as const
   ).map((id) => ({
     // Scenes are filled through the same task, with their score schema as structured output.
     id: 'component.fill',

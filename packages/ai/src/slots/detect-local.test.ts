@@ -8,6 +8,7 @@ import {
   detectLocal,
   hookLine,
   listDraft,
+  quoteDraft,
   reasonFor,
   sceneDraft,
   sentenceIndex,
@@ -205,6 +206,38 @@ describe('scoring and mapping', () => {
         },
       },
     });
+  });
+
+  it('turns words in quote marks into a quote, the cue on the first quoted word', async () => {
+    const { scenes } = await import('@motionpop/motion');
+    const t = words(
+      'Our',
+      'first',
+      'customer',
+      'told',
+      'us,',
+      '"I',
+      'would',
+      'pay',
+      'double',
+      'for',
+      'this,"',
+      'and',
+      'that',
+      'changed',
+      'everything.',
+      'Then',
+      'we',
+      'grew',
+      'fast.',
+    );
+    const q = detectLocal(t, tagSpans(t), { maxSlots: 3 }).find((s) => s.componentId === 'quote');
+    expect(q?.params).toMatchObject({
+      content: { quote: 'I would pay double for this' },
+      beats: [{ cue: 'quote', word: 5 - (q?.wordStart ?? 0) }],
+    });
+    expect(scenes['quote']?.params.safeParse(q?.params).success).toBe(true);
+    expect(quoteDraft(words('no', 'quote', 'here.'), 0, 2)).toBeNull();
   });
 
   it('turns three dated events into a timeline, each cue on its year', async () => {
