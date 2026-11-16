@@ -46,7 +46,14 @@ describe.skipIf(!mustRun && missing.length > 0)('offline routes with a real rend
     vi.stubEnv('FIREBASE_AUTH_EMULATOR_HOST', '127.0.0.1:9099');
     const file = join(await mkdtemp(join(tmpdir(), 'mp-offline-it-')), 'voice.wav');
     const made = spawnSync('ffmpeg', [
-      '-loglevel', 'error', '-y', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=2', file,
+      '-loglevel',
+      'error',
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      'sine=frequency=440:duration=2',
+      file,
     ]);
     if (made.status !== 0) throw new Error('could not make the voice');
     wav = await readFile(file);
@@ -59,10 +66,12 @@ describe.skipIf(!mustRun && missing.length > 0)('offline routes with a real rend
   const form = (request: string, voice: Buffer | null = wav): FormData => {
     const f = new FormData();
     f.set('request', request);
-    if (voice) f.set('voice', new File([new Uint8Array(voice)], 'voice.wav', { type: 'audio/wav' }));
+    if (voice)
+      f.set('voice', new File([new Uint8Array(voice)], 'voice.wav', { type: 'audio/wav' }));
     return f;
   };
-  const post = (f: FormData) => postLocal(new Request('http://localhost/api/local-renders', { method: 'POST', body: f }));
+  const post = (f: FormData) =>
+    postLocal(new Request('http://localhost/api/local-renders', { method: 'POST', body: f }));
   const ctx = (id: string) => ({ params: Promise.resolve({ id }) });
 
   async function untilFinal(id: string) {
@@ -104,7 +113,10 @@ describe.skipIf(!mustRun && missing.length > 0)('offline routes with a real rend
         const res = await post(form(requestJson()));
         expect(res.status).toBe(201);
         const { renderId } = (await res.json()) as { renderId: string };
-        expect(await untilFinal(renderId)).toMatchObject({ status: 'error', error: 'render-failed' });
+        expect(await untilFinal(renderId)).toMatchObject({
+          status: 'error',
+          error: 'render-failed',
+        });
         expect((await getFile(new Request('http://localhost/x'), ctx(renderId))).status).toBe(404);
       } finally {
         vi.stubEnv('MP_RENDER_FAKE_FAIL', '');
@@ -123,7 +135,9 @@ describe.skipIf(!mustRun && missing.length > 0)('offline routes with a real rend
   });
 
   it('the cloud route answers 404 in offline mode', async () => {
-    const r = await postRenders(new Request('http://localhost/api/renders', { method: 'POST', body: '{}' }));
+    const r = await postRenders(
+      new Request('http://localhost/api/renders', { method: 'POST', body: '{}' }),
+    );
     expect(r.status).toBe(404);
   });
 

@@ -241,12 +241,18 @@ Two standing rules:
 
 ## D. Client and UI
 
-- [ ] 14. **Client plumbing:**
+- [x] 14. **Client plumbing:**
   - `render-client.ts` (cloud and offline);
   - `voice-upload.ts` (`resolveVoiceBlob`, hashed upload, skip when the object exists);
   - `useRenderJob` (with the 45 s check), `useActiveRender`, `useCreditBalance`;
   - the top-bar credits chip on the live balance (placeholder kept in offline mode).
   - — R1.4, R2.1, R4.4, R4.5, NFR3
+  - _Done 2026-11-16 (headless run, claude-sonnet-5.5). New in `apps/web/lib/renders/`: `render-client.ts` (cloud and offline `RenderClient`; `parseStartResponse`, `toView`), `voice-upload.ts` (`resolveVoiceBlob`, `hash16`, `voicePathOf`, `uploadVoice`), `hooks.ts` (`useCreditBalance`, `useActiveRender`, `useAppConfig`, `useOnline`, `useRenderClient`, `useRenderJob` with the 45 s check), `export-flow.ts` (pure rules: which view shows, cost, why the button is disabled, copy of every error), `export-store.ts` (zustand store of the modal and the followed render). 55 new tests (web 478 in total), 0 lint warnings, `next build` green; `turbo run test --force` green in every package._
+    - _**Mode on the client:** Firebase configured means cloud (real project or emulators: voice upload, `POST /api/renders`, `onSnapshot`); not configured means offline (multipart `POST /api/local-renders`, polling every 700 ms). The server decides its own mode; the client only picks the matching route family. In offline mode `share()` answers null (no share links without an account) and the thumbnail comes from a new offline-only route `GET /api/local-renders/{id}/thumb` (404 outside offline mode, like the other local routes)._
+    - _**The top-bar chip** uses the live balance (`users/{uid}.credits` through `onSnapshot`) and keeps the placeholder 120 in local mode. **The Export button** now opens the export store (the modal is task 15) and, while a render runs, takes the violet "Rendering N%" look._
+    - _**Moved, not copied:** `keyMomentAbsMs` and `thumbnailTimeMs` now live in `packages/motion/src/compiler/` (exported from `@motionpop/motion/compiler`); `services/render/src/key-moment.ts` and `thumbnail.ts` re-export them, so the modal's still and `thumb.jpg` use one function._
+    - _**Bug found by a property while writing the voice path test:** `voicePathFor(uid, pid)` escapes its arguments, so a project id like `../x` matches its own path. The server checks `isSafeId` separately (R2.2), but the client now checks it before uploading too (`voicePathOf`)._
+    - _Decision: the "Retry" toast and "Try again" start a new request with the same options from the controller (task 16), not from the store, so the store stays free of callbacks._
 - [ ] 15. **Export modal** (`components/export/`), exactly as design §13.1:
   - option groups as radio groups;
   - the cost row and its messages (ember cost line, R1.4);

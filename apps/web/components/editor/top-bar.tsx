@@ -13,6 +13,9 @@ import { SegmentedPills } from '@/components/ui/segmented-pills';
 import { Tooltip } from '@/components/ui/tooltip';
 import { renameProject, setFormat } from '@/lib/commands';
 import { cn } from '@/lib/cn';
+import { isActive } from '@/lib/renders/export-flow';
+import { exportStore, useExportUi } from '@/lib/renders/export-store';
+import { useCreditBalance } from '@/lib/renders/hooks';
 import { selectCanRedo, selectCanUndo, useEditor } from '@/lib/stores/editor';
 
 const FORMATS: readonly { value: Format; label: string }[] = [
@@ -21,7 +24,7 @@ const FORMATS: readonly { value: Format; label: string }[] = [
   { value: '1:1', label: '1:1' },
 ];
 
-/** Placeholder until credits are wired to Firestore (spec 13). */
+/** Shown until the live balance is known, and always in local mode (no Firebase). */
 const CREDITS_PLACEHOLDER = 120;
 
 /** Editor top bar (editor.png; "Top bar" in design/figma-export.css): 56 px. */
@@ -33,6 +36,7 @@ export function TopBar() {
   const exec = useEditor((s) => s.exec);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
+  const balance = useCreditBalance();
 
   return (
     <header className="relative flex h-14 shrink-0 items-center border-b border-white/6 bg-raised-grad pr-[28px] pl-5">
@@ -86,24 +90,57 @@ export function TopBar() {
         <BrandKitChip className="ml-[19px]" onClick={() => toast('Brand kit is on its way.')} />
         <CreditsChip
           className="ml-3"
-          credits={CREDITS_PLACEHOLDER}
+          credits={balance ?? CREDITS_PLACEHOLDER}
           onClick={() => toast('Credits and plans are on their way.')}
         />
-        <Button
-          variant="primary"
-          size="lg"
-          className="ml-3 h-9 w-[114px] gap-0 pr-3 pl-[13px]"
-          onClick={() => toast('Export is on its way. Pip is polishing the render farm.')}
-        >
-          <Upload className="size-4" strokeWidth={1.5} aria-hidden />
-          <span className="ml-2.5">Export</span>
-          <ChevronDown className="ml-auto size-3" strokeWidth={1.5} aria-hidden />
-        </Button>
+        <ExportButton />
         <span className="ml-5">
           <PipAvatar size={32} />
         </span>
       </div>
     </header>
+  );
+}
+
+/**
+ * "Export button" (editor.png). While a render runs it takes the status look of the dashboard's
+ * "Rendering 64%" chip (violet ring, spinner) and a click reopens the progress (spec 08 R4.4).
+ */
+function ExportButton() {
+  const view = useExportUi((s) => s.view);
+  const starting = useExportUi((s) => s.starting);
+  const rendering = starting || isActive(view?.status);
+  if (!rendering) {
+    return (
+      <Button
+        variant="primary"
+        size="lg"
+        className="ml-3 h-9 w-[114px] gap-0 pr-3 pl-[13px]"
+        onClick={() => exportStore.getState().openFromButton()}
+      >
+        <Upload className="size-4" strokeWidth={1.5} aria-hidden />
+        <span className="ml-2.5">Export</span>
+        <ChevronDown className="ml-auto size-3" strokeWidth={1.5} aria-hidden />
+      </Button>
+    );
+  }
+  const percent = view?.progress ?? 0;
+  return (
+    <Button
+      variant="secondary"
+      size="lg"
+      className="ml-3 h-9 w-[114px] gap-0 border border-violet pl-[13px] shadow-violet"
+      aria-label={`Rendering ${percent}%. Open export progress`}
+      onClick={() => exportStore.getState().openFromButton()}
+    >
+      <span
+        aria-hidden
+        className="size-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-violet/30 border-t-violet motion-reduce:animate-none"
+      />
+      <span className="ml-2.5 whitespace-nowrap">
+        Rendering <span className="tabular font-mono">{percent}%</span>
+      </span>
+    </Button>
   );
 }
 
