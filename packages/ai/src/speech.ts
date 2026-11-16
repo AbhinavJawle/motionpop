@@ -52,12 +52,12 @@ export function ttsMinutes(text: string, speed = 1): number {
   return Math.max(1, Math.ceil(words / (150 * speed)));
 }
 
-const deliveryNote = (speed: number) =>
-  speed < 0.95
-    ? 'Read slowly and clearly: '
-    : speed > 1.05
-      ? 'Read briskly, with energy: '
-      : 'Read naturally: ';
+/**
+ * The delivery note before the script, in the "Say <style>:" form the TTS docs use. At the
+ * natural pace there is none: a hosted test (2026-11-16) spoke "Read naturally:" aloud.
+ */
+export const deliveryNote = (speed: number): string =>
+  speed < 0.95 ? 'Say slowly and clearly: ' : speed > 1.05 ? 'Say briskly, with energy: ' : '';
 
 export async function speakWithFirebase(
   getAI: () => Promise<AI>,
