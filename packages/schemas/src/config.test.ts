@@ -29,6 +29,10 @@ describe('parseRemoteConfig', () => {
       images_per_video_max: '4',
       image_credits: '3',
       plan_free_cloud_per_day: '7',
+      exports_enabled: 'false',
+      export_max_ms: '90000',
+      renders_per_user_per_day: '4',
+      export_credits: '{"720p":2,"1080p":6}',
     });
     expect(cfg).toEqual({
       routingSlotsDetectDeviceMaxWords: 250,
@@ -47,7 +51,31 @@ describe('parseRemoteConfig', () => {
       imagesPerVideoMax: 4,
       imageCredits: 3,
       planFreeCloudPerDay: 7,
+      exportsEnabled: false,
+      exportMaxMs: 90_000,
+      rendersPerUserPerDay: 4,
+      exportCredits: { '720p': 2, '1080p': 6 },
     });
+  });
+
+  it('has the export defaults of spec 08 (3 min, 10 a day, 720p 3 and 1080p 5 credits)', () => {
+    expect(APP_CONFIG_DEFAULTS.exportsEnabled).toBe(true);
+    expect(APP_CONFIG_DEFAULTS.exportMaxMs).toBe(180_000);
+    expect(APP_CONFIG_DEFAULTS.rendersPerUserPerDay).toBe(10);
+    expect(APP_CONFIG_DEFAULTS.exportCredits).toEqual({ '720p': 3, '1080p': 5 });
+  });
+
+  it('falls back to the defaults for bad export keys', () => {
+    const cfg = parseRemoteConfig({
+      export_max_ms: '0',
+      export_credits: '{"720p":3}',
+      exports_enabled: 'maybe',
+      renders_per_user_per_day: '-1',
+    });
+    expect(cfg.exportMaxMs).toBe(180_000);
+    expect(cfg.exportCredits).toEqual({ '720p': 3, '1080p': 5 });
+    expect(cfg.exportsEnabled).toBe(true);
+    expect(cfg.rendersPerUserPerDay).toBe(10);
   });
 
   it('a bad key falls back alone, other keys still apply', () => {

@@ -3,7 +3,8 @@ import { FormatSchema } from './format';
 import { EnergySchema } from './score';
 import { TranscriptSchema } from './transcript';
 
-const IntMsSchema = z.number().int().nonnegative();
+/** Integer milliseconds, never negative (architecture.md: no float seconds). */
+export const IntMsSchema = z.number().int().nonnegative();
 
 export const SlotStatusSchema = z.enum(['suggested', 'generating', 'ready', 'failed']);
 export type SlotStatus = z.infer<typeof SlotStatusSchema>;
