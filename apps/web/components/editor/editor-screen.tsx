@@ -22,6 +22,7 @@ import { PreviewPane } from './preview-pane';
 import { SettingsPanel } from './settings-panel';
 import { ToolRail } from './tool-rail';
 import { TopBar } from './top-bar';
+import { CaptureTestHook } from './capture-test-hook';
 import { useEditorKeys } from './use-editor-keys';
 
 type Phase =
@@ -165,6 +166,7 @@ export function EditorScreen({
       </div>
       <ExportController />
       <AIStatusToasts />
+      <CaptureTestHook />
       <Timeline clock={clock} peaks={voice?.peaks ?? null} bucketMs={voice?.bucketMs ?? 10} />
     </div>
   );
