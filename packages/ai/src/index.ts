@@ -12,3 +12,4 @@ export * from './direct/enforce';
 export * from './direct/fallback';
 export * from './direct/plan-video';
 export * from './edit/edit-doc';
+export * from './tasks/note-fix';

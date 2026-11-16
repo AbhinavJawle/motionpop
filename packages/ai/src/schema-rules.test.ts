@@ -14,6 +14,7 @@ import { componentFillTask } from './tasks/component-fill';
 import { directPlan } from './tasks/direct-plan';
 import { editContext } from './edit/edit-doc';
 import { editPatchTask } from './tasks/edit-patch';
+import { noteFixTask } from './tasks/note-fix';
 import { slotsDetect, slotsDetectInput } from './tasks/slots-detect';
 import { transcribeCloud } from './tasks/transcribe-cloud';
 
@@ -157,6 +158,26 @@ const CASES: Case[] = [
         instruction: 'make it dollars',
       }),
   },
+  ...[true, false].map((image) => ({
+    id: 'note.fix',
+    run: () =>
+      measure(noteFixTask(paramsSchema), {
+        ...editContext(
+          BIG_NUMBER,
+          'big-number',
+          { value: 40, suffix: '%', decimals: 0, label: 'Revenue grew' },
+          undefined,
+          { speed: 1, ease: 'inOut', fade: true },
+        ),
+        note: {
+          text: 'make this slower',
+          tMs: 1400,
+          region: { x: 0.5, y: 0.4, w: 0.2, h: 0.2 },
+        },
+        regionText: ['40%'],
+        ...(image ? { image: 'AAAA' } : {}),
+      }),
+  })),
   {
     id: 'component.fill',
     run: () =>
@@ -271,7 +292,14 @@ describe('task schema rules (ai-tasks.md)', () => {
 
   it('covers every task the package exports', () => {
     expect([...new Set(results.map((r) => r.id))].sort()).toEqual(
-      ['component.fill', 'direct.plan', 'edit.patch', 'slots.detect', 'transcribe.cloud'].sort(),
+      [
+        'component.fill',
+        'direct.plan',
+        'edit.patch',
+        'note.fix',
+        'slots.detect',
+        'transcribe.cloud',
+      ].sort(),
     );
   });
 
@@ -282,6 +310,13 @@ describe('task schema rules (ai-tasks.md)', () => {
       );
     }
     for (const r of results) expect(r.systemChars + r.promptChars).toBeGreaterThan(0);
+  });
+
+  it('edit.patch and note.fix prompts stay far inside the on-device limit (9,216 tokens, image not counted)', () => {
+    // About 4 characters per token: 8,000 characters is roughly 2,000 tokens, leaving room for the structured-output schema and the picture.
+    for (const r of results.filter((x) => x.id === 'edit.patch' || x.id === 'note.fix')) {
+      expect(r.systemChars + r.promptChars, r.id).toBeLessThan(8000);
+    }
   });
 
   for (const r of results) {
