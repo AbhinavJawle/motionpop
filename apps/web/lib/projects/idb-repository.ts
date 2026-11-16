@@ -1,52 +1,49 @@
-import type { EditorProject } from '@motionpop/schemas';
+import { IdbAudioStore } from '../audio/audio-store';
 import { done, openDb, req, STORES } from '../storage/idb';
-import {
-  loadFromStored,
-  parseStored,
-  type LoadResult,
-  type ProjectRepository,
-  type StoredProject,
-} from './repository';
+import { StoredProjectRepository, type LibraryOptions, type StoredProject } from './repository';
 
 const STORE = STORES.projects;
 
 /** Local persistence until Firestore sync lands (spec 01). One record per project id. */
-export class IdbProjectRepository implements ProjectRepository {
+export class IdbProjectRepository extends StoredProjectRepository {
   /** `factory` defaults to the browser's `indexedDB`, resolved lazily so SSR can construct this. */
-  constructor(private readonly factory?: IDBFactory) {}
+  constructor(
+    private readonly factory?: IDBFactory,
+    opts: LibraryOptions = {},
+  ) {
+    super({ ...opts, defaultAudio: () => new IdbAudioStore(factory) });
+  }
 
   private open(): Promise<IDBDatabase> {
     return openDb(this.factory);
   }
 
-  private async get(id: string): Promise<StoredProject | undefined> {
+  protected async get(id: string): Promise<StoredProject | undefined> {
     const db = await this.open();
     // IndexedDB returns structured-clone data; it is validated by `loadFromStored`.
     return (await req(db.transaction(STORE).objectStore(STORE).get(id))) as
       StoredProject | undefined;
   }
 
-  private async put(id: string, stored: StoredProject): Promise<void> {
+  protected async put(id: string, stored: StoredProject): Promise<void> {
     const db = await this.open();
     const tx = db.transaction(STORE, 'readwrite');
     tx.objectStore(STORE).put(stored, id);
     await done(tx);
   }
 
-  async load(id: string): Promise<LoadResult> {
-    return loadFromStored(await this.get(id));
+  protected async remove(id: string): Promise<void> {
+    const db = await this.open();
+    const tx = db.transaction(STORE, 'readwrite');
+    tx.objectStore(STORE).delete(id);
+    await done(tx);
   }
 
-  async save(project: EditorProject): Promise<void> {
-    const prev = await this.get(project.id);
-    const keep = prev && parseStored(prev.current).ok ? prev.current : prev?.previous;
-    await this.put(project.id, { current: project, previous: keep });
-  }
-
-  async restoreBackup(id: string): Promise<LoadResult> {
-    const stored = await this.get(id);
-    if (!stored?.previous) return { ok: false, error: 'not-found' };
-    await this.put(id, { current: stored.previous });
-    return loadFromStored({ current: stored.previous });
+  protected async entries(): Promise<Array<[string, StoredProject]>> {
+    const db = await this.open();
+    const store = db.transaction(STORE).objectStore(STORE);
+    const [keys, values] = await Promise.all([req(store.getAllKeys()), req(store.getAll())]);
+    // Same structured-clone data as `get`; every value is parsed by `list`.
+    return keys.map((k, i) => [String(k), values[i] as StoredProject]);
   }
 }
