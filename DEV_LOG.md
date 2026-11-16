@@ -397,3 +397,29 @@ Template:
   - **Caption emphasis:** words were drawn in the raw accent on the dark box, and Field Notes' red was unreadable. They now use the least-lightened accent that reads at 4.5:1.
   - **Pip dock:** it sits under an open left panel, matching pip-conversation.png.
   - **Still toasting:** the Fonts and Media rail items. Fonts needs more bundled OFL fonts; Media needs image assets in compositions.
+
+## 2026-11-16 (evening) · Claude Code · pictures, living motion, fonts
+- **Founder feedback:** the graphics were "all text and bland… no animations"; Nano Banana pictures were missing; the map was "good but simple".
+- **Pictures in scenes (D-070):**
+  - The image model call (AI Logic, cloud only) is painted in the look's recipe, cut out on the device when the key guard passes, and stored by hash.
+  - Openverse photo search runs in a new Media panel. Uploads are supported.
+  - The inspector has a PICTURE section.
+  - Pip's "Add pictures" plan, plus a one-time nudge in the editor.
+  - Assets reach the render job.
+  - Verified locally: an Openverse photo lands beside the stat-punch number.
+  - Real image-model generation is tested on hosted (see below).
+- **Motion:**
+  - Editorial Explainer is now a full look: snappy personality, camera push and snaps, highlighter marks, sweeps, parallax.
+  - A living backdrop under the slots.
+  - Cut-the-curve seams between graphics. I adapted the technique from the installed `cut-the-curve` skill and wrote it without GSAP.
+  - Map: graticule draw-in, traced outline, the country lifts with a shadow, slow push after landing. `motion:check map-zoom`: 235 cases × 3 formats, 0 failures.
+- **Fonts panel:** four bundled OFL families. Verified in the browser: Fraunces replaces Geist in the preview.
+- **Tests at the end (as the founder asked):**
+  - All suites green: schemas 288, ai 392, motion 426, web 1055, render 181. Typecheck and lint are clean everywhere.
+  - Seven tests needed updating for the intended changes. Image slots now export. Image generation is an allowed spender. The lively default look lifts the planned arc. The photo scene needed a catalogue entry and a skill pairing (`calm-explanation`).
+- **Skills the founder named:** I couldn't find "Kinetic red" or "Lemo opuscar" online. What is in use:
+  - Openverse is integrated.
+  - Sound effects are synthesized in code.
+  - The `cut-the-curve`, `motion-doctrine` and `hyperframes-registry` skills are used as references.
+- No Kiro runs this session.
+
