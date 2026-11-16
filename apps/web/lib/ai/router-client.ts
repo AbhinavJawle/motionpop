@@ -1,5 +1,6 @@
 import { createRouter, type Router, type UsageEvent } from '@motionpop/ai';
 import { firebaseEnabled, getAILogic } from '@/lib/firebase/client';
+import { createFakeRouter, routerKind } from './fake-router';
 import { loadAppConfig } from '@/lib/firebase/remote-config';
 
 /**
@@ -23,7 +24,21 @@ export function emitAIUsage(e: UsageEvent): void {
 
 export function getRouter(): Promise<Router | null> {
   routerPromise ??= (async () => {
-    if (!firebaseEnabled()) return null;
+    // The fake router (spec 09): only with NEXT_PUBLIC_FAKE_AI=1 and never in a production build.
+    const kind = routerKind(
+      {
+        NODE_ENV: process.env.NODE_ENV,
+        NEXT_PUBLIC_FAKE_AI: process.env.NEXT_PUBLIC_FAKE_AI,
+      },
+      firebaseEnabled(),
+    );
+    if (kind === 'fake') {
+      return createFakeRouter({
+        search: typeof window === 'undefined' ? '' : window.location.search,
+        onUsage: emitAIUsage,
+      });
+    }
+    if (kind === 'none') return null;
     const [{ config }, { firebaseProvider }] = await Promise.all([
       loadAppConfig(),
       import('@motionpop/ai/firebase'),

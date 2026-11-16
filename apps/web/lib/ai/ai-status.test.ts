@@ -96,6 +96,20 @@ describe('on-device status', () => {
   });
 });
 
+describe('fake AI (spec 09 design)', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('is available with the flag, and unavailable with ?device=off', async () => {
+    vi.stubEnv('NEXT_PUBLIC_FAKE_AI', '1');
+    await detectAvailability();
+    expect(useAIStatusStore.getState().availability).toBe('available');
+    reset();
+    vi.stubGlobal('location', { search: '?device=off' });
+    await detectAvailability();
+    expect(useAIStatusStore.getState().availability).toBe('unavailable');
+  });
+});
+
 describe('connection (spec 09 R9.4)', () => {
   function fakeWindow(onLine: boolean) {
     const handlers = new Map<string, Set<() => void>>();

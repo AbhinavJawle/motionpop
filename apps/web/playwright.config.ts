@@ -70,7 +70,10 @@ export default defineConfig({
       // Own dist dir: `next dev` locks `.next/dev`, and 3123 already holds that lock.
       command: `NEXT_DIST_DIR=.next/e2e pnpm exec next dev -p ${PORT} --hostname 127.0.0.1`,
       url: `${BASE_URL}/editor/demo`,
-      env: LOCAL_ENV,
+      // The fake AI router and local credits (spec 09 task 11): the editor specs run the AI flows
+      // without Firebase. Set for this dev server only, never for the auth server (it needs the
+      // real credits client, spec 13 task 17) and never in a build (P9 test).
+      env: { ...LOCAL_ENV, NEXT_PUBLIC_FAKE_AI: '1' },
       reuseExistingServer: false,
       timeout: 180_000,
       stdout: 'pipe',

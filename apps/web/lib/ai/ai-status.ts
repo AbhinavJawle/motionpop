@@ -67,7 +67,9 @@ export async function detectAvailability(): Promise<void> {
       NEXT_PUBLIC_FAKE_AI: process.env.NEXT_PUBLIC_FAKE_AI,
     })
   ) {
-    useAIStatusStore.setState({ availability: 'available' });
+    // `?device=off` plays a browser without Nano (spec 09 design, "Fake AI").
+    const off = new URLSearchParams(globalThis.location?.search ?? '').get('device') === 'off';
+    useAIStatusStore.setState({ availability: off ? 'unavailable' : 'available' });
     return;
   }
   // Without Firebase there is no AI Logic, so no on-device route either.
