@@ -1,24 +1,18 @@
-import {
-  DEFAULT_CAPTIONS,
-  isImageSlot,
-  type EditorProject,
-  type Format,
-  type Slot,
-} from '@motionpop/schemas';
+import { DEFAULT_CAPTIONS, type EditorProject, type Format, type Slot } from '@motionpop/schemas';
 import { chunkCaptions } from '../captions/chunk';
 import { withBrand } from './brand';
 import { componentFor, isScene, lookFor } from '../registry';
 import { sceneTiming } from './scene-timing';
 import type { CompileCaptions, CompileInput, CompileSlot } from './types';
+import type { ImageRef } from '../contract';
 
 /**
  * A slot that renders in `format`: ready, its component or scene exists and supports the format,
- * its params parse, and it has no images. Image slots are left out until spec 07 stores assets
- * (spec 08 review F5). Without a format only the format check is skipped.
+ * and its params parse. A scene whose image isn't ready plays its image-free form. Without a
+ * format only the format check is skipped.
  */
 export function isRenderable(slot: Slot, format?: Format): boolean {
   if (slot.status !== 'ready') return false;
-  if (isImageSlot(slot)) return false;
   const c = componentFor(slot.componentId);
   if (c === undefined) return false;
   if (format !== undefined && !c.formats.includes(format)) return false;
@@ -54,6 +48,45 @@ export function compileSlot(slot: Slot, transcript: EditorProject['transcript'])
   };
 }
 
+/**
+ * A new fill (Generate, quick edit) may name a picture by subject without its asset id: point it
+ * at the project's ready asset with that subject, so a repaint is never needed after an edit.
+ */
+export function withAssetIds(slot: Slot, assets: EditorProject['assets']): Slot {
+  const images = (slot.params as { images?: unknown }).images;
+  if (!Array.isArray(images) || images.length === 0 || !assets?.length) return slot;
+  let changed = false;
+  const next = images.map((i: unknown) => {
+    if (!i || typeof i !== 'object') return i;
+    const img = i as { subject?: unknown; assetId?: unknown };
+    if (typeof img.assetId === 'string' || typeof img.subject !== 'string') return i;
+    const subject = img.subject.trim().toLowerCase();
+    const hit = assets.find(
+      (a) => a.status === 'ready' && a.subject.trim().toLowerCase() === subject,
+    );
+    if (!hit) return i;
+    changed = true;
+    return { ...img, assetId: hit.id };
+  });
+  return changed ? { ...slot, params: { ...slot.params, images: next } } : slot;
+}
+
+/** The ready assets the compiled slots point at (what the preview and render must load). */
+export function assetsInUse(
+  project: Pick<EditorProject, 'slots' | 'assets'>,
+): NonNullable<EditorProject['assets']> {
+  const ids = new Set<string>();
+  for (const s of project.slots) {
+    const images = (withAssetIds(s, project.assets).params as { images?: unknown }).images;
+    if (Array.isArray(images))
+      for (const i of images) {
+        const id = (i as { assetId?: unknown } | null)?.assetId;
+        if (typeof id === 'string') ids.add(id);
+      }
+  }
+  return (project.assets ?? []).filter((a) => a.status === 'ready' && a.src && ids.has(a.id));
+}
+
 export interface ProjectCompileOptions {
   /** `preview` draws a placeholder for a failed slot; `render` leaves it empty so the job fails. */
   mode: 'preview' | 'render';
@@ -69,6 +102,8 @@ export interface ProjectCompileOptions {
   bedSrc?: string;
   /** Burn in captions; defaults to the project's own setting (spec 12 R3). */
   captions?: boolean;
+  /** Ready images by asset id: data URLs in the preview, asset paths in the render. */
+  images?: Record<string, ImageRef>;
 }
 
 /**
@@ -82,7 +117,7 @@ export function projectCompileInput(
   const format = opts.format ?? project.format;
   const slots = project.slots
     .filter((s) => isRenderable(s, format))
-    .map((s) => compileSlot(s, project.transcript));
+    .map((s) => compileSlot(withAssetIds(s, project.assets), project.transcript));
   return {
     format,
     durationMs: project.durationMs,
@@ -93,6 +128,7 @@ export function projectCompileInput(
     ...(opts.voiceSrc ? { voiceSrc: opts.voiceSrc } : {}),
     ...(opts.bedSrc ? { bedSrc: opts.bedSrc } : {}),
     ...captionsFor(project, format, opts.captions, slots),
+    ...(opts.images && Object.keys(opts.images).length ? { images: opts.images } : {}),
     slots,
   };
 }

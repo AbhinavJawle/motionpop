@@ -382,7 +382,13 @@ export const listStack = defineScene<ListStackContent>({
     ...Array.from({ length: LIST_MAX_ITEMS }, (_, i) => itemCue(i + 1)),
   ],
   focalCue: 'i1',
-  imageRoles: [],
+  imageRoles: [
+    {
+      id: 'subject',
+      aspect: '1:1',
+      about: 'one object that stands for the whole list, never a real person by name',
+    },
+  ],
   safe: listFromWords,
   // min: five 6-word items, each read in full before the exit; ideal: also a 7-word title.
   durationMs: { min: 5600, ideal: 6400, max: 12000 },

@@ -40,7 +40,7 @@ export const PipCaptionChoiceSchema = z.enum(['on', 'off', 'pop', 'clean', 'boxe
  * Plan steps take the model's actions plus `setBrand`, which only code builds: its colours come
  * from the creator's saved brand kit, never from the model (the model schema above lacks it).
  */
-export const PIP_STEP_ACTIONS = [...PIP_ACTIONS, 'setBrand'] as const;
+export const PIP_STEP_ACTIONS = [...PIP_ACTIONS, 'setBrand', 'addImage'] as const;
 export const PipStepActionSchema = z.enum(PIP_STEP_ACTIONS);
 export type PipStepAction = z.infer<typeof PipStepActionSchema>;
 

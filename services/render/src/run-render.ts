@@ -1,6 +1,8 @@
 // The render job (spec 08 design §8): one render doc in, one MP4 and one thumbnail out. It only
 // talks to the ports, so the cloud, the emulators and offline mode run the same code.
-import { compileProject, projectCompileInput } from '@motionpop/motion/compiler';
+import { assetsInUse, compileProject, projectCompileInput } from '@motionpop/motion/compiler';
+import type { ImageRef } from '@motionpop/motion';
+import { mediaHashOf, mediaStoragePath } from '@motionpop/schemas';
 import {
   EditorProjectSchema,
   isSafeId,
@@ -129,6 +131,26 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       log.error({ event: 'bed-failed', renderId, error: errorText(e) });
     }
 
+    // 2c. Pictures (spec 07 R4): each one the slots use, from the owner's media folder only. A
+    // missing picture logs and its scene renders the image-free form, like in the editor.
+    const images: Record<string, ImageRef> = {};
+    for (const a of assetsInUse(project)) {
+      const hash = mediaHashOf(a.src ?? '');
+      if (!hash) continue;
+      try {
+        const rel = `assets/img-${hash.slice(0, 16)}.webp`;
+        await blobs.download(mediaStoragePath(doc.ownerId, hash), join(compDir, rel));
+        images[a.id] = {
+          src: rel,
+          width: a.width ?? 1024,
+          height: a.height ?? 1024,
+          keyed: a.keyed,
+        };
+      } catch (e) {
+        log.error({ event: 'image-missing', renderId, asset: a.id, error: errorText(e) });
+      }
+    }
+
     // 3. Compile.
     const slots = await step('compile-failed', 'compiling', async () => {
       const input = projectCompileInput(project, {
@@ -139,6 +161,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         ...(bedSrc ? { bedSrc } : {}),
         // The job computes the caption groups itself from the snapshot (spec 12 R4.5).
         captions: doc.captions,
+        images,
       });
       if (input.slots.length === 0) {
         throw new RenderStepError('compile-failed', 'nothing in the project can be rendered');

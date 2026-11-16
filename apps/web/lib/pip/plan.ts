@@ -1,4 +1,11 @@
-import { DETECT_CATALOGUE, catalogueEntry, isDetectable, type PipPlanInput } from '@motionpop/ai';
+import {
+  DETECT_CATALOGUE,
+  ImageSubjectSchema,
+  catalogueEntry,
+  isDetectable,
+  type PipPlanInput,
+} from '@motionpop/ai';
+import { assetsInUse } from '@motionpop/motion/compiler';
 import {
   APP_CONFIG_DEFAULTS,
   DEFAULT_CAPTIONS,
@@ -15,6 +22,7 @@ import {
 } from '@motionpop/schemas';
 import { slotCardText } from '@/lib/editor/slot-display';
 import { styleOptions } from '@/lib/inspector/timing-view';
+import { imageRoleOf, suggestSubject } from '@/lib/images/generate';
 
 /**
  * Pip plans (spec 10 design §2, §5, §6), pure. A model answer is enforced here: slot refs resolve
@@ -176,7 +184,7 @@ export function enforcePlan(
 // ---------------------------------------------------------------------------------------------
 // Code-built plans for the suggestion chips (no model, free)
 
-export type ChipId = 'fill' | 'brand' | 'title' | 'captions' | 'vertical';
+export type ChipId = 'fill' | 'pictures' | 'brand' | 'title' | 'captions' | 'vertical';
 
 export interface Chip {
   id: ChipId;
@@ -186,12 +194,38 @@ export interface Chip {
 const needsFill = (p: EditorProject) =>
   p.slots.filter((s) => s.status === 'suggested' || s.status === 'failed');
 
+/** Ready graphics that take a picture and have none yet, in time order. */
+export function needsPicture(p: EditorProject) {
+  const have = new Set(assetsInUse(p).map((a) => a.id));
+  return [...p.slots]
+    .filter((s) => s.status === 'ready' && imageRoleOf(s.componentId) !== null)
+    .filter((s) => {
+      const id = (s.params as { images?: { assetId?: string }[] }).images?.[0]?.assetId;
+      return !id || !have.has(id);
+    })
+    .sort((a, b) => a.startMs - b.startMs);
+}
+
+/** A subject the image model accepts: the suggested one with any refused words taken out. */
+export function cleanSubject(raw: string): string | null {
+  let s = raw.replace(/["“”]/g, '').trim();
+  if (ImageSubjectSchema.safeParse(s).success) return s;
+  s = s
+    .split(/\s+/)
+    .filter((w) => ImageSubjectSchema.safeParse(`a ${w} b`).success)
+    .join(' ');
+  return ImageSubjectSchema.safeParse(s).success ? s : null;
+}
+
 /** The chips that make sense for this project right now (empty state). */
 export function chipsFor(project: EditorProject): Chip[] {
   const out: Chip[] = [];
   const empty = needsFill(project).length;
   if (empty > 0)
     out.push({ id: 'fill', label: `Fill the ${empty} empty slot${empty === 1 ? '' : 's'}` });
+  const pics = needsPicture(project).length;
+  if (pics > 0)
+    out.push({ id: 'pictures', label: `Add pictures to ${pics} graphic${pics === 1 ? '' : 's'}` });
   out.push({ id: 'brand', label: 'Use brand colours everywhere' });
   const first = [...project.slots].sort((a, b) => a.startMs - b.startMs)[0];
   if (!first || first.startMs > 600)
@@ -236,6 +270,31 @@ export function codePlan(
             credits: stepCredits('generateSlot', cfg),
           })),
       );
+    case 'pictures': {
+      const cap = 6;
+      const steps = needsPicture(project)
+        .slice(0, Math.min(8, cap))
+        .flatMap((s) => {
+          const subject = cleanSubject(suggestSubject(s));
+          const role = imageRoleOf(s.componentId);
+          if (!subject || !role) return [];
+          return [
+            {
+              action: 'addImage' as const,
+              slotId: s.id,
+              instruction: subject,
+              label: clip(`Picture: ${subject}`, 60),
+              credits: costOf('image', 1, cfg),
+            },
+          ];
+        });
+      return steps.length
+        ? plan('A picture for each, painted in your look', steps)
+        : plan(
+            'No graphic here takes a picture yet. Stats, lines, lists, quotes and photos do.',
+            [],
+          );
+    }
     case 'brand': {
       if (!savedBrand) return plan(NO_BRAND_YET, []);
       if (

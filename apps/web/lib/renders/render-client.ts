@@ -14,6 +14,8 @@ import {
 import { getAuthClient, getDb, getStorageClient } from '../firebase/client';
 import { apiHeaders } from '../users/bootstrap-client';
 import { uploadVoice, VoiceError } from './voice-upload';
+import { assetsInUse } from '@motionpop/motion/compiler';
+import { ensureUploaded } from '@/lib/images/image-store';
 
 // The client half of an export (spec 08 design §12). Cloud mode (Firebase configured: the real
 // project or the emulators) uploads the voice, posts to `/api/renders` and watches the render doc
@@ -186,6 +188,11 @@ export function cloudRenderClient(): RenderClient {
         if (!auth.currentUser) return { ok: false, error: 'unauthorized' };
         uid = auth.currentUser.uid;
         voicePath = await uploadVoice(uid, project.id, voice);
+        // The job reads pictures from the account's media folder; make sure each one is there.
+        // A picture that won't upload renders as its scene's image-free form.
+        await Promise.all(
+          assetsInUse(project).map((a) => ensureUploaded(a.src ?? '').catch(() => false)),
+        );
       } catch (e) {
         if (e instanceof VoiceError) {
           return e.code === 'network'

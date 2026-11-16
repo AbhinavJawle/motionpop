@@ -1,5 +1,5 @@
 import type { Energy, Look, SlotTiming } from '@motionpop/schemas';
-import type { Format, StylePack } from '../contract';
+import type { Format, ImageRef, StylePack } from '../contract';
 import type { CaptionGroup, CaptionPresetId } from '../captions/chunk';
 
 /** Captions for the overlay (spec 12 R4–R5); groups come from `chunkCaptions`, never stored. */
@@ -51,6 +51,8 @@ export interface CompileInput {
   bedSrc?: string;
   /** Burned-in captions; absent means none. */
   captions?: CompileCaptions;
+  /** Ready images by asset id (data URLs in the preview, relative paths in the render). */
+  images?: Record<string, ImageRef>;
   slots: CompileSlot[];
 }
 
@@ -66,5 +68,6 @@ export interface RuntimeProject {
   energy?: Energy;
   mode?: 'preview' | 'render';
   captions?: CompileCaptions;
+  images?: Record<string, ImageRef>;
   slots: CompileSlot[];
 }

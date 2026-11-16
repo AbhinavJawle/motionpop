@@ -11,6 +11,7 @@ import { VoicePanelBody } from './voice-panel';
 import { AudioPanelBody } from './audio-panel';
 import { StylesPanelBody } from './styles-panel';
 import { BrandPanelBody } from './brand-panel';
+import { MediaPanelBody } from './media-panel';
 
 const LABELS = {
   voice: 'Voice',
@@ -18,6 +19,7 @@ const LABELS = {
   audio: 'Audio',
   styles: 'Styles',
   brand: 'Brand',
+  media: 'Media',
 } as const;
 
 /**
@@ -45,6 +47,7 @@ export function RailPanels() {
       {open === 'voice' && <VoicePanelBody />}
       {open === 'audio' && <AudioPanelBody />}
       {open === 'styles' && <StylesPanelBody />}
+      {open === 'media' && <MediaPanelBody />}
       {/* Keyed by project: the draft colours start from that project's brand. */}
       {open === 'brand' && <BrandPanelBody key={projectId ?? 'none'} />}
     </LeftPanel>

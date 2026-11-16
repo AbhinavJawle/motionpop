@@ -145,7 +145,13 @@ export const quote = defineScene<QuoteContent>({
     { id: 'attribution', about: 'who said it appears under the quote', optional: true, snap: true },
   ],
   focalCue: 'quote',
-  imageRoles: [],
+  imageRoles: [
+    {
+      id: 'subject',
+      aspect: '1:1',
+      about: 'the setting or object the quote is about (never the speaker, never a real person)',
+    },
+  ],
   safe: quoteFromWords,
   // ideal: a 24-word quote at speaking pace, the emphasis, then a 6-word attribution read in
   // full (motion:check measured the attribution dropped at 9.6 s).

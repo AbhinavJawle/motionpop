@@ -179,7 +179,14 @@ export const statPunch = defineScene<StatPunchContent>({
     },
   ],
   focalCue: 'number',
-  imageRoles: [],
+  imageRoles: [
+    {
+      id: 'subject',
+      aspect: '1:1',
+      about:
+        'the thing the number is about (a product, place, animal or object), never a real person by name',
+    },
+  ],
   safe: statPunchFromWords,
   // ideal: the longest label allowed (9 words) still gets its full read time after a default key moment.
   durationMs: { min: 2600, ideal: 4600, max: 8000 },

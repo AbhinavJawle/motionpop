@@ -3,6 +3,7 @@ import type { Exemplar } from './exemplar';
 import { hookStatementExemplars } from './hook-statement/exemplars';
 import { mapZoomExemplars } from './map-zoom/exemplars';
 import { listStackExemplars } from './list-stack/exemplars';
+import { photoEvidenceExemplars } from './photo-evidence/exemplars';
 import { quoteExemplars } from './quote/exemplars';
 import { statPunchExemplars } from './stat-punch/exemplars';
 import { timelineExemplars } from './timeline/exemplars';
@@ -18,4 +19,5 @@ export const exemplars: Record<string, readonly Exemplar<unknown>[]> = {
   'list-stack': listStackExemplars as Exemplar<unknown>[],
   timeline: timelineExemplars as Exemplar<unknown>[],
   quote: quoteExemplars as Exemplar<unknown>[],
+  'photo-evidence': photoEvidenceExemplars as Exemplar<unknown>[],
 };

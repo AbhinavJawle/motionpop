@@ -5,7 +5,7 @@ import { FORMATS, msToFrame, type EditorProject, type Format } from '@motionpop/
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '@/lib/cn';
 import { loadCompositionAssets } from '@/lib/composition/assets';
-import { projectCompileInput } from '@/lib/composition/project-to-compile';
+import { previewImages, projectCompileInput } from '@/lib/composition/project-to-compile';
 
 type PlayerEl = HTMLElement & { seek(seconds: number): void };
 
@@ -67,10 +67,10 @@ export function VideoStill({
       if (typeof el.seek === 'function') el.seek(msToFrame(atMs, 30) / 30);
     };
     el.addEventListener('ready', seek);
-    loadCompositionAssets()
-      .then((assets) => {
+    Promise.all([loadCompositionAssets(), previewImages(project)])
+      .then(([assets, images]) => {
         if (cancelled) return;
-        el.setAttribute('srcdoc', compileProject(input, assets));
+        el.setAttribute('srcdoc', compileProject({ ...input, images }, assets));
         setFailed(false);
       })
       .catch(() => setFailed(true));

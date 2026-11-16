@@ -214,7 +214,14 @@ export const hookStatement = defineScene<HookStatementContent>({
     { id: 'subline', about: 'the short line under it appears', optional: true, snap: true },
   ],
   focalCue: 'line',
-  imageRoles: [],
+  imageRoles: [
+    {
+      id: 'subject',
+      aspect: '1:1',
+      about:
+        'the concrete thing the line is about (an object, place, animal or scene), never a real person by name',
+    },
+  ],
   safe: hookFromWords,
   // ideal: a 14-word line at speaking pace, then the emphasis and an 8-word subline read in full.
   durationMs: { min: 2400, ideal: 8400, max: 12000 },

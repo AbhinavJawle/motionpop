@@ -1,3 +1,4 @@
+import { ImageAssetSchema } from './asset';
 import { BrandSchema } from './brand';
 import { z } from 'zod';
 import { FormatSchema } from './format';
@@ -288,6 +289,8 @@ export const EditorProjectBaseSchema = z.object({
   audio: AudioSettingSchema.optional(),
   /** Brand colours over the look's accents; absent means the look's own (Brand panel). */
   brand: BrandSchema.optional(),
+  /** Images the scenes use (spec 07 R4): generated, uploaded or from the open media search. */
+  assets: z.array(ImageAssetSchema).max(60).optional(),
 });
 
 export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {

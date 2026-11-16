@@ -3,6 +3,16 @@ import type { z } from 'zod';
 
 export type { Format, StylePack };
 
+/** A ready image for a scene (spec 07 R4): already generated or uploaded, keyed or framed. */
+export interface ImageRef {
+  /** Data URL in the preview, a relative asset path in the render. */
+  src: string;
+  width: number;
+  height: number;
+  /** True: a cutout with transparent background. False: a framed photo. */
+  keyed: boolean;
+}
+
 export interface BuildContext {
   /** Container sized to the frame. The component owns its children. */
   root: HTMLElement;
@@ -19,6 +29,8 @@ export interface BuildContext {
   seed: number;
   /** Non-fatal problems (truncation, overflow); collected in `window.__motionpop.warnings`. */
   warn: (message: string) => void;
+  /** Ready images by asset id (scenes look up their score's `images[].assetId`). */
+  images?: Readonly<Record<string, ImageRef>>;
 }
 
 export interface Composition {

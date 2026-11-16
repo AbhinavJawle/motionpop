@@ -8,7 +8,7 @@
  * Other slots keep rendering. In render mode no placeholder is drawn; the producer
  * reads `errors` and fails the job.
  */
-import type { Composition, MotionComponent } from '../contract';
+import type { Composition, ImageRef, MotionComponent } from '../contract';
 import type { RuntimeProject } from '../compiler/types';
 import { pushIn } from '../core/camera';
 import type { SceneContext } from '../engine/stage';
@@ -162,6 +162,7 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
             fps: 30,
             seed: hashString(slot.id),
             warn: (message: string) => warnOnce(slot.id, message),
+            ...(images ? { images } : {}),
             // Scene context (ignored by plain components).
             look: clipStyle,
             // `fade: false`: a scene holds its last frame and cuts at the slot end (R4.3).
@@ -227,8 +228,30 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
     }
   };
 
+  // Images decode before the build, so the first captured frame already shows them. One that
+  // fails to load is left out: its scene builds the image-free form.
+  let images: Record<string, ImageRef> | undefined;
+  const loadImages = async () => {
+    const all = project.images;
+    if (!all || typeof Image === 'undefined') return;
+    const ok: Record<string, ImageRef> = {};
+    await Promise.all(
+      Object.entries(all).map(async ([id, ref]) => {
+        try {
+          const img = new Image();
+          img.src = ref.src;
+          await img.decode();
+          ok[id] = ref;
+        } catch (e) {
+          fail('*', 'mount', new Error(`image ${id} did not load: ${messageOf(e)}`));
+        }
+      }),
+    );
+    images = ok;
+  };
+
   // Components measure text at build time (fitText), so fonts must be loaded first.
-  const ready = loadFonts()
+  const ready = Promise.all([loadFonts(), loadImages()])
     .catch((e: unknown) => fail('*', 'fonts', e))
     .then(() => {
       slots = mountAll();

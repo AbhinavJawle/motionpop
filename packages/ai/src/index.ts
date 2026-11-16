@@ -17,3 +17,4 @@ export * from './tasks/prompt-prefill';
 export * from './tasks/pip-plan';
 export * from './tasks/custom-compose';
 export * from './speech';
+export * from './image';

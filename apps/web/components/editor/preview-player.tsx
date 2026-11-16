@@ -4,9 +4,13 @@ import { compileProject } from '@motionpop/motion/compiler';
 import { FORMATS } from '@motionpop/schemas';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { loadCompositionAssets } from '@/lib/composition/assets';
-import { previewCompileInput } from '@/lib/composition/project-to-compile';
+import {
+  previewCompileInput,
+  previewImages,
+  previewImagesKey,
+} from '@/lib/composition/project-to-compile';
 import { attachPreview, resyncPreview, seekPreview } from '@/lib/editor/preview-bridge';
-import { useEditor } from '@/lib/stores/editor';
+import { editorStore, useEditor } from '@/lib/stores/editor';
 
 type PlayerEl = HTMLElement & { seek(seconds: number): void; ready?: boolean };
 
@@ -26,7 +30,8 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
 
   // Only what the composition depends on: title renames and selection don't recompile.
   const input = useMemo(() => (project ? previewCompileInput(project) : null), [project]);
-  const key = useMemo(() => (input ? JSON.stringify(input) : ''), [input]);
+  const imagesKey = useMemo(() => (project ? previewImagesKey(project) : ''), [project]);
+  const key = useMemo(() => (input ? JSON.stringify(input) + imagesKey : ''), [input, imagesKey]);
 
   useEffect(() => {
     void import('@hyperframes/player').then(() => resyncPreview());
@@ -48,15 +53,16 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
     if (!input) return;
     let cancelled = false;
     const t = setTimeout(() => {
-      loadCompositionAssets()
-        .then((assets) => {
+      const current = editorStore.getState().project;
+      Promise.all([loadCompositionAssets(), current ? previewImages(current) : {}])
+        .then(([assets, images]) => {
           if (cancelled || !ref.current) return;
           // Generated code (spec 15) only ever runs with an opaque origin (D-021); set before the
           // composition so it never loads same-origin, even for one frame.
           if (input.slots.some((s) => s.componentId === 'custom')) {
             ref.current.setAttribute('sandbox-origin', 'opaque');
           } else ref.current.removeAttribute('sandbox-origin');
-          ref.current.setAttribute('srcdoc', compileProject(input, assets));
+          ref.current.setAttribute('srcdoc', compileProject({ ...input, images }, assets));
           setAssetsError(null);
         })
         .catch((e: unknown) => {

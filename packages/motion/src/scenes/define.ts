@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Format, MotionComponent } from '../contract';
 import type { CueSpec } from '../engine/beats';
 import type { SceneContext, StageComposition } from '../engine/stage';
+import { buildImageLayer, splitFrame } from './image-layer';
 
 /**
  * A scene (spec 07 R2): hand-crafted choreography for one kind of moment. It is a
@@ -47,6 +48,8 @@ export interface SceneDef<C> {
   /** The cue that lands on the spoken word when the score gives no anchors. */
   focalCue: string;
   imageRoles: readonly ImageRoleDef[];
+  /** Share of the frame a ready image takes (default 0.42; a photo-led scene takes more). */
+  imageShare?: number;
   durationMs: { min: number; ideal: number; max: number };
   formats: Format[];
   /**
@@ -148,11 +151,67 @@ export function defineScene<C>(def: SceneDef<C>): Scene<C> {
         score.beats.length > 0
           ? score.beats
           : [{ cue: def.focalCue, word: nearest(words, ctx.keyMomentMs) }];
-      return def.build(
-        { ...ctx, words },
-        { ...score, beats },
-        pickVariant(def.variants, score.variant, ctx.seed),
+      const variant = pickVariant(def.variants, score.variant, ctx.seed);
+      // A ready image for one of this scene's roles splits the frame (image-layer.ts).
+      const roles = new Set(def.imageRoles.map((r) => r.id));
+      const pick = score.images.find(
+        (i) => roles.has(i.role) && i.assetId && ctx.images?.[i.assetId],
       );
+      const ref = pick?.assetId ? ctx.images?.[pick.assetId] : undefined;
+      if (!ref) return def.build({ ...ctx, words }, { ...score, beats }, variant);
+
+      const split = splitFrame(ctx.format, ctx.width, ctx.height, def.imageShare ?? 0.42, ctx.seed);
+      const doc = ctx.root.ownerDocument;
+      ctx.root.style.cssText = 'position:absolute;inset:0;';
+      const sub = doc.createElement('div');
+      sub.style.cssText = `position:absolute;left:${split.text.x}px;top:${split.text.y}px;width:${split.text.width}px;height:${split.text.height}px;`;
+      const inner = doc.createElement('div');
+      sub.append(inner);
+      ctx.root.append(sub);
+      const comp = def.build(
+        {
+          ...ctx,
+          root: inner,
+          width: split.text.width,
+          height: split.text.height,
+          format: split.textFormat,
+          words,
+        },
+        { ...score, beats },
+        variant,
+      );
+      // The text root fills the sub-frame (the stage set inset:0 on it).
+      const first = Math.min(...comp.report.plan.cues.map((c) => c.startMs), ctx.keyMomentMs);
+      const layer = buildImageLayer({
+        doc,
+        parent: ctx.root,
+        box: split.image,
+        ref,
+        style: ctx.style,
+        look: ctx.look,
+        seed: ctx.seed,
+        durationMs: ctx.durationMs,
+        enterAtMs: Math.max(0, first - 250),
+        exit: ctx.exit ?? 'fade',
+        frameH: ctx.height,
+      });
+      ctx.root.insertBefore(layer.el, sub);
+      return {
+        ...comp,
+        seek(tMs) {
+          layer.seek(tMs);
+          comp.seek(tMs);
+        },
+        soundCues: [
+          ...comp.soundCues,
+          { atMs: layer.landMs, kind: 'enter' as const, sound: 'whoosh' },
+        ].sort((a, b) => a.atMs - b.atMs),
+        dispose() {
+          comp.dispose();
+          layer.el.remove();
+          sub.remove();
+        },
+      };
     },
   };
 }

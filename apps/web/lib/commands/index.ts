@@ -9,6 +9,7 @@ export {
   type HistoryResult,
 } from './history';
 export { setFormat, setStyle, renameProject, setCaptions, setAudio, setBrand } from './project';
+export { setSlotImage, usedAssetIds, type SlotImageInput } from './images';
 export { addSlot, deleteSlot, duplicateSlot, moveSlot, resizeSlot, updateParams } from './slots';
 export { PROMPT_MAX, markFailed, setSlotPrompt } from './slot-fields';
 export { setSlotTiming } from './timing';

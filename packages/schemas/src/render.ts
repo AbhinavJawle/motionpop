@@ -421,7 +421,7 @@ export interface ExportAvailability {
   reasons: ExportBlock[];
 }
 
-/** An image slot: a scene with at least one image. Left out of renders until spec 07 stores assets. */
+/** An image slot: a scene with at least one image (it renders its image-free form until the image is ready). */
 export function isImageSlot(slot: Pick<Slot, 'params'>): boolean {
   const images = slot.params['images'];
   return Array.isArray(images) && images.length > 0;
@@ -433,7 +433,7 @@ export function exportAvailability(
   ctx: ExportAvailabilityContext,
 ): ExportAvailability {
   const renderableIds = project.slots
-    .filter((s) => !isImageSlot(s) && ctx.isRenderable(s, options.format))
+    .filter((s) => ctx.isRenderable(s, options.format))
     .map((s) => s.id);
   const reasons: ExportBlock[] = [];
   if (renderableIds.length === 0) reasons.push('nothing-to-render');

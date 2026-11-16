@@ -4,6 +4,7 @@ import { composite, deleteSlot, setBrand, setCaptions, setFormat, setStyle } fro
 import { addSlot } from '@/lib/commands/slots';
 import type { Route } from '@/lib/ai/route';
 import { generateSlot, type GenerateDeps } from '@/lib/slots/generate';
+import { generateSlotImage, imageRoleOf } from '@/lib/images/generate';
 import { runQuickEdit, type QuickEditDeps } from '@/lib/slots/quick-edit';
 import { slotForWords } from '@/lib/timeline/create';
 import type { EditorStore } from '@/lib/stores/editor';
@@ -130,7 +131,24 @@ export async function applyPlan(
     }
     set(s.id, 'running');
     try {
-      if (s.action === 'updateSlot') {
+      if (s.action === 'addImage') {
+        const slot = deps.store.getState().project?.slots.find((x) => x.id === s.slotId);
+        const role = slot ? imageRoleOf(slot.componentId) : null;
+        if (!role) set(s.id, 'skipped', 'That graphic doesn’t take a picture');
+        else {
+          const r = await generateSlotImage(
+            {
+              credits: deps.credits,
+              ...(deps.config ? { config: deps.config } : {}),
+              getProject: () => deps.store.getState().project,
+              exec: (c) => deps.store.getState().exec(c),
+            },
+            { slotId: s.slotId, role, subject: s.instruction ?? '' },
+          );
+          if (r.ok) set(s.id, 'done');
+          else set(s.id, 'skipped', r.noCredits ? 'Out of credits' : r.reason);
+        }
+      } else if (s.action === 'updateSlot') {
         const out = await runQuickEdit(deps, s.slotId, s.instruction ?? '', deps.editRoute);
         if (out.kind === 'applied') set(s.id, 'done');
         else

@@ -27,6 +27,7 @@ export function componentFillPromptV1(input: {
             : []),
           `words (index:word): ${input.scene.indexedWords}`,
           'beats: land each cue on the index of the word that says it; content uses the spoken words.',
+          'images: when the scene takes a picture, name one concrete thing to show ("an old cargo ship", "a honeybee on a flower"): what it is, never a style, never a named real person, no text or logos.',
         ]
       : [`spoken words: "${input.words}"`]),
     `direction: ${input.prompt}`,
