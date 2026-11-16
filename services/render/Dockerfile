@@ -6,7 +6,7 @@ FROM node:24-bookworm-slim
 # ffmpeg for muxing and probing; the shared libraries headless Chrome needs on Debian bookworm.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    ffmpeg ca-certificates fonts-liberation \
+    ffmpeg ca-certificates fonts-liberation unzip \
     libasound2 libatk-bridge2.0-0 libatk1.0-0 libcairo2 libcups2 libdbus-1-3 libdrm2 libgbm1 \
     libglib2.0-0 libgtk-3-0 libnspr4 libnss3 libpango-1.0-0 libx11-6 libx11-xcb1 libxcb1 \
     libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0 libxrandr2 libxshmfence1 \
@@ -29,6 +29,7 @@ COPY --chown=node:node . .
 # Installs the job and its workspace packages; puppeteer's install script fetches Chrome into
 # PUPPETEER_CACHE_DIR. Then the composition runtime the job inlines into each render.
 RUN pnpm install --frozen-lockfile --filter "@motionpop/render..." \
+  && ls "$PUPPETEER_CACHE_DIR"/chrome-headless-shell "$PUPPETEER_CACHE_DIR"/chrome \
   && pnpm --filter @motionpop/motion build:runtime
 
 WORKDIR /app/services/render
