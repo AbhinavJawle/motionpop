@@ -5,7 +5,10 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     // `server-only` throws outside a React Server environment; tests import server modules directly.
-    alias: { 'server-only': resolve(import.meta.dirname, 'rules/empty-module.ts') },
+    alias: {
+      'server-only': resolve(import.meta.dirname, 'rules/empty-module.ts'),
+      '@': import.meta.dirname,
+    },
   },
   test: {
     include: ['rules/**/*.test.ts'],
