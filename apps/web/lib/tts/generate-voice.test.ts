@@ -44,6 +44,35 @@ describe('generateVoice', () => {
     expect(c.refunds).toEqual(['tx-1']);
   });
 
+  it('reports a usage row for Settings: cloud, the TTS model, the credits (or 0 when refunded)', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const onUsage = vi.fn();
+    const speak = vi.fn(async () => ({ pcm, sampleRate: 24_000, latencyMs: 900, model: 'tts' }));
+    await generateVoice(
+      { credits: credits(), speak, onUsage },
+      { text: 'Hello there', voice: 'Kore' },
+    );
+    expect(onUsage).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        task: 'tts.generate',
+        ranOn: 'cloud',
+        credits: voiceCost('Hello there', 1),
+        latencyMs: 900,
+        ok: true,
+      }),
+    );
+    const fail = vi.fn(async () => {
+      throw new Error('boom');
+    });
+    await generateVoice(
+      { credits: credits(), speak: fail, onUsage },
+      { text: 'Hi', voice: 'Kore' },
+    );
+    expect(onUsage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ task: 'tts.generate', credits: 0, ok: false }),
+    );
+  });
+
   it('never spends without a script or without a credits client', async () => {
     expect(
       await generateVoice({ credits: credits() }, { text: '  ', voice: 'Kore' }),

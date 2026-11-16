@@ -151,18 +151,21 @@ export class UsageReporter {
   }
 
   /**
-   * Starts the 15 s timer and the hidden-page flush; returns the stop function. `doc` is
-   * injectable for tests.
+   * Starts the 15 s timer and the hidden-page flush (on `visibilitychange` and on `pagehide`, which
+   * some closes fire alone); returns the stop function. `doc` is injectable for tests.
    */
   start(doc: Document = document): () => void {
     const timer = setInterval(() => void this.flush(), FLUSH_INTERVAL_MS);
     const onVisibility = () => {
       if (doc.visibilityState === 'hidden') void this.flush({ hidden: true });
     };
+    const onPageHide = () => void this.flush({ hidden: true });
     doc.addEventListener('visibilitychange', onVisibility);
+    doc.defaultView?.addEventListener('pagehide', onPageHide);
     return () => {
       clearInterval(timer);
       doc.removeEventListener('visibilitychange', onVisibility);
+      doc.defaultView?.removeEventListener('pagehide', onPageHide);
     };
   }
 }

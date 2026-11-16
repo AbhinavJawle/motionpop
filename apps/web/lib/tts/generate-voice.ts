@@ -1,4 +1,5 @@
-import { speakWithFirebase, ttsMinutes, type SpeakInput } from '@motionpop/ai';
+import { speakWithFirebase, ttsMinutes, type SpeakInput, type UsageEvent } from '@motionpop/ai';
+import { emitAIUsage } from '@/lib/ai/router-client';
 import { APP_CONFIG_DEFAULTS, costOf, type AppConfig } from '@motionpop/schemas';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
 import { spendWithUi } from '@/lib/credits/spend-with-ui';
@@ -19,6 +20,8 @@ export interface VoiceDeps {
   config?: Pick<AppConfig, 'creditCosts' | 'imageCredits' | 'exportCredits' | 'modelTts'>;
   /** Injected in tests. */
   speak?: typeof speakWithFirebase;
+  /** Where the usage event goes (Settings' usage chart); the router's listeners by default. */
+  onUsage?: (e: UsageEvent) => void;
 }
 
 export function voiceCost(text: string, speed: number, cfg = APP_CONFIG_DEFAULTS): number {
@@ -48,9 +51,22 @@ export async function generateVoice(deps: VoiceDeps, input: SpeakInput): Promise
       ? { ok: false, reason: 'Not enough credits', noCredits: true }
       : { ok: false, reason: 'Couldn’t reserve the credits' };
   }
+  // TTS calls the model directly (audio out is not a router task), so it reports its own usage.
+  const report = deps.onUsage ?? emitAIUsage;
+  const cost = costOf('tts', minutes, cfg);
+  const t0 = performance.now();
   try {
     const r = await (deps.speak ?? speakWithFirebase)(getAILogic, cfg.modelTts, { ...input, text });
     const file = pcmToWavFile(r.pcm, r.sampleRate, 'script-voice.wav');
+    report({
+      task: 'tts.generate',
+      ranOn: 'cloud',
+      model: cfg.modelTts,
+      credits: cost,
+      cloudCost: cost,
+      latencyMs: Math.round(r.latencyMs),
+      ok: true,
+    });
     return {
       ok: true,
       file,
@@ -60,6 +76,15 @@ export async function generateVoice(deps: VoiceDeps, input: SpeakInput): Promise
     };
   } catch (err) {
     console.warn('Voice generation failed', err);
+    report({
+      task: 'tts.generate',
+      ranOn: 'cloud',
+      model: cfg.modelTts,
+      credits: 0,
+      cloudCost: cost,
+      latencyMs: Math.round(performance.now() - t0),
+      ok: false,
+    });
     await deps.credits.refund(spent.txId).catch(() => {});
     return { ok: false, reason: 'Couldn’t generate the voice. Credits returned.' };
   }
