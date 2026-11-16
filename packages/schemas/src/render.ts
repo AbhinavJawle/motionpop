@@ -269,9 +269,10 @@ const RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
 
 function filenamePass(input: string): string {
   let s = input
-    // Control, line and paragraph separators, and invisible format characters (bidi overrides
-    // can spoof an extension). The zero width joiner stays so emoji sequences survive.
-    .replace(/(?!\u200d)[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, '')
+    // Control, line and paragraph separators, invisible format characters (bidi overrides can
+    // spoof an extension) and lone surrogates (they make `encodeURIComponent` throw when the
+    // download header is built). The zero width joiner stays so emoji sequences survive.
+    .replace(/(?!\u200d)[\p{Cc}\p{Cf}\p{Cs}\p{Zl}\p{Zp}]/gu, '')
     // Reserved on common file systems or special in a Content-Disposition value.
     .replace(/[/\\:*?"<>|]/g, '')
     .normalize('NFC')
