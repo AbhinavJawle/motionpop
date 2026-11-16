@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import {
+  AudioSettingSchema,
+  DEFAULT_AUDIO,
   EditorProjectSchema,
+  audioOf,
   SlotTimingSchema,
   VERSIONS_PER_SLOT,
   VersionSchema,
@@ -278,5 +281,43 @@ describe('slot timing, version timing and note fixes (spec 09 task 1)', () => {
 
   it('keeps 20 versions per slot', () => {
     expect(VERSIONS_PER_SLOT).toBe(20);
+  });
+});
+
+describe('audio settings (spec 12 B1)', () => {
+  it('an old project without audio parses and reads as the default audio', () => {
+    const r = EditorProjectSchema.safeParse(makeProject());
+    expect(r.success).toBe(true);
+    if (!r.success) return;
+    expect(r.data.audio).toBeUndefined();
+    expect(audioOf(r.data)).toEqual({
+      musicGainDb: -18,
+      ducking: true,
+      duckDepthDb: 8,
+      autoSfx: true,
+      sfxGainDb: 0,
+      sfxSeed: 0,
+    });
+    expect(audioOf(r.data)).toEqual(DEFAULT_AUDIO);
+  });
+
+  it('a partial audio object fills its defaults', () => {
+    const p = makeProject();
+    p.audio = { musicId: 'calm-pad', musicGainDb: -24 };
+    const r = EditorProjectSchema.parse(p);
+    expect(r.audio).toEqual({ ...DEFAULT_AUDIO, musicId: 'calm-pad', musicGainDb: -24 });
+  });
+
+  it.each([
+    ['music level above 0 dB', { musicGainDb: 3 }],
+    ['music level below -40 dB', { musicGainDb: -41 }],
+    ['a fractional level', { sfxGainDb: 1.5 }],
+    ['effects above +6 dB', { sfxGainDb: 7 }],
+    ['a duck depth above 24 dB', { duckDepthDb: 25 }],
+    ['a negative seed', { sfxSeed: -1 }],
+    ['an unknown music id', { musicId: 'jazz' }],
+    ['a long track name', { musicName: 'x'.repeat(81) }],
+  ])('rejects %s', (_, audio) => {
+    expect(AudioSettingSchema.safeParse(audio).success).toBe(false);
   });
 });
