@@ -117,9 +117,70 @@ describe('auto-fill for scenes (spec 07 task 27)', () => {
     expect(JSON.stringify(requests[0]?.jsonSchema)).toContain('"punch"');
     expect(slot('slot-h')).toMatchObject({ status: 'ready', params: { variant: 'left' } });
     expect(slot('slot-h')?.needsInput).toBeUndefined();
+    // Changed 2026-11-16: the free draft lands first (the film plays at once), then the
+    // device refines it.
     expect(versions()).toEqual([
+      expect.objectContaining({ slotId: 'slot-h', source: 'default', label: 'Draft' }),
       expect.objectContaining({ slotId: 'slot-h', source: 'ai-device', label: 'Auto-fill' }),
     ]);
+  });
+
+  it('every scene slot is drafted and ready before the model answers, in one undo step', async () => {
+    const { deps, slot, versions } = setup([HOOK], { answers: [GOOD] });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const getRouter = deps.getRouter;
+    deps.getRouter = () =>
+      getRouter().then(async (router) => {
+        if (!router) return router;
+        return {
+          ...router,
+          run: async (...a: Parameters<typeof router.run>) => {
+            await gate;
+            return router.run(...a);
+          },
+        } as typeof router;
+      });
+    const running = runAutoFill(deps, () => false);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(slot('slot-h')).toMatchObject({ status: 'ready' });
+    expect(versions()).toEqual([expect.objectContaining({ source: 'default', label: 'Draft' })]);
+    release();
+    await running;
+    expect(versions().map((v) => v.label)).toEqual(['Draft', 'Auto-fill']);
+  });
+
+  it('a draft the user changed before the model answers is left alone', async () => {
+    const { deps, store, slot, versions } = setup([HOOK], { answers: [GOOD] });
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const getRouter = deps.getRouter;
+    deps.getRouter = () =>
+      getRouter().then(async (router) => {
+        if (!router) return router;
+        return {
+          ...router,
+          run: async (...a: Parameters<typeof router.run>) => {
+            await gate;
+            return router.run(...a);
+          },
+        } as typeof router;
+      });
+    const running = runAutoFill(deps, () => false);
+    await new Promise((r) => setTimeout(r, 20));
+    // The user retimes the slot while the model is still thinking.
+    store
+      .getState()
+      .load({
+        ...store.getState().project!,
+        slots: store
+          .getState()
+          .project!.slots.map((s) => (s.id === 'slot-h' ? { ...s, endMs: s.endMs - 100 } : s)),
+      });
+    release();
+    await running;
+    expect(versions().some((v) => v.label === 'Auto-fill')).toBe(false);
+    expect(slot('slot-h')?.status).toBe('ready');
   });
 
   it('repairs twice, then keeps the detector draft as the safe default', async () => {
