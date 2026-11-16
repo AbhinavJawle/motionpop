@@ -50,13 +50,23 @@ const fillInput = (over: Record<string, unknown> = {}) => ({
 
 describe('parseFakeSwitches and seededRandom', () => {
   it('reads the URL switches, with safe defaults', () => {
-    expect(parseFakeSwitches('')).toEqual({ deviceOff: false, fail: null, failRate: 0, seed: 1 });
+    expect(parseFakeSwitches('')).toEqual({
+      deviceOff: false,
+      fail: null,
+      failRate: 0,
+      seed: 1,
+      latencyMs: null,
+    });
     expect(parseFakeSwitches('?device=off&fakeFail=generate&fakeFailRate=0.3&fakeSeed=7')).toEqual({
       deviceOff: true,
       fail: 'generate',
       failRate: 0.3,
       seed: 7,
+      latencyMs: null,
     });
+    expect(parseFakeSwitches('?fakeLatency=1500').latencyMs).toBe(1500);
+    expect(parseFakeSwitches('?fakeLatency=abc').latencyMs).toBe(300);
+    expect(parseFakeSwitches('?fakeLatency=99999').latencyMs).toBe(10_000);
     expect(parseFakeSwitches('?fakeFail=nonsense&fakeFailRate=9&fakeSeed=x')).toMatchObject({
       fail: null,
       failRate: 1,

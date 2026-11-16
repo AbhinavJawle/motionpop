@@ -10,6 +10,7 @@ import { styleFor } from '@/lib/composition/project-to-compile';
 import { cn } from '@/lib/cn';
 import { useEditor, type SaveStatus } from '@/lib/stores/editor';
 import { OfflineBanner } from './offline-banner';
+import { PreviewBadge } from './preview-badge';
 import { PreviewPlayer } from './preview-player';
 
 const ASPECT: Record<Format, string> = { '16:9': '16 / 9', '9:16': '9 / 16', '1:1': '1 / 1' };
@@ -90,6 +91,7 @@ export function PreviewPane() {
           style={{ aspectRatio: ASPECT[format], height: 'min(405px, 100%)' }}
         >
           <PreviewPlayer />
+          <PreviewBadge />
           <OfflineBanner />
           {safeZone && <SafeZoneOverlay format={format} />}
         </div>

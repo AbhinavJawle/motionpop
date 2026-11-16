@@ -26,6 +26,8 @@ export interface FakeSwitches {
   failRate: number;
   /** `?fakeSeed=7`. */
   seed: number;
+  /** `?fakeLatency=1500`: how long each fake call takes, so a spec can look at the "working" state. */
+  latencyMs: number | null;
 }
 
 export function parseFakeSwitches(search: string): FakeSwitches {
@@ -44,6 +46,7 @@ export function parseFakeSwitches(search: string): FakeSwitches {
     fail: fail === 'generate' || fail === 'edit' || fail === 'note' || fail === 'all' ? fail : null,
     failRate: Math.min(1, Math.max(0, rate)),
     seed: Math.trunc(seed),
+    latencyMs: q.has('fakeLatency') ? Math.min(10_000, Math.max(0, num('fakeLatency', 300))) : null,
   };
 }
 
@@ -188,7 +191,7 @@ function failsBy(sw: FakeSwitches, taskId: string, input: unknown): boolean {
 
 export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
   const sw = parseFakeSwitches(opts.search ?? '');
-  const latency = opts.latencyMs ?? 300;
+  const latency = opts.latencyMs ?? sw.latencyMs ?? 300;
   const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const draw = seededRandom(sw.seed);
   const clock = () => (typeof performance === 'undefined' ? Date.now() : performance.now());
