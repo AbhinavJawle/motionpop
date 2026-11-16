@@ -1230,3 +1230,25 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - **Kiro features used:** the session-start hook and spec files, `tasks.md` notes as the record, fast-check properties, mutation checks by hand, Context7 not needed (the producer API was read in the earlier run).
 - **What helped / what didn't:** the spec's step list mapped almost one-to-one onto the functions, so the fault table was a copy of it. The tests passed on the first run too often for comfort, which is why I mutated the code. The harness hook that runs after every port call made "swept at every point" a ten-line loop.
 <!-- /kiro-cli:2026-11-16-spec-08-tasks-4-7 -->
+
+<!-- kiro-session:sess_3bb63ae7-4d39-491f-8c4e-fffb525f6ea3 -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T00:35:06.079Z · last stop: 2026-11-16T01:03:34.111Z · session: sess_3bb63ae7-4d39-491f-8c4e-fffb525f6ea3
+- commits since start: 
+  - 7553bcd docs: KIRO_LOG entry for the spec 08 tasks 4-7 run
+  - cbe89a6 test(08-render-and-export): task 7 job property and fault-injection tests
+  - 0e6677f feat(08-render-and-export): task 6 job core
+  - ca93b20 Merge branch 'specs-b'
+  - be344db docs: KIRO_LOG stop-hook entry for the 10/11/12 review-fix run
+  - 48f0fcb docs: KIRO_LOG entry for the spec 10, 11 and 12 review fixes
+  - c85d570 docs(12-formats-captions-sound): apply spec review findings F1-F16
+  - 5eda6ca docs(11-dashboard-start-recording): apply spec review findings F1-F16
+  - 99bc628 docs(10-pip-panel): apply spec review findings F1-F14
+  - 3d7bc21 test(08-render-and-export): task 5 P9 preview-render input parity
+  - 51f8167 feat(08-render-and-export): task 4 one compile input for preview and render
+  - 240f05b Merge branch 'main' into specs-b
+  - b62de6e docs(10,11,12): spec-reviewer reviews
+  - f7898cb Merge branch 'specs-a'
+  - 5a42738 docs: KIRO_LOG stop-hook entry for the 09/13 review-fix run
+- uncommitted changes: none
+<!-- /kiro-session:sess_3bb63ae7-4d39-491f-8c4e-fffb525f6ea3 -->
