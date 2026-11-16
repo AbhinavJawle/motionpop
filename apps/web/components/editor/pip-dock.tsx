@@ -38,7 +38,8 @@ export function PipDock() {
           : 'Drop a slot, I’ll fill it';
 
   return (
-    <div className="pointer-events-none absolute bottom-[16px] left-3 z-20 flex items-center gap-[7px]">
+    // Under an open left panel (z-10), as in pip-conversation.png: the panel covers the bubble.
+    <div className="pointer-events-none absolute bottom-[16px] left-3 z-[5] flex items-center gap-[7px]">
       <Pip
         size={38}
         state={generating ? 'thinking' : showDone ? 'done' : 'idle'}

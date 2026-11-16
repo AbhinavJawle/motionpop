@@ -15,6 +15,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { renameProject, setFormat } from '@/lib/commands';
 import { cn } from '@/lib/cn';
 import { useCreditsBalance } from '@/lib/credits/use-credits-client';
+import { toggleRailPanel } from '@/lib/editor/rail-panel';
 import { openSettingsPanel } from '@/lib/editor/settings-panel';
 import { isActive } from '@/lib/renders/export-flow';
 import { exportStore, useExportUi } from '@/lib/renders/export-store';
@@ -38,9 +39,16 @@ function showVersions() {
 export function TopBar() {
   const title = useEditor((s) => s.project?.title ?? '');
   const format = useEditor((s) => s.project?.format ?? '16:9');
+  // The chip's dots show the project's brand colours once it has a brand kit.
+  const brandAccent = useEditor((s) => s.project?.brand?.accent ?? null);
+  const brandAccent2 = useEditor((s) => s.project?.brand?.accent2 ?? null);
+  const brandDots = brandAccent
+    ? ([brandAccent, brandAccent2 ?? brandAccent, 'var(--color-text)'] as const)
+    : null;
   const canUndo = useEditor(selectCanUndo);
   const canRedo = useEditor(selectCanRedo);
   const exec = useEditor((s) => s.exec);
+  const setRail = useEditor((s) => s.setRail);
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
   const balance = useCreditsBalance();
@@ -91,7 +99,14 @@ export function TopBar() {
             <History className="size-[18px]" strokeWidth={1.5} />
           </IconAction>
         </div>
-        <BrandKitChip className="ml-[19px]" onClick={() => toast('Brand kit is on its way.')} />
+        <BrandKitChip
+          className="ml-[19px]"
+          {...(brandDots ? { colors: brandDots } : {})}
+          onClick={() => {
+            toggleRailPanel('brand');
+            setRail('brand');
+          }}
+        />
         <CreditsChip
           className="ml-3"
           credits={balance}

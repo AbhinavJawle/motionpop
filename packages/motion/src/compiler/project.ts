@@ -6,6 +6,7 @@ import {
   type Slot,
 } from '@motionpop/schemas';
 import { chunkCaptions } from '../captions/chunk';
+import { withBrand } from './brand';
 import { componentFor, isScene, lookFor } from '../registry';
 import { sceneTiming } from './scene-timing';
 import type { CompileCaptions, CompileInput, CompileSlot } from './types';
@@ -24,9 +25,11 @@ export function isRenderable(slot: Slot, format?: Format): boolean {
   return c.params.safeParse(slot.params).success;
 }
 
-/** The look of a project (see `lookFor`). */
-export function styleFor(project: Pick<EditorProject, 'styleId'>) {
-  return lookFor(project.styleId);
+/** The look of a project (see `lookFor`), with its brand colours when it has a brand kit. */
+export function styleFor(
+  project: Pick<EditorProject, 'styleId'> & { brand?: EditorProject['brand'] },
+) {
+  return withBrand(lookFor(project.styleId), project.brand);
 }
 
 /** One slot for the compiler. Scenes also get the voice: words, stress and pauses (spec 07). */

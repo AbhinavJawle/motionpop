@@ -18,6 +18,8 @@ import type { Router } from '@motionpop/ai';
 import type { EditorStore } from '@/lib/stores/editor';
 import type { Command } from '@/lib/commands/command';
 import { applyPlan, undoPlan, type ApplyDeps } from './apply';
+import { useSavedBrand } from '@/lib/brand/saved-brand';
+import { openRailPanel } from '@/lib/editor/rail-panel';
 import { loadThread, saveThread } from './persist';
 import { codePlan, enforcePlan, pipInput, type ChipId } from './plan';
 
@@ -178,7 +180,10 @@ export function chipToPip(store: EditorStore, chip: ChipId, label: string, scope
   const project = store.getState().project;
   if (!project) return;
   push({ role: 'user', text: label, scope, credits: 0 });
-  const plan = codePlan(chip, project);
+  const savedBrand = useSavedBrand.getState().brand;
+  const plan = codePlan(chip, project, undefined, savedBrand);
+  // No brand kit yet: Pip says so and opens the Brand panel next to the chat.
+  if (chip === 'brand' && !savedBrand) openRailPanel('brand');
   push({
     role: 'pip',
     text: plan.reply,

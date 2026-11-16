@@ -5,6 +5,7 @@ import {
   FormatSchema,
   PipCaptionChoiceSchema,
   costOf,
+  type Brand,
   type CostConfig,
   type EditorProject,
   type PipModelOutput,
@@ -201,21 +202,15 @@ export function chipsFor(project: EditorProject): Chip[] {
   return out.slice(0, 5);
 }
 
-/** The brand look: the first polished look other than the current style, else the first style. */
-function brandStyleId(project: EditorProject): string | null {
-  const opts = styleOptions();
-  return (
-    (
-      opts.find((s) => s.id !== project.styleId && 'craft' in s) ??
-      opts.find((s) => s.id !== project.styleId)
-    )?.id ?? null
-  );
-}
+/** Pip's answer to the brand chip before any brand kit is saved (the panel opens with it). */
+export const NO_BRAND_YET = 'Pick your brand colours first. I opened the Brand panel for you.';
 
 export function codePlan(
   chip: ChipId,
   project: EditorProject,
   cfg: CostConfig = APP_CONFIG_DEFAULTS,
+  /** The creator's saved brand kit (Brand panel), for the brand chip. */
+  savedBrand: Brand | null = null,
 ): PipPlan {
   const step = (s: Omit<PipStep, 'id' | 'include'>, i: number): PipStep => ({
     ...s,
@@ -242,12 +237,15 @@ export function codePlan(
           })),
       );
     case 'brand': {
-      const id = brandStyleId(project);
-      return id
-        ? plan('One look for the whole video', [
-            { action: 'setStyle', styleId: id, label: 'Apply the brand look', credits: 0 },
-          ])
-        : plan('Your video already uses the only look', []);
+      if (!savedBrand) return plan(NO_BRAND_YET, []);
+      if (
+        project.brand?.accent.toLowerCase() === savedBrand.accent.toLowerCase() &&
+        (project.brand.accent2 ?? '').toLowerCase() === (savedBrand.accent2 ?? '').toLowerCase()
+      )
+        return plan('Every graphic already wears your brand colours', []);
+      return plan('Your brand colours on every graphic, captions too', [
+        { action: 'setBrand', brand: savedBrand, label: 'Use my brand colours', credits: 0 },
+      ]);
     }
     case 'title': {
       const first = project.transcript.words.findIndex((w) => !w.filler);

@@ -55,6 +55,29 @@ export function pillColours(accent: string): { bg: string; ink: string } {
   return { bg: accent, ink: onBlack >= onWhite ? '#000000' : '#ffffff' };
 }
 
+/**
+ * The pop line's box (rgba(8,8,12,.66)) over the lightest possible frame, white: the worst case
+ * an emphasised word sits on.
+ */
+const POP_BOX_ON_WHITE = 0x5c5c5f;
+
+/**
+ * Emphasised words are drawn in the accent when it reads at 4.5:1 on the caption box, else in
+ * the least-lightened accent that does (a deep red or a dark brand colour would vanish).
+ */
+export function emphasisColour(accent: string): string {
+  const n = Number.parseInt(accent.slice(1, 7), 16);
+  const box = luminance(`#${POP_BOX_ON_WHITE.toString(16)}`);
+  for (let i = 0; i <= 20; i++) {
+    const t = i / 20;
+    const mix = (v: number) => Math.round(v + (255 - v) * t);
+    const c = (mix((n >> 16) & 255) << 16) | (mix((n >> 8) & 255) << 8) | mix(n & 255);
+    const hex = `#${c.toString(16).padStart(6, '0')}`;
+    if (contrast(luminance(hex), box) >= 4.5) return hex;
+  }
+  return '#ffffff';
+}
+
 /** Line geometry (R5.2): bottom offset, max width and font sizes in frame px. */
 export function captionLayout(frame: CaptionFrame, presetId: CaptionPresetId) {
   const ref = Math.min(frame.width, frame.height);
@@ -80,6 +103,7 @@ export function mountCaptions(
   const doc = host.ownerDocument;
   const { bottom, maxWidth, base, min, scale } = captionLayout(frame, cfg.presetId);
   const pill = pillColours(cfg.accent);
+  const emphasis = emphasisColour(cfg.accent);
   const rise = 6 * scale;
   host.textContent = '';
 
@@ -143,7 +167,7 @@ export function mountCaptions(
       if (cfg.presetId === 'pop') {
         const p = isCur ? outCubic((tMs - w.startMs) / POP_MS) : 0;
         span.style.background = isCur ? pill.bg : 'transparent';
-        span.style.color = isCur ? pill.ink : w.emphasis ? cfg.accent : '#fff';
+        span.style.color = isCur ? pill.ink : w.emphasis ? emphasis : '#fff';
         span.style.transform = `scale(${(1 + 0.06 * p).toFixed(4)})`;
       } else if (cfg.presetId === 'clean') {
         span.style.boxShadow = isCur

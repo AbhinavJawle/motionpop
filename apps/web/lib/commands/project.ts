@@ -1,9 +1,11 @@
 import { produce } from 'immer';
 import {
   AudioSettingSchema,
+  BrandSchema,
   DEFAULT_CAPTIONS,
   audioOf,
   type AudioSetting,
+  type Brand,
   type CaptionsSetting,
   type EditorProject,
 } from '@motionpop/schemas';
@@ -47,6 +49,33 @@ export function setStyle(styleId: string): Command {
       if (prev === undefined) return p;
       return produce(p, (d) => {
         d.styleId = prev;
+      });
+    },
+  };
+}
+
+/**
+ * Brand colours over the look's accents (Brand panel), or none with `null`. One command, one
+ * undo. The colours were checked against the look in the panel; the compiler guards again.
+ */
+export function setBrand(brand: Brand | null): Command {
+  let before: Brand | undefined;
+  return {
+    label: brand ? 'Use brand colours' : 'Remove brand colours',
+    do(p) {
+      const parsed = brand ? BrandSchema.safeParse(brand) : null;
+      if (parsed && !parsed.success) throw new CommandRejected('invalid brand colours');
+      before = p.brand;
+      return produce(p, (d) => {
+        if (parsed?.success) d.brand = parsed.data;
+        else delete d.brand;
+      });
+    },
+    undo(p) {
+      const prev = before;
+      return produce(p, (d) => {
+        if (prev) d.brand = prev;
+        else delete d.brand;
       });
     },
   };

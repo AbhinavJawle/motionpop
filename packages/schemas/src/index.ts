@@ -22,3 +22,4 @@ export * from './credits';
 export * from './cost';
 export * from './usage';
 export * from './pip';
+export * from './brand';

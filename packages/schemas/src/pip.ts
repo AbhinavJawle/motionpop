@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BrandSchema } from './brand';
 import { FormatSchema } from './format';
 
 /**
@@ -35,11 +36,20 @@ export type PipModelOutput = z.infer<typeof PipModelOutputSchema>;
 export const PipCaptionChoiceSchema = z.enum(['on', 'off', 'pop', 'clean', 'boxed']);
 
 /** After enforcement: what the plan card shows and Apply all runs. */
+/**
+ * Plan steps take the model's actions plus `setBrand`, which only code builds: its colours come
+ * from the creator's saved brand kit, never from the model (the model schema above lacks it).
+ */
+export const PIP_STEP_ACTIONS = [...PIP_ACTIONS, 'setBrand'] as const;
+export const PipStepActionSchema = z.enum(PIP_STEP_ACTIONS);
+export type PipStepAction = z.infer<typeof PipStepActionSchema>;
+
 export const PipStepSchema = z.object({
   id: z.string().min(1),
-  action: PipActionSchema,
+  action: PipStepActionSchema,
   slotId: z.string().optional(),
   styleId: z.string().optional(),
+  brand: BrandSchema.optional(),
   format: FormatSchema.optional(),
   captions: PipCaptionChoiceSchema.optional(),
   componentId: z.string().optional(),

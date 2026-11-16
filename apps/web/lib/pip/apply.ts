@@ -1,6 +1,6 @@
 import type { PipPlan, PipStep, StepState } from '@motionpop/schemas';
 import type { Command } from '@/lib/commands/command';
-import { composite, deleteSlot, setCaptions, setFormat, setStyle } from '@/lib/commands';
+import { composite, deleteSlot, setBrand, setCaptions, setFormat, setStyle } from '@/lib/commands';
 import { addSlot } from '@/lib/commands/slots';
 import type { Route } from '@/lib/ai/route';
 import { generateSlot, type GenerateDeps } from '@/lib/slots/generate';
@@ -31,6 +31,7 @@ export interface ApplyResult {
 
 const INSTANT = new Set<PipStep['action']>([
   'setStyle',
+  'setBrand',
   'setFormat',
   'setCaptions',
   'addSlot',
@@ -45,6 +46,8 @@ function instantCommand(
   switch (step.action) {
     case 'setStyle':
       return step.styleId ? { cmd: setStyle(step.styleId) } : 'No style';
+    case 'setBrand':
+      return step.brand ? { cmd: setBrand(step.brand) } : 'No brand colours saved';
     case 'setFormat':
       return step.format ? { cmd: setFormat(step.format) } : 'No format';
     case 'setCaptions': {

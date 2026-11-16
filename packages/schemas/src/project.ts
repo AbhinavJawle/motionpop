@@ -1,3 +1,4 @@
+import { BrandSchema } from './brand';
 import { z } from 'zod';
 import { FormatSchema } from './format';
 import { EnergySchema } from './score';
@@ -285,6 +286,8 @@ export const EditorProjectBaseSchema = z.object({
   captions: CaptionsSettingSchema.optional(),
   /** Music, ducking and effects; absent means `DEFAULT_AUDIO` (spec 12b, read with `audioOf`). */
   audio: AudioSettingSchema.optional(),
+  /** Brand colours over the look's accents; absent means the look's own (Brand panel). */
+  brand: BrandSchema.optional(),
 });
 
 export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {
