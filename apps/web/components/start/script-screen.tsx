@@ -27,6 +27,7 @@ import {
   type SpeedId,
 } from '@/lib/script/estimate';
 import { generateVoice } from '@/lib/tts/generate-voice';
+import { clearScriptDraft, putScriptDraft, readScriptDraft } from '@/lib/script/hand-off';
 import { ProjectTopBar } from './project-top-bar';
 
 const EXAMPLE =
@@ -35,12 +36,15 @@ const EXAMPLE =
 /** Why Generate is off, in words; null when it can run. */
 export function generateBlock(i: {
   words: number;
+  /** Characters over the limit (negative or zero when it fits). */
+  over?: number;
   online: boolean;
   killSwitch: boolean;
   signedIn: boolean;
 }): string | null {
   if (i.words === 0) return 'Write a script first';
   if (i.words < 3) return 'A few more words';
+  if ((i.over ?? 0) > 0) return `Trim ${(i.over ?? 0).toLocaleString('en-US')} characters to fit`;
   if (!i.online) return 'Needs connection';
   if (i.killSwitch) return 'Cloud AI is paused for today';
   if (!i.signedIn) return 'Sign in to generate a voice';
@@ -59,7 +63,9 @@ export function ScriptScreen() {
   const config = useAppConfig();
   const online = useOnline();
   const { client } = useCreditsClient();
-  const [text, setText] = useState(() => (search.get('text') ?? '').slice(0, SCRIPT_MAX_CHARS));
+  const [text, setText] = useState(() => search.get('text') ?? readScriptDraft());
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+  const over = text.length - SCRIPT_MAX_CHARS;
   const [voice, setVoice] = useState<TtsVoiceId>('Kore');
   const [speedId, setSpeedId] = useState<SpeedId>('natural');
   const [busy, setBusy] = useState(false);
@@ -70,6 +76,7 @@ export function ScriptScreen() {
   const cost = costOf('tts', minutesFor(text || 'x', speed), config);
   const block = generateBlock({
     words,
+    over,
     online,
     killSwitch: config.killSwitch,
     signedIn: client !== null,
@@ -78,7 +85,11 @@ export function ScriptScreen() {
   const generate = async () => {
     if (busy || block) return;
     setBusy(true);
-    const out = await generateVoice({ credits: client, config }, { text, voice, speed });
+    const out = await generateVoice(
+      { credits: client, config, onPart: (done, total) => setProgress({ done, total }) },
+      { text, voice, speed },
+    );
+    setProgress(null);
     if (!out.ok) {
       if (!out.noCredits) toast.error(out.reason);
       setBusy(false);
@@ -95,6 +106,7 @@ export function ScriptScreen() {
         },
         draft,
       );
+      clearScriptDraft();
       toast.success(`Voice ready in ${(out.latencyMs / 1000).toFixed(1)}s`);
       router.push(PROCESSING_NEW);
     } catch {
@@ -130,19 +142,25 @@ export function ScriptScreen() {
           <section className="flex min-w-0 flex-1 flex-col rounded-2xl border border-line-strong bg-[linear-gradient(180deg,#121219,#0C0C11)] p-5 shadow-glass">
             <textarea
               value={text}
-              onChange={(e) => setText(e.target.value.slice(0, SCRIPT_MAX_CHARS))}
-              maxLength={SCRIPT_MAX_CHARS}
+              onChange={(e) => {
+                setText(e.target.value);
+                putScriptDraft(e.target.value);
+              }}
               aria-label="Script"
               placeholder="Paste or write your script. Numbers, places and dates become graphics."
               className="h-[340px] w-full resize-none bg-transparent text-[15px] leading-6 text-text outline-none placeholder:text-text-3"
             />
             <div className="mt-3 flex items-center justify-between border-t border-white/6 pt-3">
               <p
-                className="tabular font-mono text-[11px] leading-[14px] text-text-2"
+                className={cn(
+                  'tabular font-mono text-[11px] leading-[14px]',
+                  over > 0 ? 'text-error' : 'text-text-2',
+                )}
                 data-testid="script-counts"
               >
-                {words} words · {formatLength(estimateMs(text, speed))} · {text.length}/
-                {SCRIPT_MAX_CHARS}
+                {words} words · {formatLength(estimateMs(text, speed))} ·{' '}
+                {text.length.toLocaleString('en-US')}/{SCRIPT_MAX_CHARS.toLocaleString('en-US')}
+                {over > 0 && ` · ${over.toLocaleString('en-US')} over`}
               </p>
               {words === 0 && (
                 <button
@@ -234,7 +252,11 @@ export function ScriptScreen() {
                 onClick={() => void generate()}
               >
                 <Sparkles strokeWidth={1.75} aria-hidden />
-                {busy ? 'Pip is recording…' : 'Generate voice'}
+                {busy
+                  ? progress && progress.total > 1
+                    ? `Pip is recording… part ${Math.min(progress.done + 1, progress.total)} of ${progress.total}`
+                    : 'Pip is recording…'
+                  : 'Generate voice'}
                 {!busy && (
                   <span className="ml-1 flex items-center gap-1 rounded-md bg-black/20 px-1.5 py-0.5 text-[10px] leading-3">
                     <Cloud className="!size-3" strokeWidth={1.75} aria-hidden />

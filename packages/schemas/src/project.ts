@@ -3,6 +3,7 @@ import { BrandSchema } from './brand';
 import { z } from 'zod';
 import { FormatSchema } from './format';
 import { EnergySchema } from './score';
+import { SCRIPT_MAX_CHARS } from './start';
 import { TranscriptSchema } from './transcript';
 
 /** Families a project may pick in the Fonts panel (every one is bundled in packages/motion, OFL). */
@@ -148,7 +149,7 @@ export const VoiceoverSchema = z.object({
     .object({
       voiceId: z.string().min(1),
       speed: z.number().positive(),
-      script: z.string().max(3000),
+      script: z.string().max(SCRIPT_MAX_CHARS),
     })
     .optional(),
 });

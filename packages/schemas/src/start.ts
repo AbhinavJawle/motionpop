@@ -13,6 +13,12 @@ export type StartDraft = z.infer<typeof StartDraftSchema>;
  * A voice waiting for Processing. `ref` points at a blob already in the local audio store
  * (`idb:…`), never at an in-memory blob, so a reload keeps the take (D-065 #18).
  */
+/**
+ * Longest script Pip will voice: about 1,000 words, six and a half minutes at a natural pace.
+ * Kept under the export cap (`exportMaxMs`) so every voiced script can also be exported.
+ */
+export const SCRIPT_MAX_CHARS = 6000;
+
 export const PendingIntakeSchema = z.object({
   ref: z.string().min(1),
   source: z.enum(['upload', 'record', 'sample', 'tts']),
@@ -23,7 +29,7 @@ export const PendingIntakeSchema = z.object({
     .object({
       voiceId: z.string().min(1),
       speed: z.number().positive(),
-      script: z.string().max(3000),
+      script: z.string().max(SCRIPT_MAX_CHARS),
     })
     .optional(),
 });

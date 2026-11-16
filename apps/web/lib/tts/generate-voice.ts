@@ -22,6 +22,8 @@ export interface VoiceDeps {
   speak?: typeof speakWithFirebase;
   /** Where the usage event goes (Settings' usage chart); the router's listeners by default. */
   onUsage?: (e: UsageEvent) => void;
+  /** Progress through a long script, part by part. */
+  onPart?: (done: number, total: number) => void;
 }
 
 export function voiceCost(text: string, speed: number, cfg = APP_CONFIG_DEFAULTS): number {
@@ -56,7 +58,13 @@ export async function generateVoice(deps: VoiceDeps, input: SpeakInput): Promise
   const cost = costOf('tts', minutes, cfg);
   const t0 = performance.now();
   try {
-    const r = await (deps.speak ?? speakWithFirebase)(getAILogic, cfg.modelTts, { ...input, text });
+    const r = await (deps.speak ?? speakWithFirebase)(
+      getAILogic,
+      cfg.modelTts,
+      { ...input, text },
+      undefined,
+      deps.onPart,
+    );
     const file = pcmToWavFile(r.pcm, r.sampleRate, 'script-voice.wav');
     report({
       task: 'tts.generate',

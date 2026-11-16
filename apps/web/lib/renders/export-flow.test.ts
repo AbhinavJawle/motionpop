@@ -118,10 +118,11 @@ describe('exportOptionsState', () => {
   it('blocks a video over the limit (R1.11)', () => {
     const p = baseProject();
     const s = exportOptionsState(
-      input({ project: { ...p, durationMs: 200_000 }, config: APP_CONFIG_DEFAULTS }),
+      input({ project: { ...p, durationMs: 500_000 }, config: APP_CONFIG_DEFAULTS }),
     );
     expect(s.canExport).toBe(false);
-    expect(s.blockNote).toBe('Exports are up to 3 min for now.');
+    // Changed: exportMaxMs default is now 8 min (480000 ms), so the copy follows it.
+    expect(s.blockNote).toBe('Exports are up to 8 min for now.');
   });
   it('blocks a project with nothing to render (R1.8)', () => {
     const p = baseProject();

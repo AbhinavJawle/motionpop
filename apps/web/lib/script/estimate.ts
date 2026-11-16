@@ -6,7 +6,7 @@ import { tagSpans, ttsMinutes, type SlotWord } from '@motionpop/ai';
  * The price comes from `ttsMinutes`, the same function the charge uses, so the chip and the
  * spend always agree (property 7).
  */
-export const SCRIPT_MAX_CHARS = 3000;
+export { SCRIPT_MAX_CHARS } from '@motionpop/schemas';
 
 export const SPEEDS = [
   { id: 'relaxed', label: 'Relaxed', speed: 0.9 },

@@ -124,9 +124,10 @@ describe('parseRemoteConfig', () => {
     expect(cfg.refundsPerDay).toBe(7);
   });
 
-  it('has the export defaults of spec 08 (3 min, 10 a day, 720p 3 and 1080p 5 credits)', () => {
+  it('has the export defaults of spec 08 (8 min, 10 a day, 720p 3 and 1080p 5 credits)', () => {
+    // Changed: export cap raised from 3 min to 8 min (480000 ms) for long scripts.
     expect(APP_CONFIG_DEFAULTS.exportsEnabled).toBe(true);
-    expect(APP_CONFIG_DEFAULTS.exportMaxMs).toBe(180_000);
+    expect(APP_CONFIG_DEFAULTS.exportMaxMs).toBe(480_000);
     expect(APP_CONFIG_DEFAULTS.rendersPerUserPerDay).toBe(10);
     expect(APP_CONFIG_DEFAULTS.exportCredits).toEqual({ '720p': 3, '1080p': 5 });
   });
@@ -138,7 +139,8 @@ describe('parseRemoteConfig', () => {
       exports_enabled: 'maybe',
       renders_per_user_per_day: '-1',
     });
-    expect(cfg.exportMaxMs).toBe(180_000);
+    // Changed: export cap default is now 480000 ms (8 min).
+    expect(cfg.exportMaxMs).toBe(480_000);
     expect(cfg.exportCredits).toEqual({ '720p': 3, '1080p': 5 });
     expect(cfg.exportsEnabled).toBe(true);
     expect(cfg.rendersPerUserPerDay).toBe(10);

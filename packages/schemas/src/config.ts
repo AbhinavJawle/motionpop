@@ -75,7 +75,8 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   imageCredits: 2,
   planFreeCloudPerDay: 10,
   exportsEnabled: true,
-  exportMaxMs: 180_000,
+  // Eight minutes: a full-length voiced script (SCRIPT_MAX_CHARS) plus headroom.
+  exportMaxMs: 480_000,
   rendersPerUserPerDay: 10,
   exportCredits: DEFAULT_EXPORT_CREDITS,
   rateLimitCloudPerHour: 30,

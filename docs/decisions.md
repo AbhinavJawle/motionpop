@@ -234,3 +234,8 @@ Spec 11 R1 asked for projects in the account; design §2.1 stored each field as 
   - The runtime bundle is about 2.1 MB because the 50m borders are inside it. Map images add 0.5–2.3 MB per style used.
   - motion:check measures layout with seams off (seams move whole slots on purpose). The key-moment guard is unit-tested.
   - The producer launches Chrome with SwiftShader GL, so export WebGL is software-rendered. A hosted export confirms it.
+
+## D-072 · 2026-11-16 · decided (Claude Code, founder ask) — Longer scripts, voiced in parts; 8-minute exports
+- **Context:** the founder found pasting a long script broken, and the 3,000-character limit too short. Two causes: a paste was cut at the limit with no warning, and the script went to `/start/script` in the URL (`?text=`), which a long script pushes past what the hosting layer accepts. The voice was also one TTS call for the whole script.
+- **Decision:** `SCRIPT_MAX_CHARS` = 6,000 (about 1,000 words, about 6.5 minutes) in `@motionpop/schemas`. The script travels in session storage. Over-limit text stays in the box: the counter turns red, and Generate says how many characters to trim. The voice is made in parts of 1,200 characters or less, split on sentence ends, called in order and joined with a 220 ms pause, with "part N of M" on the button. `exportMaxMs` goes to 8 minutes, the render job's task timeout to 60 minutes and the producer's to 55.
+- **Budget:** TTS costs the same per minute of speech whatever the part count. A full-length export with maps renders in roughly 75 minutes of job time at today's speed (about 11× real time, measured on the globe export), which is a few cents of Cloud Run. Credits are charged per started minute.

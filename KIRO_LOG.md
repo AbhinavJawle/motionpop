@@ -1613,3 +1613,30 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - ff2b192 feat(07-scene-engine-and-looks): task 24 chart-story
 - uncommitted changes: none
 <!-- /kiro-session:sess_5957f0fe-b696-4a68-a75f-419e7cdc6bd2 -->
+
+<!-- kiro-session:sess_256ae0d2-282c-4907-8a3b-1e5fc56aea75 -->
+### 2026-11-16 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-16T18:17:35.627Z · last stop: 2026-11-16T18:20:26.289Z · session: sess_256ae0d2-282c-4907-8a3b-1e5fc56aea75
+- commits since start: none
+- uncommitted changes: 
+  - `M apps/web/components/dashboard/capture-bar.tsx`
+  - ` M apps/web/components/export/export-dialog.test.tsx`
+  - ` M apps/web/components/start/script-screen.tsx`
+  - ` M apps/web/components/start/start-screen.tsx`
+  - ` M apps/web/lib/renders/export-flow.test.ts`
+  - ` M apps/web/lib/script/estimate.ts`
+  - ` M apps/web/lib/tts/generate-voice.ts`
+  - ` M packages/ai/src/speech.test.ts`
+  - ` M packages/ai/src/speech.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/config.ts`
+  - ` M packages/schemas/src/project.ts`
+  - ` M packages/schemas/src/start.ts`
+  - ` M services/render/deploy.sh`
+  - ` M services/render/src/producer.ts`
+  - `?? apps/web/lib/script/hand-off.ts`
+<!-- /kiro-session:sess_256ae0d2-282c-4907-8a3b-1e5fc56aea75 -->
+- task (run10, claude-haiku-5.5, effort low; prompt by Claude Code): run the schemas, ai, web and render suites over Claude Code's uncommitted long-script change, and fix only tests that hard-code the old limits.
+- result, from the run's own report: ai 394/394, render 181/181, web typecheck clean. Two schemas failures and two web failures came from the old 3-minute export cap. Kiro updated `packages/schemas/src/config.test.ts`, `apps/web/lib/renders/export-flow.test.ts` and `apps/web/components/export/export-dialog.test.tsx` (8 min; the test video is now 500 s). Kiro didn't re-run the full schemas and web suites; Claude Code re-ran schemas (289/289) and the affected web folders (162/162).
+<!-- /kiro-session:sess_256ae0d2-282c-4907-8a3b-1e5fc56aea75 -->
+

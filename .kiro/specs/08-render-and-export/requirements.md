@@ -45,7 +45,7 @@ _As a creator, I want to choose how my video comes out and see what it costs bef
 8. **R1.8** IF some slots are not ready (suggested, generating, failed, an image slot, or a component that doesn't support the chosen format) THEN THE SYSTEM SHALL say how many will be left out ("2 slots aren't ready and will be left out.") and still allow the export. IF no slot would render THEN THE SYSTEM SHALL disable "Export video" with "Add a graphic first."
 9. **R1.9** IF the balance is below the cost THEN THE SYSTEM SHALL disable "Export video" and show "Not enough credits. Small edits stay free." in place of the balance.
 10. **R1.10** _(Removed for now, review F5.)_ Image slots count as "left out" under R1.8 until spec 07 defines asset storage. Waiting for pending images ("Finishing N images…") returns with that work (see "Later").
-11. **R1.11** IF the video is longer than the export limit (`exportMaxMs`, default 3 min) THEN THE SYSTEM SHALL disable "Export video" and say "Exports are up to 3 min for now."
+11. **R1.11** IF the video is longer than the export limit (`exportMaxMs`, default 8 min since D-072) THEN THE SYSTEM SHALL disable "Export video" and say "Exports are up to 8 min for now."
 12. **R1.12** WHILE the device is offline THE SYSTEM SHALL disable "Export video" with "Needs connection" (as for other cloud actions, `hybrid-ai.md`).
 13. **R1.13** THE SYSTEM SHALL make the modal keyboard accessible (focus trap, Esc closes, visible violet focus ring, option cards as radio groups, toggles as switches) and SHALL respect `prefers-reduced-motion`. Task 15 asserts each of these in component tests (review F18).
 
@@ -143,7 +143,7 @@ Claude Code decided the open choices from `design.md` §22 before the founder wa
 |---|---|
 | 4K and transparent WebM | Not implemented now; disabled "Soon" cards stay (R1.5, R1.6); implementation in "Later" |
 | Captions and music toggles | Shown off and disabled with "Soon" (R1.7) until spec 12 |
-| Export limits | 3 minutes per video (`exportMaxMs`), 10 renders per user per UTC day |
+| Export limits | 8 minutes per video (`exportMaxMs`, D-072), 10 renders per user per UTC day |
 | Share page | A minimal page now (R5.4); polish in spec 16 |
 | Cloud approvals | Task 6a (cloud skeleton) and task 22 (smoke test) need the founder's go-ahead; until then everything runs locally |
 

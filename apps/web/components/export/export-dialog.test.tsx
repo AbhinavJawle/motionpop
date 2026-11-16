@@ -206,9 +206,10 @@ describe('export dialog, options view (R1.1–R1.13)', () => {
   });
 
   it('blocks a video over the limit (R1.11) and an offline browser (R1.12)', () => {
-    const p = { ...project(), durationMs: 200_000 };
+    const p = { ...project(), durationMs: 500_000 };
     const { unmount } = render(<Harness over={{ project: p }} />);
-    expect(screen.getByText('Exports are up to 3 min for now.')).toBeTruthy();
+    // Changed: exportMaxMs default is now 8 min (480000 ms).
+    expect(screen.getByText('Exports are up to 8 min for now.')).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Export video' }) as HTMLButtonElement).disabled,
     ).toBe(true);

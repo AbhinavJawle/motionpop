@@ -11,7 +11,8 @@ import { RenderAbortedError, RenderTimeoutError, type Producer } from './ports';
 
 /** Measured in spec 08 task 1: `high` quality with 2 workers beat the alternatives. */
 export const PRODUCER_SETTINGS = { fps: 30, quality: 'high', workers: 2 } as const;
-export const MAX_RENDER_MS = 15 * 60_000;
+// Long enough for an eight-minute export (exportMaxMs) with maps, inside the 60 min task timeout.
+export const MAX_RENDER_MS = 55 * 60_000;
 
 export function createHyperframesProducer(opts: { maxRenderMs?: number } = {}): Producer {
   return {

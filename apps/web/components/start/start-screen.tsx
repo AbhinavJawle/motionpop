@@ -11,6 +11,7 @@ import { handOffFile, handOffSample, PROCESSING_NEW } from '@/lib/intake/hand-of
 import { useStartDraft } from '@/lib/intake/use-start-draft';
 import { hoverLift } from '@/lib/motion/presets';
 import { ProjectTopBar } from './project-top-bar';
+import { putScriptDraft, readScriptDraft } from '@/lib/script/hand-off';
 import { StartHero } from './start-hero';
 
 const ACCEPT = 'audio/*,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus';
@@ -60,7 +61,7 @@ export function StartScreen() {
             onFile={(f) => void go(() => handOffFile(f, draft))}
             onSample={() => void go(() => handOffSample(draft))}
           />
-          <ScriptCard initial={search.get('text') ?? ''} />
+          <ScriptCard initial={search.get('text') ?? readScriptDraft()} />
         </div>
         <button
           type="button"
@@ -222,9 +223,11 @@ function UploadCard({
 /** Paste script: the typed text goes to `/start/script` (task 18), where the voice is made. */
 function ScriptCard({ initial }: { initial: string }) {
   const router = useRouter();
-  const [text, setText] = useState(initial.slice(0, 3000));
-  const open = () =>
-    router.push(text.trim() ? `/start/script?text=${encodeURIComponent(text)}` : '/start/script');
+  const [text, setText] = useState(initial);
+  const open = () => {
+    putScriptDraft(text);
+    router.push('/start/script');
+  };
   return (
     <Card
       testId="start-script"
@@ -242,7 +245,6 @@ function ScriptCard({ initial }: { initial: string }) {
             open();
           }
         }}
-        maxLength={3000}
         rows={2}
         aria-label="Script"
         placeholder={C.script.placeholder}

@@ -13,6 +13,7 @@ import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
 import { PROCESSING_NEW, recordMeta } from '@/lib/intake/hand-off';
 import { setPendingRef } from '@/lib/intake/pending';
 import { StartDraftSchema } from '@motionpop/schemas';
+import { putScriptDraft } from '@/lib/script/hand-off';
 import { buttonMotion } from '@/lib/motion/presets';
 
 export interface CaptureBarHandle {
@@ -166,7 +167,10 @@ export const CaptureBar = forwardRef<CaptureBarHandle, object>(function CaptureB
 
   const submit = () => {
     const t = text.trim();
-    if (t) router.push(`/start?text=${encodeURIComponent(t.slice(0, 3000))}`);
+    if (t) {
+      putScriptDraft(t);
+      router.push('/start');
+    }
   };
 
   const live = mode.kind === 'recording' || mode.kind === 'starting' || mode.kind === 'saving';
