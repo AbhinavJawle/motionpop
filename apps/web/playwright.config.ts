@@ -21,6 +21,16 @@ const LOCAL_ENV = {
   NEXT_PUBLIC_FIREBASE_APP_ID: '',
 };
 
+/** Placeholder web config for the auth project on CI (Auth + Firestore emulators only). */
+const EMULATOR_WEB_CONFIG = {
+  NEXT_PUBLIC_FIREBASE_API_KEY: 'emulator-api-key',
+  NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: 'motionpop-48409.firebaseapp.com',
+  NEXT_PUBLIC_FIREBASE_PROJECT_ID: 'motionpop-48409',
+  NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: 'motionpop-48409.firebasestorage.app',
+  NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '0',
+  NEXT_PUBLIC_FIREBASE_APP_ID: '1:0:web:emulator',
+};
+
 const desktop = { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
 
 export default defineConfig({
@@ -80,6 +90,9 @@ export default defineConfig({
         // Without credentials the Admin SDK probes the GCE metadata server (~5 s per first call).
         METADATA_SERVER_DETECTION: 'none',
         JUDGE_EMAILS: 'judge@example.com',
+        // CI has no `.env.local`: a placeholder web config (the emulators accept any key), so the
+        // app runs with Firebase on instead of falling back to local mode. Never a real config.
+        ...(process.env['CI'] ? EMULATOR_WEB_CONFIG : {}),
       },
       reuseExistingServer: false,
       timeout: 180_000,
