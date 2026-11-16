@@ -16,6 +16,7 @@ import {
 import { popIn } from '@/lib/motion/presets';
 import { GRAPHIC_TYPES } from '@/lib/slots/graphic-types';
 import { switchGraphic } from '@/lib/slots/switch-graphic';
+import { looseReason } from '@/lib/slots/loose';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 
 /**
@@ -187,7 +188,7 @@ function TypePicker({ slot }: { slot: Slot }) {
     setOpen(false);
     if (id === slot.componentId) return;
     if (!switchGraphic(editorStore, slot.id, id, document)) {
-      toast('Couldn’t switch to that one. Try Generate with a prompt.');
+      toast(looseReason(id));
     }
   };
   return (

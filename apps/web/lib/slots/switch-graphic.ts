@@ -18,7 +18,7 @@ export function switchGraphic(
   const project = state.project;
   const slot = project?.slots.find((s) => s.id === slotId);
   if (!project || !slot || slot.componentId === componentId) return false;
-  const params = templateParams(project, { ...slot, componentId }, doc);
+  const params = templateParams(project, { ...slot, componentId }, doc, true);
   if (!params) return false;
   const version = newVersion({
     slotId,
