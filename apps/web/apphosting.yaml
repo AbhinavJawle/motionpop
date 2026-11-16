@@ -14,3 +14,8 @@ env:
     availability:
       - BUILD
       - RUNTIME
+  # Verified emails that get the judge plan on first sign-in (spec 13). A secret: it lists people.
+  - variable: JUDGE_EMAILS
+    secret: JUDGE_EMAILS
+    availability:
+      - RUNTIME
