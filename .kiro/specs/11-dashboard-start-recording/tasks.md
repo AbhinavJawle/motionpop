@@ -39,7 +39,7 @@ Demo path first: tasks 1–18 and 23–25 are the Nov 25 scope. **Cut in this or
 
 ## E. Editor rail panels
 
-- [ ] 20. Projects panel (design §12) in the spec 10 `LeftPanel` container (build the container here first if spec 10 task 1 is not done, and tick it there), with `flushAutosave()` before switching. The rail stops toasting "on its way" for Voice and Projects. — R10
+- [ ] 20. Projects panel (design §12) in the spec 10 `LeftPanel` container (build the container here first if spec 10 task 1 is not done, and tick it there), with `flushAutosave()` before switching. Voice and Projects replace their coming-soon panels from spec 10 task 1. — R10
 - [ ] 21. Voice panel: source chip, duration, waveform, cleanup result, transcript with struck fillers and click-to-seek, Re-record / Replace audio with the new-take modal (new project via the start draft). — R11.1, R11.2
 - [ ] 22. **[kiro]** `setCleanup(enabled)` command (design §12), the optional `cleanedSrc` / `cleanedTranscript` fields, `unmapTime`, and property 9 (off then on is identity; invariants kept or rejected unchanged) over random transcripts with fillers and pauses; then the toggle in the Voice panel. _(First to cut.)_ — R11.3
 
