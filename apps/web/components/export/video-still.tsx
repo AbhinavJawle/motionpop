@@ -70,7 +70,10 @@ export function VideoStill({
     Promise.all([loadCompositionAssets(), previewImages(project)])
       .then(([assets, images]) => {
         if (cancelled) return;
-        el.setAttribute('srcdoc', compileProject({ ...input, images }, assets));
+        el.setAttribute(
+          'srcdoc',
+          compileProject({ ...input, images: { ...input.images, ...images } }, assets),
+        );
         setFailed(false);
       })
       .catch(() => setFailed(true));

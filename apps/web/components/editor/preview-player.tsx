@@ -62,7 +62,11 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
           if (input.slots.some((s) => s.componentId === 'custom')) {
             ref.current.setAttribute('sandbox-origin', 'opaque');
           } else ref.current.removeAttribute('sandbox-origin');
-          ref.current.setAttribute('srcdoc', compileProject({ ...input, images }, assets));
+          // Pictures join the compile input's own images (the globe's imagery), never replace them.
+          ref.current.setAttribute(
+            'srcdoc',
+            compileProject({ ...input, images: { ...input.images, ...images } }, assets),
+          );
           setAssetsError(null);
         })
         .catch((e: unknown) => {
