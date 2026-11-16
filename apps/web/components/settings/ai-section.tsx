@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Toggle } from '@/components/ui/toggle';
 import { Button } from '@/components/ui/button';
 import { StatusDot } from '@/components/ui/status-dot';
-import { setUpOnDevice, useAIStatus, type Availability } from '@/lib/ai/ai-status';
+import { cancelSetUp, setUpOnDevice, useAIStatus, type Availability } from '@/lib/ai/ai-status';
 import { usePreferOnDevice } from '@/lib/settings/use-prefer-on-device';
 import { useCredits } from '@/lib/credits/use-credits';
 import { useUsageSummary } from '@/lib/usage/use-usage-summary';
@@ -85,6 +85,11 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
         {availability === 'downloadable' && (
           <Button variant="ai" size="sm" onClick={() => setConfirming(true)}>
             Set up on-device AI
+          </Button>
+        )}
+        {availability === 'downloading' && (
+          <Button variant="ghost" size="sm" onClick={cancelSetUp}>
+            Cancel
           </Button>
         )}
         {availability === 'unavailable' && (

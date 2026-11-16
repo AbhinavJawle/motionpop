@@ -91,9 +91,10 @@ describe('usePreferOnDevice', () => {
     expect(result.current.preferOnDevice).toBe(true);
   });
 
-  it('signed in but the doc is not loaded yet: not loaded, default on', () => {
+  it('signed in without parseable server settings: usable at once from localStorage, default on', () => {
+    // Founder, 2026-11-16: the toggle froze while it waited for settings that never came.
     h.auth = { status: 'signed-in', user: { uid: 'u1' } };
     const { result } = renderHook(() => usePreferOnDevice());
-    expect(result.current).toMatchObject({ preferOnDevice: true, loaded: false });
+    expect(result.current).toMatchObject({ preferOnDevice: true, loaded: true });
   });
 });

@@ -93,7 +93,25 @@ interface PromptApiCreate {
   create: (opts: {
     expectedInputs: { type: string }[];
     monitor?: (m: EventTarget) => void;
+    signal?: AbortSignal;
   }) => Promise<{ destroy?: () => void }>;
+}
+
+let setupAbort: AbortController | null = null;
+
+/**
+ * Cancels a running set-up (founder, 2026-11-16). Aborts our `LanguageModel.create()` and returns
+ * to "Set up"; Chrome manages the model itself and may still finish a download it already began.
+ */
+export function cancelSetUp(): void {
+  if (useAIStatusStore.getState().availability !== 'downloading') return;
+  setupAbort?.abort();
+  setupAbort = null;
+  useAIStatusStore.setState({
+    availability: 'downloadable',
+    setupProgress: null,
+    setupError: 'Download cancelled.',
+  });
 }
 
 /**
@@ -114,8 +132,11 @@ export async function setUpOnDevice(): Promise<void> {
     return;
   }
   useAIStatusStore.setState({ availability: 'downloading', setupProgress: 0, setupError: null });
+  const abort = new AbortController();
+  setupAbort = abort;
   try {
     const session = await api.create({
+      signal: abort.signal,
       expectedInputs: [{ type: 'text' }, { type: 'image' }],
       monitor: (m) =>
         m.addEventListener('downloadprogress', (e) =>
@@ -123,8 +144,13 @@ export async function setUpOnDevice(): Promise<void> {
         ),
     });
     session.destroy?.();
+    if (abort.signal.aborted) return;
+    setupAbort = null;
     useAIStatusStore.setState({ availability: 'available', setupProgress: null });
   } catch (err) {
+    // A cancel already reset the state and its message.
+    if (abort.signal.aborted) return;
+    setupAbort = null;
     console.warn('On-device set-up failed', err);
     useAIStatusStore.setState({
       availability: 'downloadable',

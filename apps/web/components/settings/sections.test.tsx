@@ -8,6 +8,7 @@ import { aggregateUsage } from '@/lib/usage/aggregate';
 delete (Element.prototype as any).animate;
 
 const h = vi.hoisted(() => ({
+  cancel: vi.fn(),
   auth: {
     status: 'signed-in',
     user: { uid: 'u1', email: 'ada@example.com', displayName: 'Ada', photoURL: null },
@@ -36,6 +37,7 @@ vi.mock('@/lib/settings/use-prefer-on-device', () => ({ usePreferOnDevice: () =>
 vi.mock('@/lib/ai/ai-status', () => ({
   useAIStatus: () => h.status,
   setUpOnDevice: h.setUp,
+  cancelSetUp: h.cancel,
 }));
 vi.mock('@/lib/usage/use-usage-summary', () => ({ useUsageSummary: () => h.usage }));
 vi.mock('@/lib/credits/use-ledger', () => ({ useLedger: () => h.ledger }));
@@ -146,6 +148,9 @@ describe('AISection', () => {
       within(screen.getByTestId('on-device-status')).getByText('Setting up · 34 %'),
     ).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'Set up on-device AI' })).toBeNull();
+    // A running download can be cancelled (founder, 2026-11-16).
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    expect(h.cancel).toHaveBeenCalledOnce();
   });
 
   it('links to the instructions when the browser has no on-device model', () => {

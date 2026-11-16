@@ -1,7 +1,7 @@
 'use client';
 
 import { DEFAULT_USER_SETTINGS, type UserSettings } from '@motionpop/schemas';
-import { useCallback, useSyncExternalStore } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from '../auth/auth-provider';
 import { useCredits } from '../credits/use-credits';
@@ -43,7 +43,7 @@ const readLocal = (): boolean =>
 
 /** The toggle's value and a saver that reverts and toasts when the write fails. */
 export function usePreferOnDevice(): {
-  /** True until the saved value is known (the default is on). */
+  /** The saved value, or the one just clicked while it saves (the default is on). */
   preferOnDevice: boolean;
   loaded: boolean;
   save: (next: boolean) => Promise<boolean>;
@@ -52,10 +52,16 @@ export function usePreferOnDevice(): {
   const { settings } = useCredits();
   const local = useSyncExternalStore(subscribeLocal, readLocal, () => true);
   const uid = auth.status === 'signed-in' ? auth.user.uid : null;
+  // Founder, 2026-11-16: the toggle froze when `users/{uid}` had no parseable settings (it waited
+  // for them forever). Without server settings it now works from localStorage, and a click shows
+  // the new value at once (optimistic), reverting only if the write fails.
+  const serverBacked = uid !== null && settings !== null;
+  const [pending, setPending] = useState<boolean | null>(null);
 
   const save = useCallback(
     async (next: boolean): Promise<boolean> => {
-      if (!uid) {
+      setPending(next);
+      if (!serverBacked || !uid) {
         window.localStorage.setItem(
           LOCAL_SETTINGS_KEY,
           JSON.stringify({
@@ -64,6 +70,7 @@ export function usePreferOnDevice(): {
           }),
         );
         for (const l of localListeners) l();
+        setPending(null);
         return true;
       }
       const current = userStore.get(uid).settings ?? DEFAULT_USER_SETTINGS;
@@ -75,13 +82,13 @@ export function usePreferOnDevice(): {
       } catch {
         toast.error(SAVE_FAILED_COPY);
         return false;
+      } finally {
+        setPending(null);
       }
     },
-    [uid],
+    [uid, serverBacked],
   );
 
-  if (uid) {
-    return { preferOnDevice: settings?.preferOnDevice ?? true, loaded: settings !== null, save };
-  }
-  return { preferOnDevice: local, loaded: auth.status !== 'loading', save };
+  const saved = serverBacked ? (settings?.preferOnDevice ?? true) : local;
+  return { preferOnDevice: pending ?? saved, loaded: auth.status !== 'loading', save };
 }
