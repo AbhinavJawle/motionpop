@@ -33,6 +33,10 @@ describe('parseRemoteConfig', () => {
       export_max_ms: '90000',
       renders_per_user_per_day: '4',
       export_credits: '{"720p":2,"1080p":6}',
+      rate_limit_cloud_per_hour: '12',
+      refunds_per_day: '15',
+      usage_events_per_day: '300',
+      credit_costs: '{"generate":2,"tts":5}',
     });
     expect(cfg).toEqual({
       routingSlotsDetectDeviceMaxWords: 250,
@@ -55,7 +59,45 @@ describe('parseRemoteConfig', () => {
       exportMaxMs: 90_000,
       rendersPerUserPerDay: 4,
       exportCredits: { '720p': 2, '1080p': 6 },
+      rateLimitCloudPerHour: 12,
+      refundsPerDay: 15,
+      usageEventsPerDay: 300,
+      creditCosts: { generate: 2, tts: 5 },
     });
+  });
+
+  // Spec 13: each new key falls back alone.
+  it('has the credit defaults of spec 13 (30 spends an hour, 30 refunds and 1000 usage events a day)', () => {
+    expect(APP_CONFIG_DEFAULTS.rateLimitCloudPerHour).toBe(30);
+    expect(APP_CONFIG_DEFAULTS.refundsPerDay).toBe(30);
+    expect(APP_CONFIG_DEFAULTS.usageEventsPerDay).toBe(1000);
+    expect(APP_CONFIG_DEFAULTS.creditCosts).toEqual({});
+  });
+
+  it.each([
+    ['rate_limit_cloud_per_hour', 'lots', 'rateLimitCloudPerHour', 30],
+    ['rate_limit_cloud_per_hour', '-2', 'rateLimitCloudPerHour', 30],
+    ['refunds_per_day', '1.5', 'refundsPerDay', 30],
+    ['usage_events_per_day', '', 'usageEventsPerDay', 1000],
+    ['credit_costs', '{not json', 'creditCosts', {}],
+    ['credit_costs', '[1,2]', 'creditCosts', {}],
+    ['credit_costs', 'null', 'creditCosts', {}],
+  ] as const)('a bad %s value (%s) falls back to the default of %s', (key, raw, field, dflt) => {
+    expect(parseRemoteConfig({ [key]: raw })[field]).toEqual(dflt);
+  });
+
+  it('credit_costs keeps good entries and drops bad or unknown ones one by one', () => {
+    const cfg = parseRemoteConfig({
+      credit_costs:
+        '{"generate":2,"edit":0,"tts":"3","export":9,"pip-plan":2.5,"__proto__":4,"custom":7}',
+    });
+    expect(cfg.creditCosts).toEqual({ generate: 2, custom: 7 });
+  });
+
+  it('a bad credit_costs does not disturb the other new keys', () => {
+    const cfg = parseRemoteConfig({ credit_costs: 'x', refunds_per_day: '7' });
+    expect(cfg.creditCosts).toEqual({});
+    expect(cfg.refundsPerDay).toBe(7);
   });
 
   it('has the export defaults of spec 08 (3 min, 10 a day, 720p 3 and 1080p 5 credits)', () => {

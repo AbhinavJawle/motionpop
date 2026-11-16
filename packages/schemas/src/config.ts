@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { CreditCostsSchema, PricedActionSchema } from './credits';
 import { DEFAULT_EXPORT_CREDITS, ExportCreditsSchema } from './render';
 
 /** Firebase AI Logic inference modes (hybrid-ai.md). */
@@ -40,6 +41,14 @@ export const AppConfigSchema = z.object({
   rendersPerUserPerDay: NonNegInt,
   /** Credits per started minute for each export resolution. */
   exportCredits: ExportCreditsSchema,
+  /** AI spends a user may make per UTC hour (spec 13 R3.1). */
+  rateLimitCloudPerHour: NonNegInt,
+  /** Client refunds per user per UTC day; at least the hourly cap so the rate limit binds first. */
+  refundsPerDay: NonNegInt,
+  /** Usage events stored per user per UTC day (spec 13 R7.1). */
+  usageEventsPerDay: NonNegInt,
+  /** Partial overrides of the AI price table in `cost.ts` (spec 13 R2.1). */
+  creditCosts: CreditCostsSchema,
 });
 export type AppConfig = z.infer<typeof AppConfigSchema>;
 
@@ -65,6 +74,10 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   exportMaxMs: 180_000,
   rendersPerUserPerDay: 10,
   exportCredits: DEFAULT_EXPORT_CREDITS,
+  rateLimitCloudPerHour: 30,
+  refundsPerDay: 30,
+  usageEventsPerDay: 1000,
+  creditCosts: {},
 };
 
 type Decoder = (raw: string) => unknown;
@@ -82,6 +95,18 @@ const json = (raw: string): unknown => {
   }
 };
 const str = (raw: string): unknown => raw.trim();
+/** A JSON object of price overrides; an entry that is not a known action with a positive integer is dropped alone. */
+const creditCosts = (raw: string): unknown => {
+  const parsed = json(raw);
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+  const out: Record<string, number> = {};
+  for (const action of PricedActionSchema.options) {
+    if (!Object.prototype.hasOwnProperty.call(parsed, action)) continue;
+    const v = (parsed as Record<string, unknown>)[action];
+    if (typeof v === 'number' && Number.isInteger(v) && v > 0) out[action] = v;
+  }
+  return out;
+};
 
 /** Remote Config key and decoder for each AppConfig field. */
 const KEYS: Record<keyof AppConfig, { key: string; decode: Decoder }> = {
@@ -105,6 +130,10 @@ const KEYS: Record<keyof AppConfig, { key: string; decode: Decoder }> = {
   exportMaxMs: { key: 'export_max_ms', decode: int },
   rendersPerUserPerDay: { key: 'renders_per_user_per_day', decode: int },
   exportCredits: { key: 'export_credits', decode: json },
+  rateLimitCloudPerHour: { key: 'rate_limit_cloud_per_hour', decode: int },
+  refundsPerDay: { key: 'refunds_per_day', decode: int },
+  usageEventsPerDay: { key: 'usage_events_per_day', decode: int },
+  creditCosts: { key: 'credit_costs', decode: creditCosts },
 };
 
 /**
