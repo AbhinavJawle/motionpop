@@ -101,7 +101,7 @@ function motionValidate(componentId: string, params: Record<string, unknown>): V
 }
 
 describe('postPass table', () => {
-  it('turns the demo into an opening hook and a ready stat-punch', () => {
+  it('turns the demo into an opening hook, a ready stat-punch and a closing hook', () => {
     // Changed by spec 07 task 27: the number is a stat-punch (was one big-number slot) and the
     // opening line a hook-statement draft for auto-fill. "Here's what comes next" ends the
     // transcript too soon to be read, so it is not a hook.
@@ -115,9 +115,10 @@ describe('postPass table', () => {
     ).toEqual([
       // Grows at its end up to the gap before the stat, so it overlaps "Our" (3550–3980).
       ['s-1', 'hook-statement', 'suggested', 0, 3800, 0, 5],
-      // Leads in from "revenue" (900 ms before "forty") and reaches its ideal at the end only:
-      // 4200 + 4600.
-      ['s-2', 'stat-punch', 'ready', 4200, 8800, 6, 12],
+      // Leads in from "revenue" (900 ms before "forty"); now ends at the gap before the hook.
+      ['s-2', 'stat-punch', 'ready', 4200, 8250, 6, 11],
+      // The coverage hook (2026-11-16) holds through the closing line, so no empty frame.
+      ['s-3', 'hook-statement', 'suggested', 8650, 15740, 12, 21],
     ]);
     for (const slot of out) expect(SlotSchema.safeParse(slot).success).toBe(true);
     const stat = out[1];

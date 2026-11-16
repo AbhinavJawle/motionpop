@@ -594,12 +594,14 @@ describe('runPipeline: slot detection (spec 06)', () => {
     const step = (name: string) =>
       h.events.find((e) => e.type === 'step' && e.step === name && e.state === 'done');
     expect(step('moments')).toMatchObject({ detail: 'Found 3 moments' });
-    expect(step('suggest')).toMatchObject({ detail: '2 slots found' });
+    // Three since the coverage pass (2026-11-16): the closing stretch gets its spoken line.
+    expect(step('suggest')).toMatchObject({ detail: '3 slots found' });
     const slotsEvent = h.events.find((e) => e.type === 'slots');
     expect(slotsEvent).toMatchObject({
       slots: [
         { componentId: 'hook-statement', status: 'suggested' },
         { componentId: 'stat-punch', status: 'ready' },
+        { componentId: 'hook-statement', status: 'suggested' },
       ],
     });
 

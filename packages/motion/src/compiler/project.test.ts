@@ -124,3 +124,20 @@ describe('slot timing reaches the compile input (spec 09 task 8)', () => {
     expect(input.slots[0]?.timing).not.toBe(withTiming.timing);
   });
 });
+
+describe('captions step aside under verbatim scenes (founder QA, 2026-11-16)', () => {
+  it('drops the caption groups that overlap a hook-statement, keeps the rest', () => {
+    const hook = {
+      ...statPunchSlot('h', 700, 3500),
+      componentId: 'hook-statement',
+      params: { content: { line: 'A line on screen' }, beats: [], images: [] },
+    };
+    const withHook = fixtureProject({ slots: [hook] });
+    const without = fixtureProject({ slots: [] });
+    expect(isRenderable(hook)).toBe(true);
+    const all = projectCompileInput(without, { mode: 'preview' }).captions?.groups ?? [];
+    const kept = projectCompileInput(withHook, { mode: 'preview' }).captions?.groups ?? [];
+    expect(all.length).toBeGreaterThan(kept.length);
+    for (const g of kept) expect(g.openMs >= 3500 || g.closeMs <= 700).toBe(true);
+  });
+});
