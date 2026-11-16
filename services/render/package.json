@@ -12,7 +12,8 @@
     "test": "vitest run --passWithNoTests",
     "render:dir": "tsx scripts/render-dir.ts",
     "skeleton": "tsx scripts/skeleton.ts",
-    "parity": "tsx scripts/parity.ts"
+    "parity": "tsx scripts/parity.ts",
+    "spike": "tsx scripts/spike-output.ts"
   },
   "dependencies": {
     "@hyperframes/producer": "catalog:",

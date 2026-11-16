@@ -21,7 +21,7 @@ Two standing rules:
 
 ## A. Foundations
 
-- [ ] 1. **Spike (local, $0): the producer against our compositions.**
+- [x] 1. **Spike (local, $0): the producer against our compositions.**
   - Using `scripts/skeleton.ts` and parity fixtures, check on 0.9.46:
     - `outputResolution` 720p from a 1080p composition in 16:9, 9:16 and 1:1 (works, or needs the ffmpeg scale fallback);
     - `quality` high vs standard, and `workers: 2` vs automatic, on an 18 s project (time and peak memory).
@@ -29,6 +29,19 @@ Two standing rules:
   - Record the numbers in the task note here, and draft D-034 for the IDE to enter (the builder agent can't write `docs/`).
   - 4K and transparent WebM are not checked here: they moved to "Later" (review F7).
   - — R3.3, NFR1
+  - _Done 2026-11-16 (headless run, claude-sonnet-5.5; Context7 `/heygen-com/hyperframes` read first: `createRenderJob`, `executeRenderJob`, `outputResolution` presets, "render at smaller sizes" since 0.8.168). Script: `services/render/scripts/spike-output.ts` (`pnpm --filter @motionpop/render spike [outDir]`), $0, local. Machine: Apple Silicon arm64 laptop, macOS, Node 24, producer 0.9.46, ffmpeg from Homebrew, the `field-notes` look with `stat-punch` and `hook-statement` scenes and a 48 kHz sine as the voice. Peak memory is the summed resident size of node + Chrome + ffmpeg, sampled every 400 ms._
+    - _**720p works natively, no ffmpeg fallback needed.** `outputResolution: landscape-720p | portrait-720p | square-720p` gave 1280×720, 720×1280 and 720×720 from the 1080p compositions, with the exact frame count (`msToFrame(4600) = 138`), 4.60 s, AAC audio present. A 720p frame matches the 1080p frame scaled to 1280×720 with a mean absolute difference of 0.57 %, so it is scaled, not cropped. Native 1080p: 1920×1080, 1080×1920 and 1080×1080, 138 frames each._
+    - _**18 s, 16:9, 1080p (540 frames, exact, 18.00 s):**_
+      | quality | workers | wall | file | peak memory |
+      |---|---|---|---|---|
+      | high | 2 | 23.3 s | 8.42 MB | 1329 MB |
+      | high | auto | 40.5 s | 8.41 MB | 828 MB |
+      | standard | 2 | 27.8 s | 6.23 MB | 1170 MB |
+      | standard | auto | 41.7 s | 6.26 MB | 991 MB |
+    - _`auto` picked 1 worker on this machine, so `workers: 2` is about 1.7× faster for 0.5 GB more memory. `high` was not slower than `standard` (23 s vs 28 s, one run each, so within noise) and gives sharper text at +35 % size, so the choice stays `quality: 'high'`, `workers: 2` as in design §8. The numbers are one run each on a 10-core laptop: Cloud Run (4 vCPU) timing comes from task 6a. NFR1's 45 s offline target is met by a wide margin (23 s for 18 s of video, 9–16 s for 4.6 s)._
+    - _Draft D-034 lines for the IDE (the builder agent can't write `docs/`): "Export 720p uses the producer's `outputResolution` presets (verified on 0.9.46); 1080p is native. Renders use `quality: 'high'`, `workers: 2` (18 s 1080p: 23 s wall, 1.3 GB peak on a laptop)."_
+    - _First-run cost: the first render of each process took ~16 s for a 4.6 s clip against 9–11 s for the following ones (Chrome and font warm-up), which is a hint for the cold-start measurement in 6a._
+    - _Follow-up in design: §1.1 and §14 now say the 720p check passed. Checks: prettier, typecheck and lint on `services/render` (the script has no unit tests; it is a measurement tool)._
 - [ ] 2. **Schemas** in `packages/schemas/src/render.ts`, with unit tests:
   - `RenderOptions` (720p and 1080p only), `RenderRequest`, `RenderDoc` (with invariants), `RenderErrorCode`, `ShareDoc`, the API response and error schemas;
   - `exportCost`, `renderPaths`, `sanitizeFilename`, `canTransition`, `nextProgress`, `outputResolutionFor`, `exportAvailability` (image slots count as left out, review F5), `voicePathFor`, `isSafeId`;
