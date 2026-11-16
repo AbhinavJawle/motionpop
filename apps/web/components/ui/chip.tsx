@@ -66,7 +66,12 @@ export function CostChip({
 }) {
   if (route === 'device') {
     return (
-      <Chip tone="mint" icon={<Zap strokeWidth={1.5} aria-hidden />} className={className}>
+      // The design's bolt is a filled amber ⚡ (editor.png, "Free on-device chip"), with a faint mint ring.
+      <Chip
+        tone="mint"
+        icon={<Zap strokeWidth={0} className="fill-bolt" aria-hidden />}
+        className={cn('shadow-[inset_0_0_0_1px_rgb(61_220_151/0.14)]', className)}
+      >
         free · on-device
       </Chip>
     );

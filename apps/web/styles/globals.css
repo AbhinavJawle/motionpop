@@ -88,6 +88,14 @@
   --color-zoom-thumb: #e2ddec;
   --color-bubble-ink: #c5bece; /* Pip bubble */
   --color-style-ink: #c4bfce; /* style name in inspector */
+  --color-eyebrow: #8e899e; /* "GRAPHIC" */
+  --color-bolt: #ffb43a; /* the filled ⚡ in the on-device chip */
+  --color-section: #8b849a; /* CONTENT, STYLE, TIMING, VERSIONS labels */
+  --color-placeholder: #aaa2b8; /* quick edit placeholder */
+  --color-glyph: #81739d; /* version tile bars and dots (muted violet) */
+  --color-curve: #b9a9ff; /* ease curve stroke */
+  --color-field-ink: #e6e3ef; /* title field text */
+  --color-cell-ink: #e3dfed; /* data table values */
 
   /* Type */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
