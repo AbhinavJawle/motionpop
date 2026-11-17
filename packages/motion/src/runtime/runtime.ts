@@ -7,9 +7,11 @@ import { components } from '../components';
 import { scenes } from '../scenes';
 import type { RuntimeProject } from '../compiler/types';
 import { CUSTOM_ALLOW_FLAG } from '../components/custom/build';
-import { createEngine, type SlotError, type SlotWarning } from './engine';
+import { createEngine, projectSeams, type SlotError, type SlotWarning } from './engine';
 import { mountBackdrop } from './backdrop';
 import { mountLens } from './lens';
+import { mountWorld } from './world';
+import { planVideo } from '../engine/video-plan';
 import { mountCaptions } from './captions';
 import { fontStack } from '../fonts/font-faces';
 import { inspectBeat, type CriticSummary } from '../film/critic';
@@ -55,7 +57,15 @@ if (project) {
   let captions: { seek(tMs: number): void } | null = null;
   const backdropHost = document.getElementById('mp-backdrop');
   // A film's beats carry the picture from start to end: no drifting backdrop behind them.
-  const backdrop = backdropHost && !project.film ? mountBackdrop(backdropHost, project) : null;
+  // A staged video (spec 07c) is one world the camera travels through; otherwise the backdrop.
+  const staged = project.staging !== false && project.slots.length > 0;
+  const plan = staged && !project.film ? planVideo(project.slots) : null;
+  const backdrop =
+    backdropHost && !project.film
+      ? plan
+        ? mountWorld(backdropHost, project, plan, projectSeams(project, plan))
+        : mountBackdrop(backdropHost, project)
+      : null;
   const lensHost = document.getElementById('mp-lens');
   const lens = lensHost ? mountLens(lensHost, project) : null;
   // Captions measure text, so they mount once the engine has loaded the fonts (spec 12 R5).

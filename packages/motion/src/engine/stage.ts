@@ -20,6 +20,7 @@ import { scheduleBeats, type BeatPlan, type CueSpec, type SlotWordTime } from '.
 import { buildDecor } from './decor';
 import { buildSurface, mix } from './materials';
 import { cameraTrack, planJuice, type JuiceBeat, type JuicePlan } from './juice';
+import type { SlotStaging } from './video-plan';
 
 /**
  * The stage (spec 07 design, "Stage engine"). A scene puts actors in boxes and attaches
@@ -42,6 +43,11 @@ export interface SceneContext extends BuildContext {
    * `fade: false`). Set by the runtime from the slot's timing, so scenes stay unaware of it.
    */
   exit?: 'fade' | 'none';
+  /**
+   * The slot's place in the whole video (spec 07c): its companion, side, climax and station.
+   * Set by the runtime from every slot; absent when a slot is built alone (gates, tests).
+   */
+  staging?: SlotStaging;
 }
 
 export interface TextSlot {

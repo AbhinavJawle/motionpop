@@ -16,6 +16,7 @@ import { hashString } from '../core/rng';
 import { fontStack, primaryFamily } from '../fonts/font-faces';
 import { withTiming } from './timing';
 import { guardSeams, NO_SEAMS, planSeams, seamState, type SlotSeams } from './seams';
+import { planVideo, type VideoPlan } from '../engine/video-plan';
 
 const FALLBACK_SEAMS: SlotSeams = {
   enter: { kind: 'slide', dir: 1 },
@@ -98,6 +99,26 @@ export function fontRequests(project: RuntimeProject): string[] {
 }
 
 const messageOf = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+/**
+ * The seam of every slot boundary. Staged videos (spec 07c) travel one way, like a camera moving
+ * through one world, and the climax is entered with a pull. The world layer reads the same plan.
+ */
+export function projectSeams(
+  project: RuntimeProject,
+  plan: VideoPlan | null,
+): Map<string, SlotSeams> {
+  return planSeams(
+    project.slots.map((x) => ({
+      id: x.id,
+      startMs: x.startMs,
+      endMs: x.endMs,
+      energy: x.id === plan?.climaxId ? 'hype' : (x.energy ?? undefined),
+    })),
+    'transitions' in project.style ? project.style.transitions : undefined,
+    plan ? { journey: true } : undefined,
+  );
+}
 
 export function createEngine(project: RuntimeProject, opts: EngineOptions): Engine {
   const { doc, components, fonts } = opts;
@@ -192,6 +213,8 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
             ...(slot.stress ? { stress: slot.stress } : {}),
             ...(slot.pauses ? { pauses: slot.pauses } : {}),
             ...((slot.energy ?? project.energy) ? { energy: slot.energy ?? project.energy } : {}),
+            // The slot's place in the whole video (spec 07c): companion, side, climax.
+            ...(videoPlan?.slots.get(slot.id) ? { staging: videoPlan.slots.get(slot.id) } : {}),
           } as SceneContext,
           parsed.data,
         );
@@ -222,15 +245,12 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
   let pendingMs = 0;
   const broken = new Set<string>();
   const pushAmount = project.style.motion.camera.pushIn;
-  const seamPlan = planSeams(
-    project.slots.map((x) => ({
-      id: x.id,
-      startMs: x.startMs,
-      endMs: x.endMs,
-      energy: x.energy ?? undefined,
-    })),
-    'transitions' in project.style ? project.style.transitions : undefined,
-  );
+  // Whole-video staging (spec 07c): planned once from every slot, before any is built. A film
+  // carries its own continuity, so it is never staged. Pictures that failed to load are left
+  // out once the images have decoded (see `ready`).
+  const staged = project.staging !== false && !project.film;
+  let videoPlan: VideoPlan | null = staged ? planVideo(project.slots) : null;
+  const seamPlan = projectSeams(project, videoPlan);
   const stepFps = 'personality' in project.style ? project.style.personality?.stepFps : undefined;
   const seamStep = stepFps ? 1000 / stepFps : 0;
 
@@ -304,6 +324,9 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
   const ready = Promise.all([loadFonts(), loadImages()])
     .catch((e: unknown) => fail('*', 'fonts', e))
     .then(() => {
+      // Plan again with the pictures that really loaded: a missing one leaves its side to a
+      // companion instead of an empty split.
+      if (staged) videoPlan = planVideo(project.slots, new Set(Object.keys(images ?? {})));
       slots = mountAll();
       seek(pendingMs);
     });

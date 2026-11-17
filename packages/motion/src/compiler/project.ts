@@ -82,7 +82,8 @@ export function compileSlot(slot: Slot, transcript: EditorProject['transcript'])
   }
   return {
     ...withTimingField,
-    ...(t.words ? { words: t.words } : {}),
+    // Spec 07c: scenes get the spoken text too (the video plan finds what a number counts).
+    ...(t.words ? { words: t.words.map((w, i) => ({ ...w, text: t.text[i] ?? '' })) } : {}),
     ...(t.stress ? { stress: t.stress } : {}),
     ...(t.pauses ? { pauses: t.pauses } : {}),
     ...(slot.energy ? { energy: slot.energy } : {}),

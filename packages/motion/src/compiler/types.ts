@@ -58,6 +58,11 @@ export interface CompileInput {
   /** Seams between graphics (default on). motion:check turns them off to measure settled layout. */
   seams?: boolean;
   /**
+   * Whole-video staging (spec 07c, default on): companions, the climax, sides and the world
+   * camera, planned across every slot by the runtime. `false` shows each slot on its own.
+   */
+  staging?: boolean;
+  /**
    * A film (spec 07b): the beats tile the voiceover and carry the picture themselves, so the
    * drifting backdrop is left out and the grain is laid over the graphics as well as under them.
    */
@@ -85,6 +90,7 @@ export interface RuntimeProject {
   energy?: Energy;
   mode?: 'preview' | 'render';
   seams?: boolean;
+  staging?: boolean;
   film?: boolean;
   captions?: CompileCaptions;
   images?: Record<string, ImageRef>;

@@ -28,11 +28,12 @@ describe('previewCompileInput (spec 07 task 27)', () => {
     expect(isRenderable(STAT)).toBe(true);
     const [slot] = previewCompileInput(p).slots;
     expect(slot).toMatchObject({ id: 'slot-s', componentId: 'stat-punch', params: STAT.params });
-    // revenue 4200, grew 4980, forty 5580, …: word 2 ("forty") lands 1380 ms in.
+    // revenue 4200, grew 4980, forty 5580, …: word 2 ("forty") lands 1380 ms in. Changed by
+    // spec 07c: scenes get the spoken text too (companions read it).
     expect(slot?.words?.slice(0, 3)).toEqual([
-      { startMs: 0, endMs: 580 },
-      { startMs: 780, endMs: 1280 },
-      { startMs: 1380, endMs: 1850 },
+      { startMs: 0, endMs: 580, text: 'revenue' },
+      { startMs: 780, endMs: 1280, text: 'grew' },
+      { startMs: 1380, endMs: 1850, text: 'forty' },
     ]);
     expect(slot?.words).toHaveLength(6);
   });

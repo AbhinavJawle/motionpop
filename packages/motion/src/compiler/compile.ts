@@ -84,6 +84,7 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
     style,
     mode: input.mode ?? 'preview',
     ...(input.seams === false ? { seams: false } : {}),
+    ...(input.staging === false ? { staging: false } : {}),
     ...(input.film ? { film: true } : {}),
     slots: input.slots,
     ...(input.energy ? { energy: input.energy } : {}),

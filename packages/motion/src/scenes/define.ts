@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { Format, MotionComponent } from '../contract';
 import type { CueSpec } from '../engine/beats';
 import type { SceneContext, StageComposition } from '../engine/stage';
+import { buildCompanionLayer } from './companion-layer';
 import { buildImageLayer, splitFrame } from './image-layer';
 
 /**
@@ -151,16 +152,31 @@ export function defineScene<C>(def: SceneDef<C>): Scene<C> {
         score.beats.length > 0
           ? score.beats
           : [{ cue: def.focalCue, word: nearest(words, ctx.keyMomentMs) }];
-      const variant = pickVariant(def.variants, score.variant, ctx.seed);
-      // A ready image for one of this scene's roles splits the frame (image-layer.ts).
+      const staging = ctx.staging;
+      // The climax lands in the scene's strongest variant (spec 07c R3.3).
+      const variant = staging?.climax
+        ? def.peakVariant
+        : pickVariant(def.variants, score.variant, ctx.seed);
+      // The slot before the climax is held calm: stillness before the climax.
+      const sctx: SceneContext = staging?.calm ? { ...ctx, energy: 'calm' } : ctx;
+      // A ready image for one of this scene's roles splits the frame (image-layer.ts); without
+      // one, the video plan's companion may take the open side instead (spec 07c R2).
       const roles = new Set(def.imageRoles.map((r) => r.id));
       const pick = score.images.find(
         (i) => roles.has(i.role) && i.assetId && ctx.images?.[i.assetId],
       );
       const ref = pick?.assetId ? ctx.images?.[pick.assetId] : undefined;
-      if (!ref) return def.build({ ...ctx, words }, { ...score, beats }, variant);
+      const companion = !ref && roles.size > 0 ? (staging?.companion ?? null) : null;
+      if (!ref && !companion) return def.build({ ...sctx, words }, { ...score, beats }, variant);
 
-      const split = splitFrame(ctx.format, ctx.width, ctx.height, def.imageShare ?? 0.42, ctx.seed);
+      const share = ref
+        ? (def.imageShare ?? 0.42)
+        : // A count needs room to be counted; a stamp is a smaller accent.
+          companion?.kind === 'stamp'
+          ? 0.36
+          : 0.44;
+      const sideSeed = staging ? (staging.side === 'left' ? 0 : 1) : ctx.seed;
+      const split = splitFrame(ctx.format, ctx.width, ctx.height, share, sideSeed);
       const doc = ctx.root.ownerDocument;
       ctx.root.style.cssText = 'position:absolute;inset:0;';
       const sub = doc.createElement('div');
@@ -170,7 +186,7 @@ export function defineScene<C>(def: SceneDef<C>): Scene<C> {
       ctx.root.append(sub);
       const comp = def.build(
         {
-          ...ctx,
+          ...sctx,
           root: inner,
           width: split.text.width,
           height: split.text.height,
@@ -181,20 +197,45 @@ export function defineScene<C>(def: SceneDef<C>): Scene<C> {
         variant,
       );
       // The text root fills the sub-frame (the stage set inset:0 on it).
-      const first = Math.min(...comp.report.plan.cues.map((c) => c.startMs), ctx.keyMomentMs);
-      const layer = buildImageLayer({
-        doc,
-        parent: ctx.root,
-        box: split.image,
-        ref,
-        style: ctx.style,
-        look: ctx.look,
-        seed: ctx.seed,
-        durationMs: ctx.durationMs,
-        enterAtMs: Math.max(0, first - 250),
-        exit: ctx.exit ?? 'fade',
-        frameH: ctx.height,
-      });
+      const cues = comp.report.plan.cues;
+      const first = Math.min(...cues.map((c) => c.startMs), ctx.keyMomentMs);
+      const exit = ctx.exit ?? 'fade';
+      let layer: { el: HTMLElement; seek: (tMs: number) => void; landMs: number };
+      if (ref) {
+        layer = buildImageLayer({
+          doc,
+          parent: ctx.root,
+          box: split.image,
+          ref,
+          style: ctx.style,
+          look: ctx.look,
+          seed: ctx.seed,
+          durationMs: ctx.durationMs,
+          enterAtMs: Math.max(0, first - 250),
+          exit,
+          frameH: ctx.height,
+        });
+      } else {
+        // Counting companions run with the focal cue (the number counts, the dots fill); a
+        // stamp arrives just ahead of the first cue, like a picture would.
+        const focal = cues.find((c) => c.id === def.focalCue);
+        const counts = companion!.kind !== 'stamp' && focal !== undefined;
+        layer = buildCompanionLayer({
+          doc,
+          parent: ctx.root,
+          box: split.image,
+          companion: companion!,
+          style: ctx.style,
+          look: ctx.look,
+          seed: ctx.seed,
+          durationMs: ctx.durationMs,
+          startMs: counts ? focal.startMs : Math.max(0, first - 250),
+          landMs: counts ? focal.landMs : Math.max(0, first - 250) + 700,
+          exitStartMs: comp.report.plan.exitStartMs,
+          exit,
+          frameH: ctx.height,
+        });
+      }
       ctx.root.insertBefore(layer.el, sub);
       return {
         ...comp,
@@ -204,7 +245,7 @@ export function defineScene<C>(def: SceneDef<C>): Scene<C> {
         },
         soundCues: [
           ...comp.soundCues,
-          { atMs: layer.landMs, kind: 'enter' as const, sound: 'whoosh' },
+          { atMs: layer.landMs, kind: 'enter' as const, sound: ref ? 'whoosh' : 'pop' },
         ].sort((a, b) => a.atMs - b.atMs),
         dispose() {
           comp.dispose();

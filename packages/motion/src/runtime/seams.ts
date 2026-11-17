@@ -88,6 +88,11 @@ function unit(s: string): number {
 export function planSeams(
   slots: readonly { id: string; startMs: number; endMs: number; energy?: string | undefined }[],
   transitions: readonly string[] | undefined,
+  /**
+   * `journey` (spec 07c): every slide and whip travels the same way (content leaves to the left,
+   * the camera moves on to the right), so the seams read as one camera moving through one world.
+   */
+  opts: { journey?: boolean } = {},
 ): Map<string, SlotSeams> {
   const kinds = (transitions ?? []).map((t) => NAMES[t]).filter((k): k is SeamKind => !!k);
   const pool = kinds.length ? kinds : DEFAULT_KINDS;
@@ -107,7 +112,7 @@ export function planSeams(
       kind = choices[Math.floor(seed * choices.length)] ?? 'slide';
     }
     // The last boundary (into nothing) is a plain exit of the same family.
-    boundary.push({ kind, dir: i % 2 === 0 ? 1 : -1 });
+    boundary.push({ kind, dir: opts.journey || i % 2 === 0 ? 1 : -1 });
     prev = kind;
   }
   sorted.forEach((s, i) => {
