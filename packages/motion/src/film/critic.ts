@@ -330,7 +330,8 @@ export function inspectBeat(
       `nothing changes for ${secs(worst.len)} from ${secs(worst.from)}: stage a reveal, draw a line or move the camera there`,
     );
 
-  // 3. The opening: something should be on screen early (unless the last beat is still leaving).
+  // 3. The opening: something real should be on screen early (unless the last beat is still
+  // leaving). A ghosted label or a hairline alone is still an empty frame.
   const openBy = Math.min(dur * 0.35, Math.max(700, (o.headMs ?? 0) + 500));
   at(openBy);
   if (!visibleNow())
@@ -340,6 +341,29 @@ export function inspectBeat(
       openBy,
       `the frame is still empty ${secs(openBy)} in: start the first element within 300 ms`,
     );
+  else {
+    const rects: DOMRect[] = textNodes().map((t) => t.rect);
+    for (const el of Array.from(
+      host.querySelectorAll(
+        'svg path, svg circle, svg rect, svg polygon, svg ellipse, img, canvas, [data-mp-paper], [data-mp-map], [data-mp-sheet]',
+      ),
+    )) {
+      if (shown(el) < 0.5) continue;
+      const r = local(el.getBoundingClientRect());
+      if (inFrame(r)) rects.push(r);
+    }
+    const area = rects.reduce(
+      (m, r) => Math.max(m, Math.min(r.width, o.width) * Math.min(r.height, o.height)),
+      0,
+    );
+    if (area < o.width * o.height * 0.02)
+      add(
+        'late-start',
+        'fix',
+        openBy,
+        `almost nothing is on screen ${secs(openBy)} in: open on the picture itself (the drawing, the map or the hero), then reveal the rest on the words`,
+      );
+  }
 
   // 4. The settled frame: after the key moment, before the exit.
   const hold = Math.min(dur - 250, Math.max(key + 500, dur * 0.72));

@@ -34,15 +34,15 @@ Entering, from the previous beat's seam:
 - push:  tl.enter("push", [first elements, in reading order]). They arrive from the right, already moving. Nothing else is on screen before them.
 - zoom:  wrap the picture in one element and tl.enter("zoom", wrapper, { origin: "x% y%" }) with the origin on the object named in the seam.
 - cover: start your script with const sheet = mp.sheet(); then tl.enter("cover", sheet). Your whole beat is on that page, which slides in over the previous beat. Start your own reveals after ctx.headMs.
-- lift:  the previous beat is still in front of you for ctx.headMs and is being pulled away. Your picture's ground (the map, the main drawing) is on screen from t = 0 with no entrance; your reveals start after ctx.headMs.
-- match: open on EXACTLY the frame the seam describes (same map view, same bar, same numbers) with no entrance for the shared thing. New things arrive after 200 ms.
-- (first beat): the first frame is the film's thumbnail. Something strong is on screen by 150 ms.
+- lift:  the previous beat is still in front of you for ctx.headMs and is being pulled away. Your main picture (the map, the drawing) is on screen from t = 0 with NO entrance of its own, so the page comes off a finished frame; only labels and numbers arrive later, after ctx.headMs.
+- match: open on EXACTLY the frame the seam describes with no entrance for the shared thing. For a map that means map.set(view, zoom) with the seam's own numbers as your opening view, before any fly. New things arrive after 200 ms.
+- (first beat): the first frame is the film's thumbnail. The picture itself (the recurring element, big) is on screen from t = 0 or arrives within 300 ms, whatever word names it; the words then reveal the rest.
 Leaving, by your own seam:
 - push:  tl.exit("push", [everything on screen, in reading order]). Call it LAST, after all other tweens of those elements.
 - zoom:  tl.exit("zoom", wrapper, { origin: "x% y%" }) with the origin on the object the next beat opens on.
 - lift:  start your script with const sheet = mp.sheet(); and end with tl.exit("lift", sheet). Hold your frame until ctx.durationMs; the page is pulled away during the tail.
 - cover: hold your final frame dead still to the end. No exit.
-- match: over the last 300 ms remove what is not part of the shared thing (labels, cards) and end on exactly the frame the seam describes.
+- match: over the last 300 ms remove what is not part of the shared thing (labels, cards) and end on exactly the frame the seam describes. For a map, your last map.fly lands on the seam's own view and zoom at least 300 ms before the end.
 - (last beat): everything has landed by 60 % of the beat; then hold still to the end. No exit.
 Never fade or move the whole frame yourself outside these.
 
@@ -58,7 +58,7 @@ SIZE (the most common failure is a timid frame)
 
 DRAWING
 - Draw real things simply and correctly: a few confident shapes in var(--ink) with one accent, flat fills, no outlines around everything, no tiny decorative labels.
-- Geography always comes from mp.map, never from a hand-drawn outline.
+- Geography always comes from mp.map, never from a hand-drawn outline. Things at a place (dots for ships, a marker) are sized for the zoom they are seen at: with map.scatter give a spread of mp.u * 8 or more, and keep the camera close enough that the cluster spans a fifth of the frame.
 - Use the film's shared drawings (mp.prop) where the storyboard names them, so the same thing looks the same in every beat.
 - On-screen copy is the storyboard's text, exactly. You may add place names on a map. No other words: no datelines, sources, captions, stamps, tags or report headers. No number that is not in the storyboard's text or the spoken words (a reviewer checks every figure on screen against the narration).
 - Keep text inside mp.safe. For 9:16 stack the picture above the text.

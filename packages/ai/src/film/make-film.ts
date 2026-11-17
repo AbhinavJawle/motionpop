@@ -225,86 +225,125 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
     }
   })();
 
-  const task = filmBuildTask(deps.lint, deps.kitDoc);
-  const maxRepairs = deps.maxRepairs ?? 2;
-
-  const buildBeat = async (beat: TimedBeat, i: number): Promise<FilmBeatResult> => {
-    const t0 = Date.now();
-    const base = buildInputFor(board, timed, i, input, deps.example);
-    const note = (state: 'building' | 'checking' | 'repairing' | 'ready' | 'failed') =>
-      deps.onProgress?.({ phase: 'beat', beatId: beat.id, index: i, count: timed.length, state });
-    const asParams = (out: FilmBuildOutput, props: Record<string, string>): FilmBeatParams => ({
-      ...out,
-      // The director's landing time is the truth; the builder's copy is only a cross-check.
-      keyMomentMs: beat.keyMomentMs,
-      brief: short(beat.idea, 500),
-      film: { tailMs: beat.tailMs, over: beat.over, headMs: beat.headMs },
-      ...(Object.keys(props).length ? { props } : {}),
-    });
-    let ownCalls = 0;
-    let repairs = 0;
-    let best: { params: FilmBeatParams; verdict: CriticVerdict | null } | null = null;
-    let fix: FilmBuildInput['fix'];
-    for (let round = 0; round <= maxRepairs; round++) {
-      stop();
-      note(round === 0 ? 'building' : 'repairing');
-      let out: FilmBuildOutput;
-      try {
-        const res = await deps.router.run(task, fix ? { ...base, fix } : base);
-        ownCalls += res.attempts;
-        out = res.output;
-      } catch {
-        // No valid answer this round. Keep what an earlier round gave.
-        break;
-      }
-      const params = asParams(out, await propsJob);
-      if (!deps.inspect) {
-        best = { params, verdict: null };
-        break;
-      }
-      note('checking');
-      let verdict: CriticVerdict;
-      try {
-        verdict = await deps.inspect(params, beat, input.words);
-      } catch {
-        // The critic itself failed: don't punish the beat for it.
-        best = best ?? { params, verdict: null };
-        break;
-      }
-      const withCues: FilmBeatParams = verdict.cues?.length
-        ? { ...params, cues: verdict.cues.slice(0, 16) }
-        : params;
-      if (
-        !best ||
-        !best.verdict ||
-        (best.verdict.broken && !verdict.broken) ||
-        (best.verdict.broken === verdict.broken && verdict.blocking <= best.verdict.blocking)
-      )
-        best = { params: withCues, verdict };
-      if (verdict.fixes === null) break;
-      if (round === maxRepairs) break;
-      repairs++;
-      fix = { html: out.html, css: out.css, script: out.script, problems: verdict.fixes };
-    }
-    calls += ownCalls;
-    const usable = best && !best.verdict?.broken ? best.params : null;
-    note(usable ? 'ready' : 'failed');
-    return {
-      beat,
-      params: usable,
-      calls: ownCalls,
-      repairs,
-      problems: best?.verdict?.fixes ?? (best ? null : 'no valid beat came back'),
-      latencyMs: Date.now() - t0,
-    };
-  };
-
-  const beats = await pool(timed, deps.concurrency ?? 4, buildBeat);
+  const beats = await pool(timed, deps.concurrency ?? 4, (_beat, i) =>
+    buildOne(board, timed, i, input, deps, propsJob),
+  );
   return {
     storyboard: board,
     props: await propsJob,
     beats,
-    calls,
+    calls: calls + beats.reduce((n, b) => n + b.calls, 0),
     latencyMs: Date.now() - started,
+  };
+}
+
+/**
+ * One beat of a film that already has its storyboard (spec 07b R5.3, "Rebuild this beat"): the
+ * same builder, critic and repair rounds as `makeFilm`, for beat `index` alone. `idea` replaces
+ * the beat's picture when the creator rewrote it. The other beats are not touched; the seams on
+ * both sides come from the storyboard, so the rebuilt beat still meets its neighbours.
+ */
+export async function rebuildBeat(
+  input: FilmInput,
+  deps: FilmDeps & { storyboard: Storyboard; props: Record<string, string> },
+  index: number,
+  idea?: string,
+): Promise<FilmBeatResult> {
+  const board: Storyboard = {
+    ...deps.storyboard,
+    beats: deps.storyboard.beats.map((b, i) => ({
+      ...b,
+      id: `b${i + 1}`,
+      ...(i === index && idea && idea.trim().length >= 8
+        ? { idea: idea.trim().slice(0, 500) }
+        : {}),
+    })),
+  };
+  const timed = timeBeats(board, input.words, input.durationMs);
+  if (!timed[index]) throw new RangeError(`the film has no beat ${index + 1}`);
+  return buildOne(board, timed, index, input, deps, Promise.resolve(deps.props));
+}
+
+/** Builds one beat: the builder, then the critic's rounds; keeps the best version. */
+async function buildOne(
+  board: Storyboard,
+  timed: readonly TimedBeat[],
+  i: number,
+  input: FilmInput,
+  deps: FilmDeps,
+  propsJob: Promise<Record<string, string>>,
+): Promise<FilmBeatResult> {
+  const beat = timed[i] as TimedBeat;
+  const task = filmBuildTask(deps.lint, deps.kitDoc);
+  const maxRepairs = deps.maxRepairs ?? 2;
+  const stop = () => {
+    if (deps.cancelled?.()) throw new FilmCancelled();
+  };
+  const t0 = Date.now();
+  const base = buildInputFor(board, timed, i, input, deps.example);
+  const note = (state: 'building' | 'checking' | 'repairing' | 'ready' | 'failed') =>
+    deps.onProgress?.({ phase: 'beat', beatId: beat.id, index: i, count: timed.length, state });
+  const asParams = (out: FilmBuildOutput, props: Record<string, string>): FilmBeatParams => ({
+    ...out,
+    // The director's landing time is the truth; the builder's copy is only a cross-check.
+    keyMomentMs: beat.keyMomentMs,
+    brief: short(beat.idea, 500),
+    film: { tailMs: beat.tailMs, over: beat.over, headMs: beat.headMs },
+    ...(Object.keys(props).length ? { props } : {}),
+  });
+  let ownCalls = 0;
+  let repairs = 0;
+  let best: { params: FilmBeatParams; verdict: CriticVerdict | null } | null = null;
+  let fix: FilmBuildInput['fix'];
+  for (let round = 0; round <= maxRepairs; round++) {
+    stop();
+    note(round === 0 ? 'building' : 'repairing');
+    let out: FilmBuildOutput;
+    try {
+      const res = await deps.router.run(task, fix ? { ...base, fix } : base);
+      ownCalls += res.attempts;
+      out = res.output;
+    } catch {
+      // No valid answer this round. Keep what an earlier round gave.
+      break;
+    }
+    const params = asParams(out, await propsJob);
+    if (!deps.inspect) {
+      best = { params, verdict: null };
+      break;
+    }
+    note('checking');
+    let verdict: CriticVerdict;
+    try {
+      verdict = await deps.inspect(params, beat, input.words);
+    } catch {
+      // The critic itself failed: don't punish the beat for it.
+      best = best ?? { params, verdict: null };
+      break;
+    }
+    const withCues: FilmBeatParams = verdict.cues?.length
+      ? { ...params, cues: verdict.cues.slice(0, 16) }
+      : params;
+    if (
+      !best ||
+      !best.verdict ||
+      (best.verdict.broken && !verdict.broken) ||
+      (best.verdict.broken === verdict.broken && verdict.blocking <= best.verdict.blocking)
+    )
+      best = { params: withCues, verdict };
+    if (verdict.fixes === null) break;
+    if (round === maxRepairs) break;
+    repairs++;
+    fix = { html: out.html, css: out.css, script: out.script, problems: verdict.fixes };
+  }
+  const usable = best && !best.verdict?.broken ? best.params : null;
+  note(usable ? 'ready' : 'failed');
+  return {
+    beat,
+    params: usable,
+    calls: ownCalls,
+    repairs,
+    problems: best?.verdict?.fixes ?? (best ? null : 'no valid beat came back'),
+    latencyMs: Date.now() - t0,
   };
 }

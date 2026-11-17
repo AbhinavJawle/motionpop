@@ -46,7 +46,7 @@ SIZE AND FRAMING
 ONE FILM, NOT SLIDES
 - Never the same layout twice in a row. Move the hero between the left third, the right third and the full width.
 - The carrier appears in at least half the beats.
-- If the story has a place, the map comes back: zoom in for the place, stay for what happens there, pull out for the consequence. Use "match" seams between map beats so the camera never cuts.
+- If the story has a place, the map comes back: zoom in for the place, stay for what happens there, pull out for the consequence. Use "match" seams between map beats so the camera never cuts, and write the one view both sides share into the seam's note as numbers: "map view [32.4, 30.5] zoom 14". Give every map beat its opening and closing view the same way in its idea.
 - The hook's first second is the densest of the film and the first frame is never empty: open on the carrier itself, big, not on an abstract chart.
 - The last beat pays the thesis off: the carrier at its largest or simplest, one line of type beside it, held still. Its seam is ignored.
 - "zoom" always goes IN (deeper into an object). To pull back between two map beats use "match" with the same view on both sides and let the second beat fly the camera out.

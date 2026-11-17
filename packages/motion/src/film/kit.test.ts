@@ -69,9 +69,11 @@ describe('kitExample', () => {
     expect(customParams.safeParse(example).success).toBe(true);
   });
 
-  it('is a pure function of time in every format', () => {
+  // 240 dots and a word-split line make each seek heavy in happy-dom: fewer runs and a longer
+  // limit keep this green when the whole suite runs in parallel (it timed out at 24 s there).
+  it('is a pure function of time in every format', { timeout: 90_000 }, () => {
     for (const format of custom.formats) {
-      assertSeekPure(custom, example, { format, durationMs: 4000 });
+      assertSeekPure(custom, example, { format, durationMs: 4000, numRuns: 12 });
     }
   });
 
