@@ -2,6 +2,7 @@ import { createRouter, type Router, type UsageEvent } from '@motionpop/ai';
 import { firebaseEnabled, getAILogic } from '@/lib/firebase/client';
 import { createFakeRouter, routerKind } from './fake-router';
 import { loadAppConfig } from '@/lib/firebase/remote-config';
+import { idbRouterCache } from './idb-cache';
 
 /**
  * The browser's AI router (hybrid-ai.md): Firebase AI Logic provider + Remote Config routing.
@@ -47,6 +48,7 @@ export function getRouter(): Promise<Router | null> {
       provider: firebaseProvider(getAILogic),
       config: () => config,
       onUsage: emitAIUsage,
+      cache: idbRouterCache(),
     });
   })().catch((err: unknown) => {
     routerPromise = null; // let the next call retry

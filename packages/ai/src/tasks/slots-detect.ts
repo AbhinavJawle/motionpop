@@ -56,6 +56,9 @@ export const slotsDetectCost = (wordCount: number): number =>
 export const slotsDetect: TaskDef<SlotsDetectInput, SlotsDetectOutput> = {
   id: 'slots.detect',
   maxOutputTokens: 4096,
+  // Cached per input (spec 13b R4.1); the prompt text is version v1.
+  cacheable: true,
+  promptVersion: 'v1',
   input: SlotsDetectInputSchema,
   output: SlotsDetectOutputSchema,
   mode: (input, cfg) =>

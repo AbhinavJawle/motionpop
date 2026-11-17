@@ -382,6 +382,7 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
         costCredits: ranOn === 'cloud' ? cloudCost : 0,
         latencyMs: Math.round(clock() - started),
         attempts: 1,
+        cached: false,
       };
     },
   };

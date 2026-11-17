@@ -4,10 +4,18 @@
  *   v1: projects
  *   v2: audio (spec 05)
  *   v3: uploads (spec 11 task 7: the audio upload queue, so a failed upload survives a reload)
+ *   v4: aiCache, ttsCache (spec 13b R4). Migration: only creates the two new stores; existing
+ *       stores and their data are untouched.
  */
 export const DB_NAME = 'motionpop';
-export const DB_VERSION = 3;
-export const STORES = { projects: 'projects', audio: 'audio', uploads: 'uploads' } as const;
+export const DB_VERSION = 4;
+export const STORES = {
+  projects: 'projects',
+  audio: 'audio',
+  uploads: 'uploads',
+  aiCache: 'ai-cache',
+  ttsCache: 'tts-cache',
+} as const;
 
 /** Opens the database once per factory (`indexedDB` resolved lazily so SSR can import this). */
 const opened = new WeakMap<IDBFactory, Promise<IDBDatabase>>();

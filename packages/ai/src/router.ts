@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { InferenceMode, RanOn } from '@motionpop/schemas';
+import { cacheKeyOf, ROUTER_CACHE_TTL_MS, type RouterCache } from './cache';
 
 /**
  * The AI router (hybrid-ai.md): every runtime AI call goes through `run(task, input)`. It picks
@@ -45,6 +46,8 @@ export type ThinkingLevel = 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
 export interface ProviderResponse {
   text: string;
   ranOn: RanOn;
+  /** Input tokens the provider served from its implicit cache, when it reports them (cloud). */
+  cachedTokens?: number;
 }
 
 export interface AIProvider {
@@ -66,6 +69,10 @@ export interface TaskDef<I, O> {
   cloudFallback: boolean;
   /** Repair rounds after an invalid answer (default 1). `component.fill` uses 2 (spec 07 R1.4). */
   maxRepairs?: number;
+  /** Answers may be cached (spec 13b R4.1). Only free routed tasks set this. */
+  cacheable?: boolean;
+  /** Version of the prompt text, part of the cache key (`prompts/<task>.v1.ts` → "v1"). */
+  promptVersion?: string;
   /** Cloud thinking level; omit for the model default. */
   thinking?: ThinkingLevel;
   /** Cloud output cap in tokens, sized to the schema (spec 13b R3.5). Every cloud task sets one. */
@@ -100,8 +107,12 @@ export interface RunResult<O> {
   model: string;
   costCredits: number;
   latencyMs: number;
-  /** 1 = first answer valid, 2 = after repair, 3 = after cloud escalation. */
+  /** 1 = first answer valid, 2 = after repair, 3 = after cloud escalation. 0 = from the cache. */
   attempts: number;
+  /** True when the answer came from the router cache: no model call was made. */
+  cached: boolean;
+  /** Cached input tokens the cloud reported for this call, when it did. */
+  cachedTokens?: number;
 }
 
 export interface UsageEvent {
@@ -109,6 +120,10 @@ export interface UsageEvent {
   ranOn: RanOn;
   model: string;
   credits: number;
+  /** Answered from the router cache (spec 13b R5.1). */
+  cached?: boolean;
+  /** Cached input tokens the provider reported (cloud calls only). */
+  cachedTokens?: number;
   /** What this call would cost in the cloud: what an on-device call saved (Settings, spec 13). */
   cloudCost: number;
   latencyMs: number;
@@ -169,6 +184,8 @@ export interface RunOptions {
    * a silent charge (spec 09 D-035). Default: the task's own `cloudFallback`.
    */
   allowCloud?: boolean;
+  /** `false` skips the answer cache for this call (a fresh answer is wanted). */
+  allowCache?: boolean;
 }
 
 export interface Router {
@@ -180,6 +197,8 @@ export function createRouter(deps: {
   config: () => RouterConfig;
   onUsage?: (e: UsageEvent) => void;
   now?: () => number;
+  /** The answer cache for `cacheable` tasks (spec 13b R4.1). Without it nothing is cached. */
+  cache?: RouterCache;
 }): Router {
   const now = deps.now ?? (() => performance.now());
   return {
@@ -196,6 +215,44 @@ export function createRouter(deps: {
       }
       const mode: InferenceMode = cfg.killSwitch ? 'ONLY_ON_DEVICE' : chosen;
       const model = task.model(cfg);
+      // A cached answer: no model call, so no credits and the stored `ranOn` unchanged (R4.1).
+      const cacheKey =
+        deps.cache && task.cacheable && opts.allowCache !== false
+          ? cacheKeyOf({
+              task: task.id,
+              promptVersion: task.promptVersion ?? '',
+              model,
+              input: input.data,
+            })
+          : undefined;
+      if (cacheKey !== undefined && deps.cache) {
+        const t0 = now();
+        const hit = await deps.cache.get(cacheKey).catch(() => undefined);
+        const stored = hit ? task.output.safeParse(hit.output) : undefined;
+        if (hit && stored?.success) {
+          const latencyMs = Math.round(now() - t0);
+          deps.onUsage?.({
+            task: task.id,
+            ranOn: hit.ranOn,
+            model: hit.model,
+            credits: 0,
+            cached: true,
+            cloudCost: task.cloudCost(input.data),
+            latencyMs,
+            ok: true,
+            attempts: 0,
+          });
+          return {
+            output: stored.data,
+            ranOn: hit.ranOn,
+            model: hit.model,
+            costCredits: 0,
+            latencyMs,
+            attempts: 0,
+            cached: true,
+          };
+        }
+      }
       const jsonSchema =
         task.jsonSchema?.(input.data) ??
         (z.toJSONSchema(task.output, { target: 'draft-7' }) as Record<string, unknown>);
@@ -239,7 +296,13 @@ export function createRouter(deps: {
         lastRanOn = res.ranOn;
         const parsed = parseOutput(task.output, res.text);
         const problem = parsed.ok ? check(parsed.value) : parsed.error;
-        if (parsed.ok && problem === null) return { value: parsed.value, ranOn: res.ranOn };
+        if (parsed.ok && problem === null) {
+          return {
+            value: parsed.value,
+            ranOn: res.ranOn,
+            ...(res.cachedTokens !== undefined ? { cachedTokens: res.cachedTokens } : {}),
+          };
+        }
         lastError = problem ?? 'invalid output';
         lastFailure = 'invalid-output';
         problems.push(lastError.slice(0, 200));
@@ -282,11 +345,24 @@ export function createRouter(deps: {
       const costCredits = result.ranOn === 'cloud' ? cloudCost : 0;
       // The cloud model name is only true for a cloud run; on the device it is Chrome's model.
       const usedModel = result.ranOn === 'device' ? DEVICE_MODEL : model;
+      const cachedTokens = result.cachedTokens;
+      // Only a valid answer is stored (it passed the schema and the task's check above).
+      if (cacheKey !== undefined && deps.cache) {
+        await deps.cache
+          .set(
+            cacheKey,
+            { output: result.value, ranOn: result.ranOn, model: usedModel },
+            ROUTER_CACHE_TTL_MS,
+          )
+          .catch(() => {});
+      }
       deps.onUsage?.({
         task: task.id,
         ranOn: result.ranOn,
         model: usedModel,
         credits: costCredits,
+        cached: false,
+        ...(cachedTokens !== undefined ? { cachedTokens } : {}),
         cloudCost,
         latencyMs,
         ok: true,
@@ -300,6 +376,8 @@ export function createRouter(deps: {
         costCredits,
         latencyMs,
         attempts,
+        cached: false,
+        ...(cachedTokens !== undefined ? { cachedTokens } : {}),
       };
     },
   };

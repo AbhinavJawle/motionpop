@@ -32,6 +32,9 @@ export type PromptPrefillOutput = z.infer<typeof PromptPrefillOutputSchema>;
 export const promptPrefill: TaskDef<PromptPrefillInput, PromptPrefillOutput> = {
   id: 'prompt.prefill',
   maxOutputTokens: 512,
+  // Cached per input (spec 13b R4.1); the prompt text is version v1.
+  cacheable: true,
+  promptVersion: 'v1',
   input: PromptPrefillInputSchema,
   output: PromptPrefillOutputSchema,
   mode: () => 'ONLY_ON_DEVICE',
