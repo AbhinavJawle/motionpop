@@ -16,6 +16,7 @@ import {
   skillWorksWith,
 } from '../slots/catalogue';
 import { detectLocal, sceneDraft, slotBudget } from '../slots/detect-local';
+import { detectInChunks } from '../slots/chunk-detect';
 import type { SlotWord, TaggedSpan } from '../slots/types';
 
 const CandidateSchema = z.object({
@@ -118,15 +119,91 @@ export type DetectSlotsResult =
   | { source: 'ai'; slots: SlotSuggestion[]; run: Omit<RunResult<SlotsDetectOutput>, 'output'> }
   | { source: 'local'; slots: SlotSuggestion[]; error?: string };
 
+export interface DetectSlotsOptions {
+  maxSlots?: number;
+  language?: string;
+  /** The on-device model is available (the caller knows; the router does not). */
+  deviceReady?: boolean;
+  /** Longest transcript the device takes in one call (`routingSlotsDetectDeviceMaxWords`). */
+  deviceMaxWords?: number;
+}
+
+/** Input for one chunk: its words and spans, with indices relative to the chunk. */
+function chunkInput(
+  chunk: readonly SlotWord[],
+  offset: number,
+  spans: readonly TaggedSpan[],
+  opts: DetectSlotsOptions,
+): SlotsDetectInput {
+  const end = offset + chunk.length;
+  const chunkSpans = spans
+    .filter((s) => s.wordStart >= offset && s.wordEnd < end)
+    .map((s) => ({ ...s, wordStart: s.wordStart - offset, wordEnd: s.wordEnd - offset }));
+  return slotsDetectInput(chunk, chunkSpans, {
+    maxSlots: slotBudget(chunk),
+    ...(opts.language === undefined ? {} : { language: opts.language }),
+  });
+}
+
+/** One chunk on the device, with one retry (spec 13b R4.3: a chunk that fails twice ends the chunks). */
+async function runChunk(
+  router: Router,
+  input: SlotsDetectInput,
+): Promise<RunResult<SlotsDetectOutput>> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await router.run(slotsDetect, input, { mode: 'ONLY_ON_DEVICE' });
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * The long transcript on the device, in chunks (spec 13b R4.3). Null when chunking does not apply:
+ * the device isn't ready, or the transcript fits in one call. Throws when a chunk fails twice.
+ */
+async function detectOnDeviceInChunks(
+  router: Router,
+  words: readonly SlotWord[],
+  spans: readonly TaggedSpan[],
+  opts: DetectSlotsOptions,
+): Promise<{ slots: SlotSuggestion[]; run: Omit<RunResult<SlotsDetectOutput>, 'output'> } | null> {
+  const maxWords = opts.deviceMaxWords ?? APP_CONFIG_DEFAULTS.routingSlotsDetectDeviceMaxWords;
+  if (opts.deviceReady !== true || words.length <= maxWords) return null;
+  const runs: RunResult<SlotsDetectOutput>[] = [];
+  const slots = await detectInChunks(words, maxWords, async (chunk, offset) => {
+    const r = await runChunk(router, chunkInput(chunk, offset, spans, opts));
+    runs.push(r);
+    return r.output.slots;
+  });
+  const first = runs[0];
+  return {
+    slots,
+    run: {
+      ranOn: 'device',
+      model: first?.model ?? '',
+      costCredits: 0,
+      latencyMs: runs.reduce((n, r) => n + r.latencyMs, 0),
+      attempts: runs.reduce((n, r) => n + r.attempts, 0),
+      cached: runs.length > 0 && runs.every((r) => r.cached),
+    },
+  };
+}
+
 /**
  * R2.2 + R2.3: AI detection through the router when available, else (or on any failure, or when
- * nothing usable comes back) the deterministic detector. Never throws.
+ * nothing usable comes back) the deterministic detector. Never throws. A transcript longer than the
+ * device limit is detected on the device in chunks when the device is ready (spec 13b R4.3); if a
+ * chunk fails twice, the whole transcript goes to the cloud as before.
  */
 export async function detectSlots(
   router: Router | null,
   words: readonly SlotWord[],
   spans: readonly TaggedSpan[],
-  opts: { maxSlots?: number; language?: string } = {},
+  opts: DetectSlotsOptions = {},
 ): Promise<DetectSlotsResult> {
   const local = (error?: string): DetectSlotsResult => ({
     source: 'local',
@@ -139,13 +216,22 @@ export async function detectSlots(
   });
   if (!router || words.length === 0) return local();
   try {
-    const { output, ...run } = await router.run(slotsDetect, slotsDetectInput(words, spans, opts));
+    let found = await detectOnDeviceInChunks(router, words, spans, opts).catch(() => null);
+    if (!found) {
+      const { output, ...run } = await router.run(
+        slotsDetect,
+        slotsDetectInput(words, spans, opts),
+      );
+      found = { slots: output.slots, run };
+    }
     // Scene params are written by code from the words (sceneDraft), never taken from the model.
-    const slots = keepKnown(output.slots, words.length).flatMap((s) => {
+    const slots = keepKnown(found.slots, words.length).flatMap((s) => {
       const d = sceneDraft(s, words, spans);
       return d ? [d] : [];
     });
-    return slots.length > 0 ? { source: 'ai', slots, run } : local('no usable AI suggestions');
+    return slots.length > 0
+      ? { source: 'ai', slots, run: found.run }
+      : local('no usable AI suggestions');
   } catch (err) {
     return local(err instanceof Error ? err.message : String(err));
   }

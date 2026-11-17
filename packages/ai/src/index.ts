@@ -22,3 +22,4 @@ export { FILM_DIRECT_SYSTEM_V1 } from './prompts/film-direct.v1';
 export * from './speech';
 export * from './image';
 export * from './cache';
+export * from './slots/chunk-detect';
