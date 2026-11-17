@@ -50,6 +50,7 @@ describe('custom graphic (spec 15)', () => {
       'return { seek() {}, probe: [typeof Date, typeof setTimeout, typeof window, typeof document, typeof fetch, typeof globalThis, typeof Function, typeof Math.random, typeof Math.sin] };',
       document.createElement('div'),
       {},
+      {},
     ) as { probe: string[] };
     expect(made.probe).toEqual([...Array(8).fill('undefined'), 'function']);
   });

@@ -12,6 +12,7 @@ import { mountBackdrop } from './backdrop';
 import { mountLens } from './lens';
 import { mountCaptions } from './captions';
 import { fontStack } from '../fonts/font-faces';
+import { inspectBeat, type CriticSummary } from '../film/critic';
 
 declare global {
   interface Window {
@@ -23,6 +24,18 @@ declare global {
       warnings: SlotWarning[];
       /** Stage reports of mounted scenes, by slot id. */
       reports: () => Record<string, unknown>;
+      /** Sound effects custom graphics asked for, by slot id. */
+      sounds: () => Record<string, { kind: string; atMs: number }[]>;
+      /** The film critic's report on one slot; null when the slot isn't mounted. */
+      inspect: (
+        slotId: string,
+        opts?: {
+          wantsPicture?: boolean;
+          headMs?: number;
+          lead?: string;
+          allowNumbers?: readonly string[];
+        },
+      ) => CriticSummary | null;
     };
   }
 }
@@ -41,7 +54,8 @@ if (project) {
   let lastMs = 0;
   let captions: { seek(tMs: number): void } | null = null;
   const backdropHost = document.getElementById('mp-backdrop');
-  const backdrop = backdropHost ? mountBackdrop(backdropHost, project) : null;
+  // A film's beats carry the picture from start to end: no drifting backdrop behind them.
+  const backdrop = backdropHost && !project.film ? mountBackdrop(backdropHost, project) : null;
   const lensHost = document.getElementById('mp-lens');
   const lens = lensHost ? mountLens(lensHost, project) : null;
   // Captions measure text, so they mount once the engine has loaded the fonts (spec 12 R5).
@@ -78,5 +92,56 @@ if (project) {
     seek(Math.round(detail.time * 1000));
     if (!isReady) detail.waitUntil?.(ready);
   });
-  window.__motionpop = { ...engine, seek, ready };
+  /**
+   * The film critic's view of one slot (spec 07b): seeks it through its own moments and reports
+   * what a reviewer would. Synchronous; it shows the slot's clip for the visit (HyperFrames hides
+   * clips outside its own clock) and puts everything back.
+   */
+  const inspect = (
+    slotId: string,
+    opts: {
+      wantsPicture?: boolean;
+      headMs?: number;
+      lead?: string;
+      allowNumbers?: readonly string[];
+    } = {},
+  ): CriticSummary | null => {
+    const slot = project.slots.find((s) => s.id === slotId);
+    const host = document.getElementById(slotId);
+    if (!slot || !host) return null;
+    const before = host.getAttribute('style');
+    const resumeMs = lastMs;
+    // HyperFrames hides an inactive clip (and everything in it) through a marker attribute and
+    // `visibility: hidden !important`; both are lifted for the visit.
+    const hidden = host.getAttribute('data-hf-clip-hidden');
+    host.removeAttribute('data-hf-clip-hidden');
+    host.style.setProperty('display', 'block', 'important');
+    host.style.setProperty('visibility', 'visible', 'important');
+    host.style.setProperty('opacity', '1', 'important');
+    const durationMs = slot.endMs - slot.startMs;
+    const params = slot.params as { keyMomentMs?: unknown };
+    const key =
+      slot.keyMomentMs ?? (typeof params.keyMomentMs === 'number' ? params.keyMomentMs : 600);
+    try {
+      return inspectBeat(host, (t) => seek(slot.startMs + Math.round(t)), {
+        durationMs,
+        keyMomentMs: key,
+        ...(slot.tailMs ? { tailMs: slot.tailMs } : {}),
+        ...(slot.over ? { over: slot.over } : {}),
+        ...opts,
+        width: project.width,
+        height: project.height,
+        bg: project.style.colors.bg,
+        errors: engine.errors
+          .filter((e) => e.slotId === slotId)
+          .map((e) => `${e.phase}: ${e.message}`),
+      });
+    } finally {
+      if (before === null) host.removeAttribute('style');
+      else host.setAttribute('style', before);
+      if (hidden !== null) host.setAttribute('data-hf-clip-hidden', hidden);
+      seek(resumeMs);
+    }
+  };
+  window.__motionpop = { ...engine, seek, ready, inspect };
 }

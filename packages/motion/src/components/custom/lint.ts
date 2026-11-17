@@ -16,10 +16,10 @@ const SCRIPT_RULES: ReadonlyArray<[RegExp, string]> = [
   [/\bimport\s*\(|\bimport\s+[\w{*]|\brequire\s*\(/, 'imports code'],
   [/\b(eval|Function)\b/, 'evaluates strings as code'],
   [/\b(localStorage|sessionStorage|indexedDB|caches|document\.cookie)\b/, 'uses storage'],
-  [
-    /\b(window|globalThis|self|parent|top|frames|opener|document|navigator|location)\b/,
-    'reaches outside its root',
-  ],
+  [/\b(window|globalThis|document|navigator)\b/, 'reaches outside its root'],
+  // These are also everyday option and CSS names (`{ parent: card }`, `{ top: "12%" }`), so only
+  // a bare use counts: not a property (`x.top`) and not an object key (`top:`).
+  [/(?<![.\w$])(self|parent|top|frames|opener|location)\b(?!\s*:)/, 'reaches outside its root'],
   [/\b(ownerDocument|defaultView|constructor|__proto__|prototype)\b/, 'reaches outside its root'],
   [/\b(gsap|TweenMax|TimelineMax)\b/i, 'uses GSAP (not allowed)'],
   [/\b(addEventListener|onclick|onload)\b/, 'listens to events; draw in seek(t)'],
@@ -59,10 +59,26 @@ export function lintCustom(p: Pick<CustomParams, 'html' | 'css' | 'script'>): st
     if (re.test(code)) out.push(`script ${msg}`);
   }
   if (/(https?:)?\/\/[\w.-]+\.[a-z]{2,}/i.test(script)) out.push('script loads an external URL');
-  if (!/\bseek\b/.test(code) || !/\breturn\b/.test(code))
-    out.push('script must return { seek(tMs) }');
+  // A kit timeline is returned as `return tl;`, so only the return is checked here; the build
+  // refuses anything that comes back without a `seek`.
+  if (!/\breturn\b/.test(code)) out.push('script must return { seek(tMs) } or a timeline');
   for (const [re, msg] of MARKUP_RULES) if (re.test(p.html)) out.push(`html ${msg}`);
   const css = stripComments(p.css);
   for (const [re, msg] of CSS_RULES) if (re.test(css)) out.push(`css ${msg}`);
+  return [...new Set(out)];
+}
+
+/**
+ * Checks on one of a film's shared drawings (spec 07b): a single inline SVG with a viewBox,
+ * nothing scripted, nothing loaded, no text. Like `lintCustom`, not a security boundary.
+ */
+export function lintProp(svg: string): string[] {
+  const out: string[] = [];
+  const s = svg.trim();
+  if (!/^<svg[\s>]/i.test(s) || !/<\/svg>\s*$/i.test(s)) out.push('must be one <svg> element');
+  if (!/viewBox\s*=\s*["'][-\d.\s,]+["']/i.test(s)) out.push('needs a viewBox');
+  for (const [re, msg] of MARKUP_RULES) if (re.test(s)) out.push(msg);
+  if (/<\s*(image|foreignObject|use|text|a)\b/i.test(s)) out.push('has a forbidden tag');
+  if (/url\s*\(/i.test(s)) out.push('loads a URL');
   return [...new Set(out)];
 }

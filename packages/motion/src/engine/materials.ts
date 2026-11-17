@@ -33,6 +33,9 @@ export function mix(a: string, b: string, t: number): string {
     .join('')}`;
 }
 
+/** The paper a look's cards are cut from: its ground, lifted toward white. */
+export const paperOf = (colors: { bg: string }): string => mix(colors.bg, '#FFFFFF', 0.55);
+
 /** A torn outline as a CSS polygon in percentages: every side jagged, seeded. */
 export function tornPolygon(w: number, h: number, seed: number, amp: number): string {
   const rnd = rngFor(seed, 'torn');
@@ -64,7 +67,7 @@ export function buildSurface(
   const has = (m: MaterialId) => stack?.includes(m) ?? false;
   if (!stack || stack.every((m) => m === 'plain')) return null;
   const rnd = rngFor(o.seed, `surface-${o.kind}`);
-  const paper = mix(o.colors.bg, '#FFFFFF', 0.55);
+  const paper = paperOf(o.colors);
   // A strip without paper is a colour strip (cut paper in the accent); cards and photos are paper.
   const fill = has('paper') || o.kind !== 'strip' ? paper : o.colors.accent;
 

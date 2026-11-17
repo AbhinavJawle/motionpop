@@ -84,6 +84,7 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
     style,
     mode: input.mode ?? 'preview',
     ...(input.seams === false ? { seams: false } : {}),
+    ...(input.film ? { film: true } : {}),
     slots: input.slots,
     ...(input.energy ? { energy: input.energy } : {}),
     ...(input.captions && input.captions.groups.length ? { captions: input.captions } : {}),
@@ -96,10 +97,12 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
     throw new Error('texture tiles missing (run build:runtime and pass textures.json)');
   }
   const textureCss: string[] = [];
+  let grainCss = false;
   if (needsTiles && assets.textures) {
     const grainOpacity = style.texture.grain;
     // Paper is a softer, larger tile at half the grain strength (spec 03 design, Texture).
     const paperOpacity = style.texture.paper ? Math.max(grainOpacity, 0.02) / 2 : 0;
+    grainCss = grainOpacity > 0;
     if (grainOpacity > 0) {
       textureCss.push(
         `  .mp-grain { position: absolute; inset: 0; background-image: ${cssDataUrl(assets.textures.grain, 'grain tile')}; background-size: ${GRAIN_TILE_PX}px ${GRAIN_TILE_PX}px; opacity: ${fmt(grainOpacity)}; mix-blend-mode: multiply; }`,
@@ -139,11 +142,26 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
       `    <audio id="bed" class="clip" data-start="0" data-duration="${sec(durationMs)}" data-track-index="2" data-volume="1" src="${escapeAttr(input.bedSrc)}"></audio>`,
     );
   }
-  for (const s of input.slots) {
+  // Film beats (spec 07b) may stay on screen past their slot to hand over to the next beat. The
+  // clip is that much longer and gets a stacking order: in front of the next beat (`out`, it
+  // leaves and reveals what is under it) or behind it (`in`, the next beat arrives over it).
+  let z = 100;
+  let anyTail = false;
+  input.slots.forEach((s, i) => {
+    const tail = Math.max(0, Math.min(s.tailMs ?? 0, durationMs - s.endMs));
+    if (tail > 0) anyTail = true;
+    const style = s.tailMs !== undefined || anyTail ? ` style="z-index:${z}"` : '';
     layers.push(
-      `    <div id="${escapeAttr(s.id)}" class="clip mp-slot" data-start="${sec(s.startMs)}" data-duration="${sec(s.endMs - s.startMs)}" data-track-index="1"></div>`,
+      `    <div id="${escapeAttr(s.id)}" class="clip mp-slot" data-start="${sec(s.startMs)}" data-duration="${sec(s.endMs - s.startMs + tail)}" data-track-index="${tail > 0 ? 10 + (i % 2) : 1}"${style}></div>`,
     );
-  }
+    z += tail > 0 && s.over !== 'in' ? -1 : 1;
+  });
+  if (opaque && input.film && grainCss)
+    layers.push(
+      '    <div class="mp-texture mp-texture-top"><div class="mp-grain" style="opacity:' +
+        fmt(style.texture.grain * 0.6) +
+        '"></div></div>',
+    );
   if (opaque) layers.push('    <div id="mp-lens"></div>');
   layers.push('    <div id="mp-captions"></div>');
 
@@ -162,7 +180,9 @@ ${textureCss.join('\n')}
   .mp-slot { position: absolute; inset: 0; }
   .mp-cam { position: absolute; inset: 0; transform-origin: 50% 50%; }
   .mp-slot-root { position: absolute; inset: 0; }
-  #mp-captions { position: absolute; inset: 0; pointer-events: none; }
+  .mp-texture-top { z-index: 9000; }
+  #mp-lens { z-index: 9100; }
+  #mp-captions { position: absolute; inset: 0; pointer-events: none; z-index: 9200; }
 </style>
 </head>
 <body>

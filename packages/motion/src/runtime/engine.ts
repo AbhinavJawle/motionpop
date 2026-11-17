@@ -45,6 +45,8 @@ export interface Engine {
   warnings: SlotWarning[];
   /** Stage reports of mounted scenes, by slot id. */
   reports: () => Record<string, unknown>;
+  /** Sound effects custom graphics asked for, by slot id. */
+  sounds: () => Record<string, { kind: string; atMs: number }[]>;
 }
 
 /** The subset of `FontFaceSet` the engine needs (lets tests pass a fake). */
@@ -72,10 +74,20 @@ interface Mounted {
   composition: Composition;
   /** The slot holds its last frame and cuts (`fade: false`): no exit seam. */
   holds: boolean;
+  /** Film beats: how long the beat keeps playing after its slot ends (spec 07b). */
+  tailMs: number;
   seams: SlotSeams;
 }
 
 const PLACEHOLDER_TEXT = "Couldn't render";
+
+/** A custom graphic written as a beat of a film (spec 07b): it owns its seams and camera. */
+export const isFilmBeat = (slot: { componentId: string; params: unknown }): boolean =>
+  slot.componentId === 'custom' &&
+  typeof slot.params === 'object' &&
+  slot.params !== null &&
+  typeof (slot.params as { film?: unknown }).film === 'object' &&
+  (slot.params as { film?: unknown }).film !== null;
 
 /** CSS font shorthands to load: one per family (the bundled files are variable fonts, 100–900). */
 export function fontRequests(project: RuntimeProject): string[] {
@@ -191,8 +203,10 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
           root,
           composition,
           holds: slot.timing?.fade === false,
+          tailMs: slot.tailMs ?? 0,
           seams:
-            project.seams === false
+            // A film beat writes its own entrance and exit; a whole-frame seam would fight them.
+            project.seams === false || isFilmBeat(slot)
               ? NO_SEAMS
               : guardSeams(seamPlan.get(slot.id) ?? FALLBACK_SEAMS, keyMomentMs, durationMs),
         });
@@ -227,7 +241,7 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       if (broken.has(s.slotId)) continue;
       const local = tMs - s.startMs;
       // Only active slots are rendered; HyperFrames hides the others.
-      if (local < 0 || local > s.durationMs) continue;
+      if (local < 0 || local > s.durationMs + s.tailMs) continue;
       // Stage scenes plan their own camera (push capped during read time, snap-zooms).
       const scale = s.composition.camera?.(local) ?? pushIn(local, s.durationMs, pushAmount);
       const seam = seamState(s.seams, local, s.durationMs, project.width, s.holds, seamStep);
@@ -304,5 +318,15 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
     return out;
   };
 
-  return { ready, seek, errors, warnings, reports };
+  /** Sound effects custom graphics asked for with `mp.sfx`, by slot id (read by the film critic). */
+  const sounds = (): Record<string, { kind: string; atMs: number }[]> => {
+    const out: Record<string, { kind: string; atMs: number }[]> = {};
+    for (const s of slots ?? []) {
+      const cues = (s.composition as { sounds?: readonly { kind: string; atMs: number }[] }).sounds;
+      if (cues?.length) out[s.slotId] = [...cues];
+    }
+    return out;
+  };
+
+  return { ready, seek, errors, warnings, reports, sounds };
 }

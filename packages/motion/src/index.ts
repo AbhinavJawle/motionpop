@@ -5,6 +5,7 @@ export * from './components';
 export * from './compiler';
 export * from './engine';
 export * from './scenes';
+export * from './film';
 export * from './styles';
 export * from './registry';
 export { fontStack, primaryFamily } from './fonts/font-faces';

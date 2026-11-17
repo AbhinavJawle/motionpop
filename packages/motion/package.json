@@ -21,7 +21,8 @@
     "build:runtime": "node scripts/build-runtime.ts",
     "motion:check": "node scripts/build-runtime.ts && node scripts/run-check.ts",
     "sfx:listen": "node scripts/sfx-listen.ts",
-    "sheet": "node scripts/build-runtime.ts && node scripts/run-sheet.ts"
+    "sheet": "node scripts/build-runtime.ts && node scripts/run-sheet.ts",
+    "film:lab": "node scripts/build-runtime.ts && node scripts/run-film-lab.ts"
   },
   "dependencies": {
     "@motionpop/schemas": "workspace:*",

@@ -1,6 +1,7 @@
 import { fontStack } from '../../fonts/font-faces';
+import { paperOf } from '../../engine/materials';
 import type { BuildContext, Composition } from '../../contract';
-import { customHelpers } from './helpers';
+import { filmKit, type KitWord } from '../../film/kit';
 import { lintCustom } from './lint';
 import type { CustomParams } from './params';
 
@@ -78,7 +79,12 @@ export function scopeCss(css: string, scope: string): string {
  * Runs a generated script body with the blocked globals shadowed and `Math` without `random`.
  * No lint here: `buildCustom` lints first. Exported for the guard's own test.
  */
-export function runScript(script: string, stage: HTMLElement, scriptCtx: unknown): unknown {
+export function runScript(
+  script: string,
+  stage: HTMLElement,
+  scriptCtx: unknown,
+  mp: unknown,
+): unknown {
   // Generated code, linted, run inside the composition sandbox only: the point of tier 2 (spec 15).
   const factory = new Function(
     'root',
@@ -88,13 +94,7 @@ export function runScript(script: string, stage: HTMLElement, scriptCtx: unknown
     ...BLOCKED_GLOBALS,
     `"use strict";\n${script}`,
   ) as (...args: unknown[]) => unknown;
-  return factory(
-    stage,
-    scriptCtx,
-    customHelpers(stage),
-    SAFE_MATH,
-    ...BLOCKED_GLOBALS.map(() => undefined),
-  );
+  return factory(stage, scriptCtx, mp, SAFE_MATH, ...BLOCKED_GLOBALS.map(() => undefined));
 }
 
 export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
@@ -122,8 +122,12 @@ export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
     `--accent:${colors.accent}`,
     `--accent2:${colors.accent2}`,
     `--highlight:${colors.highlight}`,
+    `--positive:${colors.positive}`,
+    `--negative:${colors.negative}`,
+    `--paper:${paperOf(colors)}`,
     `--display:${fontStack(fonts.display)}`,
     `--body:${fontStack(fonts.body)}`,
+    `--mono:${fontStack(fonts.mono)}`,
     `color:${colors.ink}`,
     `font-family:${fontStack(fonts.body)}`,
   ].join(';');
@@ -138,19 +142,55 @@ export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
   wrap.append(stage);
   ctx.root.append(wrap);
 
-  const words = (ctx as BuildContext & { words?: { startMs: number; endMs: number }[] }).words;
-  const scriptCtx = Object.freeze({
+  const spoken = (
+    ctx as BuildContext & { words?: { startMs: number; endMs: number; text?: string }[] }
+  ).words;
+  const words: KitWord[] = (spoken ?? []).map((w) => ({
+    text: w.text ?? '',
+    startMs: w.startMs,
+    endMs: w.endMs,
+  }));
+  // A film beat stays on screen for its tail after the slot ends, handing over to the next beat.
+  const tailMs = p.film?.tailMs ?? 0;
+  const endMs = ctx.durationMs + tailMs;
+  const frozenColors = Object.freeze({ ...colors, chart: Object.freeze([...colors.chart]) });
+  const fontFamilies = Object.freeze({
+    display: fontStack(fonts.display),
+    body: fontStack(fonts.body),
+  });
+  const look = ctx.style as { surfaces?: { card?: readonly never[] } };
+  const { kit, cues } = filmKit(stage, {
     width: ctx.width,
     height: ctx.height,
     format: ctx.format,
     durationMs: ctx.durationMs,
     keyMomentMs: ctx.keyMomentMs,
     seed: ctx.seed,
-    colors: Object.freeze({ ...colors, chart: Object.freeze([...colors.chart]) }),
-    fonts: Object.freeze({ display: fontStack(fonts.display), body: fontStack(fonts.body) }),
-    words: Object.freeze((words ?? []).map((w) => Object.freeze({ ...w }))),
+    colors: frozenColors,
+    fonts: fontFamilies,
+    words,
+    radius: ctx.style.shape.radius,
+    stroke: ctx.style.shape.stroke,
+    ...(look.surfaces?.card ? { card: look.surfaces.card } : {}),
+    ...(p.props ? { props: p.props } : {}),
+    tailMs,
+    headMs: p.film?.headMs ?? 0,
+    warn: ctx.warn,
   });
-  const made = runScript(p.script, stage, scriptCtx);
+  const scriptCtx = Object.freeze({
+    width: ctx.width,
+    height: ctx.height,
+    format: ctx.format,
+    durationMs: ctx.durationMs,
+    keyMomentMs: ctx.keyMomentMs,
+    tailMs,
+    headMs: p.film?.headMs ?? 0,
+    seed: ctx.seed,
+    colors: frozenColors,
+    fonts: fontFamilies,
+    words: Object.freeze(words.map((w) => Object.freeze({ ...w }))),
+  });
+  const made = runScript(p.script, stage, scriptCtx, kit);
   const seekFn =
     made && typeof made === 'object' && typeof (made as { seek?: unknown }).seek === 'function'
       ? ((made as { seek: (t: number) => void }).seek.bind(made) as (t: number) => void)
@@ -176,12 +216,17 @@ export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
     }
   };
 
-  return {
+  const composition: Composition & { sounds?: readonly { kind: string; atMs: number }[] } = {
     durationMs: ctx.durationMs,
     seek: (tMs: number) => {
       reset();
-      seekFn(Math.min(Math.max(tMs, 0), ctx.durationMs));
+      seekFn(Math.min(Math.max(tMs, 0), endMs));
     },
     dispose: () => wrap.remove(),
+    // Sound effects the script asked for with `mp.sfx` (read by the film critic).
+    sounds: cues,
+    // A film beat plans its own camera: the runtime adds no push-in.
+    ...(p.film ? { camera: () => 1 } : {}),
   };
+  return composition;
 }

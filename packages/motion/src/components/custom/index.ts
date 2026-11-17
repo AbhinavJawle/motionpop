@@ -5,8 +5,8 @@ import { customParams, type CustomParams } from './params';
 
 export { BLOCKED_GLOBALS, CUSTOM_ALLOW_FLAG, scopeCss } from './build';
 export { customExample } from './example';
-export { lintCustom } from './lint';
-export { CUSTOM_LIMITS, customParams, type CustomParams } from './params';
+export { lintCustom, lintProp } from './lint';
+export { CUSTOM_LIMITS, FILM_MAX_TAIL_MS, customParams, type CustomParams } from './params';
 
 /**
  * Tier 2 (spec 15): a graphic the model wrote, run through the same engine as the library. Not

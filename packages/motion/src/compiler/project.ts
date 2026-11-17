@@ -70,6 +70,16 @@ export function compileSlot(slot: Slot, transcript: EditorProject['transcript'])
   // Scenes and custom graphics get the voice (a custom script can land beats on words).
   if (!isScene(slot.componentId) && slot.componentId !== 'custom') return withTimingField;
   const t = sceneTiming(slot, transcript);
+  if (slot.componentId === 'custom') {
+    // A custom script reads the words by name; a film beat also keeps its handover tail.
+    const film = (slot.params as { film?: { tailMs?: unknown; over?: unknown } }).film;
+    const tail = typeof film?.tailMs === 'number' ? Math.max(0, Math.round(film.tailMs)) : 0;
+    return {
+      ...withTimingField,
+      ...(t.words ? { words: t.words.map((w, i) => ({ ...w, text: t.text[i] ?? '' })) } : {}),
+      ...(tail > 0 ? { tailMs: tail, over: film?.over === 'in' ? 'in' : 'out' } : {}),
+    };
+  }
   return {
     ...withTimingField,
     ...(t.words ? { words: t.words } : {}),

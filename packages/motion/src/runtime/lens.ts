@@ -1,4 +1,5 @@
 import type { RuntimeProject } from '../compiler/types';
+import { isFilmBeat } from './engine';
 import { PAPER_SWEEP_MS, planSeams } from './seams';
 
 /**
@@ -51,7 +52,8 @@ export function mountLens(host: HTMLElement, project: RuntimeProject): Lens {
   );
   // Each paper seam's cut time: the start of the slot it brings in.
   const cuts = project.slots
-    .filter((s) => plan.get(s.id)?.enter.kind === 'paper')
+    // A film beat hands over by itself: no sheet sweeps across its cut.
+    .filter((s) => plan.get(s.id)?.enter.kind === 'paper' && !isFilmBeat(s))
     .map((s) => s.startMs)
     .sort((a, b) => a - b);
 

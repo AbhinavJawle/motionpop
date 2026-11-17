@@ -17,8 +17,18 @@ export interface CompileSlot {
   params: unknown;
   /** Slot-local key moment (spoken word); defaults to the component's own. */
   keyMomentMs?: number;
-  /** Scenes only: the slot's words, times relative to the slot start. */
-  words?: { startMs: number; endMs: number }[];
+  /**
+   * Scenes and custom graphics: the slot's words, times relative to the slot start. Custom
+   * graphics also get the text, so a script can land a beat on a word by name.
+   */
+  words?: { startMs: number; endMs: number; text?: string }[];
+  /**
+   * Film beats (spec 07b): the beat stays mounted this long after its slot ends, so it can hand
+   * over to the next beat. Its clip is that much longer; the slot's own times never overlap.
+   */
+  tailMs?: number;
+  /** Film beats: during the handover this beat is in front of the next (`out`) or behind it (`in`). */
+  over?: 'out' | 'in';
   /** Scenes only: prosody stress per slot word (0–100). */
   stress?: number[];
   /** Scenes only: pauses in the delivery, relative to the slot start. */
@@ -47,6 +57,11 @@ export interface CompileInput {
   mode?: 'preview' | 'render';
   /** Seams between graphics (default on). motion:check turns them off to measure settled layout. */
   seams?: boolean;
+  /**
+   * A film (spec 07b): the beats tile the voiceover and carry the picture themselves, so the
+   * drifting backdrop is left out and the grain is laid over the graphics as well as under them.
+   */
+  film?: boolean;
   /** Voiceover URL or relative asset path (e.g. "assets/voice.wav"). */
   voiceSrc?: string;
   /** The mixed effects and music bed (spec 12 §7), already levelled against the voice. */
@@ -70,6 +85,7 @@ export interface RuntimeProject {
   energy?: Energy;
   mode?: 'preview' | 'render';
   seams?: boolean;
+  film?: boolean;
   captions?: CompileCaptions;
   images?: Record<string, ImageRef>;
   slots: CompileSlot[];
