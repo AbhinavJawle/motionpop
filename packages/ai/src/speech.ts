@@ -1,5 +1,5 @@
 import { getGenerativeModel, InferenceMode, type AI } from 'firebase/ai';
-import { SCRIPT_MAX_CHARS } from '@motionpop/schemas';
+import { SCRIPT_MAX_CHARS, sha256Hex } from '@motionpop/schemas';
 import { z } from 'zod';
 
 /**
@@ -105,9 +105,32 @@ export function splitScript(text: string, max = TTS_PART_CHARS): string[] {
 /** Silence between parts, like a breath at a paragraph break. */
 const PART_GAP_MS = 220;
 
+/** The audio of one part of a script. */
+export interface PartAudio {
+  pcm: Int16Array;
+  sampleRate: number;
+}
+
+/**
+ * Stored audio per script part (spec 13b R4.2). A part is found again only with the same key:
+ * `partCacheKey`. Lookups and stores that fail count as a miss; they never fail the voice.
+ */
+export interface PartCache {
+  get(key: string): Promise<PartAudio | null>;
+  put(key: string, audio: PartAudio): Promise<void>;
+}
+
+/**
+ * sha256 of what the model is sent for one part, the voice and the model (spec 13b R4.2). The text
+ * includes the delivery note, because the note changes the audio (speed).
+ */
+export function partCacheKey(sentText: string, voice: string, model: string): string {
+  return sha256Hex([sentText, voice, model].join('\n'));
+}
+
 /**
  * The whole script as one voice: each part is one TTS call, in order, joined with a short pause.
- * `onPart(done, total)` reports progress for the button.
+ * `onPart(done, total)` reports progress for the button. Parts found in `partCache` make no call.
  */
 export async function speakWithFirebase(
   getAI: () => Promise<AI>,
@@ -115,6 +138,7 @@ export async function speakWithFirebase(
   raw: SpeakInput,
   now: () => number = () => performance.now(),
   onPart?: (done: number, total: number) => void,
+  partCache?: PartCache,
 ): Promise<SpeakResult> {
   const input = SpeakInputSchema.parse(raw);
   const started = now();
@@ -123,7 +147,13 @@ export async function speakWithFirebase(
   let rate = 24_000;
   onPart?.(0, parts.length);
   for (let i = 0; i < parts.length; i++) {
-    const r = await speakPart(getAI, model, { ...input, text: parts[i] ?? '' });
+    const text = parts[i] ?? '';
+    const key = partCacheKey(`${deliveryNote(input.speed)}${text}`, input.voice, model);
+    let r: PartAudio | null = partCache ? await partCache.get(key).catch(() => null) : null;
+    if (!r) {
+      r = await speakPart(getAI, model, { ...input, text });
+      await partCache?.put(key, r).catch(() => {});
+    }
     rate = r.sampleRate;
     if (i > 0) audio.push(new Int16Array(Math.round((rate * PART_GAP_MS) / 1000)));
     audio.push(r.pcm);

@@ -1,4 +1,11 @@
-import { speakWithFirebase, ttsMinutes, type SpeakInput, type UsageEvent } from '@motionpop/ai';
+import {
+  speakWithFirebase,
+  ttsMinutes,
+  type PartCache,
+  type SpeakInput,
+  type UsageEvent,
+} from '@motionpop/ai';
+import { idbPartCache } from './part-cache';
 import { emitAIUsage } from '@/lib/ai/router-client';
 import { APP_CONFIG_DEFAULTS, costOf, type AppConfig } from '@motionpop/schemas';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
@@ -24,6 +31,8 @@ export interface VoiceDeps {
   onUsage?: (e: UsageEvent) => void;
   /** Progress through a long script, part by part. */
   onPart?: (done: number, total: number) => void;
+  /** Audio of parts already generated (spec 13b R4.2). Default: the browser's IndexedDB store. */
+  partCache?: PartCache | null;
 }
 
 export function voiceCost(text: string, speed: number, cfg = APP_CONFIG_DEFAULTS): number {
@@ -64,6 +73,7 @@ export async function generateVoice(deps: VoiceDeps, input: SpeakInput): Promise
       { ...input, text },
       undefined,
       deps.onPart,
+      deps.partCache === undefined ? idbPartCache() : (deps.partCache ?? undefined),
     );
     const file = pcmToWavFile(r.pcm, r.sampleRate, 'script-voice.wav');
     report({
