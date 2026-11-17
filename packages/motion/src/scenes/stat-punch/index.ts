@@ -88,7 +88,7 @@ export function layoutStatPunch(
         [
           ...ctx(wide ? 0.03 : tall ? 0.018 : 0.028),
           { id: 'number', size: num, min: tall ? 0.2 : 0.3, gap: 0.08 },
-          { id: 'label', size: wide ? 0.045 : tall ? 0.03 : 0.042, lines: tall ? 3 : 2 },
+          { id: 'label', size: wide ? 0.054 : tall ? 0.034 : 0.05, lines: tall ? 3 : 2 },
         ],
         { align: 'center', bias: 0.42 },
       ),
@@ -138,7 +138,7 @@ export function layoutStatPunch(
           min: wide ? 0.42 : 0.25,
           gap: 0.12,
         },
-        { id: 'label', size: wide ? 0.05 : tall ? 0.032 : 0.05, lines: tall ? 3 : 2 },
+        { id: 'label', size: wide ? 0.058 : tall ? 0.036 : 0.058, lines: tall ? 3 : 2 },
       ],
       { align: wide ? 'left' : 'center', bias: wide ? 0.45 : 0.42 },
     ),

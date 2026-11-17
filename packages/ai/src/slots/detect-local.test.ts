@@ -8,6 +8,7 @@ import {
   clauseRanges,
   detectLocal,
   hookLine,
+  labelAfter,
   listDraft,
   quoteDraft,
   reasonFor,
@@ -783,5 +784,71 @@ describe('clauseRanges merges and coverage (founder 2026-11-16)', () => {
       prev = x.endMs;
     }
     expect(s.some((x) => x.componentId === 'callout')).toBe(false);
+  });
+});
+
+// Spec 07c task 19 (Kiro run 20): a stat's label comes from the words after the number.
+describe('labelAfter (spec 07c R5.1)', () => {
+  /** The label for the first word of `ws` (the number), with the sentence split as detection does. */
+  const after = (ws: SlotWord[], index = 0) => labelAfter(ws, sentenceIndex(ws), index);
+
+  it('takes the words after the number, up to 6 words', () => {
+    const ws = words('369', 'ships', 'queued', 'up', 'at', 'both', 'ends', 'of', 'the', 'canal');
+    expect(after(ws)).toBe('Ships queued up at both ends');
+  });
+
+  it('stops at a digit and at punctuation', () => {
+    expect(after(words('40', 'containers', '2', 'trucks'))).toBe('');
+    const ws = words('369', 'days', 'in', 'the', 'queue,', 'and', 'then');
+    expect(after(ws)).toBe('Days in the queue');
+  });
+
+  it('cuts before a trailing preposition when the word limit cuts the phrase', () => {
+    const ws = words('5', 'days', 'waiting', 'for', 'the', 'tide', 'in', 'the', 'rain');
+    expect(after(ws)).toBe('Days waiting for the tide');
+  });
+
+  it('is empty when the words after the number start with a grammar word', () => {
+    expect(after(words('5', 'since', 'then', 'the', 'ships'))).toBe('');
+    expect(after(words('5', 'of', 'them'))).toBe('');
+  });
+
+  it('is empty when the words run to the next sentence', () => {
+    const ws = words('5', 'ships.', 'Then', 'more', 'came');
+    expect(after(ws)).toBe('');
+  });
+
+  it('is never longer than the limit and never starts with a digit (property)', () => {
+    const vocab = [
+      'ships',
+      'queued',
+      'up',
+      'at',
+      'the',
+      'of',
+      'in',
+      'days',
+      'waiting',
+      'since',
+      'and',
+      'port',
+      '7',
+    ];
+    fc.assert(
+      fc.property(
+        fc.array(fc.constantFrom(...vocab), { minLength: 1, maxLength: 14 }),
+        fc.integer({ min: 1, max: 8 }),
+        (rest, max) => {
+          const ws = words('369', ...rest);
+          const label = labelAfter(ws, sentenceIndex(ws), 0, max);
+          if (label === '') return;
+          const parts = label.split(' ');
+          expect(parts.length).toBeGreaterThanOrEqual(2);
+          expect(parts.length).toBeLessThanOrEqual(max);
+          expect(label.charAt(0)).toBe(label.charAt(0).toUpperCase());
+          for (const p of parts) expect(/^\d/.test(p)).toBe(false);
+        },
+      ),
+    );
   });
 });

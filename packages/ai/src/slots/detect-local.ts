@@ -110,6 +110,64 @@ function labelBefore(
   return label ? label.charAt(0).toUpperCase() + label.slice(1) : '';
 }
 
+/** Words a label after a number may not start with: it would read as a fragment ("since 2020"). */
+const AFTER_STOP = new Set(
+  (
+    'since in from by to over at on and but so for with than as or into until per while when ' +
+    'which who that this it is was were are be been'
+  ).split(' '),
+);
+/** Grammar a label never ends on ("ships queued up at"). */
+const LABEL_TAIL = new Set(
+  'a an the of to at in on by for with and or but from as than that this its their our'.split(' '),
+);
+
+/**
+ * Spec 07c task 3: up to 6 words right after a number in the same sentence ("of", "the" skipped
+ * at the start), stopping at a comma or the sentence end, grammar trimmed off the end. Empty
+ * unless it starts with a content word and keeps at least 2 words.
+ */
+export function labelAfter(
+  words: readonly SlotWord[],
+  sentence: readonly number[],
+  index: number,
+  max = 6,
+): string {
+  const picked: string[] = [];
+  let closed = false;
+  for (let i = index + 1; i < words.length && picked.length < max; i++) {
+    if (sentence[i] !== sentence[index]) {
+      closed = true;
+      break;
+    }
+    const w = words[i];
+    if (!w || w.filler) continue;
+    const t = clean(w.text);
+    if (!t) continue;
+    if (picked.length === 0 && /^(of|the|a|an)$/i.test(t)) continue;
+    if (/^\d/.test(t)) break;
+    picked.push(t);
+    if (/[,;:.!?]["')\]]*$/.test(w.text.trim())) {
+      closed = true;
+      break;
+    }
+  }
+  // Cut short by the word limit: end before a trailing preposition ("…queued up at both at" →
+  // "…queued up at both"). Only the end is cut, so "at both ends" inside a phrase stays (spec 07c R5.1).
+  if (!closed) {
+    while (
+      picked.length > 2 &&
+      /^(at|in|on|to|from|by|for|with|into|over|of|and)$/i.test(picked[picked.length - 1] as string)
+    )
+      picked.pop();
+  }
+  while (picked.length && LABEL_TAIL.has((picked[picked.length - 1] as string).toLowerCase()))
+    picked.pop();
+  if (picked.length < 2 || AFTER_STOP.has((picked[0] as string).toLowerCase())) return '';
+  const label = picked.join(' ');
+  return label.charAt(0).toUpperCase() + label.slice(1);
+}
+
 const decimalsOf = (v: number): number => {
   const s = String(v);
   const dot = s.indexOf('.');
@@ -299,7 +357,14 @@ export function bigNumberParams(
   const unit = span.unit;
   const prefix = unit && CURRENCY.has(unit) ? unit : undefined;
   const suffix = (unit === '%' || unit === 'x' ? unit : '') + scale || undefined;
-  const label = labelBefore(words, sentence, span.wordStart).slice(0, 48).trim();
+  // Changed by spec 07c task 3: the words after the number name what it counts ("369 ships
+  // queued up", "six days to pull it free") better than the words before ("It took"), so they
+  // win when they start with a content word; else the words before, as before.
+  const label = (
+    labelAfter(words, sentence, span.wordEnd) || labelBefore(words, sentence, span.wordStart)
+  )
+    .slice(0, 48)
+    .trim();
   const params: Record<string, unknown> = {
     value,
     ...(prefix ? { prefix } : {}),
