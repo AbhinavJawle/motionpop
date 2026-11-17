@@ -20,6 +20,7 @@ const CONFIG: RouterConfig = {
   routingSlotsDetectDeviceMaxWords: 400,
   modelFast: 'fast-model',
   modelStrong: 'strong-model',
+  modelFilmBuild: 'strong-model',
   killSwitch: false,
 };
 

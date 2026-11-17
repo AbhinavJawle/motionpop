@@ -16,6 +16,7 @@ const CONFIG: RouterConfig = {
   routingSlotsDetectDeviceMaxWords: 400,
   modelFast: 'fast',
   modelStrong: 'strong',
+  modelFilmBuild: 'strong',
   killSwitch: false,
 };
 
@@ -169,14 +170,12 @@ describe('auto-fill for scenes (spec 07 task 27)', () => {
     const running = runAutoFill(deps, () => false);
     await new Promise((r) => setTimeout(r, 20));
     // The user retimes the slot while the model is still thinking.
-    store
-      .getState()
-      .load({
-        ...store.getState().project!,
-        slots: store
-          .getState()
-          .project!.slots.map((s) => (s.id === 'slot-h' ? { ...s, endMs: s.endMs - 100 } : s)),
-      });
+    store.getState().load({
+      ...store.getState().project!,
+      slots: store
+        .getState()
+        .project!.slots.map((s) => (s.id === 'slot-h' ? { ...s, endMs: s.endMs - 100 } : s)),
+    });
     release();
     await running;
     expect(versions().some((v) => v.label === 'Auto-fill')).toBe(false);

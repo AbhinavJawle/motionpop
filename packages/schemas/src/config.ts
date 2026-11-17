@@ -26,6 +26,8 @@ export const AppConfigSchema = z.object({
   customProvider: z.enum(['gemini', 'claude']),
   modelFast: z.string().min(1),
   modelStrong: z.string().min(1),
+  /** Model for the film beat builders (`film.build`); `film.direct` and `film.props` use modelStrong. */
+  modelFilmBuild: z.string().min(1),
   modelTts: z.string().min(1),
   /** Gemini image model for generated images (spec 07, D-030). */
   modelImage: z.string().min(1),
@@ -69,6 +71,7 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   modelFast: 'gemini-3.5-flash-lite',
   // Plans and long slot detection (D-026). Raise to gemini-4-carbon in Remote Config if needed.
   modelStrong: 'gemini-3.8-flash',
+  modelFilmBuild: 'gemini-3.8-flash',
   modelTts: 'gemini-3.8-flash-tts',
   modelImage: 'gemini-nano-banana-2.1',
   imagesPerVideoMax: 6,
@@ -128,6 +131,7 @@ const KEYS: Record<keyof AppConfig, { key: string; decode: Decoder }> = {
   customProvider: { key: 'custom_provider', decode: str },
   modelFast: { key: 'model_fast', decode: str },
   modelStrong: { key: 'model_strong', decode: str },
+  modelFilmBuild: { key: 'model_film_build', decode: str },
   modelTts: { key: 'model_tts', decode: str },
   modelImage: { key: 'model_image', decode: str },
   imagesPerVideoMax: { key: 'images_per_video_max', decode: int },

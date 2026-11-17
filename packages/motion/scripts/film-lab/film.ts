@@ -74,6 +74,8 @@ const router = createRouter({
     modelFast: builder,
     // The Director and the drawings use the strong model; `--builder` swaps the beat builder.
     modelStrong: phase === 'direct' ? director : builder,
+    // Film beat builders (film.build) read this one; `--builder` swaps them too.
+    modelFilmBuild: builder,
     killSwitch: false,
   }),
   onUsage: (e) => {

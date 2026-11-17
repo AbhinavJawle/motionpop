@@ -11,6 +11,7 @@ const CONFIG: RouterConfig = {
   routingSlotsDetectDeviceMaxWords: 400,
   modelFast: 'fast',
   modelStrong: 'strong',
+  modelFilmBuild: 'strong',
   killSwitch: false,
 };
 const input = (over: Partial<ComponentFillInput> = {}): ComponentFillInput => ({

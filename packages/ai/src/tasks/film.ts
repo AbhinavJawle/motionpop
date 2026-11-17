@@ -195,7 +195,7 @@ export function filmBuildTask(
     input: FilmBuildInputSchema,
     output: FilmBuildOutputSchema,
     mode: () => 'ONLY_IN_CLOUD',
-    model: (cfg) => cfg.modelStrong,
+    model: (cfg) => cfg.modelFilmBuild,
     system: filmBuildSystemV1(kitDoc),
     prompt: (i) => filmBuildPromptV1(i as Parameters<typeof filmBuildPromptV1>[0]),
     cloudCost: () => 0,

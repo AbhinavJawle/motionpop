@@ -86,6 +86,7 @@ export interface RouterConfig {
   routingSlotsDetectDeviceMaxWords: number;
   modelFast: string;
   modelStrong: string;
+  modelFilmBuild: string;
   killSwitch: boolean;
 }
 

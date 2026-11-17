@@ -544,6 +544,7 @@ async function main() {
   const cases = buildCases();
   const failures: Failure[] = [];
   const warnings: string[] = [];
+  let focalNoted = false;
   const composition: CompositionRow[] = [];
   let stills = 0;
   const t0 = performance.now();
@@ -647,6 +648,15 @@ async function main() {
           }
           const dur = c.durationMs;
           const key = s.keyAbs;
+          // Custom graphics (spec 07b) are written by a model and may have no focal element, so
+          // the focal and sync checks do not apply to them. The probe decides: a custom slot with
+          // no [data-focal] at its key moment skips those checks.
+          const focalFree =
+            id === 'custom' && (await probeAt(page, s.id, s.startMs + key)).focal === null;
+          if (focalFree && !focalNoted) {
+            focalNoted = true;
+            console.log('custom: focal and sync checks not applicable (no [data-focal] element)');
+          }
           const win = await readableWindow(page, s.id, s.startMs, dur);
           const endHold = win ? Math.max(key, win.toMs - STEP_MS) : key;
           if (c.keyLabel === 'default') {
@@ -764,7 +774,7 @@ async function main() {
                 } else warnings.push(`${format} ${c.name} @${label}: composition: ${problem}`);
               }
             }
-            if (label === 'key') {
+            if (label === 'key' && !focalFree) {
               const fo = p.focal;
               if (
                 !fo ||
@@ -792,30 +802,32 @@ async function main() {
           // Sync (principle 13): settled within +80 ms of the word; still moving 80 ms before it.
           // "Settled" = unchanged from key + 80 ms until 400 ms after the word, or until the exit
           // starts (late words leave little room), whichever comes first.
-          const after = await probeAt(page, s.id, s.startMs + Math.min(dur, key + SYNC_MS));
-          let settled = after;
-          for (const d of [160, 240, 320, 400]) {
-            if (key + d > dur) break;
-            const later = await probeAt(page, s.id, s.startMs + key + d);
-            if ((later.focal?.opacity ?? 0) < (after.focal?.opacity ?? 0) - 0.01) break; // exiting
-            settled = later;
-            if (!sameState(after.focal, later.focal)) {
-              fail(
-                'sync',
-                `focal still changing at key + ${d} ms (not settled by key + ${SYNC_MS} ms)`,
-                key + SYNC_MS,
-              );
-              break;
+          if (!focalFree) {
+            const after = await probeAt(page, s.id, s.startMs + Math.min(dur, key + SYNC_MS));
+            let settled = after;
+            for (const d of [160, 240, 320, 400]) {
+              if (key + d > dur) break;
+              const later = await probeAt(page, s.id, s.startMs + key + d);
+              if ((later.focal?.opacity ?? 0) < (after.focal?.opacity ?? 0) - 0.01) break; // exiting
+              settled = later;
+              if (!sameState(after.focal, later.focal)) {
+                fail(
+                  'sync',
+                  `focal still changing at key + ${d} ms (not settled by key + ${SYNC_MS} ms)`,
+                  key + SYNC_MS,
+                );
+                break;
+              }
             }
-          }
-          if (key - SYNC_MS > 0) {
-            const before = await probeAt(page, s.id, s.startMs + key - SYNC_MS);
-            const canChange =
-              before.focal?.text !== settled.focal?.text || (before.focal?.opacity ?? 1) < 0.99;
-            if (!canChange && sameState(before.focal, settled.focal)) {
-              warnings.push(
-                `${format} ${c.name}: focal already settled 80 ms before the key moment`,
-              );
+            if (key - SYNC_MS > 0) {
+              const before = await probeAt(page, s.id, s.startMs + key - SYNC_MS);
+              const canChange =
+                before.focal?.text !== settled.focal?.text || (before.focal?.opacity ?? 1) < 0.99;
+              if (!canChange && sameState(before.focal, settled.focal)) {
+                warnings.push(
+                  `${format} ${c.name}: focal already settled 80 ms before the key moment`,
+                );
+              }
             }
           }
           // Event contract: the HyperFrames clock and a direct seek give the same frame.
@@ -823,7 +835,8 @@ async function main() {
           const direct = await probeAt(page, s.id, s.startMs + key, true);
           const textsKey = (p: Probe) =>
             JSON.stringify(p.texts.map((x) => [x.text, x.opacity.toFixed(3), x.visible]));
-          if (!sameState(viaHf.focal, direct.focal) || textsKey(viaHf) !== textsKey(direct))
+          const focalAgrees = focalFree || sameState(viaHf.focal, direct.focal);
+          if (!focalAgrees || textsKey(viaHf) !== textsKey(direct))
             fail(
               'hf-seek contract',
               `HyperFrames clock and direct seek disagree: ${textsKey(viaHf)} vs ${textsKey(direct)}`,

@@ -215,6 +215,7 @@ const FAKE_CONFIG: RouterConfig = {
   routingSlotsDetectDeviceMaxWords: 400,
   modelFast: 'fake-fast',
   modelStrong: 'fake-strong',
+  modelFilmBuild: 'fake-strong',
   killSwitch: false,
 };
 
