@@ -470,7 +470,10 @@ async function probeAt(
         // Single glyphs (a tile's initial, "VS") are graphics, not words.
         if (text.length > 2) groupWords += text.split(/\s+/).length;
       }
-      for (const el of host?.querySelectorAll<HTMLElement>('[data-surface]') ?? []) {
+      // Spec 07c: a companion or a picture in a split frame is half of the composition.
+      for (const el of host?.querySelectorAll<HTMLElement>(
+        '[data-surface], [data-actor="companion"], [data-actor="image"]',
+      ) ?? []) {
         if (!visible(el) || (!laidOut && effOpacity(el) < 0.05)) continue;
         const r = el.getBoundingClientRect();
         if (r.width > 0) pieces.push({ x: r.x, y: r.y, width: r.width, height: r.height });
@@ -584,6 +587,9 @@ async function main() {
             // Layout is measured settled: the seams between graphics move whole slots on purpose
             // (their key-moment guard is unit-tested in runtime/engine.test.ts).
             seams: false,
+            // Spec 07c: the whole-video plan (companions, climax, one world) is on by default, as in
+            // the app. MP_CHECK_STAGING=0 measures each scene alone, the way it was before.
+            ...(process.env['MP_CHECK_STAGING'] === '0' ? { staging: false } : {}),
             slots: slots.map(({ case: _c, keyAbs: _k, ...s }) => s),
           },
           assets,

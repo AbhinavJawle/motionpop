@@ -42,6 +42,8 @@ export function splitFrame(
 ): ImageSplit {
   const safe = safeArea(format, w, h);
   const s = Math.max(0.3, Math.min(0.65, share));
+  // Room for glyph overhang and a look's tilt, which can reach past a text box by a few pixels.
+  const slack = Math.round(Math.min(w, h) * 0.012);
   const r = (b: Box): Box => ({
     x: Math.round(b.x),
     y: Math.round(b.y),
@@ -57,19 +59,67 @@ export function splitFrame(
       width: iw,
       height: safe.height,
     };
-    // The text sub-frame runs to the frame edge on its open side: it brings its own margins.
-    const text = left
-      ? { x: safe.x + iw, y: 0, width: w - (safe.x + iw), height: h }
-      : { x: 0, y: 0, width: safe.x + safe.width - iw, height: h };
-    return { image: r(image), text: r(text), textFormat: closestFormat(text.width, text.height) };
+    // Changed by spec 07c: the text sits between the picture (plus a gap) and the frame's safe
+    // edge, and its sub-frame is sized so the scene's own safe area is exactly that box. Before,
+    // the sub-frame ran to the frame edge and its smaller margins let text leave the safe area.
+    const gap = Math.round(w * 0.03);
+    const tx = left ? image.x + iw + gap : safe.x;
+    const target = { x: tx, y: safe.y, width: (left ? safe.x + safe.width : image.x - gap) - tx, height: safe.height };
+    const sub = frameAround(target, slack);
+    return { image: r(image), text: r(sub.box), textFormat: sub.format };
   }
   const ih = safe.height * s;
-  const image = { x: safe.x, y: safe.y, width: safe.width, height: ih };
-  const top = safe.y + ih;
-  // 9:16 keeps the bottom platform zone clear: the sub-frame stops where the frame's safe area does.
-  const bottom = format === '9:16' ? safe.y + safe.height + Math.round(h * 0.04) : h;
-  const text = { x: 0, y: top, width: w, height: bottom - top };
-  return { image: r(image), text: r(text), textFormat: closestFormat(text.width, text.height) };
+  // The pair sits a little lower, so a short text block under the picture doesn't leave the
+  // whole group above the optical centre.
+  const drop = Math.round(h * (format === '1:1' ? 0.05 : 0.015));
+  const image = { x: safe.x, y: safe.y + drop, width: safe.width, height: ih };
+  const gap = Math.round(h * 0.02);
+  const top = image.y + ih + gap;
+  const sub = frameAround(
+    { x: safe.x, y: top, width: safe.width, height: safe.y + safe.height - top },
+    slack,
+  );
+  return { image: r(image), text: r(sub.box), textFormat: sub.format };
+}
+
+/** The safe-area margins `safeArea` uses for a format, as shares of the frame. */
+function margins(f: Format): { x: number; top: number; bottom: number } {
+  return f === '9:16' ? { x: 0.06, top: 0.12, bottom: 0.2 } : { x: 0.05, top: 0.05, bottom: 0.05 };
+}
+
+/**
+ * The frame whose safe area is `target`, less `slack` px each side: the inverse of
+ * `safeArea`. The format follows the frame's shape, so it is settled in a few rounds.
+ */
+export function frameAround(target: Box, slack = 1): { box: Box; format: Format } {
+  const t = {
+    x: target.x + slack,
+    y: target.y + slack,
+    width: target.width - 2 * slack,
+    height: target.height - 2 * slack,
+  };
+  const around = (f: Format): Box => {
+    const m = margins(f);
+    const W = t.width / (1 - 2 * m.x);
+    const H = t.height / (1 - m.top - m.bottom);
+    return { x: t.x - m.x * W, y: t.y - m.top * H, width: W, height: H };
+  };
+  let format = closestFormat(t.width, t.height);
+  for (let i = 0; i < 4; i++) {
+    const b = around(format);
+    const next = closestFormat(b.width, b.height);
+    if (next === format) break;
+    format = next;
+  }
+  // Whatever the shape settled on, the margins are the returned format's.
+  const box = around(format);
+  // Rounding outward could let the scene's safe area grow by a pixel; round inward instead.
+  const x = Math.ceil(box.x);
+  const y = Math.ceil(box.y);
+  return {
+    box: { x, y, width: Math.floor(box.x + box.width) - x, height: Math.floor(box.y + box.height) - y },
+    format,
+  };
 }
 
 export interface ImageLayer {
