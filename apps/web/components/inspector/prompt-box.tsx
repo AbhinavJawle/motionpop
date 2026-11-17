@@ -71,7 +71,10 @@ export function PromptBox({ slot }: { slot: Slot }) {
       {/* Tier 2 (spec 15, not designed): the same brief, written as a new graphic by the cloud. */}
       <Tooltip
         content={
-          custom.disabledReason ?? 'Nothing in the library fits? Pip writes a custom graphic'
+          custom.disabledReason ??
+          (custom.filmBeat
+            ? 'Pip rebuilds this beat from the film’s storyboard, with your prompt as its picture'
+            : 'Nothing in the library fits? Pip writes a custom graphic')
         }
         side="top"
         className="absolute bottom-1 left-2"
@@ -85,7 +88,7 @@ export function PromptBox({ slot }: { slot: Slot }) {
             onClick={makeCustom}
             className="h-[26px] gap-1 px-2 text-violet-ink"
           >
-            <span>Custom</span>
+            <span>{custom.filmBeat ? 'Rebuild beat' : 'Custom'}</span>
             <CostChip route="cloud" credits={custom.cost} />
           </Button>
         </span>

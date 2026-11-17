@@ -1,4 +1,5 @@
-import type { PipPlanInput } from '@motionpop/ai';
+import type { FilmBuildInput, FilmDirectInput, PipPlanInput } from '@motionpop/ai';
+import { filmBuildAnswer, filmDirectAnswer } from './fake-film';
 import type { PipModelOutput } from '@motionpop/schemas';
 import {
   PREFILL_MAX,
@@ -354,6 +355,12 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
         output = pipAnswer(input as PipPlanInput);
       } else if (task.id === 'custom.compose') {
         output = customAnswer(input as { brief: string; words: string });
+      } else if (task.id === 'film.direct') {
+        output = filmDirectAnswer(input as FilmDirectInput);
+      } else if (task.id === 'film.build') {
+        output = filmBuildAnswer(input as FilmBuildInput);
+      } else if (task.id === 'film.props') {
+        output = { props: [] };
       } else {
         throw fail(ranOn, 'provider', `The fake router has no answer for ${task.id}`);
       }

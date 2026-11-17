@@ -36,6 +36,13 @@ export const SEAM_OVER: Readonly<Record<SeamKind, 'out' | 'in'>> = {
   match: 'out',
 };
 
+/** A film is priced per started 30 s of voiceover. */
+export const FILM_UNIT_MS = 30_000;
+/** Units of the `film` credit action for a voiceover of this length (at least 1). */
+export function filmUnits(durationMs: number): number {
+  return Math.max(1, Math.ceil(Math.max(0, durationMs) / FILM_UNIT_MS));
+}
+
 export const StorySeamSchema = z.object({
   kind: z.enum(SEAM_KINDS),
   /** What both sides do: the object that carries the cut, with any shared numbers. */
@@ -292,3 +299,16 @@ export function storyboardIssues(
   }
   return issues;
 }
+
+/**
+ * What a project keeps of its film (spec 07b R5.4): the storyboard and the shared drawings, so
+ * one beat can be rebuilt later without the others and the plan can be shown.
+ */
+export const ProjectFilmSchema = z.object({
+  storyboard: StoryboardSchema,
+  props: z.record(z.string().max(40), z.string().max(8000)),
+  /** Epoch ms. */
+  madeAt: z.number().int().nonnegative(),
+  model: z.string().max(80).optional(),
+});
+export type ProjectFilm = z.infer<typeof ProjectFilmSchema>;

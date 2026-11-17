@@ -21,6 +21,7 @@ import { clampScroll, DEFAULT_ZOOM_LIMITS, fitView } from '@/lib/timeline/geomet
 import { addSlot } from '@/lib/commands';
 import { slotAtPlayhead } from '@/lib/timeline/add-graphic';
 import { editorStore, useEditor } from '@/lib/stores/editor';
+import { FilmButton } from './film-button';
 import { useFrame, useTimeline } from './timeline-context';
 
 const FRAME_MS = 1000 / 30;
@@ -131,6 +132,10 @@ export function TimelineHeader() {
       </div>
 
       <div className="ml-auto flex items-center">
+        {/* Film mode (spec 07b; not in the designs): right of the transport, where there is room. */}
+        <span className="mr-5">
+          <FilmButton />
+        </span>
         <Tooltip content="Timeline settings">
           <button
             type="button"

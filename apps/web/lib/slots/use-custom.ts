@@ -9,6 +9,7 @@ import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import { useAppConfig } from '@/lib/renders/hooks';
 import { beginActivity, endActivity, useAIActivity } from '@/lib/stores/ai-activity';
 import { editorStore, useEditor } from '@/lib/stores/editor';
+import { isFilmBeat, rebuildFilmBeat } from '@/lib/film/rebuild';
 import { COULDNT_CUSTOM, generateCustom } from './custom';
 import { PIP_IS_ON_IT, type GenerateDeps } from './generate';
 
@@ -21,7 +22,13 @@ export async function runCustom(deps: GenerateDeps, slotId: string, route: Route
   beginActivity('generate', slotId);
   let result;
   try {
-    result = await generateCustom(deps, slotId, route);
+    // A beat of the project's film is rebuilt from its storyboard (spec 07b R5.3), so it still
+    // belongs to the film; any other slot gets a stand-alone custom graphic.
+    const project = deps.store.getState().project;
+    const slot = project?.slots.find((s) => s.id === slotId) ?? null;
+    result = isFilmBeat(project, slot)
+      ? await rebuildFilmBeat(deps, slotId, route)
+      : await generateCustom(deps, slotId, route);
   } catch {
     result = { outcome: 'kept' as const, reason: COULDNT_CUSTOM };
   }
@@ -56,5 +63,13 @@ export function useCustom(slot: Slot | null) {
     if (!slot || disabledReason !== null) return;
     void runCustom({ store: editorStore, credits, getRouter, config }, slot.id, route);
   };
-  return { route, disabledReason, run, cost: route.kind === 'cloud' ? route.credits : 3 };
+  const project = useEditor((s) => s.project);
+  return {
+    route,
+    disabledReason,
+    run,
+    cost: route.kind === 'cloud' ? route.credits : 3,
+    /** The slot is a beat of the project's film: the button rebuilds it instead. */
+    filmBeat: isFilmBeat(project, slot),
+  };
 }

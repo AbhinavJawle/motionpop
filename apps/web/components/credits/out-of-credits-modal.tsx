@@ -18,6 +18,7 @@ export const ACTION_LABEL: Record<ClientCreditAction, string> = {
   edit: 'A cloud quick edit',
   'pip-plan': 'A Pip plan',
   custom: 'A custom graphic',
+  film: 'A film',
   'slots-detect': 'Finding moments',
   tts: 'Voice generation',
   transcribe: 'Transcription',

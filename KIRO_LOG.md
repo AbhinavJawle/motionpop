@@ -1668,3 +1668,34 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - task (run13, claude-haiku-5.5, effort low; prompt by Claude Code): verify the coverage, two-phase auto-fill, loose type switch and Add graphic commits; update only tests that expect the old behaviour, report real bugs without fixing them.
 - result, from the run's own report: web 1,073/1,073 with tsc and eslint clean; ai 399/399; motion 427/428, the one failure a 20 s timeout of chart-story's random-seek property under parallel load (10/10 in 2.4 s alone). No test needed updating, no bugs found, no files changed.
 <!-- /kiro-session:sess_21ec67f4-660c-4543-9ace-f040ef9b0923 -->
+
+<!-- kiro-session:sess_e0b6e4af-301b-4c21-ab14-07e0bf71b559 -->
+### 2026-11-17 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-17T06:35:25.196Z · last stop: 2026-11-17T06:42:52.655Z · session: sess_e0b6e4af-301b-4c21-ab14-07e0bf71b559
+- commits since start: 
+  - 5b52dcf test(07b-film-mode): task 7 film kit, storyboard and makeFilm tests
+- uncommitted changes: 
+  - `M apps/web/components/credits/out-of-credits-modal.tsx`
+  - ` M apps/web/components/timeline/timeline-header.tsx`
+  - ` M apps/web/lib/ai/fake-router.ts`
+  - ` M apps/web/lib/ai/route.ts`
+  - ` M apps/web/lib/credits/ledger-text.ts`
+  - ` M packages/ai/src/prompts/film-build.v1.ts`
+  - ` M packages/ai/src/prompts/film-direct.v1.ts`
+  - ` M packages/motion/src/compiler/project.ts`
+  - ` M packages/motion/src/components/index.ts`
+  - ` M packages/motion/src/film/critic.ts`
+  - ` M packages/schemas/src/cost.ts`
+  - ` M packages/schemas/src/credits.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/project.ts`
+  - ` M packages/schemas/src/user.ts`
+  - `?? apps/web/components/timeline/film-button.tsx`
+  - `?? apps/web/e2e/film.spec.ts`
+  - `?? apps/web/lib/ai/fake-film.ts`
+  - `?? apps/web/lib/film/`
+  - `?? apps/web/lib/stores/film-activity.ts`
+- task (run14, claude-haiku-5.5, effort low; prompt by Claude Code, launched by a Claude Opus supervisor subagent): spec 07b task 7, tests only for the film kit, the storyboard schema and `makeFilm`; no source changes; commit only its own files.
+- result, from the run's own report: five test files, 67 new tests (schemas 313/313 with 23 new, motion 463/463 with 35 new, ai 408/408 with 9 new), typecheck and lint clean, no source bug found, committed as `5b52dcf` with only its six paths. The uncommitted files listed above are Claude Code's app work in progress, not Kiro's.
+- after the run (Claude Code): the supervisor subagent hit its usage limit before finishing its own re-run, so Claude Code re-ran the three suites. One of Kiro's tests (`kitExample` purity in every format) timed out at 24 s under the full parallel suite and passed alone in 13 s; Claude Code gave it 12 runs and a 90 s limit. Kiro's note on task 7 in tasks.md said "Claude Code"; corrected to "Kiro CLI run14".
+<!-- /kiro-session:sess_e0b6e4af-301b-4c21-ab14-07e0bf71b559 -->

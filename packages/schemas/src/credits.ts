@@ -11,6 +11,8 @@ export const CreditActionSchema = z.enum([
   'edit',
   'pip-plan',
   'custom',
+  /** Film mode (spec 07b): the whole video, priced per started 30 s. */
+  'film',
   'slots-detect',
   'tts',
   'transcribe',
@@ -26,8 +28,11 @@ export type CreditAction = z.infer<typeof CreditActionSchema>;
 export const ClientCreditActionSchema = CreditActionSchema.exclude(['export']);
 export type ClientCreditAction = z.infer<typeof ClientCreditActionSchema>;
 
-/** Only these actions are priced per unit (words / 200, minutes). Everything else is one unit. */
-export const UNIT_ACTIONS = ['slots-detect', 'tts', 'transcribe'] as const;
+/**
+ * Only these actions are priced per unit (words / 200, minutes, a film's started half minutes).
+ * Everything else is one unit.
+ */
+export const UNIT_ACTIONS = ['slots-detect', 'tts', 'transcribe', 'film'] as const;
 export type UnitAction = (typeof UNIT_ACTIONS)[number];
 export const isUnitAction = (a: CreditAction): a is UnitAction =>
   (UNIT_ACTIONS as readonly string[]).includes(a);
@@ -56,7 +61,7 @@ export const SpendRequestSchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['units'],
-        message: 'units applies to slots-detect, tts and transcribe only',
+        message: 'units applies to slots-detect, tts, transcribe and film only',
       });
     }
   });
@@ -115,6 +120,7 @@ export const REASON_FOR: Record<CreditAction, CreditReason> = {
   edit: 'edit',
   'pip-plan': 'pip-plan',
   custom: 'custom',
+  film: 'film',
   'slots-detect': 'slots-detect',
   tts: 'tts',
   transcribe: 'transcribe',

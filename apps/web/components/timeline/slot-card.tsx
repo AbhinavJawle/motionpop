@@ -3,15 +3,16 @@
 import type { Slot } from '@motionpop/schemas';
 import {
   CalendarRange,
+  Clapperboard,
   Columns2,
   Globe,
   Image as ImageIcon,
   ListOrdered,
+  type LucideIcon,
   Quote,
   RotateCcw,
   Sparkles,
   Type,
-  type LucideIcon,
 } from 'lucide-react';
 import { motion, type HTMLMotionProps } from 'motion/react';
 import { forwardRef, type CSSProperties } from 'react';
@@ -208,6 +209,8 @@ const GLYPHS: Record<string, LucideIcon> = {
   'list-stack': ListOrdered,
   timeline: CalendarRange,
   'photo-evidence': ImageIcon,
+  // Custom graphics: tier 2 and film beats (spec 07b).
+  custom: Clapperboard,
 };
 
 function TypeGlyph({ componentId }: { componentId: string }) {

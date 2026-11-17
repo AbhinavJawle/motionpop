@@ -16,6 +16,9 @@ const ALLOWED = new Set([
   'lib/slots/quick-edit.ts',
   // The frame-note flow (spec 09 task 20).
   'lib/notes/note-fix.ts',
+  // Film mode's own spend sites: each is refunded when no beat or film comes back.
+  'lib/film/film.ts',
+  'lib/film/rebuild.ts',
   // Pip's cloud plan (spec 10): 2 credits, refunded when the call fails.
   'lib/pip/use-pip.ts',
   // Script → voice (spec 11): per started minute, refunded when it fails.

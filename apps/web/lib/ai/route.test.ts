@@ -401,3 +401,23 @@ describe('routeInputFrom (live state to route input)', () => {
     ).toEqual({ kind: 'disabled', reason: 'Cloud AI is paused' });
   });
 });
+
+describe('chooseRoute: film (spec 07b R5.5, R6)', () => {
+  it('a film takes the cloud route with its price', () => {
+    expect(route({ task: 'film', cloudCost: 5 })).toMatchObject({ kind: 'cloud', credits: 5 });
+  });
+
+  it('is disabled offline, with "Needs connection", and never runs on the device', () => {
+    expect(route({ task: 'film', online: false, preferOnDevice: true })).toEqual({
+      kind: 'disabled',
+      reason: 'Needs connection',
+    });
+  });
+
+  it('is paused by the kill switch', () => {
+    expect(route({ task: 'film', killSwitch: true })).toEqual({
+      kind: 'disabled',
+      reason: 'Cloud AI is paused',
+    });
+  });
+});

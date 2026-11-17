@@ -186,6 +186,12 @@ function mapImages(project: EditorProject, format: Format, base: string): Record
   return out;
 }
 
+const isFilmSlot = (params: unknown): boolean =>
+  typeof params === 'object' &&
+  params !== null &&
+  typeof (params as { film?: unknown }).film === 'object' &&
+  (params as { film?: unknown }).film !== null;
+
 /**
  * The one compile input for the editor preview and the render job (spec 08 R3.2). The two only
  * differ in `mode`, `voiceSrc` and `background`, which the caller sets.
@@ -203,6 +209,10 @@ export function projectCompileInput(
     durationMs: project.durationMs,
     style: styleFor(project),
     ...(project.energy ? { energy: project.energy } : {}),
+    // A film (spec 07b): its beats carry the frame from start to end, so the backdrop is left out.
+    ...(project.film && slots.some((s) => s.tailMs !== undefined || isFilmSlot(s.params))
+      ? { film: true }
+      : {}),
     mode: opts.mode,
     ...(opts.background ? { background: opts.background } : {}),
     ...(opts.voiceSrc ? { voiceSrc: opts.voiceSrc } : {}),

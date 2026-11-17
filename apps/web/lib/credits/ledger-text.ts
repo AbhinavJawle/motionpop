@@ -14,6 +14,7 @@ export const REASON_TEXT: Record<CreditReason, string> = {
   edit: 'Cloud quick edit',
   'pip-plan': 'Pip plan',
   custom: 'Custom graphic',
+  film: 'Made a film',
   'slots-detect': 'Found moments',
   tts: 'Generated a voice',
   transcribe: 'Transcribed audio',

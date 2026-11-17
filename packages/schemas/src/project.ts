@@ -1,5 +1,6 @@
 import { ImageAssetSchema } from './asset';
 import { BrandSchema } from './brand';
+import { ProjectFilmSchema } from './film';
 import { z } from 'zod';
 import { FormatSchema } from './format';
 import { EnergySchema } from './score';
@@ -308,6 +309,8 @@ export const EditorProjectBaseSchema = z.object({
     .optional(),
   /** Images the scenes use (spec 07 R4): generated, uploaded or from the open media search. */
   assets: z.array(ImageAssetSchema).max(60).optional(),
+  /** Film mode (spec 07b): the storyboard and shared drawings the video's beats were built from. */
+  film: ProjectFilmSchema.optional(),
 });
 
 export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {

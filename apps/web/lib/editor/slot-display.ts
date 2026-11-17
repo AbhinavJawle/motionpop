@@ -91,6 +91,9 @@ export function slotCardText(slot: Slot, phase?: keyof typeof GENERATE_PHASE_TEX
     case 'failed':
       return { title: name, subtitle: "Couldn't generate" };
     case 'ready':
+      // A film's beats (spec 07b) are named for what they are, not for how they were made.
+      if (slot.componentId === 'custom' && slot.skillId === 'film')
+        return { title: paramsSummary(slot) ?? 'Film beat', subtitle: 'Film beat' };
       return { title: name, subtitle: paramsSummary(slot) ?? `${name} · Ready` };
   }
 }

@@ -18,7 +18,9 @@ export type RoutedTask =
   | 'prompt.prefill'
   | 'autofill'
   | 'pip.plan'
-  | 'custom.compose';
+  | 'custom.compose'
+  /** Film mode (spec 07b): the whole video, written by the cloud. */
+  | 'film';
 export type InferenceModeName =
   'ONLY_ON_DEVICE' | 'PREFER_ON_DEVICE' | 'PREFER_IN_CLOUD' | 'ONLY_IN_CLOUD';
 
@@ -95,7 +97,12 @@ export function chooseRoute(i: RouteInput): Route {
     return deviceReady ? DEVICE : { kind: 'local' };
   }
   // Pip plans reason over the whole timeline: the cloud (hybrid-ai.md, PREFER_IN_CLOUD).
-  if (i.task === 'generate' || i.task === 'pip.plan' || i.task === 'custom.compose') {
+  if (
+    i.task === 'generate' ||
+    i.task === 'pip.plan' ||
+    i.task === 'custom.compose' ||
+    i.task === 'film'
+  ) {
     return cloudRoute(i);
   }
 
@@ -121,5 +128,7 @@ export function chipFor(
 export function cloudCostFor(task: RoutedTask, cfg: CostConfig = APP_CONFIG_DEFAULTS): number {
   if (task === 'pip.plan') return costOf('pip-plan', 1, cfg);
   if (task === 'custom.compose') return costOf('custom', 1, cfg);
+  // One unit (a started 30 s); the film hook prices the real length (`filmCost`).
+  if (task === 'film') return costOf('film', 1, cfg);
   return costOf(task === 'generate' ? 'generate' : 'edit', 1, cfg);
 }

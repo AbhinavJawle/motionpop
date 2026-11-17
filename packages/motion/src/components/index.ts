@@ -7,7 +7,9 @@ export {
   CUSTOM_ALLOW_FLAG,
   CUSTOM_LIMITS,
   customExample,
+  FILM_MAX_TAIL_MS,
   customParams,
   lintCustom,
+  lintProp,
   type CustomParams,
 } from './custom';
