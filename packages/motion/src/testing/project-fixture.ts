@@ -68,6 +68,113 @@ export function hookStatementSlot(id: string, startMs: number, endMs: number): S
   };
 }
 
+/**
+ * A film beat (spec 07b): a custom slot with a tiny script on the film kit. `film` is its handover
+ * (tail, over, head). The words sit on the fixture's 700 ms grid.
+ */
+export function filmBeatSlot(
+  id: string,
+  startMs: number,
+  endMs: number,
+  film: { tailMs: number; over: 'out' | 'in'; headMs: number },
+  line = `Beat ${id}`,
+): Slot {
+  const script = [
+    'const tl = mp.timeline();',
+    'const card = mp.paper({ x: "8%", y: "22%", w: "84%", h: "44%", tilt: -1 });',
+    `mp.el("p", {}, ${JSON.stringify(line)}, card.body);`,
+    "tl.enter('push', card);",
+    'return tl;',
+  ].join('\n');
+  return {
+    id,
+    startMs,
+    endMs,
+    wordStart: Math.floor(startMs / 700),
+    wordEnd: Math.min(
+      fixtureWords.length - 1,
+      Math.max(Math.floor(startMs / 700), Math.floor((endMs - 1) / 700)),
+    ),
+    reason: 'film beat fixture',
+    componentId: 'custom',
+    skillId: 'film',
+    prompt: line,
+    params: {
+      title: line.slice(0, 60),
+      html: '<div class="frame"></div>',
+      css: '.frame { position: absolute; inset: 0; }',
+      script,
+      keyMomentMs: 0,
+      brief: line,
+      film,
+    },
+    status: 'ready',
+    notes: [],
+  };
+}
+
+/**
+ * A three-beat film over the fixture words (spec 07b task 10): a push seam, a lift (the first
+ * beat's tail stays on under the second), and a cover (the third beat arrives over the second's
+ * tail). The last beat ends before the voiceover does, so its tail fits.
+ */
+export function filmProject(): EditorProject {
+  const beats = [
+    filmBeatSlot('film-1', 0, 5400, { tailMs: 0, over: 'out', headMs: 0 }, 'First picture'),
+    filmBeatSlot('film-2', 5400, 11000, { tailMs: 500, over: 'out', headMs: 0 }, 'Second picture'),
+    filmBeatSlot('film-3', 11000, 17500, { tailMs: 500, over: 'in', headMs: 0 }, 'Third picture'),
+  ];
+  const base = fixtureProject({ slots: beats });
+  return EditorProjectSchema.parse({
+    ...base,
+    film: {
+      storyboard: {
+        title: 'Three pictures',
+        thesis: 'Each beat shows one picture from the narration.',
+        world: 'A plain paper ground with ink lines.',
+        carrier: 'a small ship that recurs across the beats',
+        props: [
+          {
+            id: 'ship',
+            draw: 'A simple side view of a ship on a waterline.',
+            width: 100,
+            height: 60,
+          },
+        ],
+        beats: [
+          storyBeat('b1', 0, 7, 'First picture', 'push'),
+          storyBeat('b2', 8, 15, 'Second picture', 'lift'),
+          storyBeat('b3', 16, 23, 'Third picture', 'cover'),
+        ],
+      },
+      props: {
+        ship: '<svg viewBox="0 0 100 60"><path d="M10 40 L90 40 L75 55 L25 55 Z" fill="#111"/><path d="M50 40 L50 10" stroke="#111"/></svg>',
+      },
+      madeAt: 1,
+    },
+  });
+}
+
+function storyBeat(
+  id: string,
+  wordStart: number,
+  wordEnd: number,
+  text: string,
+  kind: 'push' | 'lift' | 'cover',
+) {
+  return {
+    id,
+    wordStart,
+    wordEnd,
+    lead: 'picture' as const,
+    idea: `A plain picture for ${text.toLowerCase()}`,
+    text: [text],
+    landsOn: wordStart,
+    staging: 'the picture arrives on the voice',
+    seam: { kind, note: 'the picture carries the cut' },
+  };
+}
+
 export function fixtureProject(
   overrides: Partial<Pick<EditorProject, 'format' | 'styleId' | 'slots' | 'durationMs'>> = {},
 ): EditorProject {

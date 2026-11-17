@@ -8,6 +8,7 @@
 // shifted line of text blows a tile well past 10 %. Change the thresholds deliberately.
 import { compileProject, projectCompileInput, type CompileInput } from '@motionpop/motion/compiler';
 import {
+  filmProject,
   fixtureProject,
   hookStatementSlot,
   statPunchSlot,
@@ -167,6 +168,14 @@ const CASES: Case[] = [
   projectCase('project-16x9', '16:9', 'editorial-explainer'),
   projectCase('project-9x16-field-notes', '9:16', 'field-notes'),
   projectCase('project-1x1', '1:1', 'editorial-explainer'),
+  // Spec 07b R7.1: a film. 5.8 s is in beat 2's tail, 11.2 s is the beat 2 → 3 overlap, and
+  // 13 s is beat 3 alone.
+  {
+    name: 'film',
+    format: '16:9',
+    input: projectCompileInput(filmProject(), { mode: 'render', format: '16:9' }),
+    at: [5800, 11200, 13000],
+  },
 ];
 
 await rm(outDir, { recursive: true, force: true });

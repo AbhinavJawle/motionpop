@@ -496,3 +496,29 @@ Template:
   - The loose drafts are plain (for example versus sides picked as the longest words).
   - "two and a half" parses as 2.
   - The engine's look and variation work is the next task.
+
+## 2026-11-17 · Claude Code (Fable 5.2) · film mode: the cloud writes the whole film
+- **Founder ask:** the engine is rigid and boring; read the diagnosis (code places graphics and lifts their words, the model picks among three variants, slots are isolated boxes, the tier-2 prompt has none of our craft), run the experiment first, then propose spec 07b. Use Kiro (cheap model) for tests and commits. Later in the day: the Vertex spend cap was reached (about 5 euros in total), so no more paid calls and less testing.
+- **Experiment** (`docs/research/film-mode.md`, sheets in `docs/research/experiments/film-mode/`, videos in `~/Movies/motionpop-tests/film-lab/`):
+  - One 37.5 s Suez voiceover (Gemini TTS), nine fixed beats, 3 setups × 2 models (`gemini-3.8-flash`, `gemini-3.5-flash-lite`), then film mode twice.
+  - Today's prompt on the cheap model gives centred text slides. Craft rules alone change nothing for it. The film kit gives it a real map, paper, dots and counts.
+  - The strong model draws pictures already, but as nine unrelated report pages with invented figures and tiny labels.
+  - Film mode (Director storyboard → parallel Builders → Critic) gave one film: the same ship drawing in every beat, a real map, no invented figure. 10 beats, 20 calls, $0.40, 6 minutes.
+  - Two bugs in our own code found by the experiment: the spec 15 lint rejected the kit's own style (`return tl;`, `parent:`), and the critic's contrast check read the wrong element.
+- **Built (spec 07b, D-073):**
+  - **Film kit** (`packages/motion/src/film/`): a timeline that is a pure function of time, timing by spoken word, sheet, torn paper, hand-drawn marks and lines, 144 icons, dots, a flat world map with a camera, shared drawings, seam halves, sound cues. A superset of the spec 15 helpers.
+  - **Runtime and compiler:** film beats own their seams and camera, stay on for a tail, and stack in front of or behind the next beat; no backdrop; grain over the graphics.
+  - **Storyboard schema**, beat times, and a check that every on-screen figure is one the narration says.
+  - **`film.direct`, `film.build`, `film.props`** with the distilled craft, and `makeFilm` / `rebuildBeat`.
+  - **Critic** (`inspectBeat`): errors, purity, empty opening, blank frame, text off the frame, tiny text, overlap, too much text, small hero, small picture, picture off the frame, type-only, contrast, made-up numbers, no motion, not cleared after its tail.
+  - **Editor:** "Make it a film" in the timeline header (cost on the button, progress, stop), the film replaces the slots in one undo step, failed beats fall back to a quick graphic, the storyboard is saved on the project, "Rebuild beat" in the prompt box, the `film` credit action (5 per started 30 s), a sandboxed critic iframe (`allow-scripts` only).
+- **Kiro:** run14 wrote the tests for the kit, the storyboard and `makeFilm` (67 tests, no source changed, commit `5b52dcf`). run15 reviewed the editor work, wrote its tests and committed it (`ea35b04`, `f32dd9d`); its property test found two gaps in the fake film answer, fixed in `fake-film.ts`. Web suite 1,112 green by its report.
+- **Checked:** typecheck and lint clean; schemas, ai and motion suites green; `e2e/film.spec.ts` (fake router): the button, progress, the sandbox critic, 120 → 115 credits, one undo.
+- **Not checked:** a real film in the editor (the spend cap came first; spec 07b task 11). Film mode has only run against real models in the lab harness.
+- **Known:**
+  - 4 to 6 minutes per film; most of it is repair rounds.
+  - The critic can't see the picture (a map hidden behind a box passed); a vision pass on stills is next.
+  - Captions are off during film beats (custom slots count as verbatim scenes).
+  - One voiceover, one look, 16:9 only. The prompts may be fitted to it.
+  - Word times in the lab are estimated from pauses.
+- **Cost:** 131 Gemini calls in the lab, $1.40 by the harness ledger, plus one TTS and one transcription call. The founder reports about 5 euros on the Vertex bill in total.

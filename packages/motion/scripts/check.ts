@@ -43,6 +43,8 @@ interface Case {
   style: StylePack;
   /** Save every still, not only failing ones. */
   keepStills: boolean;
+  /** Film beat (spec 07b): the handover the graphic plays through after its slot. */
+  film?: { tailMs: number; over: 'out' | 'in' };
 }
 
 interface TextProbe {
@@ -223,6 +225,13 @@ const samplesMod = (
     : await import(`../src/components/${id}/samples.ts`)
 ) as Samples<unknown>;
 
+/** A film beat's handover (spec 07b), read from a case's params; none for other graphics. */
+function filmOf(params: unknown): Case['film'] {
+  const film = (params as { film?: { tailMs?: unknown; over?: unknown } } | null)?.film;
+  const tailMs = typeof film?.tailMs === 'number' ? film.tailMs : 0;
+  return tailMs > 0 ? { tailMs, over: film?.over === 'in' ? 'in' : 'out' } : undefined;
+}
+
 function buildCases(): Case[] {
   const { min, ideal, max } = component.durationMs;
   const cases: Case[] = [];
@@ -248,6 +257,7 @@ function buildCases(): Case[] {
           keyMomentMs,
           keyLabel,
           style: editorialExplainer,
+          film: filmOf(params),
           // Stills for the defaults, and for edge cases named `show-*` (one per scene variant).
           keepStills:
             (name === 'defaults' || name.startsWith('show-')) &&
@@ -560,6 +570,7 @@ async function main() {
             params: c.params,
             keyMomentMs: c.keyMomentMs,
             ...(c.timing ? { timing: c.timing } : {}),
+            ...(c.film ? { tailMs: c.film.tailMs, over: c.film.over } : {}),
             case: c,
             keyAbs: key,
           };
@@ -652,9 +663,13 @@ async function main() {
             ['key', key, true],
             ['hold-end', endHold, true],
             ['90', Math.round(dur * 0.9), false],
+            // Film beat (spec 07b): seek through the handover tail. The graphic may leave the
+            // frame there on purpose, so the tail is only seeked (errors still surface as runtime errors).
+            ...(c.film ? [['tail', dur + c.film.tailMs, false] as [string, number, boolean]] : []),
           ];
           for (const [label, t, strict] of times) {
             const p = await probeAt(page, s.id, s.startMs + t);
+            if (label === 'tail') continue;
             let bad = false;
             const live = p.texts.filter((x) => x.visible && x.opacity >= 0.05 && x.text.length > 0);
             // Changed by spec 07 task 22: safe area and overlap are measured on the lines as set

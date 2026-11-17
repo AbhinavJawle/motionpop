@@ -1,6 +1,11 @@
 import type { Slot } from '@motionpop/schemas';
 import { describe, expect, it } from 'vitest';
-import { fixtureProject, fixtureWords } from '../testing/project-fixture';
+import {
+  filmBeatSlot,
+  filmProject,
+  fixtureProject,
+  fixtureWords,
+} from '../testing/project-fixture';
 import { compileProject } from './compile';
 import { compileSlot, projectCompileInput } from './project';
 
@@ -119,3 +124,51 @@ function storyboardFor(project: { format: '16:9' | '9:16' | '1:1' }) {
     madeAt: 1,
   };
 }
+
+/** The data-duration (seconds) and z-index of one clip in the compiled HTML. */
+function clipOf(html: string, id: string) {
+  const tag = html.match(new RegExp(`<div id="${id}"[^>]*>`))?.[0] ?? '';
+  return {
+    duration: Number(tag.match(/data-duration="([\d.]+)"/)?.[1]),
+    z: Number(tag.match(/z-index:(-?\d+)/)?.[1]),
+  };
+}
+
+describe('the film fixture through the compiler (spec 07b R7.1)', () => {
+  const input = projectCompileInput(filmProject(), { mode: 'render', format: '16:9' });
+  const html = compileProject(input, assets);
+
+  it('compiles as a film with tails on beats 2 and 3', () => {
+    expect(input.film).toBe(true);
+    expect(input.slots.map((s) => s.tailMs)).toEqual([undefined, 500, 500]);
+    expect(input.slots[2]?.over).toBe('in');
+  });
+
+  it('lengthens each tailed beat by its tail', () => {
+    expect(clipOf(html, 'film-2').duration).toBeCloseTo(6.1, 5);
+    expect(clipOf(html, 'film-3').duration).toBeCloseTo(7, 5);
+    expect(clipOf(html, 'film-1').duration).toBeCloseTo(5.4, 5);
+  });
+
+  it('stacks beat 2 (tail over the next beat) in front of beat 3', () => {
+    // The stacking rule (compile.ts): a tail that leaves (`out`) sits in front of the next clip.
+    expect(clipOf(html, 'film-2').z).toBeGreaterThan(clipOf(html, 'film-3').z);
+  });
+
+  it('adds the grain layer over the film; the runtime skips the drifting backdrop', () => {
+    expect(html).toContain('mp-texture-top');
+    // The backdrop div is still in the markup; runtime.ts mounts it only when `film` is unset.
+    expect(html).toContain('"film":true');
+  });
+
+  it('clamps a tail that would run past the voiceover end', () => {
+    const late = projectCompileInput(
+      fixtureProject({
+        slots: [filmBeatSlot('film-end', 15000, 17800, { tailMs: 500, over: 'out', headMs: 0 })],
+      }),
+      { mode: 'preview' },
+    );
+    // The voiceover ends at 18 s, so the tail is 200 ms: 2.8 s + 0.2 s.
+    expect(clipOf(compileProject(late, assets), 'film-end').duration).toBeCloseTo(3, 5);
+  });
+});

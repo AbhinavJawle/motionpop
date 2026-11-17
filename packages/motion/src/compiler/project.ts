@@ -238,12 +238,13 @@ function imagesFor(
 /**
  * Scenes that put the spoken words on screen themselves. Captions step aside while one shows,
  * so the viewer never reads the same line twice (founder QA, 2026-11-16).
+ * A custom graphic fills the frame with its own text (spec 15), so it counts too, except a film
+ * beat (spec 07b): a film beat shows its own words, and captions stay on over it.
  */
 export const VERBATIM_SCENES: ReadonlySet<string> = new Set([
   'hook-statement',
   'quote',
   'kinetic-headline',
-  // A custom graphic fills the frame with its own text (spec 15).
   'custom',
 ]);
 
@@ -256,7 +257,10 @@ function captionsFor(
 ): { captions: CompileCaptions } | Record<string, never> {
   const setting = project.captions ?? DEFAULT_CAPTIONS;
   if (!(override ?? setting.enabled)) return {};
-  const verbatim = slots.filter((s) => VERBATIM_SCENES.has(s.componentId));
+  const verbatim = slots.filter(
+    (s) =>
+      VERBATIM_SCENES.has(s.componentId) && !(s.componentId === 'custom' && isFilmSlot(s.params)),
+  );
   const groups = chunkCaptions(project.transcript.words, {
     format,
     presetId: setting.presetId,
