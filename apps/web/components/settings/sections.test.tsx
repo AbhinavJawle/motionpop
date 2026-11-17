@@ -178,7 +178,8 @@ describe('CreditsSection', () => {
     expect(within(costs).getByLabelText('3 credits, runs in the cloud')).toBeTruthy();
     expect(within(costs).getByLabelText('1 credits, runs in the cloud')).toBeTruthy();
     expect(within(costs).getByLabelText('2 credits, runs in the cloud')).toBeTruthy();
-    expect(within(costs).getByText('5')).toBeTruthy();
+    // Exports are free by default (spec 13b R1): no export row.
+    expect(within(costs).queryByText('5')).toBeNull();
   });
 
   it('says "Judge plan · topped up daily" for a judge', () => {

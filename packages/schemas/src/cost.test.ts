@@ -48,10 +48,18 @@ describe('costOf: the defaults table matches ai-tasks.md', () => {
   });
 
   it('delegates export to exportCost and ignores units', () => {
+    const paid = { ...cfg, exportCredits: { '720p': 3, '1080p': 5 } };
     const opts = { resolution: '1080p', durationMs: 18_000 } as const;
-    expect(costOf('export', 1, cfg, opts)).toBe(5);
-    expect(costOf('export', 9, cfg, opts)).toBe(5);
-    expect(costOf('export', 1, cfg, { resolution: '720p', durationMs: 61_000 })).toBe(6);
+    expect(costOf('export', 1, paid, opts)).toBe(5);
+    expect(costOf('export', 9, paid, opts)).toBe(5);
+    expect(
+      costOf(
+        'export',
+        1,
+        { ...cfg, exportCredits: { '720p': 3, '1080p': 5 } },
+        { resolution: '720p', durationMs: 61_000 },
+      ),
+    ).toBe(6);
     expect(costOf('export', 1, { ...cfg, exportCredits: { '720p': 2, '1080p': 7 } }, opts)).toBe(7);
   });
 
@@ -88,6 +96,7 @@ describe('costOf properties', () => {
         (creditCosts, imageCredits, units, durationMs, resolution) => {
           const c: CostConfig = { ...cfg, creditCosts, imageCredits };
           for (const action of CreditActionSchema.options) {
+            if (action === 'export') continue; // free by default (spec 13b R1): checked below
             const v = costOf(action, units, c, { resolution, durationMs });
             expect(Number.isInteger(v)).toBe(true);
             expect(v).toBeGreaterThanOrEqual(1);

@@ -33,9 +33,10 @@ describe('Landing', () => {
   it('prices come from the config defaults, with on-device marked free', () => {
     h.auth = { status: 'signed-out' };
     render(<Landing />);
-    expect(screen.getByText('Free')).toBeTruthy();
+    // Quick edits and the export are both free.
+    expect(screen.getAllByText('Free').length).toBe(2);
     expect(screen.getByText('20 credits on sign-up')).toBeTruthy();
-    expect(screen.getAllByText(/^\d+ credits$/).length).toBe(4);
+    expect(screen.getAllByText(/^\d+ credits$/).length).toBe(3);
     expect(screen.getByRole('link', { name: 'Privacy' }).getAttribute('href')).toBe('/privacy');
   });
 });

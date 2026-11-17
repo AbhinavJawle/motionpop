@@ -51,6 +51,7 @@ export interface CostRow {
 
 /** The price list of Settings › Credits, all from `costOf` so it never drifts from the chips. */
 export function costRows(cfg: CostConfig = APP_CONFIG_DEFAULTS): CostRow[] {
+  const exportCredits = costOf('export', 1, cfg, { resolution: '1080p', durationMs: 18_000 });
   return [
     { label: 'Generate a graphic', credits: costOf('generate', 1, cfg), route: 'cloud' },
     { label: 'Cloud quick edit', credits: costOf('edit', 1, cfg), route: 'cloud' },
@@ -60,11 +61,10 @@ export function costRows(cfg: CostConfig = APP_CONFIG_DEFAULTS): CostRow[] {
       suffix: '+ graphics',
       route: 'cloud',
     },
-    {
-      label: 'Export 1080p',
-      credits: costOf('export', 1, cfg, { resolution: '1080p', durationMs: 18_000 }),
-      route: 'export',
-    },
+    // Exports are free by default (spec 13b R1): the row shows only a paid export price.
+    ...(exportCredits > 0
+      ? [{ label: 'Export 1080p', credits: exportCredits, route: 'export' as const }]
+      : []),
   ];
 }
 

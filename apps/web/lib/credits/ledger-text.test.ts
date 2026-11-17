@@ -1,4 +1,4 @@
-import { CreditReasonSchema } from '@motionpop/schemas';
+import { APP_CONFIG_DEFAULTS, CreditReasonSchema } from '@motionpop/schemas';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { REASON_TEXT, costRows, planLine, relativeTime, signedDelta } from './ledger-text';
@@ -41,7 +41,6 @@ describe('ledger text', () => {
       ['Generate a graphic', 3],
       ['Cloud quick edit', 1],
       ['Pip plan', 2],
-      ['Export 1080p', 5],
     ]);
     const cheaper = costRows({
       creditCosts: { generate: 2 },
@@ -49,6 +48,12 @@ describe('ledger text', () => {
       exportCredits: undefined as never,
     });
     expect(cheaper[0]?.credits).toBe(2);
+  });
+
+  it('shows no export price while exports are free, and one when an override charges', () => {
+    expect(costRows().some((r) => r.route === 'export')).toBe(false);
+    const paid = costRows({ ...APP_CONFIG_DEFAULTS, exportCredits: { '720p': 3, '1080p': 5 } });
+    expect(paid.map((r) => [r.label, r.credits])).toContainEqual(['Export 1080p', 5]);
   });
 
   it('plan lines', () => {

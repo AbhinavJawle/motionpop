@@ -63,7 +63,7 @@ interface Fakes {
 function fakes(over: Partial<Pick<Fakes, 'config' | 'start' | 'voice'>> = {}): Fakes {
   const f: Fakes = {
     calls: [],
-    config: APP_CONFIG_DEFAULTS,
+    config: PAID_CONFIG,
     start: { kind: 'created', renderId: RENDER_ID, costCredits: 5, balanceAfter: 15 },
     voice: { size: 1000, contentType: 'audio/wav' },
     logs: [],
@@ -91,6 +91,9 @@ function fakes(over: Partial<Pick<Fakes, 'config' | 'start' | 'voice'>> = {}): F
   };
   return f;
 }
+
+/** The paid price table (the pre-13b prices): the tests below check paid exports with it. */
+const PAID_CONFIG: AppConfig = { ...APP_CONFIG_DEFAULTS, exportCredits: { '720p': 3, '1080p': 5 } };
 
 const err = (r: HandlerResult) => RenderApiErrorSchema.parse(r.body);
 
@@ -551,5 +554,41 @@ describe('createShareLink', () => {
     const deps = make({ kind: 'not-found' });
     expect((await createShareLink(deps, UID, 'a/b', 'o')).status).toBe(404);
     expect(deps.createShare).not.toHaveBeenCalled();
+  });
+});
+
+describe('createRender: free exports (spec 13b R1)', () => {
+  it('at the default price the cost is 0, the render starts and nothing is charged or refunded', async () => {
+    const f = fakes({
+      config: APP_CONFIG_DEFAULTS,
+      start: { kind: 'created', renderId: RENDER_ID, costCredits: 0, balanceAfter: 15 },
+    });
+    const spy = vi.spyOn(f.deps, 'startExport');
+    const r = await createRender(f.deps, UID, body({ expectedCost: 0 }));
+    expect(r).toEqual({
+      status: 201,
+      body: { renderId: RENDER_ID, costCredits: 0, balanceAfter: 15 },
+    });
+    // The transaction is asked for a cost of 0; the render service writes no spend or refund.
+    expect(spy.mock.calls[0]?.[2]).toBe(0);
+    expect(f.calls).toEqual(['sweep', 'start', 'snapshot', 'launch', 'record']);
+  });
+
+  it('a 0 cost still passes the daily limit and the other checks (R1.4)', async () => {
+    const f = fakes({
+      config: APP_CONFIG_DEFAULTS,
+      start: { kind: 'reject', reason: 'daily-limit', balance: 15 },
+    });
+    const r = await createRender(f.deps, UID, body({ expectedCost: 0 }));
+    expect(r.status).toBe(429);
+    expect(f.calls).toEqual(['sweep', 'start']);
+  });
+
+  it('a paid override still charges: the expected cost and the transaction cost are 5', async () => {
+    const f = fakes({ config: PAID_CONFIG });
+    const spy = vi.spyOn(f.deps, 'startExport');
+    const r = await createRender(f.deps, UID, body({ expectedCost: 5 }));
+    expect(r.status).toBe(201);
+    expect(spy.mock.calls[0]?.[2]).toBe(5);
   });
 });

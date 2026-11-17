@@ -42,7 +42,7 @@ vi.mock('@/lib/renders/hooks', async (orig) => {
   return {
     ...actual,
     useRenderClient: () => (fake.current as Fake).client,
-    useAppConfig: () => APP_CONFIG_DEFAULTS,
+    useAppConfig: () => ({ ...APP_CONFIG_DEFAULTS, exportCredits: { '720p': 3, '1080p': 5 } }),
     useCreditBalance: () => hookState.balance,
     useOnline: () => true,
     useActiveRender: () => null,

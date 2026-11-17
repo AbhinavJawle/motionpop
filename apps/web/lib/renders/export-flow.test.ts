@@ -1,4 +1,4 @@
-import { APP_CONFIG_DEFAULTS, type Slot } from '@motionpop/schemas';
+import { APP_CONFIG_DEFAULTS, type AppConfig, type Slot } from '@motionpop/schemas';
 import { bigNumberSlot, fixtureProject } from '@motionpop/motion/testing/project-fixture';
 import { isRenderable } from '@motionpop/motion/compiler';
 import fc from 'fast-check';
@@ -17,6 +17,8 @@ import {
 } from './export-flow';
 import type { RenderView } from './render-client';
 
+/** The paid price table (the pre-13b prices): exports cost 5 and 3 credits here. */
+const PAID_CONFIG: AppConfig = { ...APP_CONFIG_DEFAULTS, exportCredits: { '720p': 3, '1080p': 5 } };
 const baseProject = () => fixtureProject({ slots: [bigNumberSlot('s1', 0, 3000)] });
 
 const view = (over: Partial<RenderView> = {}): RenderView => ({
@@ -34,7 +36,7 @@ const view = (over: Partial<RenderView> = {}): RenderView => ({
 const input = (over: Partial<ExportOptionsInput> = {}): ExportOptionsInput => ({
   project: baseProject(),
   options: { format: '16:9', resolution: '1080p', captions: false, music: false },
-  config: APP_CONFIG_DEFAULTS,
+  config: PAID_CONFIG,
   mode: 'cloud',
   balance: 120,
   online: true,

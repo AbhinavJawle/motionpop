@@ -37,9 +37,10 @@ describe('task costs equal costOf (C8)', () => {
     expect([0, 1, 60_000, 60_001, 180_000].map(transcribeCloudCost)).toEqual([1, 1, 1, 2, 3]);
   });
 
-  it('an 18 s 1080p export costs 5 through costOf', () => {
-    expect(
-      costOf('export', 1, APP_CONFIG_DEFAULTS, { resolution: '1080p', durationMs: 18_000 }),
-    ).toBe(5);
+  it('an 18 s 1080p export is free by default and costs 5 on the paid table (spec 13b R1)', () => {
+    const opts = { resolution: '1080p', durationMs: 18_000 } as const;
+    expect(costOf('export', 1, APP_CONFIG_DEFAULTS, opts)).toBe(0);
+    const paid = { ...APP_CONFIG_DEFAULTS, exportCredits: { '720p': 3, '1080p': 5 } };
+    expect(costOf('export', 1, paid, opts)).toBe(5);
   });
 });

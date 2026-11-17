@@ -28,11 +28,17 @@ const project = () =>
 
 const base: RenderOptions = { format: '16:9', resolution: '1080p', captions: false, music: false };
 
+/** A paid price table (the old 3 / 5 credits), so the credit-row tests still check real prices. */
+const PAID_CONFIG = {
+  ...APP_CONFIG_DEFAULTS,
+  exportCredits: { '720p': 3, '1080p': 5 },
+};
+
 function stateFor(over: Partial<ExportOptionsInput> = {}, options: RenderOptions = base) {
   return exportOptionsState({
     project: project(),
     options,
-    config: APP_CONFIG_DEFAULTS,
+    config: PAID_CONFIG,
     mode: 'cloud',
     balance: 120,
     online: true,
@@ -221,9 +227,26 @@ describe('export dialog, options view (R1.1–R1.13)', () => {
     ).toBe(true);
   });
 
+  it('shows a mint "Free" chip, not a credit price, at the default price (R1.3)', () => {
+    const s = exportOptionsState({
+      project: project(),
+      options: base,
+      config: APP_CONFIG_DEFAULTS,
+      mode: 'cloud',
+      balance: 120,
+      online: true,
+      isRenderable,
+    });
+    expect(s.cost).toBe(0);
+    expect(s.canExport).toBe(true);
+    render(<Harness over={{ config: APP_CONFIG_DEFAULTS }} />);
+    expect(screen.getByText('Free')).toBeTruthy();
+    expect(screen.queryByText(/credits/)).toBeNull();
+  });
+
   it('local mode shows "Local render · free" and no credits (R7.3)', () => {
     render(<Harness over={{ mode: 'offline', balance: null }} />);
-    expect(screen.getByText('Cost: free')).toBeTruthy();
+    expect(screen.getByText('Free')).toBeTruthy();
     expect(screen.getByText('Local render · free')).toBeTruthy();
     expect(screen.queryByText(/credits/)).toBeNull();
   });

@@ -9,6 +9,7 @@ import {
 } from '@motionpop/schemas';
 import { Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { cn } from '@/lib/cn';
 import { FORMAT_CHOICES, secondsText, type ExportOptionsState } from '@/lib/renders/export-flow';
 import { OptionCards, type OptionCard } from './option-cards';
@@ -135,11 +136,13 @@ export function OptionsView({
       <div className="mt-[23px] h-px bg-dialog-line" />
 
       <div className="mt-5 flex items-baseline justify-between">
-        <span className="tabular font-mono text-xs leading-4 text-ember-ink">
-          {state.cost === null
-            ? 'Cost: free'
-            : `Cost: ${state.cost} ${state.cost === 1 ? 'credit' : 'credits'}`}
-        </span>
+        {state.cost === null || state.cost === 0 ? (
+          <Chip tone="mint">Free</Chip>
+        ) : (
+          <span className="tabular font-mono text-xs leading-4 text-ember-ink">
+            {`Cost: ${state.cost} ${state.cost === 1 ? 'credit' : 'credits'}`}
+          </span>
+        )}
         <span
           className={cn(
             'tabular mr-[22px] font-mono text-[11px] leading-[14px]',

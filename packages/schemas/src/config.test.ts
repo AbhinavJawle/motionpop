@@ -131,7 +131,7 @@ describe('parseRemoteConfig', () => {
     expect(APP_CONFIG_DEFAULTS.exportsEnabled).toBe(true);
     expect(APP_CONFIG_DEFAULTS.exportMaxMs).toBe(480_000);
     expect(APP_CONFIG_DEFAULTS.rendersPerUserPerDay).toBe(10);
-    expect(APP_CONFIG_DEFAULTS.exportCredits).toEqual({ '720p': 3, '1080p': 5 });
+    expect(APP_CONFIG_DEFAULTS.exportCredits).toEqual({ '720p': 0, '1080p': 0 });
   });
 
   it('falls back to the defaults for bad export keys', () => {
@@ -143,7 +143,7 @@ describe('parseRemoteConfig', () => {
     });
     // Changed: export cap default is now 480000 ms (8 min).
     expect(cfg.exportMaxMs).toBe(480_000);
-    expect(cfg.exportCredits).toEqual({ '720p': 3, '1080p': 5 });
+    expect(cfg.exportCredits).toEqual({ '720p': 0, '1080p': 0 });
     expect(cfg.exportsEnabled).toBe(true);
     expect(cfg.rendersPerUserPerDay).toBe(10);
   });

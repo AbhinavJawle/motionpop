@@ -262,7 +262,7 @@ export const ExportCreditsSchema = z.object({
   '1080p': z.number().int().nonnegative(),
 });
 export type ExportCredits = z.infer<typeof ExportCreditsSchema>;
-export const DEFAULT_EXPORT_CREDITS: ExportCredits = { '720p': 3, '1080p': 5 };
+export const DEFAULT_EXPORT_CREDITS: ExportCredits = { '720p': 0, '1080p': 0 };
 
 /** The price of an export: the resolution's base cost times the number of started minutes. */
 export function exportCost(

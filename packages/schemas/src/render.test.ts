@@ -220,23 +220,31 @@ describe('ShareDocSchema and API errors', () => {
 });
 
 describe('exportCost', () => {
-  it('prices an 18 s 1080p export at 5 credits (D-014)', () => {
-    expect(exportCost('1080p', 18_000)).toBe(5);
-    expect(exportCost('720p', 18_000)).toBe(3);
+  const PAID = { '720p': 3, '1080p': 5 } as const;
+
+  it('is free by default at every resolution (spec 13b R1)', () => {
+    expect(exportCost('1080p', 18_000)).toBe(0);
+    expect(exportCost('720p', 18_000)).toBe(0);
+    expect(exportCost('1080p', 180_000)).toBe(0);
+    expect(DEFAULT_EXPORT_CREDITS).toEqual({ '720p': 0, '1080p': 0 });
+  });
+
+  it('prices an 18 s 1080p export at 5 credits with the paid table (D-014)', () => {
+    expect(exportCost('1080p', 18_000, PAID)).toBe(5);
+    expect(exportCost('720p', 18_000, PAID)).toBe(3);
   });
 
   it('charges per started minute', () => {
-    expect(exportCost('1080p', 0)).toBe(5);
-    expect(exportCost('1080p', 60_000)).toBe(5);
-    expect(exportCost('1080p', 60_001)).toBe(10);
-    expect(exportCost('1080p', 180_000)).toBe(15);
+    expect(exportCost('1080p', 0, PAID)).toBe(5);
+    expect(exportCost('1080p', 60_000, PAID)).toBe(5);
+    expect(exportCost('1080p', 60_001, PAID)).toBe(10);
+    expect(exportCost('1080p', 180_000, PAID)).toBe(15);
   });
 
   it('uses a custom table and rejects bad durations', () => {
     expect(exportCost('1080p', 61_000, { '720p': 1, '1080p': 2 })).toBe(4);
     expect(() => exportCost('1080p', -1)).toThrow(RangeError);
     expect(() => exportCost('1080p', Number.NaN)).toThrow(RangeError);
-    expect(DEFAULT_EXPORT_CREDITS).toEqual({ '720p': 3, '1080p': 5 });
   });
 });
 

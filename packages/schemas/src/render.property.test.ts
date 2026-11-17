@@ -25,6 +25,8 @@ import {
 } from './index';
 
 const RUNS = { numRuns: 300 };
+/** The pre-13b prices, so resolution ordering is checked where it is not zero (spec 13b R1). */
+const PAID_TABLE = { '720p': 3, '1080p': 5 };
 /** True when the string has no lone surrogate (`String.prototype.isWellFormed` needs ES2024 libs). */
 const isWellFormed = (s: string): boolean =>
   !/[\ud800-\udfff]/.test(s.replace(/[\ud800-\udbff][\udc00-\udfff]/g, ''));
@@ -239,10 +241,12 @@ describe('P6 cost function', () => {
     );
   });
 
-  it('is monotonic in resolution (720p below 1080p with the default table)', () => {
+  it('is monotonic in resolution (720p below 1080p with the paid table)', () => {
     fc.assert(
       fc.property(durationArb, (ms) => {
-        expect(exportCost('720p', ms)).toBeLessThan(exportCost('1080p', ms));
+        expect(exportCost('720p', ms, PAID_TABLE)).toBeLessThan(
+          exportCost('1080p', ms, PAID_TABLE),
+        );
       }),
       RUNS,
     );
@@ -273,14 +277,15 @@ describe('P6 cost function', () => {
     );
   });
 
-  it('equals the table value for any video up to 60 s (an 18 s 1080p export costs 5, D-014)', () => {
+  it('equals the table value for any video up to 60 s (free by default; an 18 s 1080p export costs 5 on the paid table, D-014)', () => {
     fc.assert(
       fc.property(resolutionArb, fc.integer({ min: 0, max: 60_000 }), (res, ms) => {
         expect(exportCost(res, ms)).toBe(DEFAULT_EXPORT_CREDITS[res]);
       }),
       RUNS,
     );
-    expect(exportCost('1080p', 18_000)).toBe(5);
+    expect(exportCost('1080p', 18_000)).toBe(0);
+    expect(exportCost('1080p', 18_000, { '720p': 3, '1080p': 5 })).toBe(5);
   });
 });
 

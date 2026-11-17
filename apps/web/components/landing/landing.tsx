@@ -71,7 +71,10 @@ const PRICES: { label: string; cost: string }[] = [
   { label: 'Voice from a script, per minute', cost: `${costOf('tts', 1, cfg)} credits` },
   {
     label: 'Export 1080p MP4, per minute of video',
-    cost: `${exportCost('1080p', 60_000, cfg.exportCredits)} credits`,
+    cost:
+      exportCost('1080p', 60_000, cfg.exportCredits) === 0
+        ? 'Free'
+        : `${exportCost('1080p', 60_000, cfg.exportCredits)} credits`,
   },
 ];
 
@@ -187,7 +190,8 @@ export function Landing() {
               />
             </div>
             <p className="mt-3 text-center font-mono text-[11px] text-text-3">
-              Exported from Motionpop at 1080p: a pasted script, its voice, a map, a stat and captions.
+              Exported from Motionpop at 1080p: a pasted script, its voice, a map, a stat and
+              captions.
             </p>
           </div>
         </section>
