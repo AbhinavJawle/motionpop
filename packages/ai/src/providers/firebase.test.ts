@@ -81,3 +81,33 @@ describe('firebaseProvider', () => {
     expect((await provider.generate({ ...REQ, mode: 'ONLY_IN_CLOUD' })).ranOn).toBe('cloud');
   });
 });
+
+describe('firebaseProvider: output cap (spec 13b R3.5)', () => {
+  beforeEach(() => {
+    generateContent.mockReset();
+    getGenerativeModel.mockClear();
+    generateContent.mockResolvedValue({
+      response: { text: () => '{}', inferenceSource: 'in_cloud' },
+    });
+  });
+
+  it('passes maxOutputTokens as the cloud generationConfig field', async () => {
+    await firebaseProvider(() => Promise.resolve(ai)).generate({
+      ...REQ,
+      mode: 'ONLY_IN_CLOUD',
+      maxOutputTokens: 6144,
+    });
+    const params = getGenerativeModel.mock.calls[0]?.[1] as {
+      inCloudParams: { generationConfig: Record<string, unknown> };
+    };
+    expect(params.inCloudParams.generationConfig['maxOutputTokens']).toBe(6144);
+  });
+
+  it('omits the field when a request sets no cap', async () => {
+    await firebaseProvider(() => Promise.resolve(ai)).generate({ ...REQ, mode: 'ONLY_IN_CLOUD' });
+    const params = getGenerativeModel.mock.calls[0]?.[1] as {
+      inCloudParams: { generationConfig: Record<string, unknown> };
+    };
+    expect('maxOutputTokens' in params.inCloudParams.generationConfig).toBe(false);
+  });
+});

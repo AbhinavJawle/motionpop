@@ -55,6 +55,7 @@ export const slotsDetectCost = (wordCount: number): number =>
  */
 export const slotsDetect: TaskDef<SlotsDetectInput, SlotsDetectOutput> = {
   id: 'slots.detect',
+  maxOutputTokens: 4096,
   input: SlotsDetectInputSchema,
   output: SlotsDetectOutputSchema,
   mode: (input, cfg) =>

@@ -84,6 +84,7 @@ const enumOf = (values: readonly string[]) =>
  */
 export const directPlan: TaskDef<DirectPlanInput, DirectorPlan> = {
   id: 'direct.plan',
+  maxOutputTokens: 4096,
   input: DirectPlanInputSchema,
   output: DirectorPlanSchema,
   mode: (input) => (input.route === 'device' ? 'ONLY_ON_DEVICE' : 'ONLY_IN_CLOUD'),

@@ -20,6 +20,8 @@ export interface ProviderRequest {
   jsonSchema: Record<string, unknown>;
   /** Cloud thinking level (Gemini 3.x). Lower is faster; ignored on-device. */
   thinking?: ThinkingLevel;
+  /** Cloud output cap in tokens (spec 13b R3.5); thinking tokens count against it. Ignored on-device. */
+  maxOutputTokens?: number;
   /**
    * Optional inline media: a JPEG/PNG for note.fix (on-device accepts images), or audio for
    * transcribe.cloud (cloud only: Gemini Nano takes no audio).
@@ -66,6 +68,8 @@ export interface TaskDef<I, O> {
   maxRepairs?: number;
   /** Cloud thinking level; omit for the model default. */
   thinking?: ThinkingLevel;
+  /** Cloud output cap in tokens, sized to the schema (spec 13b R3.5). Every cloud task sets one. */
+  maxOutputTokens?: number;
   /**
    * Semantic check after the schema parse (e.g. "the patch applies and the params stay valid").
    * Returns an error message, or null when the output is usable. A failure counts as an invalid
@@ -200,6 +204,7 @@ export function createRouter(deps: {
         system: task.system,
         jsonSchema,
         ...(task.thinking ? { thinking: task.thinking } : {}),
+        ...(task.maxOutputTokens ? { maxOutputTokens: task.maxOutputTokens } : {}),
         ...(task.media ? { media: task.media(input.data) } : {}),
       };
       const cloudCost = task.cloudCost(input.data);

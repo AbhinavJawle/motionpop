@@ -88,6 +88,8 @@ export interface FilmBuildPromptInput {
   seamIn: { kind: string; note: string; from: string } | null;
   /** The seam from this beat into the next; null on the last beat. */
   seamOut: { kind: string; note: string; to: string } | null;
+  /** The whole storyboard, in order: the shared part of every builder's prompt. */
+  beats: { lead: string; idea: string; text: string[]; landsOn: string }[];
   format: string;
   look: { name: string; description: string };
   example: { html: string; css: string; script: string };
@@ -95,8 +97,16 @@ export interface FilmBuildPromptInput {
   fix?: { html: string; css: string; script: string; problems: string };
 }
 
-export function filmBuildPromptV1(i: FilmBuildPromptInput): string {
-  const spoken = i.words.map((w, k) => `${k}:${w.text}@${w.startMs}`).join(' ');
+/** Separates the film's shared text from this beat's text in the one prompt string. Fixed. */
+export const FILM_BEAT_SEPARATOR = '===== THIS BEAT =====';
+
+/**
+ * The part every builder of one film shares: the film, its shared drawings, the whole beat list
+ * with indices, the format, the look and the kit example. It depends only on the film, so two
+ * beats of one film send the same bytes here, and the model API can bill that prefix as cached
+ * input (spec 13b R3.4). Keep it free of anything beat-specific.
+ */
+export function filmSharedV1(i: FilmBuildPromptInput): string {
   const lines = [
     `FILM: "${i.film.title}". ${i.film.thesis}`,
     `World: ${i.film.world}`,
@@ -104,14 +114,33 @@ export function filmBuildPromptV1(i: FilmBuildPromptInput): string {
     i.props.length
       ? `Shared drawings: ${i.props.map((p) => `mp.prop("${p.id}") is ${p.draw} (box ${p.width} × ${p.height})`).join(' · ')}`
       : 'Shared drawings: none.',
+    `Format: ${i.format} · Look: ${i.look.name} (${i.look.description})`,
     '',
+    `THE STORYBOARD (all ${i.beats.length} beats, in order):`,
+    ...i.beats.map(
+      (b, k) =>
+        `${k + 1}. ${b.lead}: ${b.idea} · on-screen text: ${b.text.length ? b.text.map((t) => `"${t}"`).join(' / ') : '(none)'} · lands on "${b.landsOn}"`,
+    ),
+    '',
+    'An example of the contract and the kit (a different beat from another film; copy neither its idea nor its layout):',
+    `html: ${i.example.html}`,
+    `css: ${i.example.css}`,
+    `script:\n${i.example.script}`,
+  ];
+  return lines.join('\n');
+}
+
+/** This beat alone: its index, picture, words, timing, seams, and a repair when there is one. */
+export function filmBeatV1(i: FilmBuildPromptInput): string {
+  const spoken = i.words.map((w, k) => `${k}:${w.text}@${w.startMs}`).join(' ');
+  const lines = [
     `YOUR BEAT: ${i.beat.index + 1} of ${i.beat.count}, led by ${i.beat.lead}.`,
     `Picture: ${i.beat.idea}`,
     `On-screen text, exactly: ${i.beat.text.length ? i.beat.text.map((t) => `"${t}"`).join(' / ') : '(none)'}`,
     `Staging: ${i.beat.staging}`,
     `The hero lands on "${i.beat.landsOn}" at ${i.beat.keyMomentMs} ms.`,
     `Spoken words (index:word@ms): ${spoken}`,
-    `Duration: ${i.durationMs} ms (ctx.durationMs) · tail ${i.tailMs} ms · head ${i.headMs} ms · Format: ${i.format} · Look: ${i.look.name} (${i.look.description})`,
+    `Duration: ${i.durationMs} ms (ctx.durationMs) · tail ${i.tailMs} ms · head ${i.headMs} ms`,
     '',
     i.seamIn
       ? `ENTER by "${i.seamIn.kind}": ${i.seamIn.note} (The previous beat: ${i.seamIn.from})`
@@ -129,16 +158,16 @@ export function filmBuildPromptV1(i: FilmBuildPromptInput): string {
       `css: ${i.fix.css}`,
       `script:\n${i.fix.script}`,
     );
-  } else {
-    lines.push(
-      '',
-      'An example of the contract and the kit (a different beat from another film; copy neither its idea nor its layout):',
-      `html: ${i.example.html}`,
-      `css: ${i.example.css}`,
-      `script:\n${i.example.script}`,
-    );
   }
   return lines.join('\n');
+}
+
+/**
+ * The builder's whole prompt: the film's shared text first, the separator, then this beat. The
+ * shared text is a byte-identical prefix for every beat of the film (spec 13b R3.4).
+ */
+export function filmBuildPromptV1(i: FilmBuildPromptInput): string {
+  return [filmSharedV1(i), '', FILM_BEAT_SEPARATOR, filmBeatV1(i)].join('\n');
 }
 
 /**

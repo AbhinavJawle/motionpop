@@ -100,6 +100,7 @@ const storyboardJsonSchema: Record<string, unknown> = {
 /** `film.direct`: the whole narration in, the storyboard out. Two repairs: the tiling is strict. */
 export const filmDirectTask: TaskDef<FilmDirectInput, Storyboard> = {
   id: 'film.direct',
+  maxOutputTokens: 6144,
   input: FilmDirectInputSchema,
   output: StoryboardSchema,
   mode: () => 'ONLY_IN_CLOUD',
@@ -116,7 +117,7 @@ export const filmDirectTask: TaskDef<FilmDirectInput, Storyboard> = {
   cloudCost: () => 0,
   cloudFallback: false,
   maxRepairs: 2,
-  thinking: 'HIGH',
+  thinking: 'MEDIUM',
   jsonSchema: () => storyboardJsonSchema,
   check: (out, input) => {
     const issues = storyboardIssues(out, input.words, input.durationMs);
@@ -152,6 +153,17 @@ export const FilmBuildInputSchema = z.object({
   headMs: z.number().int().nonnegative(),
   seamIn: z.object({ kind: z.string(), note: z.string(), from: z.string() }).nullable(),
   seamOut: z.object({ kind: z.string(), note: z.string(), to: z.string() }).nullable(),
+  /** The whole storyboard: part of the shared prefix of every builder's prompt (R3.4). */
+  beats: z
+    .array(
+      z.object({
+        lead: z.string(),
+        idea: z.string(),
+        text: z.array(z.string()),
+        landsOn: z.string(),
+      }),
+    )
+    .min(1),
   format: FormatSchema,
   look: LookSchema,
   example: BeatCodeSchema,
@@ -192,6 +204,7 @@ export function filmBuildTask(
 ): TaskDef<FilmBuildInput, FilmBuildOutput> {
   return {
     id: 'film.build',
+    maxOutputTokens: 8192,
     input: FilmBuildInputSchema,
     output: FilmBuildOutputSchema,
     mode: () => 'ONLY_IN_CLOUD',
@@ -201,7 +214,7 @@ export function filmBuildTask(
     cloudCost: () => 0,
     cloudFallback: false,
     maxRepairs: 1,
-    thinking: 'MEDIUM',
+    thinking: 'LOW',
     jsonSchema: () => filmBuildJsonSchema,
     check: (out, input) => {
       const problems = lint(out);
@@ -231,6 +244,7 @@ export function filmPropsTask(
 ): TaskDef<FilmPropsInput, FilmPropsOutput> {
   return {
     id: 'film.props',
+    maxOutputTokens: 6144,
     input: FilmPropsInputSchema,
     output: FilmPropsOutputSchema,
     mode: () => 'ONLY_IN_CLOUD',
@@ -240,7 +254,7 @@ export function filmPropsTask(
     cloudCost: () => 0,
     cloudFallback: false,
     maxRepairs: 1,
-    thinking: 'MEDIUM',
+    thinking: 'LOW',
     jsonSchema: () => ({
       type: 'object',
       properties: {

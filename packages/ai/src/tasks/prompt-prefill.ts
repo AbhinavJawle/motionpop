@@ -31,6 +31,7 @@ export type PromptPrefillOutput = z.infer<typeof PromptPrefillOutputSchema>;
  */
 export const promptPrefill: TaskDef<PromptPrefillInput, PromptPrefillOutput> = {
   id: 'prompt.prefill',
+  maxOutputTokens: 512,
   input: PromptPrefillInputSchema,
   output: PromptPrefillOutputSchema,
   mode: () => 'ONLY_ON_DEVICE',

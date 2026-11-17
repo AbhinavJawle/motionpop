@@ -277,6 +277,8 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           ...(deps.onProgress ? { onProgress: deps.onProgress } : {}),
           ...(deps.cancelled ? { cancelled: deps.cancelled } : {}),
           concurrency: 6,
+          // One critic repair per beat (spec 13b R3.3): the second costs more than it fixes.
+          maxRepairs: 1,
         },
       );
     } catch (e) {

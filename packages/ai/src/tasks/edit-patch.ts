@@ -40,6 +40,7 @@ export function editPatchTask(
 ): TaskDef<EditPatchInput, EditPatchOutput> {
   return {
     id: 'edit.patch',
+    maxOutputTokens: 1024,
     input: EditPatchInputSchema,
     output: EditPatchOutputSchema,
     mode: () => 'PREFER_ON_DEVICE',

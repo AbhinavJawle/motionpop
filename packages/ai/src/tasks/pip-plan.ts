@@ -100,6 +100,7 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
 export function pipPlanTask(): TaskDef<PipPlanInput, PipModelOutput> {
   return {
     id: 'pip.plan',
+    maxOutputTokens: 4096,
     input: PipPlanInputSchema,
     output: PipModelOutputSchema,
     mode: () => 'ONLY_IN_CLOUD',

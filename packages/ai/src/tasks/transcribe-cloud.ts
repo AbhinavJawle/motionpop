@@ -80,6 +80,7 @@ export function checkTranscription(out: TranscribeCloudOutput, input: Transcribe
  */
 export const transcribeCloud: TaskDef<TranscribeCloudInput, TranscribeCloudOutput> = {
   id: 'transcribe.cloud',
+  maxOutputTokens: 16384,
   input: TranscribeCloudInputSchema,
   output: TranscribeCloudOutputSchema,
   mode: () => 'ONLY_IN_CLOUD',

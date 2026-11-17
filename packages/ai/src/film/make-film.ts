@@ -154,6 +154,12 @@ export function buildInputFor(
     headMs: beat.headMs,
     seamIn: prev ? { kind: prev.seam.kind, note: prev.seam.note, from: short(prev.idea) } : null,
     seamOut: next ? { kind: beat.seam.kind, note: beat.seam.note, to: short(next.idea) } : null,
+    beats: timed.map((b) => ({
+      lead: b.lead,
+      idea: b.idea,
+      text: b.text,
+      landsOn: input.words[b.landsOn]?.text ?? '',
+    })),
     format: input.format,
     look: input.look,
     example,

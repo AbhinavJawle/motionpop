@@ -45,6 +45,7 @@ export function customComposeTask(
 ): TaskDef<CustomComposeInput, CustomComposeOutput> {
   return {
     id: 'custom.compose',
+    maxOutputTokens: 8192,
     input: CustomComposeInputSchema,
     output: CustomComposeOutputSchema,
     mode: () => 'ONLY_IN_CLOUD',

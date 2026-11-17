@@ -50,6 +50,7 @@ export function noteFixTask(
 ): TaskDef<NoteFixInput, NoteFixOutput> {
   return {
     id: 'note.fix',
+    maxOutputTokens: 1024,
     input: NoteFixInputSchema,
     output: NoteFixOutputSchema,
     mode: () => 'PREFER_ON_DEVICE',

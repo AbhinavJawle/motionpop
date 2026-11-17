@@ -22,3 +22,11 @@ describe('film model routing (spec 07b model setting)', () => {
     expect(filmPropsTask(() => []).model(CONFIG)).toBe('strong');
   });
 });
+
+describe('film thinking levels (spec 13b R3.2)', () => {
+  it('film.direct is MEDIUM, film.build and film.props are LOW', () => {
+    expect(filmDirectTask.thinking).toBe('MEDIUM');
+    expect(filmBuildTask(() => [], '').thinking).toBe('LOW');
+    expect(filmPropsTask(() => []).thinking).toBe('LOW');
+  });
+});

@@ -71,7 +71,7 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   modelFast: 'gemini-3.5-flash-lite',
   // Plans and long slot detection (D-026). Raise to gemini-4-carbon in Remote Config if needed.
   modelStrong: 'gemini-3.8-flash',
-  modelFilmBuild: 'gemini-3.8-flash',
+  modelFilmBuild: 'gemini-3.5-flash-lite',
   modelTts: 'gemini-3.8-flash-tts',
   modelImage: 'gemini-nano-banana-2.1',
   imagesPerVideoMax: 6,

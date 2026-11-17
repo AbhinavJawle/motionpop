@@ -2,6 +2,12 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { APP_CONFIG_DEFAULTS, AppConfigSchema, parseRemoteConfig } from './config';
 
+describe('film build model (spec 13b R3.1)', () => {
+  it('defaults to the fast model; the director stays on the strong one', () => {
+    expect(APP_CONFIG_DEFAULTS.modelFilmBuild).toBe('gemini-3.5-flash-lite');
+  });
+});
+
 describe('parseRemoteConfig', () => {
   it('returns defaults for empty input', () => {
     expect(parseRemoteConfig({})).toEqual(APP_CONFIG_DEFAULTS);

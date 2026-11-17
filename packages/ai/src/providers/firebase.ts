@@ -25,6 +25,8 @@ export function firebaseProvider(getAI: () => Promise<AI>): AIProvider {
             responseMimeType: 'application/json',
             responseJsonSchema: req.jsonSchema,
             ...(req.thinking ? { thinkingConfig: { thinkingLevel: req.thinking } } : {}),
+            // The SDK's GenerationConfig field (`@firebase/ai` 3.1.0, requests.d.ts). Cloud only.
+            ...(req.maxOutputTokens ? { maxOutputTokens: req.maxOutputTokens } : {}),
           },
         },
         onDeviceParams: {

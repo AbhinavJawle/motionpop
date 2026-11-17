@@ -62,6 +62,7 @@ export function componentFillTask(
 ): TaskDef<ComponentFillInput, ComponentFillOutput> {
   return {
     id: 'component.fill',
+    maxOutputTokens: 2048,
     input: ComponentFillInputSchema,
     output: ComponentFillOutputSchema,
     mode: (input) => (input.purpose === 'autofill' ? 'ONLY_ON_DEVICE' : 'ONLY_IN_CLOUD'),
