@@ -1771,3 +1771,18 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - task (run19, claude-haiku-5.5, effort low; prompt by Claude Code (Opus 5.5), launched directly by Claude Code without a supervisor): implement spec 13b tasks 4–7 (router cache, voice part cache, chunked on-device slot detection, render reuse).
 - result, from the run's own report: `d27c3fc` router cache (`packages/ai/src/cache.ts`, an IndexedDB store, `cacheable` on `prompt.prefill` and `slots.detect`; `captions.chunk` is not a routed task in this repo), `3007ae8` voice part cache (`apps/web/lib/tts/part-cache.ts`, 30 days, 50 MB, the delivery note is part of the key), `9491421` chunked detection (`chunk-detect.ts`, one retry per chunk then the cloud; the app doesn't pass `deviceReady` yet), `6d52e5e` render reuse (`render-key.ts`, the key hashes the compile input rather than the compiled HTML; `ownerId` + `key` query, not checked on the hosted database). Tests: schemas 326, ai 447, render 182, web 1,134 in 133 files, then `lib/renders` 132 after a lint fix. It could not edit `.kiro/steering/hybrid-ai.md` (agent permission rule) and left the row text for Claude Code, who applied it. It left the other agent's files unstaged. Claude Code checked the four commits' trailers afterwards.
 <!-- /kiro-session:sess_72c48d4a-bda0-4ccc-89e2-643dd02a11ae -->
+
+## Run 20 · 2026-11-17 · spec 07c-engine-v2, Kiro tests and review
+- agent: motionpop-builder brief, run in the Kiro CLI session (model: claude-haiku-5.5). Implementation was written earlier by Claude Code (Fable 5.2); this run wrote the `[kiro]` tests, fixed what the tests exposed, and committed in 7 chunks.
+- tests added: companion derivation (task 13, 15 tests); video plan unit and fast-check properties (14, 19 tests); auto-pictures properties (16, 12 tests + 1 known gap); world camera continuity, seam velocity and seek purity (17, 5 tests + 1 known gap); companion layer seek purity and counts (18, 5 tests); frameAround and splitFrame properties (21, 5 tests); labelAfter (19, 6 tests in detect-local); render key runtime version (13b follow-up, 3 tests).
+- fixes made (small, from failing tests):
+  - video plan: a hook line no longer takes the climax, which is the strongest number by spec (R3.2).
+  - world: the sweep band's rest transform is written every seek, so seek is a pure function of t.
+  - labelAfter: the trailing-preposition cut only trims the end, so "ships queued up at both ends" keeps its last words.
+  - render key: includes `RUNTIME_VERSION` (a constant, bumped by hand, because the web server cannot read the built bundle).
+- known gaps, recorded as `it.fails` with comments, not fixed:
+  - seam halves in `cameraPath` are unequal (350 ms and 400 ms with the default gap), so the velocity at the cut differs by about 12 %.
+  - the tagger reads "Chen Sea" as a place, so a person name that ends in a landform word is searched.
+- motion:check (task 22, local Chrome): quote 240 cases × 3 formats, 0 failures, 720 warnings. list-stack 252 cases × 3, 9 failures, all 1:1 group centre at -6.6 to -6.8 % (max 6 %), staged. photo-evidence could not run: `src/scenes/photo-evidence/samples.ts` does not exist. No scene code was changed for this.
+- checks (after prettier): motion typecheck, lint and test (525 pass, 1 expected fail); ai typecheck, lint and test (453 pass); render typecheck and test (182 pass); web typecheck, lint and full test (1149 pass, 1 expected fail). No network, no AI calls, no deploys.
+- not done: task 20 (steering) left unticked, as asked.

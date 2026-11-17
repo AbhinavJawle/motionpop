@@ -271,3 +271,18 @@ Spec 11 R1 asked for projects in the account; design §2.1 stored each field as 
   - The app doesn't pass `deviceReady` to chunked detection yet, because the pipeline uses deterministic detection first.
   - The render-reuse query (`ownerId` + `key`) is expected to need no composite index; not checked on the hosted database.
   - The fast builder model may lower film quality; switch `model_film_build` back in Remote Config if a hosted film shows it.
+
+## D-075 · 2026-11-17 · decided (Claude Code, Fable 5.2, founder ask) — Engine v2: companions, a whole-video plan, one world; free pictures on the first load
+- **Context:** the founder asked for more pictures from the first load and a "way better" free engine. A whole-video contact sheet of the free engine (`packages/motion/.check/reel/before-suez/sheet.jpg`) showed numbers centred alone with labels taken from the wrong words, small hook cards, the same layout twice in a row, and empty frames between graphics. Each slot was planned and built alone. The Vertex spend cap was reached, so everything here had to be free and on the device.
+- **Decision (spec 07c):**
+  - **Companions.** A number becomes something you can see next to it, derived by code from what was said: a 10×10 grid for a percentage, dots or icons for a count, a ruler for a length, a stamp for money or a named thing (Lucide icons from the film kit). It counts with the number and lands on the spoken word.
+  - **A whole-video plan** (`planVideo`, pure). The strongest number is the climax: full frame, peak variant, entered with a pull, never first, after a calm slot. Neighbours never repeat the same scene and companion. Split layouts alternate sides.
+  - **One world.** A staged project has one continuous backdrop. A camera travels between slot stations, its moves velocity-matched at each seam. Far landmarks move with parallax and a hand-drawn thread is revealed in the bottom band, so the frame is never empty between graphics. All seams travel one way.
+  - **Labels from the words after the number** in the free detector ("369 ships queued up at both ends").
+  - **First-load pictures.** Real photos under open licences (CC0 and CC BY via our Openverse route) attach by themselves to graphics that can take one. Search words come from places the tagger finds (including names ending in a landform) or concrete nouns, never person names or brands. Logo-like results are refused. Counted stats get no picture. At most `min(6, imagesPerVideoMax)` searches per project, with browser (24 h) and server (6 h) caches; a 429 stops the run. No credits, no confirm, never the paid image model.
+  - **Escape hatch:** `staging: false` on the compile input restores the old per-slot behaviour. Film projects are not staged.
+- **Consequences:**
+  - The composition runtime grew: world, companions and plan all run inside it, so preview and the render service match.
+  - Projects compiled before this decision look different when re-rendered (they are staged by default).
+  - The Openverse anonymous rate limit is shared by all creators on a server instance. The server cache softens this but doesn't remove it. A registered API key is the upgrade (not done).
+  - Not measured in the hosted app: the pictures flow was tested with fake searches only, plus the existing search route.
