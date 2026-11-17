@@ -16,5 +16,8 @@ export * from './tasks/note-fix';
 export * from './tasks/prompt-prefill';
 export * from './tasks/pip-plan';
 export * from './tasks/custom-compose';
+export * from './tasks/film';
+export * from './film/make-film';
+export { FILM_DIRECT_SYSTEM_V1 } from './prompts/film-direct.v1';
 export * from './speech';
 export * from './image';
