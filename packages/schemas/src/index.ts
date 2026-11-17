@@ -23,3 +23,4 @@ export * from './cost';
 export * from './usage';
 export * from './pip';
 export * from './brand';
+export * from './film';
