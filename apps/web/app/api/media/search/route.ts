@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { errorResponse, HttpError, verifyRequest } from '@/lib/firebase/verify.server';
-import { searchOpenverse } from '@/lib/media/openverse.server';
+import { MediaRateLimited, searchOpenverse } from '@/lib/media/openverse.server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -19,6 +19,9 @@ export async function GET(req: Request): Promise<Response> {
     return Response.json({ results: await searchOpenverse(q.data) });
   } catch (err) {
     if (err instanceof HttpError) return errorResponse(err);
+    // Spec 07c: callers (first-load pictures) stop on 429 instead of retrying.
+    if (err instanceof MediaRateLimited)
+      return Response.json({ error: 'rate-limited' }, { status: 429 });
     return Response.json({ error: 'search-failed' }, { status: 502 });
   }
 }

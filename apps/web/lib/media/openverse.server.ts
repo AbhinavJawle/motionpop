@@ -39,12 +39,35 @@ const attributionOf = (r: z.infer<typeof ResultSchema>) =>
     ? `${r.title ?? 'Untitled'} (CC0)`
     : `"${r.title ?? 'Untitled'}" by ${r.creator ?? 'unknown'}, CC BY ${r.license_version ?? ''}`.trim();
 
+/** The anonymous API said "slow down": the route answers 429 and callers stop for now. */
+export class MediaRateLimited extends Error {}
+
+/**
+ * Answers kept in this server instance for a few hours (spec 07c R1.4): first-load pictures
+ * search the same places and nouns for many projects, and the anonymous API is rate-limited.
+ * Only the search words are keys; nothing about the caller is kept.
+ */
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const CACHE_MAX = 500;
+const cache = new Map<string, { at: number; hits: MediaHit[] }>();
+
 export async function searchOpenverse(q: string): Promise<MediaHit[]> {
+  const key = q.trim().toLowerCase();
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.hits;
+  const hits = await searchUpstream(q);
+  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value as string);
+  cache.set(key, { at: Date.now(), hits });
+  return hits;
+}
+
+async function searchUpstream(q: string): Promise<MediaHit[]> {
   const url = `${API}?${new URLSearchParams({ q, license: 'cc0,by', page_size: '20', mature: 'false' })}`;
   const res = await fetch(url, {
     headers: { 'user-agent': UA },
     signal: AbortSignal.timeout(8000),
   });
+  if (res.status === 429) throw new MediaRateLimited('search rate-limited');
   if (!res.ok) throw new Error(`search failed (${res.status})`);
   const body = SearchSchema.parse(await res.json());
   return body.results.flatMap((raw) => {

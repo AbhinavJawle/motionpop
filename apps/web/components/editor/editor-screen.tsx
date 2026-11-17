@@ -1,6 +1,7 @@
 'use client';
 
 import { useAutoFill } from '@/lib/slots/use-auto-fill';
+import { useAutoPictures } from '@/lib/images/use-auto-pictures';
 import { useGenerateShortcut } from '@/lib/slots/use-generate';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -63,6 +64,8 @@ export function EditorScreen({
   useEditorKeys(clock);
   useSoundBed(clock, voice?.voiceLevelDb ?? null);
   useAutoFill();
+  // Spec 07c: free open-licence pictures arrive by themselves after the drafts.
+  useAutoPictures();
   useGenerateShortcut();
 
   // The pen pauses playback (spec 09 R8.1).
