@@ -28,3 +28,4 @@ inclusion: always
 - Show the cost before every credited action. Credits never go negative (server transaction + property test).
 - Rate limit: 30 cloud generations per hour per user. Global daily budget kill switch in Remote Config.
 - GCP budget alerts on the project. Keep judge access funded until Jan 29, 2027.
+- Founder spend (spec 13b, D-074): every cloud task has a `maxOutputTokens` cap; free tasks and voice parts are cached on the device; long slot detection runs on the device in chunks when it can; film builders use the fast model with a shared prompt prefix (implicit caching); an identical repeat export reuses the stored render. Exports are free in credits, so the daily export limit is the guard on render cost.

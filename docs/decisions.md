@@ -256,3 +256,18 @@ Spec 11 R1 asked for projects in the account; design §2.1 stored each field as 
   - Not built yet: the editor entry point, the credit action, the sandbox critic in the app, export parity for tails (spec 07b tasks 8 to 10). Film mode runs only in the lab today.
   - Lucide icon shapes (ISC) are now inside the composition runtime (`docs/third-party.md`).
 
+
+## D-074 · 2026-11-17 · decided (Claude Code, founder ask) — Free exports; cutting the founder's spend
+- **Context:** the founder asked that exports cost no credits and that every cost on his side go down. The Vertex spend cap was reached the same day (about 5 euros in total), so nothing below was measured with paid calls.
+- **Decision (spec 13b, built by Kiro CLI runs 18 and 19):**
+  - **Exports are free in credits** (`DEFAULT_EXPORT_CREDITS` 0/0, still settable from Remote Config). At cost 0 there is no spend, ledger entry or refund. The daily export limit stays as the guard on Cloud Run cost.
+  - **Repeat exports cost nothing:** a render key (sha256 of the compile input, the asset hashes and the export options) is stored on each render; an identical export returns the stored render with no job and doesn't count toward the limit. The key hashes the compile input rather than the compiled HTML because the web server may not have the runtime bundle.
+  - **Film mode:** builders on the fast model (`modelFilmBuild` = `gemini-3.5-flash-lite`), thinking MEDIUM / LOW / LOW (direct / build / props), one critic repair, and a builder prompt whose first part is identical for every beat of a film, so implicit prompt caching (cached input at 10 % of the input rate, automatic on Gemini 2.5 and later) can apply. Estimate: from $0.29–0.40 to $0.05–0.10 per 37 s film. Not measured.
+  - **Output caps** on all 12 cloud tasks (`maxOutputTokens`).
+  - **Device caches:** `prompt.prefill` and `slots.detect` answers (7 days), generated voice parts (30 days, 50 MB). The router result and usage event say `cached`.
+  - **Long slot detection** runs on the device in chunks of ≤ 400 words when the device model is ready; a chunk that fails twice sends the transcript to the cloud.
+- **Open:**
+  - Credits for a voice whose parts are all cached are still charged in full.
+  - The app doesn't pass `deviceReady` to chunked detection yet, because the pipeline uses deterministic detection first.
+  - The render-reuse query (`ownerId` + `key`) is expected to need no composite index; not checked on the hosted database.
+  - The fast builder model may lower film quality; switch `model_film_build` back in Remote Config if a hosted film shows it.

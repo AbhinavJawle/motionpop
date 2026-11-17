@@ -21,7 +21,8 @@ Hybrid inference is a core product feature, not a checkbox. Users always see whe
 | `component.fill` on **Generate** | ONLY_IN_CLOUD | the explicit 3-credit upgrade |
 | `prompt.prefill`, `captions.chunk` | PREFER_ON_DEVICE (captions: deterministic fallback) | short text |
 | `slots.detect` ≤ 400 words | PREFER_ON_DEVICE | fits the small model |
-| `slots.detect` > 400 words, `pip.plan` | PREFER_IN_CLOUD | longer context, multi-step reasoning |
+| `slots.detect` > 400 words, device ready | PREFER_ON_DEVICE in chunks of ≤ 400 words (sentence ends), merged | free; a chunk that fails twice sends the whole transcript to the cloud (spec 13b R4.3) |
+| `slots.detect` > 400 words without the device model, `pip.plan` | PREFER_IN_CLOUD | longer context, multi-step reasoning |
 | `custom.compose` (tier 2) | ONLY_IN_CLOUD (Claude or Gemini per flag) | heavy generation |
 | `tts.generate`, `transcribe.cloud` | ONLY_IN_CLOUD | audio is not supported on-device |
 

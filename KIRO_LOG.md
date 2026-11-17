@@ -1742,3 +1742,32 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - task (run18, claude-haiku-5.5, effort low; prompt and spec by Claude Code (Opus 5.5), launched by a Claude Sonnet supervisor subagent): implement spec 13b tasks 1–3 (free exports; cheaper film mode: fast builder model, lower thinking, one repair, a shared prompt prefix for implicit caching; `maxOutputTokens` on every cloud task) and commit the spec Claude Code wrote.
 - result, from the run's own report: `DEFAULT_EXPORT_CREDITS` is 0/0 (the schema already accepted 0; the render service already skipped spend and refund at cost 0, so no service code changed); a mint "Free" chip in the export options, the landing price table drops the export row at 0, fixtures that assumed 3/5 now use an explicit paid table. `modelFilmBuild` defaults to `gemini-3.5-flash-lite`; thinking `film.direct` MEDIUM, `film.build` and `film.props` LOW; the app passes `maxRepairs: 1`; `filmSharedV1` / `filmBeatV1` joined by a fixed separator, `FilmBuildInput.beats` added, test that two beats share a byte-identical prefix (the kit example now also appears in repair prompts). `maxOutputTokens` on all 12 cloud tasks (its own choices where the design gave none: `transcribe.cloud` 16384, `direct.plan` 4096), passed through as `generationConfig.maxOutputTokens` (field name checked in `@firebase/ai` 3.1.0). Checks: prettier, typecheck and lint clean in five packages; schemas 321, ai 424, render 182, web 1,117 in 130 files. Committed as `fa5fa89`, `5005c48`, `458c4fd`, nothing pushed. The supervisor hit a usage limit before its re-run; Claude Code (Opus 5.5) checked the three commits' trailers and file lists afterwards (no foreign files) and wrote these two lines from the run's log.
 <!-- /kiro-session:sess_45ba5483-e8be-420a-bd2e-947beef8b3f6 -->
+
+<!-- kiro-session:sess_72c48d4a-bda0-4ccc-89e2-643dd02a11ae -->
+### 2026-11-17 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-17T12:32:39.330Z · last stop: 2026-11-17T12:54:24.538Z · session: sess_72c48d4a-bda0-4ccc-89e2-643dd02a11ae
+- commits since start: 
+  - 6d52e5e feat(13b-free-exports-and-cost-cuts): task 7 render reuse
+  - 9491421 feat(13b-free-exports-and-cost-cuts): task 6 chunked on-device slot detection
+  - 3007ae8 feat(13b-free-exports-and-cost-cuts): task 5 voice part cache
+  - d27c3fc feat(13b-free-exports-and-cost-cuts): task 4 router cache
+- uncommitted changes: 
+  - `M packages/ai/src/slots/detect-local.ts`
+  - ` M packages/motion/src/compiler/compile.ts`
+  - ` M packages/motion/src/compiler/project.ts`
+  - ` M packages/motion/src/compiler/types.ts`
+  - ` M packages/motion/src/engine/stage.ts`
+  - ` M packages/motion/src/runtime/backdrop.ts`
+  - ` M packages/motion/src/runtime/engine.ts`
+  - ` M packages/motion/src/runtime/seams.ts`
+  - ` M packages/motion/src/scenes/define.ts`
+  - `?? packages/motion/scripts/reel.ts`
+  - `?? packages/motion/scripts/run-reel.ts`
+  - `?? packages/motion/src/engine/companion.ts`
+  - `?? packages/motion/src/engine/video-plan.ts`
+  - `?? packages/motion/src/runtime/world.ts`
+  - `?? packages/motion/src/scenes/companion-layer.ts`
+- note: the uncommitted files listed above are the engine v2 agent's (Claude Code subagent) work in progress, not Kiro's.
+- task (run19, claude-haiku-5.5, effort low; prompt by Claude Code (Opus 5.5), launched directly by Claude Code without a supervisor): implement spec 13b tasks 4–7 (router cache, voice part cache, chunked on-device slot detection, render reuse).
+- result, from the run's own report: `d27c3fc` router cache (`packages/ai/src/cache.ts`, an IndexedDB store, `cacheable` on `prompt.prefill` and `slots.detect`; `captions.chunk` is not a routed task in this repo), `3007ae8` voice part cache (`apps/web/lib/tts/part-cache.ts`, 30 days, 50 MB, the delivery note is part of the key), `9491421` chunked detection (`chunk-detect.ts`, one retry per chunk then the cloud; the app doesn't pass `deviceReady` yet), `6d52e5e` render reuse (`render-key.ts`, the key hashes the compile input rather than the compiled HTML; `ownerId` + `key` query, not checked on the hosted database). Tests: schemas 326, ai 447, render 182, web 1,134 in 133 files, then `lib/renders` 132 after a lint fix. It could not edit `.kiro/steering/hybrid-ai.md` (agent permission rule) and left the row text for Claude Code, who applied it. It left the other agent's files unstaged. Claude Code checked the four commits' trailers afterwards.
+<!-- /kiro-session:sess_72c48d4a-bda0-4ccc-89e2-643dd02a11ae -->

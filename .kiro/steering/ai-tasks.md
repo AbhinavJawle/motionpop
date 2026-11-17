@@ -111,7 +111,8 @@ General prompt rules (all tasks):
 | custom.compose | 3 |
 | tts.generate | 2 per minute |
 | transcribe.cloud | 1 per minute |
-| Export 720p / 1080p / 4K (≤ 60 s) | 3 / 5 / 10 |
-| BYOK (post-hackathon, not in MVP) | AI calls 0, render still charged |
+| film (spec 07b) | 5 per started 30 s |
+| Export 720p / 1080p | 0 (free, spec 13b; `export_credits` can set a price) |
+| BYOK (post-hackathon, not in MVP) | AI calls 0 |
 
 Free plan: **20 credits** on sign-up. Judge/test plan: larger allowance from Remote Config (default 500). The design's "120" chip just shows a balance.
