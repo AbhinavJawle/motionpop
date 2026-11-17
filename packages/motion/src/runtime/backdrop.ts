@@ -14,7 +14,7 @@ const SWEEP_MS = 520;
 const SWELL_MS = 900;
 
 /** Relative luminance of a #RRGGBB colour (no schemas import: the runtime bundle stays zod-free). */
-function luminance(hex: string): number {
+export function luminance(hex: string): number {
   const n = Number.parseInt(hex.slice(1), 16);
   const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
     const s = v / 255;
@@ -24,7 +24,7 @@ function luminance(hex: string): number {
 }
 
 /** sRGB hex → `r g b` for `rgb(… / a)`. */
-function rgb(hex: string): string {
+export function rgb(hex: string): string {
   const n = Number.parseInt(hex.slice(1), 16);
   return `${(n >> 16) & 255} ${(n >> 8) & 255} ${n & 255}`;
 }
@@ -105,7 +105,7 @@ export function mountBackdrop(host: HTMLElement, project: RuntimeProject): Backd
 }
 
 /** A torn polygon around a rectangle, deterministic per seed (percent units). */
-function torn(seed: number): string {
+export function torn(seed: number): string {
   const r = (i: number) => {
     const x = Math.sin(seed * 91.7 + i * 12.9898) * 43758.5453;
     return x - Math.floor(x);
