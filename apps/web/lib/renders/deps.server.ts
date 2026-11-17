@@ -16,7 +16,13 @@ import {
 } from '@motionpop/schemas';
 import { adminDb } from '@/lib/firebase/admin.server';
 import { serverConfig } from '@/lib/firebase/server-config.server';
-import type { CheckDeps, CreateDeps, DownloadDeps, ShareDeps } from './handlers.server';
+import {
+  firstReusable,
+  type CheckDeps,
+  type CreateDeps,
+  type DownloadDeps,
+  type ShareDeps,
+} from './handlers.server';
 import type { LocalDeps } from './local-handlers.server';
 import { bucket } from './storage.server';
 
@@ -70,6 +76,24 @@ export function createDeps(mode: Exclude<RenderMode, 'offline'>): CreateDeps {
       const snap = await db.doc(`users/${uid}`).get();
       const credits = snap.data()?.['credits'];
       return typeof credits === 'number' ? credits : 0;
+    },
+    // Two equality filters need no composite index (Firestore merges single-field indexes).
+    findReusable: async (uid, key) => {
+      const snap = await db
+        .collection('renders')
+        .where('ownerId', '==', uid)
+        .where('key', '==', key)
+        .limit(10)
+        .get();
+      const candidates: { renderId: string; doc: RenderDoc }[] = [];
+      for (const d of snap.docs) {
+        const parsed = RenderDocSchema.safeParse(d.data());
+        if (parsed.success) candidates.push({ renderId: d.id, doc: parsed.data });
+      }
+      return firstReusable(candidates, async (path) => {
+        const [exists] = await bucket().file(path).exists();
+        return exists;
+      });
     },
     writeSnapshot: async (path, json) => {
       await bucket().file(path).save(json, { contentType: 'application/json', resumable: false });

@@ -99,7 +99,9 @@ export function ExportController() {
       });
       const after = exportStore.getState();
       if (res.ok) {
-        after.follow(res.renderId, queuedView(res.renderId, res.costCredits, snapshot, picked));
+        // A reused render is ready already: no queued step, the watch confirms it.
+        const view = queuedView(res.renderId, res.costCredits, snapshot, picked);
+        after.follow(res.renderId, res.reused ? { ...view, status: 'done', progress: 100 } : view);
         return;
       }
       if (res.error === 'render-active' && res.detail?.renderId) {

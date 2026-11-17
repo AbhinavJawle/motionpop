@@ -55,6 +55,7 @@ export type NewRender = Pick<
   | 'mode'
   | 'inputPath'
   | 'voicePath'
+  | 'key'
 >;
 
 export type StartExportResult =

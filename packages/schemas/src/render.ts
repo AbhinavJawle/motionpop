@@ -132,6 +132,11 @@ export const RenderDocSchema = z
     outputPath: z.string().optional(),
     thumbPath: z.string().optional(),
     sizeBytes: z.number().int().nonnegative().optional(),
+    /** sha256 of the export's identity (spec 13b R2); absent on renders made before it existed. */
+    key: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/)
+      .optional(),
     executionName: z.string().optional(),
     error: RenderErrorCodeSchema.optional(),
     /** Server-safe and shown nowhere verbatim. */
@@ -161,6 +166,8 @@ export const CreateRenderResponseSchema = z.object({
   renderId: z.string().min(1),
   costCredits: z.number().int().nonnegative(),
   balanceAfter: z.number().int().nonnegative(),
+  /** True when an identical ready render was returned and nothing was started (spec 13b R2). */
+  reused: z.boolean().optional(),
 });
 export type CreateRenderResponse = z.infer<typeof CreateRenderResponseSchema>;
 

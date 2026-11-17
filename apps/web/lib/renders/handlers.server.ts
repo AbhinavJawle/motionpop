@@ -22,6 +22,7 @@ import {
   type Slot,
 } from '@motionpop/schemas';
 import type { RenderMode } from './mode';
+import { renderKeyOf } from './render-key';
 
 // The logic of the render routes (spec 08 design §3, §10), separated from Next and Firebase so each
 // answer can be tested with fakes. The routes in `app/api/**` verify the caller, build the real
@@ -57,6 +58,18 @@ export interface VoiceObject {
   contentType: string | undefined;
 }
 
+/** The first candidate that is a ready render whose output object still exists (spec 13b R2). */
+export async function firstReusable(
+  candidates: ReadonlyArray<{ renderId: string; doc: RenderDoc }>,
+  outputExists: (path: string) => Promise<boolean>,
+): Promise<{ renderId: string } | null> {
+  for (const { renderId, doc } of candidates) {
+    if (doc.status !== 'done' || !doc.outputPath) continue;
+    if (await outputExists(doc.outputPath)) return { renderId };
+  }
+  return null;
+}
+
 export interface CreateDeps {
   mode: Exclude<RenderMode, 'offline'>;
   config: () => Promise<AppConfig>;
@@ -74,6 +87,8 @@ export interface CreateDeps {
     cfg: ExportConfig,
     nowMs: number,
   ) => Promise<StartExportResult>;
+  /** The customer's ready render with this key whose output still exists (spec 13b R2), or null. */
+  findReusable: (uid: string, key: string) => Promise<{ renderId: string } | null>;
   balanceOf: (uid: string) => Promise<number>;
   writeSnapshot: (path: string, json: string) => Promise<void>;
   launch: (renderId: string) => Promise<{ executionName?: string }>;
@@ -140,6 +155,20 @@ export async function createRender(
   }
   if (voice.size > MAX_VOICE_BYTES) return apiError('too-large');
 
+  // Spec 13b R2: an identical ready export is returned as it is. No job, no charge, no count
+  // against the daily limit.
+  const key = renderKeyOf({ project, options, voicePath });
+  const reusable = await deps.findReusable(uid, key);
+  if (reusable) {
+    const response: CreateRenderResponse = {
+      renderId: reusable.renderId,
+      costCredits: 0,
+      balanceAfter: await deps.balanceOf(uid),
+      reused: true,
+    };
+    return { status: 200, body: response };
+  }
+
   const nowMs = deps.now();
   await deps.sweepStalled(uid, nowMs);
   const render: NewRender = {
@@ -156,6 +185,7 @@ export async function createRender(
     mode: deps.mode,
     inputPath: paths.input,
     voicePath,
+    key,
   };
   const started = await deps.startExport(renderId, render, cost, exportConfigOf(config), nowMs);
 

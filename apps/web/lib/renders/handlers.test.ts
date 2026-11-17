@@ -20,6 +20,7 @@ import {
   createRender,
   createShareLink,
   downloadRender,
+  firstReusable,
   type CreateDeps,
   type HandlerResult,
 } from './handlers.server';
@@ -58,9 +59,13 @@ interface Fakes {
   voice: { size: number; contentType: string | undefined } | null;
   logs: Record<string, unknown>[];
   snapshots: { path: string; json: string }[];
+  /** What `findReusable` answers (spec 13b R2). */
+  reuse: { renderId: string } | null;
+  /** The keys `findReusable` was asked for. */
+  reuseKeys: string[];
 }
 
-function fakes(over: Partial<Pick<Fakes, 'config' | 'start' | 'voice'>> = {}): Fakes {
+function fakes(over: Partial<Pick<Fakes, 'config' | 'start' | 'voice' | 'reuse'>> = {}): Fakes {
   const f: Fakes = {
     calls: [],
     config: PAID_CONFIG,
@@ -68,6 +73,8 @@ function fakes(over: Partial<Pick<Fakes, 'config' | 'start' | 'voice'>> = {}): F
     voice: { size: 1000, contentType: 'audio/wav' },
     logs: [],
     snapshots: [],
+    reuse: null,
+    reuseKeys: [],
     ...over,
     deps: undefined as unknown as CreateDeps,
   };
@@ -77,6 +84,10 @@ function fakes(over: Partial<Pick<Fakes, 'config' | 'start' | 'voice'>> = {}): F
     now: () => 1_700_000_000_000,
     voiceObject: async () => f.voice,
     isRenderable: () => true,
+    findReusable: async (_uid, key) => {
+      f.reuseKeys.push(key);
+      return f.reuse;
+    },
     sweepStalled: async () => void f.calls.push('sweep'),
     startExport: async () => (f.calls.push('start'), f.start),
     balanceOf: async () => 15,
@@ -590,5 +601,86 @@ describe('createRender: free exports (spec 13b R1)', () => {
     const r = await createRender(f.deps, UID, body({ expectedCost: 5 }));
     expect(r.status).toBe(201);
     expect(spy.mock.calls[0]?.[2]).toBe(5);
+  });
+});
+
+describe('createRender: reuse of an identical ready export (spec 13b R2)', () => {
+  const doc = (over: Partial<RenderDoc>) =>
+    ({ status: 'done', outputPath: `users/${UID}/out.mp4`, ...over }) as unknown as RenderDoc;
+
+  it('an identical export returns the ready render: 200, reused, nothing started or launched', async () => {
+    const f = fakes({ reuse: { renderId: 'old-render-id' } });
+    const spy = vi.spyOn(f.deps, 'startExport');
+    const r = await createRender(f.deps, UID, body());
+    expect(r).toEqual({
+      status: 200,
+      body: { renderId: 'old-render-id', costCredits: 0, balanceAfter: 15, reused: true },
+    });
+    expect(spy).not.toHaveBeenCalled();
+    expect(f.calls).not.toContain('launch');
+    expect(f.snapshots).toEqual([]);
+  });
+
+  it('a reused export does not count toward the daily limit: the limit is never asked', async () => {
+    const f = fakes({ config: APP_CONFIG_DEFAULTS, reuse: { renderId: 'old-render-id' } });
+    const spy = vi.spyOn(f.deps, 'startExport');
+    const r = await createRender(f.deps, UID, body({ expectedCost: 0 }));
+    expect(r.status).toBe(200);
+    expect(spy).not.toHaveBeenCalled();
+  });
+
+  it('with no reusable render, the export starts as before, and the new render stores its key', async () => {
+    const f = fakes({ reuse: null });
+    const spy = vi.spyOn(f.deps, 'startExport');
+    const r = await createRender(f.deps, UID, body());
+    expect(r.status).toBe(201);
+    const key = f.reuseKeys[0];
+    expect(key).toMatch(/^[0-9a-f]{64}$/);
+    expect(spy.mock.calls[0]?.[1]).toMatchObject({ key });
+  });
+
+  it('the same project, options and voice give the same key; other options, a changed slot or another voice do not', async () => {
+    const run = async (over: Record<string, unknown> = {}) => {
+      const f = fakes({ reuse: null });
+      await createRender(f.deps, UID, body(over));
+      return f.reuseKeys[0];
+    };
+    const base = await run();
+    expect(await run()).toBe(base);
+    expect(await run({ options: { ...OPTIONS, resolution: '720p' }, expectedCost: 3 })).not.toBe(
+      base,
+    );
+    expect(
+      await run({
+        project: { ...PROJECT, slots: [bigNumberSlot('a', 0, 900), PROJECT.slots[1]!] },
+      }),
+    ).not.toBe(base);
+    expect(
+      await run({ voicePath: `users/${UID}/audio/${PROJECT.id}/voice-fedcba9876543210.wav` }),
+    ).not.toBe(base);
+  });
+
+  it('firstReusable: a done render whose output is still stored is reused', async () => {
+    const exists = vi.fn(async () => true);
+    expect(await firstReusable([{ renderId: 'r1', doc: doc({}) }], exists)).toEqual({
+      renderId: 'r1',
+    });
+    expect(exists).toHaveBeenCalledWith(`users/${UID}/out.mp4`);
+  });
+
+  it('firstReusable: a render whose output object is gone is not reused, so a new job starts', async () => {
+    expect(await firstReusable([{ renderId: 'r1', doc: doc({}) }], async () => false)).toBeNull();
+  });
+
+  it('firstReusable: only done renders with an output count; the first valid one wins', async () => {
+    const candidates = [
+      { renderId: 'running', doc: doc({ status: 'rendering', outputPath: undefined }) },
+      { renderId: 'no-output', doc: doc({ outputPath: undefined }) },
+      { renderId: 'gone', doc: doc({ outputPath: 'users/u/gone.mp4' }) },
+      { renderId: 'ok', doc: doc({ outputPath: 'users/u/ok.mp4' }) },
+    ];
+    const exists = async (path: string) => path !== 'users/u/gone.mp4';
+    expect(await firstReusable(candidates, exists)).toEqual({ renderId: 'ok' });
+    expect(await firstReusable(candidates.slice(0, 3), exists)).toBeNull();
   });
 });
