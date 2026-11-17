@@ -241,3 +241,18 @@ Spec 11 R1 asked for projects in the account; design §2.1 stored each field as 
 - **Budget:** TTS costs the same per minute of speech whatever the part count. Credits are charged per started minute.
 - **Correction (same day):** the first version of this entry said a full-length export takes "roughly 75 minutes", with a 60-minute job timeout and a 55-minute producer cap. That was wrong. At the measured ~11× real time (the globe export), an eight-minute video with maps needs about 90 minutes, so it would have timed out. The job's task timeout is now 150 minutes and the producer cap 140 minutes. One such export is about 22,000 vCPU-seconds, roughly $0.50 of Cloud Run. Every export also pays a 1.5–2.5 minute cold start (a 493 MB image).
 - **Upgrade path:** `@hyperframes/producer/distributed` (planV2 → renderChunkV2 → assembleV2) can split a render across the tasks of one Cloud Run job execution. That would cut a long export's wall time by the task count at about the same CPU cost. Not built yet.
+
+## D-073 · 2026-11-17 · decided (Claude Code, founder ask) — Film mode: the cloud writes the whole film; the scene engine stays as quick mode
+- **Context:** the founder called the engine rigid and boring. Reading the code showed why: code places the graphics and lifts their words, the model picks among about three variants, every slot is its own box, and the tier-2 prompt had none of the craft from our own agent skills. An experiment (`docs/research/film-mode.md`: one voiceover, 3 setups × 2 models, then film mode) measured what each missing piece is worth.
+- **Decision (spec 07b):**
+  - **Two modes.** Quick mode is the scene engine: on the device, free, instant, offline. Film mode is the cloud: a Director writes one storyboard for the whole voiceover (world, recurring element, shared drawings, a picture and a seam per beat), Builders write every beat at once on the film kit, and a Critic measures each beat in the sandbox and sends problems back up to twice.
+  - **The film kit.** Generated code gets the engine's own craft through `mp`: a timeline that is a pure function of time, timing by spoken word, torn paper, hand-drawn marks, a flat world map with a camera, dots, 144 icons, shared drawings, and the two halves of each seam with fixed distances and eases. It is a superset of spec 15's helpers.
+  - **Builders never see each other's code.** The storyboard's seams, the kit's seam halves and the shared drawings carry continuity, so beats build in parallel and one beat can be rebuilt alone.
+  - **Facts are checked by code.** Any figure on screen that the narration doesn't say is rejected, in the storyboard and in the built beat. Prompts alone did not stop invented statistics.
+  - **Film beats are `custom` slots** with `params.film`: no whole-frame seam, no runtime push-in, no backdrop, and a tail during which a beat stays in front of or behind the next one. Slot times never overlap.
+- **Consequences:**
+  - A 37.5 s film cost $0.29 to $0.40 in model calls and took 4 to 6 minutes in the lab. Pricing: `film`, 5 credits per started 30 s.
+  - The spec 15 lint changed: `return tl;` is accepted, and `parent`, `top`, `self`, `frames`, `opener`, `location` are rejected only as bare identifiers.
+  - Not built yet: the editor entry point, the credit action, the sandbox critic in the app, export parity for tails (spec 07b tasks 8 to 10). Film mode runs only in the lab today.
+  - Lucide icon shapes (ISC) are now inside the composition runtime (`docs/third-party.md`).
+

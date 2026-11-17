@@ -1,0 +1,469 @@
+{
+ "id": "suez",
+ "title": "The ship that blocked the world",
+ "durationMs": 37521,
+ "audio": "suez-voice.m4a",
+ "timing": "Word times are estimates: sentence and phrase starts are measured from the pauses in the audio (ffmpeg silencedetect), words inside a phrase are spread by syllable count.",
+ "words": [
+  {
+   "text": "In",
+   "startMs": 270,
+   "endMs": 452
+  },
+  {
+   "text": "March",
+   "startMs": 472,
+   "endMs": 653
+  },
+  {
+   "text": "2021,",
+   "startMs": 673,
+   "endMs": 1453
+  },
+  {
+   "text": "one",
+   "startMs": 1805,
+   "endMs": 2079
+  },
+  {
+   "text": "ship",
+   "startMs": 2099,
+   "endMs": 2373
+  },
+  {
+   "text": "stopped",
+   "startMs": 2393,
+   "endMs": 2885
+  },
+  {
+   "text": "12%",
+   "startMs": 2905,
+   "endMs": 3615
+  },
+  {
+   "text": "of",
+   "startMs": 3635,
+   "endMs": 3910
+  },
+  {
+   "text": "world",
+   "startMs": 3930,
+   "endMs": 4204
+  },
+  {
+   "text": "trade.",
+   "startMs": 4224,
+   "endMs": 4498
+  },
+  {
+   "text": "The",
+   "startMs": 5170,
+   "endMs": 5333
+  },
+  {
+   "text": "Suez",
+   "startMs": 5353,
+   "endMs": 5515
+  },
+  {
+   "text": "Canal",
+   "startMs": 5535,
+   "endMs": 5833
+  },
+  {
+   "text": "is",
+   "startMs": 5853,
+   "endMs": 6016
+  },
+  {
+   "text": "a",
+   "startMs": 6036,
+   "endMs": 6198
+  },
+  {
+   "text": "narrow",
+   "startMs": 6218,
+   "endMs": 6516
+  },
+  {
+   "text": "shortcut",
+   "startMs": 6536,
+   "endMs": 6834
+  },
+  {
+   "text": "between",
+   "startMs": 6854,
+   "endMs": 7152
+  },
+  {
+   "text": "the",
+   "startMs": 7172,
+   "endMs": 7335
+  },
+  {
+   "text": "Mediterranean",
+   "startMs": 7355,
+   "endMs": 8058
+  },
+  {
+   "text": "and",
+   "startMs": 8078,
+   "endMs": 8241
+  },
+  {
+   "text": "the",
+   "startMs": 8261,
+   "endMs": 8424
+  },
+  {
+   "text": "Red",
+   "startMs": 8444,
+   "endMs": 8606
+  },
+  {
+   "text": "Sea.",
+   "startMs": 8626,
+   "endMs": 8789
+  },
+  {
+   "text": "The",
+   "startMs": 9734,
+   "endMs": 9912
+  },
+  {
+   "text": "Ever",
+   "startMs": 9932,
+   "endMs": 10256
+  },
+  {
+   "text": "Given",
+   "startMs": 10276,
+   "endMs": 10600
+  },
+  {
+   "text": "is",
+   "startMs": 10620,
+   "endMs": 10797
+  },
+  {
+   "text": "400",
+   "startMs": 10817,
+   "endMs": 11287
+  },
+  {
+   "text": "metres",
+   "startMs": 11307,
+   "endMs": 11631
+  },
+  {
+   "text": "long.",
+   "startMs": 11651,
+   "endMs": 11829
+  },
+  {
+   "text": "That's",
+   "startMs": 12400,
+   "endMs": 12583
+  },
+  {
+   "text": "four",
+   "startMs": 12603,
+   "endMs": 12786
+  },
+  {
+   "text": "football",
+   "startMs": 12806,
+   "endMs": 13140
+  },
+  {
+   "text": "pitches,",
+   "startMs": 13160,
+   "endMs": 13584
+  },
+  {
+   "text": "end",
+   "startMs": 13604,
+   "endMs": 13787
+  },
+  {
+   "text": "to",
+   "startMs": 13807,
+   "endMs": 13990
+  },
+  {
+   "text": "end.",
+   "startMs": 14010,
+   "endMs": 14193
+  },
+  {
+   "text": "And",
+   "startMs": 14730,
+   "endMs": 14976
+  },
+  {
+   "text": "it",
+   "startMs": 14996,
+   "endMs": 15242
+  },
+  {
+   "text": "got",
+   "startMs": 15262,
+   "endMs": 15508
+  },
+  {
+   "text": "wedged",
+   "startMs": 15528,
+   "endMs": 15972
+  },
+  {
+   "text": "sideways.",
+   "startMs": 15992,
+   "endMs": 16632
+  },
+  {
+   "text": "Every",
+   "startMs": 17392,
+   "endMs": 17936
+  },
+  {
+   "text": "day",
+   "startMs": 17956,
+   "endMs": 18164
+  },
+  {
+   "text": "it",
+   "startMs": 18184,
+   "endMs": 18391
+  },
+  {
+   "text": "sat",
+   "startMs": 18411,
+   "endMs": 18619
+  },
+  {
+   "text": "there,",
+   "startMs": 18639,
+   "endMs": 18947
+  },
+  {
+   "text": "$9.6",
+   "startMs": 18967,
+   "endMs": 19512
+  },
+  {
+   "text": "billion",
+   "startMs": 19532,
+   "endMs": 20245
+  },
+  {
+   "text": "of",
+   "startMs": 20265,
+   "endMs": 20472
+  },
+  {
+   "text": "goods",
+   "startMs": 20492,
+   "endMs": 20700
+  },
+  {
+   "text": "went",
+   "startMs": 20720,
+   "endMs": 20927
+  },
+  {
+   "text": "nowhere.",
+   "startMs": 20947,
+   "endMs": 21323
+  },
+  {
+   "text": "369",
+   "startMs": 21976,
+   "endMs": 23125
+  },
+  {
+   "text": "ships",
+   "startMs": 23145,
+   "endMs": 23340
+  },
+  {
+   "text": "queued",
+   "startMs": 23360,
+   "endMs": 23555
+  },
+  {
+   "text": "up",
+   "startMs": 23575,
+   "endMs": 23770
+  },
+  {
+   "text": "at",
+   "startMs": 23790,
+   "endMs": 23984
+  },
+  {
+   "text": "both",
+   "startMs": 24004,
+   "endMs": 24199
+  },
+  {
+   "text": "ends.",
+   "startMs": 24219,
+   "endMs": 24414
+  },
+  {
+   "text": "Others",
+   "startMs": 24993,
+   "endMs": 25240
+  },
+  {
+   "text": "gave",
+   "startMs": 25260,
+   "endMs": 25394
+  },
+  {
+   "text": "up",
+   "startMs": 25414,
+   "endMs": 25547
+  },
+  {
+   "text": "and",
+   "startMs": 25567,
+   "endMs": 25701
+  },
+  {
+   "text": "sailed",
+   "startMs": 25721,
+   "endMs": 25968
+  },
+  {
+   "text": "around",
+   "startMs": 25988,
+   "endMs": 26235
+  },
+  {
+   "text": "Africa:",
+   "startMs": 26255,
+   "endMs": 26616
+  },
+  {
+   "text": "3,500",
+   "startMs": 27057,
+   "endMs": 28007
+  },
+  {
+   "text": "nautical",
+   "startMs": 28027,
+   "endMs": 28518
+  },
+  {
+   "text": "miles",
+   "startMs": 28538,
+   "endMs": 28877
+  },
+  {
+   "text": "further,",
+   "startMs": 28897,
+   "endMs": 29327
+  },
+  {
+   "text": "and",
+   "startMs": 29347,
+   "endMs": 29534
+  },
+  {
+   "text": "up",
+   "startMs": 29554,
+   "endMs": 29740
+  },
+  {
+   "text": "to",
+   "startMs": 29760,
+   "endMs": 29946
+  },
+  {
+   "text": "two",
+   "startMs": 29966,
+   "endMs": 30152
+  },
+  {
+   "text": "weeks",
+   "startMs": 30172,
+   "endMs": 30358
+  },
+  {
+   "text": "longer.",
+   "startMs": 30378,
+   "endMs": 30717
+  },
+  {
+   "text": "It",
+   "startMs": 31416,
+   "endMs": 31608
+  },
+  {
+   "text": "took",
+   "startMs": 31628,
+   "endMs": 31820
+  },
+  {
+   "text": "six",
+   "startMs": 31840,
+   "endMs": 32032
+  },
+  {
+   "text": "days",
+   "startMs": 32052,
+   "endMs": 32244
+  },
+  {
+   "text": "to",
+   "startMs": 32264,
+   "endMs": 32455
+  },
+  {
+   "text": "pull",
+   "startMs": 32475,
+   "endMs": 32667
+  },
+  {
+   "text": "it",
+   "startMs": 32687,
+   "endMs": 32879
+  },
+  {
+   "text": "free.",
+   "startMs": 32899,
+   "endMs": 33091
+  },
+  {
+   "text": "One",
+   "startMs": 33921,
+   "endMs": 34132
+  },
+  {
+   "text": "400-metre",
+   "startMs": 34152,
+   "endMs": 34877
+  },
+  {
+   "text": "mistake.",
+   "startMs": 34897,
+   "endMs": 35280
+  },
+  {
+   "text": "One",
+   "startMs": 35921,
+   "endMs": 36241
+  },
+  {
+   "text": "global",
+   "startMs": 36450,
+   "endMs": 36709
+  },
+  {
+   "text": "lesson.",
+   "startMs": 36729,
+   "endMs": 36988
+  }
+ ]
+}

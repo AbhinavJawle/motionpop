@@ -1,0 +1,14 @@
+{
+  "note": "Fixed beats for setups S1-S3 (one custom graphic per beat, each generated alone, as the product does today). Briefs are neutral: they say what the sentence is about, not how to draw it. wordStart and wordEnd are inclusive indexes into suez-voiceover.json.",
+  "beats": [
+    { "id": "b1", "wordStart": 0, "wordEnd": 9, "brief": "Open the story: in March 2021 one ship stopped 12% of world trade." },
+    { "id": "b2", "wordStart": 10, "wordEnd": 23, "brief": "Show where the Suez Canal is: a narrow shortcut between the Mediterranean and the Red Sea." },
+    { "id": "b3", "wordStart": 24, "wordEnd": 37, "brief": "Show how big the ship Ever Given is: 400 metres long, the length of four football pitches end to end." },
+    { "id": "b4", "wordStart": 38, "wordEnd": 42, "brief": "Show the ship getting wedged sideways across the canal." },
+    { "id": "b5", "wordStart": 43, "wordEnd": 53, "brief": "Show the cost: $9.6 billion of goods held up every day." },
+    { "id": "b6", "wordStart": 54, "wordEnd": 60, "brief": "Show the queue: 369 ships waiting at both ends of the canal." },
+    { "id": "b7", "wordStart": 61, "wordEnd": 77, "brief": "Show the detour around Africa: 3,500 nautical miles further and up to two weeks longer." },
+    { "id": "b8", "wordStart": 78, "wordEnd": 85, "brief": "Show that it took six days to free the ship." },
+    { "id": "b9", "wordStart": 86, "wordEnd": 91, "brief": "Close the story: one 400-metre mistake, one global lesson." }
+  ]
+}

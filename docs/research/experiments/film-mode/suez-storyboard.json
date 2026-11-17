@@ -1,0 +1,198 @@
+{
+ "title": "The Six-Day Chokepoint",
+ "thesis": "A single container ship wedged in the Suez Canal proved how fragile global supply chains really are.",
+ "world": "A newsprint collage world constructed on warm, fibrous off-white paper (#F4EFEA) with inked halftone textures, torn paper edges, bold Playfair Display editorial headlines, and hand-drawn marker annotations. Geography is drawn on an engraved flat paper map with deep ink coastlines and cobalt sea tones, toggling between close canal views and continental route tracking.",
+ "carrier": "The Ever Given container ship—a massive silhouette with stacked geometric container blocks (teal, rust red, and navy) and a sharp bow, tracked from side-profile architectural scale, down into a diagonal wedge across the canal, out to a traffic pin, and returning as a stark final silhouette.",
+ "props": [
+  {
+   "id": "ship-profile",
+   "draw": "Side-on architectural profile of the 400-metre container ship with a bulbous bow, tiered stern bridge tower, and towering rectangular container stacks crosshatched in editorial ink.",
+   "width": 10,
+   "height": 2.2
+  },
+  {
+   "id": "ship-topdown",
+   "draw": "Top-down geometric footprint of the container ship showing its tapered bow, angular stern, and gridded rows of colorful container bays.",
+   "width": 10,
+   "height": 1.6
+  },
+  {
+   "id": "pitch",
+   "draw": "Top-down technical outline of a standard football pitch with white touchlines, penalty boxes, and a center circle printed on faded turf-green paper.",
+   "width": 10,
+   "height": 6.5
+  }
+ ],
+ "beats": [
+  {
+   "id": "b1",
+   "wordStart": 0,
+   "wordEnd": 9,
+   "lead": "number",
+   "idea": "The left third holds a massive serif '12%' in cadmium red with yellow highlighter tape beneath 'WORLD TRADE'. Across the right two-thirds, a newsprint ring of 100 stamped cargo containers fractures, with exactly 12 containers torn open and overprinted with red hazard stripes beneath the ship-profile prop.",
+   "text": [
+    "12%",
+    "OF WORLD TRADE STOPPED"
+   ],
+   "landsOn": 6,
+   "staging": "On 'one ship' (word 4), the heavy black ship-profile prop lands across the center. On 'stopped' (word 5), a jagged red ink fracture splits the container ring. On '12%' (word 6), the red hero numeral slams onto the left third and twelve container blocks flood red.",
+   "seam": {
+    "kind": "zoom",
+    "note": "The camera dives straight into the red hazard stamp on the ship's bridge, opening directly onto the paper map of the Suez Canal."
+   }
+  },
+  {
+   "id": "b2",
+   "wordStart": 10,
+   "wordEnd": 23,
+   "lead": "map",
+   "idea": "An engraved paper map centered on [32.34, 30.70] at zoom 7.2. A sharp cobalt-blue canal cuts vertically across warm sand paper between the Mediterranean and Red Sea. The right third holds the headline 'SUEZ CANAL' on a tilted torn paper card with tape.",
+   "text": [
+    "SUEZ CANAL",
+    "MEDITERRANEAN TO RED SEA"
+   ],
+   "landsOn": 16,
+   "staging": "On 'Suez Canal' (words 11-12), the map settles and the blue canal channel draws north to south. On 'shortcut' (word 16), the torn title card drops onto the right third. On 'Red Sea' (word 23), blue ink pools in the southern gulf and holds.",
+   "seam": {
+    "kind": "lift",
+    "note": "The paper map sheet is lifted vertically off the frame like a proofing print, uncovering the drafting grid of beat 3 already composed underneath."
+   }
+  },
+  {
+   "id": "b3",
+   "wordStart": 24,
+   "wordEnd": 30,
+   "lead": "number",
+   "idea": "The ship-profile prop stretches across the upper frame (75% frame width). Below its keel, an inked drafting caliper draws on with millimeter tick marks and red dimension arrows, framing the giant text '400 METRES' on the left third.",
+   "text": [
+    "400 METRES",
+    "THE EVER GIVEN"
+   ],
+   "landsOn": 28,
+   "staging": "On 'Ever Given' (words 25-26), the ship-profile prop drops onto the drafting paper. On '400' (word 28), the giant number stamps down on the left third and the red drafting ruler snaps open from bow to stern. On 'long' (word 30), the dimension rule locks dead still.",
+   "seam": {
+    "kind": "match",
+    "note": "The ship-profile prop remains perfectly locked in position across the upper frame (width 75%, y 35%) while the lower ruler transforms into football pitches."
+   }
+  },
+  {
+   "id": "b4",
+   "wordStart": 31,
+   "wordEnd": 37,
+   "lead": "picture",
+   "idea": "The ship-profile prop stays anchored in the upper half. In the lower half, four pitch props stamp down in a horizontal row, exactly matching the ship's 400-metre waterline from bow to stern. Hero text sits on the top-left third.",
+   "text": [
+    "FOUR PITCHES",
+    "END TO END"
+   ],
+   "landsOn": 34,
+   "staging": "On 'four' (word 32), the four pitch cards snap down from left to right (60ms apart). On 'pitches' (word 34), white yard markings etch onto each pitch and the hero label 'FOUR PITCHES' locks on the left. On 'end to end' (words 35-37), red dashed brackets bracket the full length.",
+   "seam": {
+    "kind": "zoom",
+    "note": "The camera dives into the center of the ship's hull, turning 45 degrees as the view flattens into the top-down canal perspective of beat 5."
+   }
+  },
+  {
+   "id": "b5",
+   "wordStart": 38,
+   "wordEnd": 42,
+   "lead": "picture",
+   "idea": "Top-down view of the canal channel: two sandy canal banks compress the blue waterway. The ship-topdown prop sits jammed diagonally at 44 degrees across the channel, its red bow wedged deep into the right bank and stern scraping the left. Hero text sits on the upper-left third.",
+   "text": [
+    "WEDGED SIDEWAYS",
+    "SUEZ CANAL"
+   ],
+   "landsOn": 41,
+   "staging": "On 'got' (word 40), the blue water channel etches into the frame. On 'wedged' (word 41), the ship-topdown prop drives in from above, rotates 44 degrees, and locks against both banks with red impact marks. On 'sideways' (word 42), the hero text slams down with yellow highlighter.",
+   "seam": {
+    "kind": "push",
+    "note": "The wedged ship scene accelerates off to the left over 300 ms as the cargo counter and container towers of beat 6 slide in from the right."
+   }
+  },
+  {
+   "id": "b6",
+   "wordStart": 43,
+   "wordEnd": 53,
+   "lead": "number",
+   "idea": "The left half is dominated by massive red woodblock-style numerals '$9.6 BILLION'. The right half features an enormous, looming vertical stack of crosshatched shipping containers stamped with a bold black diagonal mark reading 'HALTED'.",
+   "text": [
+    "$9.6 BILLION",
+    "EVERY DAY"
+   ],
+   "landsOn": 48,
+   "staging": "On 'Every day' (words 43-44), the towering container stack drops onto the right half. On '$9.6' (word 48), the giant red numbers roll into position and lock on the left third. On 'billion' (word 49), 'BILLION' snaps beneath it. On 'nowhere' (word 53), the black 'HALTED' stamp hits the containers.",
+   "seam": {
+    "kind": "cover",
+    "note": "A full-frame satellite navigation map sheet slides down from the top edge over the held container stack to reveal beat 7."
+   }
+  },
+  {
+   "id": "b7",
+   "wordStart": 54,
+   "wordEnd": 60,
+   "lead": "map",
+   "idea": "Regional map of the Suez Isthmus [32.30, 30.50] at zoom 7.8. In the Mediterranean to the north and the Gulf of Suez to the south, 369 red and black ink dots cluster tightly in holding anchorages. Hero text sits on a torn paper card on the right third.",
+   "text": [
+    "369 SHIPS",
+    "QUEUED AT BOTH ENDS"
+   ],
+   "landsOn": 54,
+   "staging": "On '369' (word 54), the headline '369 SHIPS' drops onto the right third. On 'ships' (word 55), fields of dots populate both maritime approaches simultaneously. On 'both ends' (words 59-60), red marker circles highlight the northern and southern queues.",
+   "seam": {
+    "kind": "match",
+    "note": "The camera opens on Suez [32.30, 30.50] and smoothly pulls back to the continental view of Africa [18.0, 5.0] across the cut into beat 8."
+   }
+  },
+  {
+   "id": "b8",
+   "wordStart": 61,
+   "wordEnd": 77,
+   "lead": "map",
+   "idea": "Continental paper map of Africa [18.0, 5.0] at zoom 3.2. A blocked red 'X' seals the Suez shortcut while a long, sweeping red dashed route loops south around the Cape of Good Hope and east toward Asia. Hero text sits on the lower-left third.",
+   "text": [
+    "3,500 MILES",
+    "UP TO TWO WEEKS LONGER"
+   ],
+   "landsOn": 68,
+   "staging": "On 'sailed around Africa' (words 65-67), the red dashed route traces south past western Africa. On '3,500' (word 68), '+3,500 MILES' lands in bold red on the lower left. On 'two weeks longer' (words 75-77), the route sweeps past the Cape and the yellow highlight tape snaps behind 'TWO WEEKS'.",
+   "seam": {
+    "kind": "lift",
+    "note": "The continental map sheet peels upward from the bottom edge, revealing the canal salvage operation of beat 9 underneath."
+   }
+  },
+  {
+   "id": "b9",
+   "wordStart": 78,
+   "wordEnd": 85,
+   "lead": "picture",
+   "idea": "Top-down view of the canal channel. The ship-topdown prop is now aligned straight in the deep central waterway. Four small tugboat icons flank bow and stern with red tension towlines pulling taut. Hero text sits in the upper-left third.",
+   "text": [
+    "SIX DAYS",
+    "PULLED FREE"
+   ],
+   "landsOn": 80,
+   "staging": "On 'six days' (words 80-81), the title 'SIX DAYS' stamps onto the upper-left third. On 'pull' (word 83), tugboat towlines turn bright red with tension. On 'free' (word 85), the ship-topdown prop slides smoothly into the canal center, leaving clear blue water behind.",
+   "seam": {
+    "kind": "push",
+    "note": "The cleared canal pushes left off-screen over 300 ms as the final poster composition arrives from the right."
+   }
+  },
+  {
+   "id": "b10",
+   "wordStart": 86,
+   "wordEnd": 91,
+   "lead": "type",
+   "idea": "A clean editorial poster on warm newsprint ground. Across the horizontal center, the ship-profile prop sits stark and dead still in pure black ink (65% frame width). The serif hero text frames it above and below, anchored by a wide red marker underline.",
+   "text": [
+    "ONE 400-METRE MISTAKE.",
+    "ONE GLOBAL LESSON."
+   ],
+   "landsOn": 87,
+   "staging": "On 'One 400-metre mistake' (words 86-88), the top headline lands and the ship-profile silhouette settles on the baseline. On 'One global lesson' (words 89-91), the bottom headline appears and a broad red highlighter stroke sweeps beneath it, holding dead still.",
+   "seam": {
+    "kind": "push",
+    "note": "Final beat holds dead still into fade out."
+   }
+  }
+ ]
+}
