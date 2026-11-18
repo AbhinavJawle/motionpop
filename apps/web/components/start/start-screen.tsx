@@ -15,7 +15,7 @@ import { ProjectTopBar } from './project-top-bar';
 import { putScriptDraft, readScriptDraft } from '@/lib/script/hand-off';
 import { StartHero } from './start-hero';
 
-const ACCEPT = 'audio/*,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus';
+const ACCEPT = 'audio/*,video/mp4,video/quicktime,video/webm,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus,.mp4,.mov';
 
 /** Static ember waveform of the Record card (start.png). Deterministic heights. */
 const WAVE = Array.from({ length: 60 }, (_, i) => {

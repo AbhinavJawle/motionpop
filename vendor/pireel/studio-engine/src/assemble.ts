@@ -1,0 +1,980 @@
+import { BASE_CAPTION_FONT_PX } from './caption-presets';
+import { SHARED_SHEET_ATTRIBUTE, compileComponentStyles, sharedSheetPlaceholder } from './component-styles';
+/**
+ * Assembly layer: stitch a Composition into a complete Hyperframes document (preview iframe and export share the same source).
+ * Depends on the template registry being ready — always go through the './composition' barrel externally (it imports './templates' first).
+ */
+
+import { getTheme, themeVarsCss, varsDeclCss } from './theme';
+import { editedDuration, spans } from './trim';
+import {
+  type Block,
+  type Composition,
+  transitionWindows,
+  escapeAttr,
+  isSentenceCaption,
+  IDENTITY_MEDIA_FRAMING,
+  mediaFramingTransformVars,
+  zoomAnchorShiftPercent,
+  zoomMoves,
+  n,
+  pct,
+  renderBlock,
+  resolveCaptionStyle,
+  shotFilterCss,
+  videoTrackShots,
+  videoFrameTimelineBody,
+  zoomStartScale,
+} from './composition-core';
+import { GL_MIXER_SRC, TRANSITION_GLSL, glDirection } from './transition-gl';
+import { isLookTemplate, lookFontIds, lookHeadHtml, lookPieceOf } from './look';
+import { SOURCE_BACKDROP_FUNCTION, SOURCE_DRAW_RECT_FUNCTION } from './source-framing';
+import { compositionVisualLayerPlan, type SupplementalVisualMediaClip } from './visual-layer-plan';
+import { BLOCK_TEXT_BASELINE_PX } from './block-typography';
+import { webFontStylesheetUrls } from './font-library';
+import { displayFontContext, displayTextFontCss } from './display-text-presets';
+import { blockPropsSchema, componentPropsAttrs, componentPropsFontIds, componentPropsInlineCss, parseComponentProps, resolveComponentProps } from './component-props';
+
+/* ============================ Assembly ============================ */
+
+/**
+ * <video> trim-mapping shim injected into the document: reframe #vidEl's currentTime to the **final-cut time** basis
+ * (get: source→final; set: final→source), and use rAF to skip trimmed regions during playback. Reads window.__segments.
+ * This way both the preview runtime and the export headless renderer (setting currentTime frame by frame) work in final-cut time.
+ */
+/** Design fonts for the preview document (single source). The parent document (workbench) must load the same set — caption
+ *  splitting's canvas measureText runs in the parent, and without this font it falls back to a system font whose Latin widths mismatch and wrap. */
+export const STUDIO_FONTS_HREF =
+  'https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700;900&family=Noto+Serif+SC:wght@700;900&family=IBM+Plex+Mono:wght@500;600&display=swap';
+
+/** Frame shim (canvas mode): draw frames pushed by the parent-layer engine; cut transitions use the **gl-transitions WebGL
+ *  mixer** (GL_MIXER_SRC, same source as export/panel) — within a window the engine brings the "other side" ghost frame
+ *  (frame2) alongside the main frame, and the two live streams (from/to) are composited by the upstream shader, p spanning the whole window.
+ *  Fallback chain: ghost frames cut off → after the cut, use the frozen last frame of A as from (at least the second half has an effect); GL unavailable /
+ *  shader compile fails → hard cut. Before upload, cover into a W×H staging canvas first (direct texture upload gets stretched/distorted). */
+/** A one-line caption centered on a split screen's seam: its bottom edge sits half a line below it. */
+function seamCaptionYPct(seam: number, scale: number | undefined, height: number) {
+  const line = BASE_CAPTION_FONT_PX * (scale ?? 1) * 1.4;
+  return seam * 100 + line / 2 / Math.max(1, height) * 100;
+}
+
+/** `backdrop`: fill the frame around a source that does not cover it with its own blurred picture (Composition.backdrop). */
+/** Only the shaders this document plays go into it: the whole set is tens of kilobytes of GLSL. */
+function usedTransitionGlsl(transitions: readonly { effect: string }[]): Record<string, string> {
+  const used: Record<string, string> = {};
+  for (const { effect } of transitions) {
+    const glsl = (TRANSITION_GLSL as Record<string, string>)[effect];
+    if (glsl) used[effect] = glsl;
+  }
+  return used;
+}
+
+export function videoFrameShim(transitions: { s: number; e: number; cut: number; effect: string; dx: number; dy: number }[], backdrop = false): string {
+  return `window.__parentClock = true; // clock/decode/audio run in the parent-layer engine; this doc doesn't self-drive
+(function(){
+  var c = document.getElementById('vidEl');
+  if (!c || !c.getContext) return;
+  var ctx = c.getContext('2d');
+  if (!ctx) return;
+  var W = c.width, H = c.height;
+  var TRS = ${JSON.stringify(transitions)};
+  var MIX = null;
+  try { MIX = (${GL_MIXER_SRC})(W, H, ${JSON.stringify(usedTransitionGlsl(transitions))}); } catch (eM) {}
+  var liveBmp = null, ghostBmp = null, liveFraming = null, ghostFraming = null;
+  var liveSourceW = 0, liveSourceH = 0, ghostSourceW = 0, ghostSourceH = 0;
+  var lastT = -1, ghostAtT = -1, bakedWinCut = -1;
+  var liveVer = 0, ghostVer = 0, stagedLiveVer = -1, stagedGhostVer = -1;
+  var frozen = null, frozenCut = null, ghostWarned = false;
+  var mkStage = function () { var s = document.createElement('canvas'); s.width = W; s.height = H; return s; };
+  var stageLive = mkStage(), stageGhost = mkStage();
+  var sourceRect = (${SOURCE_DRAW_RECT_FUNCTION});
+  var paintBackdrop = ${backdrop ? `(${SOURCE_BACKDROP_FUNCTION})` : 'null'};
+  var backdropSample = paintBackdrop ? document.createElement('canvas') : null;
+  // #vidEl keeps a composition-sized backing store so the sandbox protocol stays stable, but its
+  // CSS box is the independent media layer. Pre-compensate for that box's X/Y scaling before draw;
+  // otherwise changing the canvas ratio non-uniformly stretches the already-rendered pixels.
+  var layerRect = function (sourceW, sourceH, framing) {
+    var cs = window.getComputedStyle(c);
+    var cw = parseFloat(cs.width) || W, ch = parseFloat(cs.height) || H;
+    var r = sourceRect(sourceW, sourceH, cw, ch, framing);
+    var sx = cw / W, sy = ch / H;
+    return { x: r.x / sx, y: r.y / sy, width: r.width / sx, height: r.height / sy };
+  };
+  var cover = function (stage, bmp, framing, sourceW, sourceH) {
+    var g = stage.getContext('2d');
+    var r = layerRect(sourceW || bmp.width, sourceH || bmp.height, framing);
+    g.clearRect(0, 0, W, H);
+    if (paintBackdrop) paintBackdrop(g, backdropSample, bmp, sourceW || bmp.width, sourceH || bmp.height, 0, 0, W, H);
+    g.drawImage(bmp, r.x, r.y, r.width, r.height);
+    return stage;
+  };
+  // per-source staging + version: if the frame is unchanged, redraw only — skip re-cover/re-upload (clock-driven per-tick recompositing is what hits 60fps)
+  var SL = function () { if (stagedLiveVer !== liveVer) { cover(stageLive, liveBmp, liveFraming, liveSourceW, liveSourceH); stagedLiveVer = liveVer; } return stageLive; };
+  var SG = function () { if (stagedGhostVer !== ghostVer) { cover(stageGhost, ghostBmp, ghostFraming, ghostSourceW, ghostSourceH); stagedGhostVer = ghostVer; } return stageGhost; };
+  var drawPlain = function (bmp, framing, sourceW, sourceH) {
+    if (!bmp) return;
+    // videoWidth/videoHeight are the browser's DISPLAY dimensions. ImageBitmap.width/height can
+    // still be the coded surface for phone footage carrying rotation metadata; using that 16:9
+    // surface to place a 9:16 picture both letterboxes it and deforms the subject.
+    var r = layerRect(sourceW || bmp.width, sourceH || bmp.height, framing);
+    ctx.clearRect(0, 0, W, H);
+    if (paintBackdrop) paintBackdrop(ctx, backdropSample, bmp, sourceW || bmp.width, sourceH || bmp.height, 0, 0, W, H);
+    ctx.drawImage(bmp, r.x, r.y, r.width, r.height);
+  };
+  var render = function (t) {
+    if (!liveBmp || !(t >= 0)) return;
+    var tr = null;
+    for (var i = 0; i < TRS.length; i++) { if (t >= TRS[i].s && t <= TRS[i].e) { tr = TRS[i]; break; } }
+    if (t < lastT - 0.05 || t > lastT + 0.5) frozenCut = null; // rewind/big jump: discard frozen frame
+    if (tr && tr.cut >= 0 && lastT >= 0 && lastT < tr.cut && t >= tr.cut) {
+      // crossing the cut: current canvas = A's last frame; freeze it as the fallback "from" when ghost frames cut off
+      frozen = frozen || mkStage();
+      frozen.getContext('2d').clearRect(0, 0, W, H);
+      frozen.getContext('2d').drawImage(c, 0, 0);
+      frozenCut = tr.cut;
+      // side switch: ghosts arriving before the cut are B's pre-roll; after the cut "from" should be A's tail — old-side frames are discarded,
+      // and until the new-side ghost arrives the frozen last frame of A holds (content stays continuous, no flicker). Ghost frames whose
+      // arrival time is past the cut are already new-side (the engine's ghostFresh gate verified this) — don't kill them by mistake
+      if (ghostBmp && ghostAtT < tr.cut) { try { ghostBmp.close(); } catch (eX) {} ghostBmp = null; ghostFraming = null; ghostSourceW = 0; ghostSourceH = 0; }
+    }
+    lastT = t;
+    if (!tr) { bakedWinCut = -1; drawPlain(liveBmp, liveFraming, liveSourceW, liveSourceH); return; }
+    // this window is now owned by baked frames: the old dual-stream compositing steps aside entirely (don't draw into inter-frame gaps either — that layers up into strobe)
+    if (bakedWinCut === tr.s) return;
+    var p = Math.min(1, Math.max(0, (t - tr.s) / Math.max(1e-3, tr.e - tr.s))); // 0=window start, 1=end
+    if (tr.cut < 0) {
+      // no cut inside: the effect plays on the running picture (both sides are the live frame)
+      var LS = SL(), LK = 'L' + liveVer;
+      if (MIX && MIX.render(LS, LS, tr.effect, p, tr.dx, tr.dy, LK, LK)) { ctx.clearRect(0, 0, W, H); ctx.drawImage(MIX.canvas, 0, 0, W, H); return; }
+      drawPlain(liveBmp, liveFraming, liveSourceW, liveSourceH);
+      return;
+    }
+    var pre = t < tr.cut;
+    // from/to: before the cut from=main frame (A) / to=ghost (B pre-roll); after the cut from=ghost (A tail) / to=main frame (B)
+    var F = pre ? SL() : (ghostBmp ? SG() : (frozenCut === tr.cut ? frozen : null));
+    var FK = pre ? 'L' + liveVer : (ghostBmp ? 'G' + ghostVer : 'Z' + frozenCut);
+    var T = pre ? (ghostBmp ? SG() : null) : SL();
+    var TK = pre ? 'G' + ghostVer : 'L' + liveVer;
+    if (!ghostBmp && !ghostWarned) { ghostWarned = true; try { console.warn('[hf] transition ghost frames missing — degraded blending'); } catch (eW) {} }
+    if (F && T && MIX && MIX.render(F, T, tr.effect, p, tr.dx, tr.dy, FK, TK)) {
+      ctx.clearRect(0, 0, W, H);
+      ctx.drawImage(MIX.canvas, 0, 0, W, H);
+      return;
+    }
+    drawPlain(liveBmp, liveFraming, liveSourceW, liveSourceH); // GL unavailable / ghost not warm and no frozen frame: hard cut
+  };
+  // The frame is drawn ONCE for the canvas's CSS box at push time (layerRect pre-compensates that box).
+  // The framing timeline rewrites left/top/width/height afterwards (a document that booted before its
+  // first seek, a canvas-ratio switch, a framing edit) and the already-rendered pixels would stretch
+  // with the box — and stay stretched until the next frame happens to arrive (a hover-seek). Redraw the
+  // retained bitmaps whenever the box changes; no decode is needed, the frame is still in memory.
+  try {
+    var RO = window.ResizeObserver;
+    if (RO) {
+      var lastBoxKey = '';
+      new RO(function () {
+        var bs = window.getComputedStyle(c);
+        var key = bs.width + 'x' + bs.height;
+        if (key === lastBoxKey) return;
+        lastBoxKey = key;
+        if (!liveBmp || !(lastT >= 0)) return;
+        stagedLiveVer = -1; stagedGhostVer = -1; // staged covers were built for the old box
+        try { render(lastT); } catch (eR) {}
+      }).observe(c);
+    }
+  } catch (eO) {}
+  // current frame's source info (personCut needs it for the mask): elKey='main'|clip_<shotId>, srcT=time within that source file
+  window.__vidSrc = null;
+  window.addEventListener('message', function (e) {
+    var d = e.data || {};
+    // hf:seekTimelines carries the playback clock, which may lead the picture (the engine holds a
+    // transition window's picture at the media time). Transition progress follows hf:frame alone:
+    // recompositing by the clock in between made it run ahead and snap back at the cut.
+    if (d.type === 'hf:seekTimelines') return;
+    if (d.type === 'hf:clearFrame') {
+      try { if (liveBmp && liveBmp.close) liveBmp.close(); } catch (errCL) {}
+      try { if (ghostBmp && ghostBmp.close) ghostBmp.close(); } catch (errCG) {}
+      liveBmp = null; ghostBmp = null; liveSourceW = 0; liveSourceH = 0; ghostSourceW = 0; ghostSourceH = 0; frozen = null; frozenCut = null; window.__vidSrc = null;
+      try { ctx.clearRect(0, 0, W, H); } catch (errCC) {}
+      return;
+    }
+    if (d.type !== 'hf:frame' || !d.frame) return;
+    if (d.baked) {
+      // pre-baked frame (0.5× same aspect ratio): just fill; compositing / freeze / bookkeeping all step aside
+      try {
+        ctx.clearRect(0, 0, W, H);
+        ctx.drawImage(d.frame, 0, 0, W, H);
+        var bt = typeof d.t === 'number' ? d.t : lastT;
+        lastT = bt;
+        for (var bwi = 0; bwi < TRS.length; bwi++) { if (bt >= TRS[bwi].s && bt <= TRS[bwi].e) { bakedWinCut = TRS[bwi].s; break; } }
+        window.__vidSrc = { elKey: d.elKey || 'main', srcT: typeof d.srcT === 'number' ? d.srcT : 0, w: d.sourceWidth || d.frame.width, h: d.sourceHeight || d.frame.height, framing: d.framing || null };
+      } catch (errB) {}
+      try { d.frame.close && d.frame.close(); } catch (errB2) {}
+      return;
+    }
+    try {
+      if (liveBmp && liveBmp.close) { try { liveBmp.close(); } catch (errC) {} }
+      liveBmp = d.frame; liveFraming = d.framing || null;
+      liveSourceW = Number(d.sourceWidth) || d.frame.width;
+      liveSourceH = Number(d.sourceHeight) || d.frame.height;
+      liveVer++;
+      if (d.frame2) {
+        if (ghostBmp && ghostBmp.close) { try { ghostBmp.close(); } catch (errG) {} }
+        ghostBmp = d.frame2; ghostFraming = d.framing2 || null;
+        ghostSourceW = Number(d.sourceWidth2) || d.frame2.width;
+        ghostSourceH = Number(d.sourceHeight2) || d.frame2.height;
+        ghostVer++;
+        ghostAtT = typeof d.t === 'number' ? d.t : lastT;
+      } else if (ghostBmp) {
+        // discard ghost frame once out of the window (if missing inside the window, reuse the last one — a tiny stutter beats a flicker cut)
+        var t0 = typeof d.t === 'number' ? d.t : lastT;
+        var inWin = false;
+        for (var wi = 0; wi < TRS.length; wi++) { if (t0 >= TRS[wi].s && t0 <= TRS[wi].e) { inWin = true; break; } }
+        if (!inWin) { try { ghostBmp.close(); } catch (errG2) {} ghostBmp = null; ghostFraming = null; ghostSourceW = 0; ghostSourceH = 0; }
+      }
+      render(typeof d.t === 'number' ? d.t : lastT);
+      window.__vidSrc = { elKey: d.elKey || 'main', srcT: typeof d.srcT === 'number' ? d.srcT : 0, w: d.sourceWidth || d.frame.width, h: d.sourceHeight || d.frame.height, framing: liveFraming };
+    } catch (err) {}
+  });
+})();`;
+}
+
+/**
+ * Person matte ("text behind person"): the #personCut canvas sits between behind-person and front-person blocks; each frame draws the video
+ * with the same object-fit:cover mapping, then destination-in with the person mask to keep only the person's pixels.
+ * The mask is computed by the parent layer (MediaPipe lives in the parent document; a sandbox iframe can't reach it): this document's rVFC grabs a video frame,
+ * scales it to long edge ≤384 and sends personFrame; the parent returns hf:personMask when segmentation is done; single-flight throttled (no new frame until the last returns).
+ * Framing-transform follow: GSAP writes framing onto the video's inline transform, copied to the canvas as-is each frame.
+ * Export / no-parent environment: the mask never arrives, the canvas stays transparent, and it degrades naturally to a normal foreground overlay.
+ */
+const PERSON_CUT_SHIM = `(function(){
+  var v = document.getElementById('vidEl');
+  var c = document.getElementById('personCut');
+  if (!v || !c || !c.getContext) return;
+  var ctx = c.getContext('2d');
+  if (!ctx) return;
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  // Effect params are baked into data attributes; a native config patch triggers the normal document rebuild.
+  var feather = parseFloat(c.getAttribute('data-feather')) || 0;
+  var strokeW = parseFloat(c.getAttribute('data-stroke-w')) || 0;
+  var strokeC = c.getAttribute('data-stroke-color') || '#ffffff';
+  var bgEl = document.getElementById('personBg');
+  var W = c.width, H = c.height;
+  var sourceRect = (${SOURCE_DRAW_RECT_FUNCTION});
+  var layerRect = function (sourceW, sourceH, framing) {
+    var cs = window.getComputedStyle(v);
+    var vw = parseFloat(cs.width) || W, vh = parseFloat(cs.height) || H;
+    var r = sourceRect(sourceW, sourceH, vw, vh, framing);
+    var sx = vw / W, sy = vh / H;
+    return { x: r.x / sx, y: r.y / sy, width: r.width / sx, height: r.height / sy };
+  };
+  // person (video ∘ mask) and stroke silhouette each render offscreen; the main canvas composites in stroke→person order
+  var P = document.createElement('canvas'); P.width = W; P.height = H;
+  var pctx = P.getContext('2d');
+  pctx.imageSmoothingEnabled = true; pctx.imageSmoothingQuality = 'high';
+  var strokeStyle = c.getAttribute('data-stroke-style') || 'solid';
+  var strokeAlpha = parseFloat(c.getAttribute('data-stroke-alpha'));
+  if (!(strokeAlpha >= 0 && strokeAlpha <= 1)) strokeAlpha = 1;
+  // stroke = trace the mask outline (marching squares) into a Path2D, then stroke it: solid/dashed both follow the contour,
+  // line width = 2× target — the inner half is covered by the person layer above, so only the outer ring shows (mainstream-editor-style "outer stroke").
+  var tc = null, tctx = null, strokePath = null, strokeGrid = null;
+  if (strokeW > 0) { tc = document.createElement('canvas'); tctx = tc.getContext('2d', { willReadFrequently: true }); }
+  function retrace(){
+    if (!tctx || !mask) { strokePath = null; return; }
+    var gw = 220, gh = Math.max(2, Math.round((220 * mask.height) / mask.width));
+    tc.width = gw; tc.height = gh;
+    tctx.clearRect(0, 0, gw, gh);
+    tctx.drawImage(mask, 0, 0, gw, gh);
+    var px = tctx.getImageData(0, 0, gw, gh).data;
+    function at(x, y){ return x >= 0 && y >= 0 && x < gw && y < gh && px[(y * gw + x) * 4 + 3] > 127 ? 1 : 0; }
+    // per blob: walk marching squares once from an unconsumed boundary start; drop short loops (noise), skip starts already inside a bbox
+    var boxes = [], paths = [], attempts = 0;
+    for (var sy = 0; sy < gh && attempts < 6; sy++) {
+      for (var sx = 0; sx < gw && attempts < 6; sx++) {
+        if (!at(sx, sy) || at(sx - 1, sy)) continue;
+        var inBox = false;
+        for (var bi = 0; bi < boxes.length; bi++) { var bb = boxes[bi]; if (sx >= bb[0] && sx <= bb[2] && sy >= bb[1] && sy <= bb[3]) { inBox = true; break; } }
+        if (inBox) continue;
+        attempts++;
+        var pts = [], x = sx, y = sy, prev = 'up', guard = gw * gh;
+        do {
+          var v = 0;
+          if (at(x - 1, y - 1)) v |= 1;
+          if (at(x, y - 1)) v |= 2;
+          if (at(x - 1, y)) v |= 4;
+          if (at(x, y)) v |= 8;
+          var d2;
+          if (v === 1 || v === 13 || v === 5) d2 = 'up';
+          else if (v === 8 || v === 10 || v === 11) d2 = 'down';
+          else if (v === 4 || v === 12 || v === 14) d2 = 'left';
+          else if (v === 2 || v === 3 || v === 7) d2 = 'right';
+          else if (v === 6) d2 = prev === 'up' ? 'left' : 'right';
+          else if (v === 9) d2 = prev === 'right' ? 'up' : 'down';
+          else break;
+          prev = d2;
+          if (d2 === 'up') y--; else if (d2 === 'down') y++; else if (d2 === 'left') x--; else x++;
+          pts.push(x, y);
+        } while ((x !== sx || y !== sy) && guard-- > 0);
+        if (pts.length >= 60) {
+          var minX = gw, minY = gh, maxX = 0, maxY = 0;
+          for (var pi = 0; pi < pts.length; pi += 2) {
+            if (pts[pi] < minX) minX = pts[pi]; if (pts[pi] > maxX) maxX = pts[pi];
+            if (pts[pi + 1] < minY) minY = pts[pi + 1]; if (pts[pi + 1] > maxY) maxY = pts[pi + 1];
+          }
+          boxes.push([minX, minY, maxX, maxY]);
+          paths.push(pts);
+        }
+      }
+    }
+    if (!paths.length) { strokePath = null; return; }
+    // midpoint quadratic-curve smoothing (decimate by step 3); build Path2D in grid coords, translate/scale to canvas at draw time
+    var p2 = new Path2D();
+    for (var ci = 0; ci < paths.length; ci++) {
+      var q = paths[ci], step = 3, n2 = Math.floor(q.length / 2 / step);
+      if (n2 < 6) continue;
+      function gx(i){ return q[((i % n2) * step) * 2]; }
+      function gy(i){ return q[((i % n2) * step) * 2 + 1]; }
+      p2.moveTo((gx(0) + gx(1)) / 2, (gy(0) + gy(1)) / 2);
+      for (var i2 = 1; i2 <= n2; i2++) p2.quadraticCurveTo(gx(i2), gy(i2), (gx(i2) + gx(i2 + 1)) / 2, (gy(i2) + gy(i2 + 1)) / 2);
+      p2.closePath();
+    }
+    strokePath = p2;
+    strokeGrid = { gw: gw, gh: gh };
+  }
+  var mask = null, inflight = false;
+  function post(m, tr){ m.source='hf'; try { parent.postMessage(m, '*', tr || []); } catch (e) {} }
+  window.addEventListener('message', function(e){
+    var d = e.data || {};
+    if (d.type === 'hf:personFx') {
+      // live param update (person popover sliders / style cards take effect immediately, no doc rebuild; values match what a rebuild bakes into data-attributes).
+      // structural switches (personFront layer order / first pipeline install) still go through a rebuild — that's DOM structure, not params.
+      if (d.feather != null) feather = parseFloat(d.feather) || 0;
+      if (d.strokeW != null) {
+        strokeW = parseFloat(d.strokeW) || 0;
+        if (strokeW > 0 && !tctx) { tc = document.createElement('canvas'); tctx = tc.getContext('2d', { willReadFrequently: true }); }
+        try { retrace(); } catch (err) { strokePath = null; }
+      }
+      if (d.strokeColor) strokeC = d.strokeColor;
+      if (d.strokeStyle) strokeStyle = d.strokeStyle;
+      if (d.strokeAlpha != null) { strokeAlpha = parseFloat(d.strokeAlpha); if (!(strokeAlpha >= 0 && strokeAlpha <= 1)) strokeAlpha = 1; }
+      if (d.bg !== undefined) {
+        if (!d.bg) { if (bgEl) bgEl.style.display = 'none'; bgEl = null; }
+        else {
+          if (!bgEl) {
+            bgEl = document.getElementById('personBg');
+            if (!bgEl) {
+              bgEl = document.createElement('div');
+              bgEl.id = 'personBg';
+              bgEl.style.cssText = 'position:absolute;inset:0;display:none;';
+              if (v.parentNode) v.insertAdjacentElement('afterend', bgEl); // layer order same as assemble: above the video, below the blocks
+            }
+          }
+          bgEl.style.background = d.bg;
+        }
+      }
+      return;
+    }
+    if (d.type === 'hf:personMask') {
+      inflight = false;
+      if (mask) { try { mask.close(); } catch (err) {} }
+      // no mask (this segment has matting off / track not ready) = clear the old mask: scrubbing into an unmatted segment hides the person layer immediately,
+      // no leftover from the previous segment; back off before re-asking, don't hammer the parent every frame
+      mask = d.mask || null;
+      if (mask) {
+        try { retrace(); } catch (err2) { strokePath = null; }
+      } else {
+        strokePath = null;
+        nextAskAt = performance.now() + 400;
+      }
+    }
+  });
+  // full mask compute lives in the parent (runs once when the user enables matting); here we only request a ready one keyed by **time within that source file**:
+  // in canvas render mode the frame shim records frame info on window.__vidSrc (elKey + time within that source file)
+  var lastReq = -1, lastEl = '', nextAskAt = 0;
+  function feed(){
+    var fi = window.__vidSrc;
+    if (inflight || !fi) return;
+    if (performance.now() < nextAskAt) return;
+    var t = fi.srcT, ek = fi.elKey || 'main';
+    if (mask && ek === lastEl && Math.abs(t - lastReq) < 1 / 30) return; // don't re-request the same frame
+    inflight = true;
+    lastReq = t;
+    lastEl = ek;
+    post({ type: 'personMaskAt', t: t, el: ek });
+  }
+  function draw(){
+    var fi = window.__vidSrc;
+    // no frame yet (load gap) → blank the whole layer
+    if (!fi) { ctx.clearRect(0, 0, W, H); if (bgEl) bgEl.style.display = 'none'; return; }
+    ctx.clearRect(0, 0, W, H);
+    // background-replace layer follows the mask: only lit on segments that have a mask (export / no parent / matting-off segments all hidden, fall back to original frame)
+    if (bgEl) bgEl.style.display = mask ? 'block' : 'none';
+    if (!mask) return;
+    // Mask aspect ratio = source frame. Match the frame shim's layer-box pre-compensation so the
+    // extracted subject stays aligned after canvas-ratio changes and native media transforms.
+    var vw = fi.w || W, vh = fi.h || H;
+    var rect = layerRect(vw, vh, fi.framing || null), dw = rect.width, dh = rect.height, dx = rect.x, dy = rect.y;
+    pctx.clearRect(0, 0, W, H);
+    pctx.drawImage(v, 0, 0); // video frame taken straight from the #vidEl canvas (already source-composited)
+    pctx.globalCompositeOperation = 'destination-in';
+    if (feather > 0) pctx.filter = 'blur(' + feather + 'px)';
+    pctx.drawImage(mask, dx, dy, dw, dh);
+    pctx.filter = 'none';
+    pctx.globalCompositeOperation = 'source-over';
+    if (strokePath && strokeGrid) {
+      // contour stroke sits under the person: line width 2× (inner half covered by the person = outer stroke); dash length scales with line width
+      var s = dw / strokeGrid.gw;
+      ctx.save();
+      ctx.translate(dx, dy);
+      ctx.scale(dw / strokeGrid.gw, dh / strokeGrid.gh);
+      ctx.lineWidth = (strokeW * 2) / s;
+      ctx.strokeStyle = strokeC;
+      ctx.globalAlpha = strokeAlpha;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      if (strokeStyle === 'dashed') ctx.setLineDash([(strokeW * 2.6) / s, (strokeW * 1.6) / s]);
+      ctx.stroke(strokePath);
+      ctx.restore();
+    }
+    ctx.drawImage(P, 0, 0);
+    c.style.transform = v.style.transform || '';
+    c.style.translate = v.style.translate || '';
+    c.style.scale = v.style.scale || '';
+    c.style.inset = 'auto';
+    c.style.left = v.style.left || '0px';
+    c.style.top = v.style.top || '0px';
+    c.style.width = v.style.width || '100%';
+    c.style.height = v.style.height || '100%';
+  }
+  (function loop(){ try { feed(); draw(); } catch (e) {} requestAnimationFrame(loop); })();
+})();`;
+
+/** Registration script for a single timeline. The body is compiled and run via new Function: syntax errors / runtime throws are contained to this block
+ *  (an empty timeline still registers) and don't take down other blocks in the same <script> — both human source edits and LLM output can carry bad scripts,
+ *  lint doesn't do JS syntax parsing, so this is the last line of isolation. */
+function timelineScript(id: string, body: string): string {
+  return (
+    `(function(){ var tl = gsap.timeline({ paused: true }); ` +
+    // window/document are passed in: in the in-page stage they are its facades, so timeline code
+    // that queries or stores globals stays inside the stage (a plain Function would see the page).
+    `try { new Function('tl', 'window', 'document', ${JSON.stringify(body)})(tl, window, document); } catch (e) { console.warn('[hf] timeline error', ${JSON.stringify(id)}, e); } ` +
+    `window.__timelines[${JSON.stringify(id)}] = tl; })();`
+  );
+}
+
+/**
+ * Stitch a complete Hyperframes document. gsapSrc is swappable (export uses the render container's local './vendor/gsap.min.js').
+ * Preview self-hosts /vendor/gsap.min.js by default (a srcdoc iframe inherits the parent document's base → same-origin):
+ * with N iframes per screen in the component library / template wall each fetching the script, same-origin strong caching + reachable in China, no longer hanging off jsdelivr.
+ */
+/** Whether a custom block carries its own card surface (explicit data-hf-surface marker, or a background:var(--panel) card).
+ *  When it has a surface, a user-set background color is only a token override — the surface recolors itself, the container doesn't paint over it
+ *  (a two-color overlap of frame + surface, with the space outside the card also painted, is the source of "colors overlap and break after setting a color"). */
+export function customHasSurface(templateId: string, innerHtml: string): boolean {
+  return templateId === 'custom' && (innerHtml.includes('data-hf-surface') || /background\s*:[^;{}]*var\(--panel\)/.test(innerHtml));
+}
+
+/** Block background color → content-layer CSS (token override + optional container backing). surfaceOnly = has a surface, only swap tokens.
+ *  Also flips the ink family (--fg/--muted/--line/--panel-2/--grid) by bg luminance: light bg → dark ink, dark bg → light ink,
+ *  catching the "light text on light bg, unreadable" contrast breakdown when picking a light color under a dark theme (--accent keeps the theme color).
+ *  The in-place patch channel (hf:blockStyle) and full-document reassembly share this function — both paths output identically. */
+export function blockBgCss(bg: string, surfaceOnly: boolean): string {
+  let ink = '';
+  const hex = /^#([0-9a-fA-F]{6})/.exec(bg);
+  if (hex) {
+    const v = parseInt(hex[1]!, 16);
+    const lum = (0.2126 * ((v >> 16) & 255) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255)) / 255;
+    ink =
+      lum > 0.55
+        ? '--fg:#15171c;--muted:rgba(21,23,28,0.62);--line:rgba(21,23,28,0.16);--panel-2:rgba(21,23,28,0.06);--grid:rgba(21,23,28,0.10);'
+        : '--fg:#f5f6f8;--muted:rgba(245,246,248,0.66);--line:rgba(255,255,255,0.18);--panel-2:rgba(255,255,255,0.09);--grid:rgba(255,255,255,0.13);';
+  }
+  return `--panel:${escapeAttr(bg)};--paper:${escapeAttr(bg)};${ink}${surfaceOnly ? '' : `background:${escapeAttr(bg)};`}`;
+}
+
+/** Assemble ONE block into its outer container HTML + timeline body — byte-identical to what the
+ *  full document assembler emits for it. Shared by assembleHtml and the workbench's in-place patch
+ *  channel (hf:blockAdd/hf:blockHtml), so patched blocks always match a later rebuild exactly. */
+export function assembleBlockHtml(b: Block, comp: Composition): { html: string; timelineBody: string } {
+  return assembleBlockWith(b, comp, comp.captionStyle ? resolveCaptionStyle(comp) : undefined);
+}
+
+/** What is behind a block when it starts: the shot playing then fills the frame ('full' /
+ *  'punch-in') → moving footage; a corner or split shot leaves the block on the page. With no shots
+ *  the component is an overlay on footage, its usual job. */
+export function blockBackdrop(comp: Composition, atSec: number): 'footage' | 'page' {
+  const shots = comp.shots ?? [];
+  if (!shots.length) return 'footage';
+  const playing = spans(shots).find((span) => atSec >= span.editedStart && atSec < span.editedEnd) ?? spans(shots).at(-1);
+  const treatment = playing?.clip.treatment ?? 'full';
+  return treatment === 'full' || treatment === 'punch-in' ? 'footage' : 'page';
+}
+
+/**
+ * A block with the size it renders at baked into its slots: look pieces read their layout box from
+ * ctx (the content box when a resize or a fit scaled it without reflow, else the box), kit blocks
+ * their box and canvas. Rendering for export or preview and reading a block back share this, so a
+ * read-back shows the ctx the block really gets. `backdrop`: what a kit block sits on (default kept).
+ */
+export function blockInItsBox(b: Block, W: number, H: number, backdrop?: string): Block {
+  if (isLookTemplate(b.templateId)) {
+    return { ...b, slots: { ...b.slots, piece: lookPieceOf(b.templateId), boxW: Math.round(((b.contentBox ?? b.box)?.w ?? 1) * W), boxH: Math.round(((b.contentBox ?? b.box)?.h ?? 1) * H) } };
+  }
+  if (!b.templateId.startsWith('kit:')) return b;
+  return {
+    ...b,
+    slots: {
+      ...b.slots,
+      boxW: Math.round((b.box?.w ?? 0.86) * W),
+      boxH: Math.round((b.box?.h ?? 0.3) * H),
+      canvasW: W,
+      canvasH: H,
+      // A preview can pin it (library cards sit on a light checker, not footage).
+      ...(b.slots.backdrop === 'page' || b.slots.backdrop === 'footage' ? {} : backdrop ? { backdrop } : {}),
+    },
+  };
+}
+
+/** The sheets the blocks of one document have in common: each one's rules, and how many blocks carry it. */
+type SharedSheets = Map<string, { css: string; uses: number }>;
+
+/**
+ * Settles where each keyed sheet lives once every block is assembled: one carried by two or more
+ * blocks goes to the document once (returned for the head) and its placeholders go; one that a
+ * single block carries goes back into that block, where it was.
+ */
+function placeSharedSheets(body: string[], shared: SharedSheets): string {
+  let head = '';
+  const inline = new Map<string, string>();
+  for (const [key, sheet] of shared) {
+    if (sheet.uses > 1) head += sheet.css;
+    else inline.set(key, sheet.css);
+  }
+  const mark = new RegExp(sharedSheetPlaceholder('([\\w-]+)'), 'g');
+  const prefix = sharedSheetPlaceholder('').slice(0, 5);
+  for (let index = 0; index < body.length; index += 1) {
+    if (!body[index]!.includes(prefix)) continue;
+    body[index] = body[index]!.replace(mark, (_mark, key: string) => (inline.has(key) ? `<style>${inline.get(key)}</style>` : ''));
+  }
+  return head;
+}
+
+function assembleBlockWith(b: Block, comp: Composition, cs: ReturnType<typeof resolveCaptionStyle> | undefined, shared?: SharedSheets): { html: string; timelineBody: string; sheetKeys?: string[] } {
+  const { width: W, height: H } = comp;
+
+    // State-first bilingual gate: the translation line renders ONLY while captionStyle.sub.lang is set.
+    // Translations live in the transcript (and get baked into slots.sub by the relay), but without the
+    // language state they stay dormant — turning translation off hides them without destroying content.
+    const kitBase = blockInItsBox(b, W, H, blockBackdrop(comp, b.startSec));
+    const capBase = isSentenceCaption(kitBase)
+      ? { ...kitBase, slots: { ...kitBase.slots, canvasW: comp.width, ...(comp.captionStyle?.sub?.lang ? {} : { sub: undefined }) } }
+      : kitBase;
+    const rb =
+      cs && isSentenceCaption(b)
+        ? { ...capBase, slots: { ...capBase.slots, preset: cs.preset, ...(cs.animation != null ? { animation: cs.animation } : {}), ...(cs.sub?.animation != null ? { subAnimation: cs.sub.animation } : {}), yPct: typeof capBase.slots.splitSeam === 'number' ? seamCaptionYPct(capBase.slots.splitSeam, cs.scale, comp.height) : cs.yPct, xPct: cs.xPct ?? 50, wPct: cs.wPct ?? 56, scale: cs.scale, ...(cs.hPct ? { hPct: cs.hPct } : {}), ...(cs.color != null ? { color: cs.color } : {}), ...(cs.emphasis != null ? { emphasis: cs.emphasis } : {}), ...(cs.bg !== undefined ? { bg: cs.bg } : {}), ...(cs.bold != null ? { bold: cs.bold } : {}), ...(cs.font != null ? { font: cs.font } : {}), ...(cs.accentColor != null ? { accentColor: cs.accentColor } : {}), ...(cs.strokeColor != null ? { strokeColor: cs.strokeColor } : {}), ...(cs.strokeWidth != null ? { strokeWidth: cs.strokeWidth } : {}), ...(cs.sub?.preset != null ? { subPreset: cs.sub.preset } : {}), ...(cs.sub?.color != null ? { subColor: cs.sub.color } : {}), ...(cs.sub?.bg !== undefined ? { subBg: cs.sub.bg } : {}), ...(cs.sub?.bold != null ? { subBold: cs.sub.bold } : {}), ...(cs.sub?.font != null ? { subFont: cs.sub.font } : {}), ...(cs.sub?.yPct != null ? { subYPct: cs.sub.yPct } : {}), ...(cs.sub?.xPct != null ? { subXPct: cs.sub.xPct } : {}), ...(cs.sub?.wPct != null ? { subWPct: cs.sub.wPct } : {}), ...(cs.sub?.scale != null ? { subScale: cs.sub.scale } : {}), ...(cs.sub?.hPct != null ? { subHPct: cs.sub.hPct } : {}) } }
+        : capBase;
+    const rendered = renderBlock(rb);
+    // A whole document shares equal sheets between its blocks; a block assembled on its own (the
+    // in-place patch channel) keeps its sheet with it, anchored on its id.
+    const compiled = compileComponentStyles(rendered.innerHtml, b.id, { share: !!shared });
+    const innerHtml = compiled.html;
+    for (const sheet of compiled.sheets ?? []) {
+      const known = shared!.get(sheet.key);
+      if (known) known.uses += 1;
+      else shared!.set(sheet.key, { css: sheet.css, uses: 1 });
+    }
+    const sheetAttr = compiled.sheets?.length ? ` ${SHARED_SHEET_ATTRIBUTE}="${compiled.sheets.map((sheet) => sheet.key).join(' ')}"` : '';
+    const { timelineBody } = rendered;
+    // autofit: when content overflows, scale the whole thing to just fit the box (measured empirically), preview = export
+    // A block placed with fit:false keeps the size it was given: no measured fit applies to it.
+    const fit = b.autoFit !== false && b.fitScale && b.fitScale < 0.999 ? `transform:scale(${n(b.fitScale)});transform-origin:center center;` : '';
+    // Uniform content scaling: CSS scale property (around center), doesn't affect layout (autofit's scrollWidth measure stays uncontaminated),
+    // and doesn't enter the transform chain (won't be overwritten by the autofit transform)
+    const scaleCss = typeof b.scale === 'number' && Math.abs(b.scale - 1) > 0.005 ? `scale:${n(b.scale)};` : '';
+    // Component background (set by the user on the floating bar): see helpers blockBgCss/customHasSurface (the in-place patch channel reuses the same logic)
+    // The surface is read from the rules too, wherever they ended up.
+    const hasSurface = customHasSurface(b.templateId, innerHtml + (compiled.sheets ?? []).map((sheet) => sheet.css).join(''));
+    const bgCss = b.bg ? blockBgCss(b.bg, hasSurface) : '';
+    // Border/opacity/radius/rotation are applied to the outermost container (= the framing box)
+    const frame: string[] = [];
+    if (b.border) frame.push(`border:3px solid ${escapeAttr(b.border)};`);
+    // Radius: use the user's explicit value if set; otherwise give a default radius when there's a backing/border (matches old behavior)
+    if (typeof b.radius === 'number' && b.radius > 0) frame.push(`border-radius:${n(b.radius)}px;`);
+    else if ((b.bg || b.border) && b.box) frame.push('border-radius:var(--radius,24px);');
+    if (typeof b.opacity === 'number' && b.opacity < 0.995) frame.push(`opacity:${n(Math.max(0.05, b.opacity))};`);
+    // Whole-block rotation: rotate the outermost container around center (a box block's crop window / full-canvas layer rotates with it); independent of the content layer's scale/autofit
+    if (typeof b.rotation === 'number' && Math.abs(b.rotation) > 0.01) frame.push(`transform:rotate(${n(b.rotation)}deg);transform-origin:center center;`);
+    const authoredDuration = b.templateId === 'custom' && typeof b.slots.authoredDurationSec === 'number' && Number.isFinite(b.slots.authoredDurationSec) && b.slots.authoredDurationSec > 0
+      ? `data-authored-duration="${n(b.slots.authoredDurationSec)}" `
+      : '';
+    // Editable properties of a bespoke component: every declared property (override ?? default) lands
+    // on the CONTAINER as an inline custom property and a data-p-* attribute — inline beats the markup's
+    // own <style>, the live channel (hf:blockProps) writes the same names, the export serializes it.
+    const propSpecs = b.templateId === 'custom' ? parseComponentProps(blockPropsSchema(b)).specs : [];
+    const propValues = propSpecs.length ? resolveComponentProps(propSpecs, b.slots.props) : null;
+    const propsCss = propValues ? componentPropsInlineCss(propSpecs, propValues) : '';
+    const propsAttrs = propValues ? ` ${componentPropsAttrs(propSpecs, propValues)}` : '';
+    const attrs =
+      `id="${b.id}" data-composition-id="${b.id}" ${b.box ? 'data-hf-box="1" ' : ''}${b.autoFit === false ? 'data-hf-nofit="1" ' : ''}` +
+      authoredDuration +
+      `data-start="${n(b.startSec)}" data-duration="${n(b.durationSec)}" data-track-index="${b.trackIndex}" ` +
+      `data-width="${W}" data-height="${H}"${propsAttrs}${sheetAttr}`;
+    // Frozen look (Block.vars): the block's insertion-time tokens, scoped to it, override #root's live
+    // theme vars — a later theme mount recolors #root (and future blocks) but never this one. Emitted
+    // inside the container so the in-place patch channel (hf:blockAdd/hf:blockHtml) carries it too.
+    // The user's explicit bg/border stay on inline style, which beats this rule.
+    // A bespoke component's chosen display face: the brief promised var(--font-display) on its root, and
+    // the stylesheet for a library face is already linked (webFontStylesheetUrls reads slots.fontFamily).
+    const displayFontCss = b.templateId === 'custom' && displayFontContext(b.slots.fontFamily) ? displayTextFontCss(b.slots.fontFamily) : null;
+    const varDecls = `${b.vars ? varsDeclCss(b.vars) : ''}${displayFontCss ? `--font-display:${displayFontCss};` : ''}`;
+    const varsTag = varDecls ? `<style>#${b.id}{${varDecls}}</style>\n` : '';
+    let html: string;
+    if (b.box) {
+      // box block = two layers: the container is the crop window (overflow:hidden, dragging edges/corners only moves the window), the content layer
+      // [data-hf-content] is anchored to the canvas by contentBox — cropping doesn't reflow content, anything outside the window is clipped;
+      // bg surface / autofit / content scaling all live in the content layer (± scaling only scales content, over-window is clipped = zoom within the framing box).
+      const cb = b.contentBox ?? b.box;
+      const pos = `left:${pct(b.box.x)};top:${pct(b.box.y)};width:${pct(b.box.w)};height:${pct(b.box.h)};`;
+      const rel = `left:${pct((cb.x - b.box.x) / b.box.w)};top:${pct((cb.y - b.box.y) / b.box.h)};width:${pct(cb.w / b.box.w)};height:${pct(cb.h / b.box.h)};`;
+      html =
+        `<div class="comp" ${attrs} style="position:absolute;${propsCss}${pos}overflow:hidden;${frame.join('')}">\n${varsTag}` +
+        `<div data-hf-content style="position:absolute;${rel}${bgCss}${scaleCss}${fit}">\n${innerHtml}\n</div>\n</div>`;
+    } else {
+      // Full-canvas block (caption layer, etc.): a single flat layer, no crop/scale semantics.
+      // The sentence-caption container doesn't take clicks (pointer-events:none, .cap-line is auto): the container is inset:0 spanning
+      // the whole canvas, and if it took clicks, clicking any blank area while captions are on-screen would hit it — "click blank to select a shot" would break entirely
+      const pe = isSentenceCaption(b) ? 'pointer-events:none;' : '';
+      html = `<div class="comp" ${attrs} style="position:absolute;${propsCss}inset:0;${pe}${bgCss}${frame.join('')}${scaleCss}${fit}">\n${varsTag}${innerHtml}\n</div>`;
+    }
+    return { html, timelineBody: withMotionTiming(timelineBody, b.motion), ...(compiled.sheets?.length ? { sheetKeys: compiled.sheets.map((sheet) => sheet.key) } : {}) };
+}
+
+/**
+ * Speed and start delay for ANY component animation, without reading it: the component's own
+ * timeline runs as a child of the block timeline, time-scaled and offset. Seeking the block at t
+ * shows the original animation at (t − delay) × speed, so preview, export and bake stay exact.
+ */
+export function withMotionTiming(body: string, motion: Block['motion']): string {
+  const speed = motion?.speed && Number.isFinite(motion.speed) ? Math.min(4, Math.max(0.25, motion.speed)) : 1;
+  const delay = motion?.delaySec && Number.isFinite(motion.delaySec) ? Math.max(0, motion.delaySec) : 0;
+  if (!body.trim() || (speed === 1 && delay === 0)) return body;
+  return `var __hfInner = gsap.timeline();\n(function (tl) {\n${body}\n})(__hfInner);\n__hfInner.timeScale(${speed});\ntl.add(__hfInner, ${delay});`;
+}
+
+/**
+ * The CSS object-position that crops a cover-fitted picture the way export does (sourceDrawRect): the
+ * anchor is kept as near the box's middle as the picture allows. CSS instead puts the anchor at the
+ * same fraction of the box, which matches only at 0, ½ and 1.
+ */
+function coverPosition(visual: SupplementalVisualMediaClip, box: { w: number; h: number }, width: number, height: number, axis: 'x' | 'y'): number {
+  const anchor = Math.max(0, Math.min(1, (axis === 'x' ? visual.anchorX : visual.anchorY) ?? 0.5));
+  if (visual.fit !== 'cover' || !visual.sourceWidth || !visual.sourceHeight) return anchor;
+  const boxWidth = box.w * width; const boxHeight = box.h * height;
+  const fit = Math.max(boxWidth / visual.sourceWidth, boxHeight / visual.sourceHeight);
+  const frame = axis === 'x' ? boxWidth : boxHeight;
+  const content = (axis === 'x' ? visual.sourceWidth : visual.sourceHeight) * fit;
+  if (content - frame < 0.5) return anchor;
+  const offset = Math.min(0, Math.max(frame - content, frame / 2 - anchor * content));
+  return offset / (frame - content);
+}
+
+export function assembleHtml(
+  comp: Composition,
+  gsapSrc = '/vendor/gsap.min.js',
+  videoPlacements?: readonly import('./composition-core').VideoShotTimelinePlacement[],
+  supplementalVisuals: readonly SupplementalVisualMediaClip[] = [],
+): string {
+  const { width: W, height: H } = comp;
+  const theme = getTheme(comp.theme);
+  const body: string[] = [];
+  const scripts: string[] = [];
+
+  const videoShots = videoTrackShots(comp);
+  const placedVideoShots = videoPlacements === undefined
+    ? videoShots
+    : videoShots.filter((shot) => videoPlacements.some((placement) => placement.shotId === shot.id));
+  if (placedVideoShots.length) {
+    // Video track = a single <canvas> (canvas render mode, per the user's decision): decode/clock/audio all in the parent-layer engine
+    // (video-track-engine), frames drawn as they're pushed via hf:frame. Document rebuild no longer recreates the decoder → the root cause of the whole
+    // "decode zombie" class of problems is removed. The id stays vidEl: framing keyframe / shotVars / personCut selectors need zero changes.
+    // Equal-footing: comp.video is just the first-loaded source — a clips-only comp (external inserts,
+    // no "main") still gets the canvas; only a truly source-less comp skips it.
+    const editedDur = videoPlacements !== undefined
+      ? Math.max(...videoPlacements.map((placement) => placement.endSec))
+      : editedDuration(placedVideoShots);
+    body.push(
+      `<canvas id="vidEl" data-composition-id="vid" width="${n(comp.width)}" height="${n(comp.height)}" data-start="0" data-duration="${n(editedDur)}" data-track-index="0" ` +
+        `style="position:absolute;left:0;top:0;width:100%;height:100%;transform-origin:center center;will-change:left,top,width,height,transform;"></canvas>`,
+    );
+    // Frame-receive shim + parent-clock marker (the runtime uses it to not self-drive the clock, see PREVIEW_RUNTIME); the cut-transition table is baked into the shim
+    const windows = transitionWindows(comp.transitions, placedVideoShots, videoPlacements);
+    scripts.push(
+      videoFrameShim(
+        windows.map((tr) => {
+          const [dx, dy] = glDirection(tr.dir);
+          return { s: tr.start, e: tr.end, cut: tr.cut ?? -1, effect: tr.effect, dx, dy };
+        }),
+        comp.backdrop === 'blur',
+      ),
+    );
+    // Framing timeline (in final-cut time) registered to vid → transforms applied to the canvas element, one canvas absorbing every segment's framing
+    const frameBody = videoFrameTimelineBody(placedVideoShots, videoPlacements, windows);
+    if (frameBody) {
+      scripts.push(timelineScript('vid', frameBody));
+    }
+  }
+  if (!placedVideoShots.length && supplementalVisuals.some((visual) => visual.kind === 'video')) {
+    scripts.push('window.__parentClock = true;');
+  }
+
+  const renderVisual = (visual: SupplementalVisualMediaClip) => {
+    const id = `hf-visual-${visual.clipId}`;
+    const duration = Math.max(0, visual.endSec - visual.startSec);
+    const common = `id="${escapeAttr(id)}" data-composition-id="${escapeAttr(id)}" data-hf-visual-clip="${escapeAttr(visual.clipId)}" data-start="${n(visual.startSec)}" ` +
+      `data-duration="${n(duration)}" data-track-index="${n(visual.stackOrder)}" data-hf-visual-track="${escapeAttr(visual.trackId)}"`;
+    const box = visual.box ?? { x: 0, y: 0, w: 1, h: 1 };
+    const framing = mediaFramingTransformVars(visual.mediaFraming ?? IDENTITY_MEDIA_FRAMING);
+    const mediaStyle = `position:absolute;left:${n(box.x * 100)}%;top:${n(box.y * 100)}%;width:${n(box.w * 100)}%;height:${n(box.h * 100)}%;` +
+      `object-fit:${visual.fit};object-position:${n(coverPosition(visual, box, W, H, 'x') * 100)}% ${n(coverPosition(visual, box, W, H, 'y') * 100)}%;opacity:${n(visual.opacity ?? 1)};` +
+      `transform:translate(${n(framing.xPercent)}%,${n(framing.yPercent)}%) scale(${n(framing.scale)});transform-origin:center center;` +
+      `clip-path:${framing.clipPath};border-radius:${n(framing.borderRadius)}px;filter:${shotFilterCss(visual.filter)};will-change:left,top,width,height,transform,clip-path,filter;`;
+    if (visual.kind === 'image') {
+      body.push(`<img class="comp hf-native-visual" ${common} src="${escapeAttr(visual.source)}" alt="" style="${mediaStyle}" />`);
+    } else {
+      // Overlay video is a picture-only canvas: the parent engine decodes the source and pushes frames
+      // (hf:layerFrame) exactly like the primary lane's #vidEl. No media element, no source URL in the
+      // document — so no File/blob has to cross the sandbox, and a document rebuild never touches a decoder.
+      // The backing store boots at the asset's size (object-fit needs an aspect) and follows the first frame.
+      const width = visual.sourceWidth && visual.sourceHeight ? visual.sourceWidth : 16;
+      const height = visual.sourceWidth && visual.sourceHeight ? visual.sourceHeight : 9;
+      body.push(
+        `<canvas class="hf-native-visual hf-native-canvas" ${common} width="${n(width)}" height="${n(height)}" ` +
+        `data-source-in="${n(visual.sourceInSec)}" data-source-out="${n(visual.sourceOutSec)}" style="${mediaStyle}"></canvas>`,
+      );
+    }
+    const motion: string[] = [`var el=document.getElementById(${JSON.stringify(id)});`];
+    const boxRows = visual.keyframes?.box?.length ? [...visual.keyframes.box].sort((a, b) => a.atSec - b.atSec) : [];
+    if (boxRows.length) {
+      let previous = { atSec: 0, ...box };
+      motion.push(`tl.set(el,{left:${JSON.stringify(`${n(previous.x * 100)}%`)},top:${JSON.stringify(`${n(previous.y * 100)}%`)},width:${JSON.stringify(`${n(previous.w * 100)}%`)},height:${JSON.stringify(`${n(previous.h * 100)}%`)}},0);`);
+      for (const row of boxRows) {
+        const at = Math.max(0, Math.min(duration, row.atSec));
+        if (at <= previous.atSec + 1e-9) {
+          motion.push(`tl.set(el,{left:${JSON.stringify(`${n(row.x * 100)}%`)},top:${JSON.stringify(`${n(row.y * 100)}%`)},width:${JSON.stringify(`${n(row.w * 100)}%`)},height:${JSON.stringify(`${n(row.h * 100)}%`)}},${n(at)});`);
+        } else {
+          motion.push(`tl.to(el,{duration:${n(at - previous.atSec)},ease:'none',left:${JSON.stringify(`${n(row.x * 100)}%`)},top:${JSON.stringify(`${n(row.y * 100)}%`)},width:${JSON.stringify(`${n(row.w * 100)}%`)},height:${JSON.stringify(`${n(row.h * 100)}%`)}},${n(previous.atSec)});`);
+        }
+        previous = { ...row, atSec: at };
+      }
+    }
+    const opacityRows = visual.keyframes?.opacity?.length ? [...visual.keyframes.opacity].sort((a, b) => a.atSec - b.atSec) : [];
+    if (opacityRows.length) {
+      let previous = { atSec: 0, value: visual.opacity ?? 1 };
+      motion.push(`tl.set(el,{opacity:${n(previous.value)}},0);`);
+      for (const row of opacityRows) {
+        const at = Math.max(0, Math.min(duration, row.atSec));
+        if (at <= previous.atSec + 1e-9) motion.push(`tl.set(el,{opacity:${n(row.value)}},${n(at)});`);
+        else motion.push(`tl.to(el,{duration:${n(at - previous.atSec)},ease:'none',opacity:${n(row.value)}},${n(previous.atSec)});`);
+        previous = { ...row, atSec: at };
+      }
+    }
+    // Animated push-in: scale tweens on the element's own timeline, on top of its static framing,
+    // the same moves the canvas export evaluates through zoomScaleAt.
+    const moves = visual.kind === 'video' ? zoomMoves(visual.zoom, duration) : [];
+    if (moves.length) {
+      const zoomVars = (multiplier: number) => {
+        const total = Math.round(framing.scale * multiplier * 10000) / 10000;
+        return `{scale:${n(total)},xPercent:${n(framing.xPercent + zoomAnchorShiftPercent(visual.zoom!.anchorX, framing.scale, total))},yPercent:${n(framing.yPercent + zoomAnchorShiftPercent(visual.zoom!.anchorY, framing.scale, total))}}`;
+      };
+      motion.push(`tl.set(el,${zoomVars(zoomStartScale(visual.zoom))},0);`);
+      for (const move of moves) {
+        if (move.duration <= 0) motion.push(`tl.set(el,${zoomVars(move.scale)},${n(move.at)});`);
+        else motion.push(`tl.to(el,Object.assign({duration:${n(move.duration)},ease:'${move.ease}'},${zoomVars(move.scale)}),${n(move.at)});`);
+      }
+    }
+    if (motion.length > 1) scripts.push(timelineScript(id, motion.join('')));
+  };
+
+  // One global bottom-to-top track plan, matching the browser-export compositor. Legacy captions
+  // migrate onto the highest track, so their previous topmost appearance is data rather than a
+  // renderer-only special case.
+  const layerPlan = compositionVisualLayerPlan(comp.blocks, supplementalVisuals);
+  const ordered = layerPlan.flatMap((layer) => layer.kind === 'html' ? layer.blocks : []);
+  // Person sandwich: video → background-swap layer → [when person on top: all blocks] → #personCut matte canvas → [normal: all blocks].
+  // Matting takes effect per segment (VideoShot.personMatte): the pipeline is installed only if any segment turned it on; outside those segments there's no mask, the canvas is
+  // transparent and the background layer hidden, auto-reverting to the normal picture. Layer order (personFront) / stroke / background are global styles.
+  const fx = comp.personFx;
+  const fxOn = placedVideoShots.some((s) => s.personMatte);
+  const personFront = fxOn && !!fx?.personFront;
+  // Block-level override: b.personLayer explicitly sets front/behind person; default follows the global personFront
+  const isBehind = (b: Block) => (fxOn ? (b.personLayer ? b.personLayer === 'behind' : personFront) : false);
+  const behind = ordered.filter((b) => isBehind(b));
+  const front = ordered.filter((b) => !isBehind(b));
+  // If any block needs to sit behind the person, the matte canvas must exist (otherwise block-level 'behind' has nothing to sit under)
+  const fxPipeline = fxOn && (personFront || (fx?.stroke?.width ?? 0) > 0 || !!fx?.bg || behind.length > 0);
+  const renderPersonBackground = () => {
+    if (!fx?.bg) return;
+    // Background-swap layer covers the original video (display:none, lit only once the shim gets the first mask); the person is restored by the matte canvas above
+    const bgStyle = fx.bg.type === 'color' ? `background:${escapeAttr(fx.bg.color)};` : `background:#000 center/cover no-repeat url('${escapeAttr(fx.bg.url)}');`;
+    body.push(`<div id="personBg" style="position:absolute;inset:0;display:none;${bgStyle}"></div>`);
+  };
+  // Global caption style: at render time it overrides sentence captions' preset/position/scale; the block's own slots are untouched
+  // (style is global state, not baked into the block). RESOLVED here — storage is sparse, defaults come from the resolver.
+  const cs = comp.captionStyle ? resolveCaptionStyle(comp) : undefined;
+  const sharedSheets: SharedSheets = new Map();
+  const keyed: Array<{ at: number; block: Block; keys: string[] }> = [];
+  const renderOne = (b: Block) => {
+    const r = assembleBlockWith(b, comp, cs, sharedSheets);
+    if (r.sheetKeys) keyed.push({ at: body.length, block: b, keys: r.sheetKeys });
+    body.push(r.html);
+    scripts.push(timelineScript(b.id, r.timelineBody));
+  };
+  if (!fxPipeline) {
+    for (const layer of layerPlan) {
+      if (layer.kind === 'media') for (const visual of layer.visuals) renderVisual(visual);
+      else for (const block of layer.blocks) renderOne(block);
+    }
+  } else {
+    // Person matte is an intentional semantic sandwich over the neutral layer stack. Native media
+    // stays behind the extracted subject; block-level personLayer decides which HTML pass it joins.
+    for (const layer of layerPlan) {
+      if (layer.kind === 'media') for (const visual of layer.visuals) renderVisual(visual);
+    }
+    renderPersonBackground();
+    for (const b of behind) renderOne(b);
+    // Matte canvas: pointer-events pass through (behind-person blocks stay clickable); transform is copied from the video by the shim each frame
+    // 0–100 unitless → px (scaled by canvas resolution): feather at max ≈ W/45 (1080→24px), stroke at max ≈ W/30 (1080→36px)
+    const featherPx = Math.round(((Math.max(0, Math.min(100, fx?.feather ?? 0)) / 100) * W) / 45 * 10) / 10;
+    const strokePx = fx?.stroke ? Math.max(1.2, ((Math.max(0, Math.min(100, fx.stroke.width)) / 100) * W) / 30) : 0;
+    body.push(
+      `<canvas id="personCut" width="${W}" height="${H}" ` +
+        `data-feather="${n(featherPx)}" ` +
+        `data-stroke-w="${n((fx?.stroke?.width ?? 0) > 0 ? strokePx : 0)}" data-stroke-style="${escapeAttr(fx?.stroke?.style ?? 'solid')}" ` +
+        `data-stroke-color="${escapeAttr(fx?.stroke?.color ?? '#ffffff')}" data-stroke-alpha="${n(fx?.stroke?.opacity ?? 1)}" ` +
+        `style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;transform-origin:center center;will-change:transform;"></canvas>`,
+    );
+    scripts.push(PERSON_CUT_SHIM);
+    for (const b of front) renderOne(b);
+  }
+
+  // Native media owns its pixels. Keeping a theme-colored iframe/root behind a moved or resized
+  // video makes the HTML stage read as a second canvas, so media compositions stay transparent.
+  // The preview/export stage owns the canvas ground. Native media compositions stay transparent so
+  // the parent video canvas can show through; graphics-only compositions use the same black ground
+  // instead of unexpectedly exposing the attached theme's paper color as soon as an element appears.
+  const documentBg = placedVideoShots.length || supplementalVisuals.length ? 'transparent' : '#000000';
+  // Library ("花字") web fonts the composition uses — captions (main + translation line) and
+  // display-text blocks — plus the CJK partner behind any local Latin face. Chunked CSS: only the
+  // glyph blocks actually rendered are fetched.
+  const webFontLinks = webFontStylesheetUrls([
+    comp.captionStyle?.font,
+    comp.captionStyle?.sub?.font,
+    ...comp.blocks.map((block) => block.slots?.fontFamily),
+    ...comp.blocks.flatMap((block) => componentPropsFontIds(block)),
+    ...lookFontIds(comp.look),
+  ]).map((href) => `<link href="${href}" rel="stylesheet" />\n`).join('');
+  // After the document's own styles, so a block's rules still follow them as they did from inside
+  // the block. Export reads the head's styles into every overlay image, so the shared sheet travels.
+  // A block that shares nothing is put back as it assembles on its own, sheet and all: the document
+  // then holds the very fragment the patch channel would send for it.
+  for (const entry of keyed) {
+    if (!entry.keys.every((key) => sharedSheets.get(key)?.uses === 1)) continue;
+    body[entry.at] = assembleBlockWith(entry.block, comp, cs).html;
+    for (const key of entry.keys) sharedSheets.delete(key);
+  }
+  const sharedCss = placeSharedSheets(body, sharedSheets);
+  return `<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="${STUDIO_FONTS_HREF}" rel="stylesheet" />
+${webFontLinks}<style>
+  * { margin: 0; box-sizing: border-box; }
+  html, body { width: ${W}px; height: ${H}px; overflow: hidden; background: ${documentBg}; }
+  #root { position: relative; width: ${W}px; height: ${H}px; background: ${documentBg}; overflow: hidden;
+    ${themeVarsCss(theme, comp.palette)} font-family: var(--font-body); color: var(--fg); }
+  .comp { position: absolute; font-size: ${BLOCK_TEXT_BASELINE_PX}px; }
+  /* media-slot placeholder: not rendered by default (clean export), shown only in editor mode (body.hf-editor) */
+  .hf-ph { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    border:3px dashed rgba(255,255,255,0.34); border-radius:24px; color:rgba(255,255,255,0.72); background:rgba(255,255,255,0.05); }
+  body.hf-editor .hf-ph { display:flex; }
+  .hf-ph-plus { font-size:96px; font-weight:300; line-height:1; }
+  .hf-ph-tip { font-size:34px; text-align:center; line-height:1.3; font-family:var(--font-body); }
+</style>
+${lookHeadHtml(comp.look)}${sharedCss ? `<style data-hf-shared-sheets>${sharedCss}</style>\n` : ''}</head>
+<body>
+<div id="root" data-composition-id="root" data-start="0" data-width="${W}" data-height="${H}">
+${body.join('\n')}
+</div>
+<script src="${escapeAttr(gsapSrc)}"></script>
+<!-- motionpop: our engine for Motionpop graphic blocks (spec 17). -->
+<script src="/mp-runtime/block-runtime.js"></script>
+<script>
+window.__timelines = window.__timelines || {};
+${scripts.join('\n')}
+</script>
+</body>
+</html>`;
+}
+
+/**
+ * Single-block preview document: render one overlay block into self-contained HTML on its own (theme background + the block, paused mid-run),
+ * for a live mini-preview on timeline hover showing "what this block looks like". The block is normalized to a 0 start; no video, no other blocks.
+ */
+/** The "honest ground" for single-block previews: in the asset library / generation card / timeline hover, a block is an object to overlay onto the picture —
+ *  the ground must convey "transparent, sitting on the picture" (checkerboard), not fake a stage paper ground as if it were the component's own background
+ *  (WYSIWYG violation: a ground shows in the list but not once inserted; a gut red line the user named).
+ *  The theme wall (frame-panel) is the exception: it showcases a theme's full-page design, so keep the stage. */
+// The document only goes transparent; the checkerboard is drawn by the preview container in **screen pixels** (drawing it inside the document gets scaled and blurred — been there)
+const TRANSPARENT_CSS = 'background:transparent !important;';
+
+/** The single-block composition a preview document renders: the block normalized to start at 0,
+ *  on the project's canvas/theme. Exported so in-place preview patches assemble the block against
+ *  the SAME composition the document was built from (otherwise a patched node drifts from a rebuild). */
+export function previewMiniComp(comp: Composition, block: Block): Composition {
+  return {
+    width: comp.width,
+    height: comp.height,
+    theme: comp.theme,
+    video: null,
+    blocks: [{ ...block, startSec: 0 }],
+    shots: [],
+    ...(comp.palette ? { palette: comp.palette } : {}),
+    // Caption previews also take the global style — timeline mini-cards / style cards match what's seen in the final cut
+    ...(comp.captionStyle ? { captionStyle: comp.captionStyle } : {}),
+  };
+}
+
+export function blockPreviewDoc(comp: Composition, block: Block, opts: { loop?: boolean | 'hover'; ground?: 'stage' | 'checker' } = {}): string {
+  const mini = previewMiniComp(comp, block);
+  // Pause on the stable frame after the entrance animation ends (show full content, not stuck mid-reveal); entrances mostly finish within 1s,
+  // take 85% but at least 1s, capped at 0.06s before the end (avoid the tail exit)
+  const at = Math.min(block.durationSec - 0.06, Math.max(1.0, block.durationSec * 0.85));
+  let html = assembleHtml(mini);
+  if (opts.ground === 'checker') html = html.replace('</head>', `<style>html, body, #root { ${TRANSPARENT_CSS} }</style></head>`);
+  // Opening frame, declared BEFORE the runtime boots: it aligns to this time and only then reveals
+  // the blocks, so nothing intermediate is ever painted. Looping previews open at 0 (the entrance
+  // plays from its start); static and hover-gated ones open on the stable frame.
+  const bootT = opts.loop === true ? 0 : Math.max(0, at);
+  html = html.replace('</head>', `<script>window.__hfBootT=${n(bootT)};</script></head>`);
+  if (opts.loop) {
+    // Animated preview: rAF loops the animation — after playing, hold on the stable frame for a beat then restart (used by frame-panel style cards).
+    // {type:'hf-loop',on:true,once:true} plays the entrance ONE time and settles on the stable frame
+    // (the lightbox's replay button) — without `once` it keeps cycling.
+    // loop:'hover' = initially paused, controlled by parent postMessage {type:'hf-loop',on} (plays only on cover-wall hover);
+    // a sandboxed iframe (opaque origin) can't reach __hfPreview from the parent, so control must go through messages.
+    const HOLD = 1.2;
+    const cycle = Math.max(0.5, at) + HOLD;
+    const auto = opts.loop === true;
+    return `${html}\n<script>(function(){var playing=${auto ? 'true' : 'false'};var once=false;var t0=performance.now();
+function tick(){if(playing){var e=(performance.now()-t0)/1000;var t=once?Math.min(e,${n(at)}):e%${n(cycle)};if(t>${n(at)})t=${n(at)};try{window.__hfPreview&&window.__hfPreview.seek(t);}catch(err){}if(once&&e>=${n(at)})playing=false;}requestAnimationFrame(tick);}
+window.addEventListener('message',function(e){var d=e&&e.data;if(!d||d.type!=='hf-loop')return;if(d.on){t0=performance.now();once=!!d.once;playing=true;}else{playing=false;once=false;try{window.__hfPreview&&window.__hfPreview.seek(${n(at)});}catch(err){}}});
+(function start(){if(!window.__hfPreview){setTimeout(start,16);return;}t0=performance.now();tick();})();})();</script>`;
+  }
+  // Static card: the head-declared boot time already opened it on the stable frame; a full seek
+  // afterwards only matters for media (video currentTime), which a single-block preview has none of.
+  return html;
+}

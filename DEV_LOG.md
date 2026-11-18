@@ -522,3 +522,31 @@ Template:
   - One voiceover, one look, 16:9 only. The prompts may be fitted to it.
   - Word times in the lab are estimated from pauses.
 - **Cost:** 131 Gemini calls in the lab, $1.40 by the harness ledger, plus one TTS and one transcription call. The founder reports about 5 euros on the Vertex bill in total.
+
+## 2026-11-18 · Claude Code (Opus 5.5) · one-shot film test (coffee)
+- **Founder ask:** stop scene-engine polish. Generate the whole coffee video in ONE call as a tier-2 custom composition (12 s cap lifted, no scene labels, storyboard first), on Gemini Pro and Flash. Lint it, render 9:16, compare with the current engine, report cost and time. Keep costs low; no refactors until the renders are seen.
+- **Result** (`docs/research/film-mode-test.md`, `experiments/film-mode/sheet-coffee-compare.jpg`):
+  - **Engine:** 11 centred cards, many blank frames; it never picks chart, versus, timeline or quote.
+  - **Flash 3.8:** $0.027, 60 s, valid first try; every beat right but small cards in an empty frame, and the coin stacks it planned were never drawn.
+  - **Pro 3.1 preview:** $0.082, 53 s, valid first try; a full-frame map covers the whole film. A diagnostic hand fix shows a stuck icon and dropped beats under it.
+  - The storyboard step works; carrying it out in one call doesn't. The checks miss covered pictures and word keys that don't resolve.
+- **Lab only, not product:** `film-lab/tts.ts`, `words.ts` (whisper.cpp timings), `oneshot.ts`, `record.ts`, `handfix.ts`; a Pro price line in `gemini.ts`.
+- **Notes:**
+  - `gemini-3.8-pro` isn't served to the project on `global`; the newest Pro is 3.1 preview.
+  - The first TTS take read the delivery note aloud and was thrown away.
+  - "Starbucks" in the script was replaced to keep brand names out of the repo.
+- **Cost:** about $0.15 in total (2 TTS takes, 2 film calls). Pro's price is assumed.
+- **Not done:** the founder's Opus video (no file found), a second sample per model, 16:9.
+- **Later the same day: Gemini 4.**
+  - The founder asked about Gemini 4 Hydrogen, Argon and Carbon. All three are served to the project; the official prices are in the doc.
+  - **Hydrogen** one-shot: $0.32, 281 s, valid first try. The best output so far: one world, one recurring bean, a real map flight, the money columns, the queue. Still wrong: top-heavy layout, a title collision, the quote stops at "You".
+  - **Argon and Carbon** didn't finish: fetch's 300 s header limit, Gemini 4's 32k-per-hop cap (finishReason CONTINUATION, needs a continuationToken loop), then a silent-socket drop at 191 s. All three are fixed in `film-lab/gemini.ts`.
+  - Then the project's Vertex **spend cap was breached**.
+  - The 3.8 Flash price in the lab ledger was stale ($0.30 / $2.50 → $0.75 / $3.75).
+  - **Spend:** $1.16 logged, plus up to four calls that dropped before answering and may have been billed.
+
+### 2026-11-18 (evening) · Claude Code · spec 17 talking-head flow
+- Video intake (MP4/MOV/WebM ≤ 500 MB) on Start and Processing; processed videos open in `/studio/[id]`.
+- `bridge.ts` turns the pipeline's output into an edited studio document: cuts, punch-ins, captions, our graphics as word-anchored blocks, SFX, music bed. Our engine runs inside studio blocks through `packages/motion/dist/block-runtime.js`; Pireel's `assemble.ts` loads it (one marked line).
+- Pireel credit in `docs/third-party.md` shortened to one line at the founder's request; it still says the editor code comes from Pireel, because AGPL and the hackathon disclosure rules require that.
+- Commits made by kiro-cli (claude-haiku-5.5) with the Kiro Agent trailer; the code was written in this Claude Code session. No tests (founder's call). No paid calls: tested in local mode with Firebase off.

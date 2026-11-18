@@ -38,6 +38,18 @@ for (const [family, file] of Object.entries(BUNDLED_FONTS)) {
 await writeFile(join(outDir, 'fonts.json'), JSON.stringify(fonts));
 // Seeded grain + paper tiles as PNG data URLs (see scripts/textures.ts).
 await writeFile(join(outDir, 'textures.json'), JSON.stringify(textureDataUrls()));
+// Studio graphic blocks (spec 17): our engine for one slot inside a block, fonts bundled.
+await build({
+  entryPoints: [join(pkgDir, 'src/runtime/block.ts')],
+  outfile: join(outDir, 'block-runtime.js'),
+  bundle: true,
+  format: 'iife',
+  platform: 'browser',
+  target: 'chrome120',
+  minify: true,
+  legalComments: 'none',
+  define: { __MP_FONTS__: JSON.stringify(fonts) },
+});
 // Map imagery for the globe (public domain; see docs/third-party.md), served to the preview and
 // copied next to the composition by the render job.
 await mkdir(join(outDir, 'maps'), { recursive: true });

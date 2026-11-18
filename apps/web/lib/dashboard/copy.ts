@@ -7,7 +7,7 @@ export const DASHBOARD_COPY = {
     hold: 'Hold to record',
     release: 'Release to finish',
     hint: '…or paste a script, or drop audio anywhere',
-    formats: 'MP3 · WAV · M4A',
+    formats: 'MP3 · WAV · M4A · MP4 · MOV',
     placeholder: 'Paste a script and press Enter',
     micDenied: "Pip can't hear you. Allow the microphone in the address bar, or upload instead.",
     uploadInstead: 'Upload instead',
@@ -21,7 +21,7 @@ export const DASHBOARD_COPY = {
   drag: {
     pill: "Drop it, I'll catch it!",
     body: 'Release your audio anywhere. Pip will take it from here.',
-    formats: 'MP3 · WAV · M4A',
+    formats: 'MP3 · WAV · M4A · MP4 · MOV',
   },
   continue: {
     title: 'Continue where you left off',
@@ -70,7 +70,7 @@ export const START_COPY = {
     title: 'Upload voiceover',
     body: 'Already have the perfect take?',
     drop: 'Drop your audio or browse',
-    formats: 'MP3, WAV, M4A',
+    formats: 'MP3, WAV, M4A, MP4, MOV',
     sample: 'Try a sample',
   },
   script: {

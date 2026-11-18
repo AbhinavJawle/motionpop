@@ -165,3 +165,28 @@ export function retimeWords(words: ReadonlyArray<Word>, cuts: ReadonlyArray<CutR
       return { ...w, i, startMs, endMs: startMs + (w.endMs - w.startMs) };
     });
 }
+
+/** The cut list as `retimeWords` and `mapTime` use it: sorted, merged (spec 17 bridge). */
+export function normalizeCuts(cuts: ReadonlyArray<CutRange>): CutRange[] {
+  return normalize(cuts);
+}
+
+/** Indexes of the original words `retimeWords` keeps, in order: cleaned word i is original word out[i]. */
+export function keptWordIndexes(words: ReadonlyArray<Word>, cuts: ReadonlyArray<CutRange>): number[] {
+  const norm = normalize(cuts);
+  const out: number[] = [];
+  words.forEach((w, i) => {
+    if (!norm.some((c) => isInside(w, c))) out.push(i);
+  });
+  return out;
+}
+
+/** Inverse of `mapTime`: a cleaned-time point back to the original recording (spec 17 bridge). */
+export function unmapTime(cleanedMs: number, cuts: ReadonlyArray<CutRange>): number {
+  let src = cleanedMs;
+  for (const c of normalize(cuts)) {
+    if (src >= c.startMs) src += c.endMs - c.startMs;
+    else break;
+  }
+  return src;
+}

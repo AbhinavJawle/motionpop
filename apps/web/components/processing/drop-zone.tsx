@@ -7,7 +7,7 @@ import { cn } from '@/lib/cn';
 import { INTAKE_LIMITS, validateIntake } from '@/lib/audio/intake';
 import { springPop } from '@/lib/motion/presets';
 
-const ACCEPT = 'audio/*,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus';
+const ACCEPT = 'audio/*,video/mp4,video/quicktime,video/webm,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus,.mp4,.mov';
 
 /**
  * Minimal entry for spec 05 (the designed Start screen is spec 11): drop or pick a voiceover,
@@ -63,11 +63,11 @@ export function DropZone({
       >
         <Pip size={84} state={over ? 'catching' : 'idle'} glow={over} decorative seed={11} />
         <span className="mt-4 text-[17px] leading-[22px] font-semibold text-text">
-          {over ? 'Drop it, I’ll catch it!' : 'Drop your voiceover'}
+          {over ? 'Drop it, I’ll catch it!' : 'Drop your voiceover or video'}
         </span>
         <span className="mt-1.5 text-[12px] leading-4 text-text-2">or click to choose a file</span>
         <span className="mt-4 font-mono text-[10px] leading-[13px] text-text-3">
-          MP3, WAV or M4A · up to {INTAKE_LIMITS.maxBytes / 1024 / 1024} MB ·{' '}
+          MP3, WAV, M4A · MP4 or MOV up to {INTAKE_LIMITS.maxVideoBytes / 1024 / 1024} MB ·{' '}
           {INTAKE_LIMITS.maxDurationMs / 60_000} min
         </span>
       </motion.button>

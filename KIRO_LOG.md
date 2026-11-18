@@ -1786,3 +1786,50 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 - motion:check (task 22, local Chrome): quote 240 cases × 3 formats, 0 failures, 720 warnings. list-stack 252 cases × 3, 9 failures, all 1:1 group centre at -6.6 to -6.8 % (max 6 %), staged. photo-evidence could not run: `src/scenes/photo-evidence/samples.ts` does not exist. No scene code was changed for this.
 - checks (after prettier): motion typecheck, lint and test (525 pass, 1 expected fail); ai typecheck, lint and test (453 pass); render typecheck and test (182 pass); web typecheck, lint and full test (1149 pass, 1 expected fail). No network, no AI calls, no deploys.
 - not done: task 20 (steering) left unticked, as asked.
+
+<!-- kiro-session:sess_837ed689-94a9-4bd6-9958-de78400f4a88 -->
+### 2026-11-17 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-17T13:41:56.557Z · last stop: 2026-11-17T14:01:59.348Z · session: sess_837ed689-94a9-4bd6-9958-de78400f4a88
+- commits since start: 
+  - 5e8e9d9 fix(13b-free-exports-and-cost-cuts): render key includes the runtime version
+  - 5e2d7be docs(07c-engine-v2): spec, D-075, motion:check results
+  - 5a0800d feat(07c-engine-v2): tasks 9-11 and 15 first-load pictures
+  - c08c5e4 fix(07c-engine-v2): task 8b split frame keeps text in the safe area; staged motion check
+  - 93ec91b feat(07c-engine-v2): tasks 4-7 video plan, climax seams, one world, staging flag
+  - 7f1da32 feat(07c-engine-v2): task 3 stat labels from the words after the number
+  - c304cbd feat(07c-engine-v2): tasks 1-2 reel tool and companions
+- uncommitted changes: none
+<!-- /kiro-session:sess_837ed689-94a9-4bd6-9958-de78400f4a88 -->
+
+<!-- kiro-session:sess_595f9c7a-bec5-4dd6-a86c-8c5121b82c5e -->
+### 2026-11-18 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-18T19:44:53.475Z · last stop: 2026-11-18T19:45:31.332Z · session: sess_595f9c7a-bec5-4dd6-a86c-8c5121b82c5e
+- commits since start: 
+  - 8f6078f feat(17-pireel-studio): tasks 1-3 studio editor in the app
+- uncommitted changes: 
+  - `M DEV_LOG.md`
+  - ` M KIRO_LOG.md`
+  - ` M apps/web/components/processing/drop-zone.tsx`
+  - ` M apps/web/components/processing/processing-screen.tsx`
+  - ` M apps/web/components/start/start-screen.tsx`
+  - ` M apps/web/lib/audio/edl.ts`
+  - ` M apps/web/lib/audio/intake.ts`
+  - ` M apps/web/lib/dashboard/copy.ts`
+  - ` M packages/motion/scripts/build-runtime.ts`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - `?? apps/web/.next-studio/`
+  - `?? apps/web/app/mp-runtime/`
+  - `?? apps/web/lib/studio/bridge.ts`
+  - `?? apps/web/lib/studio/prepare.ts`
+  - `?? apps/web/lib/studio/studio-store.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+<!-- /kiro-session:sess_595f9c7a-bec5-4dd6-a86c-8c5121b82c5e -->

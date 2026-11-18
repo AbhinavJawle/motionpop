@@ -2,18 +2,20 @@
 
 export const INTAKE_LIMITS = {
   maxBytes: 50 * 1024 * 1024,
+  /** Talking-head videos (spec 17): the studio edits the footage itself. */
+  maxVideoBytes: 500 * 1024 * 1024,
   maxDurationMs: 20 * 60 * 1000,
 } as const;
 
-export type IntakeKind = 'mp3' | 'wav' | 'm4a' | 'webm';
+export type IntakeKind = 'mp3' | 'wav' | 'm4a' | 'webm' | 'video';
 export type IntakeFailure = 'not-audio' | 'too-large' | 'too-long';
 
 export type IntakeResult =
   { ok: true; kind: IntakeKind } | { ok: false; reason: IntakeFailure; message: string };
 
 export const INTAKE_MESSAGES: Record<IntakeFailure, string> = {
-  'not-audio': "That doesn't look like audio. Try MP3, WAV or M4A.",
-  'too-large': "That's a big one. Up to 50 MB and 20 minutes for now.",
+  'not-audio': "That doesn't look like audio or video. Try MP3, WAV, M4A, MP4 or MOV.",
+  'too-large': "That's a big one. Up to 50 MB of audio, 500 MB of video and 20 minutes for now.",
   'too-long': "That's a big one. Up to 50 MB and 20 minutes for now.",
 };
 
@@ -33,6 +35,10 @@ const MIME_KINDS: Record<string, IntakeKind> = {
   'audio/x-aac': 'm4a',
   'audio/webm': 'webm',
   'audio/ogg': 'webm',
+  'video/mp4': 'video',
+  'video/quicktime': 'video',
+  'video/webm': 'video',
+  'video/x-m4v': 'video',
 };
 
 const EXTENSION_KINDS: Record<string, IntakeKind> = {
@@ -45,6 +51,8 @@ const EXTENSION_KINDS: Record<string, IntakeKind> = {
   webm: 'webm',
   opus: 'webm',
   ogg: 'webm',
+  mov: 'video',
+  m4v: 'video',
 };
 
 const fail = (reason: IntakeFailure): IntakeResult => ({
@@ -81,7 +89,8 @@ export function validateIntake(file: { name: string; type: string; size: number 
   const type = file.type.trim();
   const kind = type === '' ? kindFromName(file.name) : kindFromMime(type);
   if (!kind || !Number.isFinite(file.size) || file.size <= 0) return fail('not-audio');
-  if (file.size > INTAKE_LIMITS.maxBytes) return fail('too-large');
+  const limit = kind === 'video' ? INTAKE_LIMITS.maxVideoBytes : INTAKE_LIMITS.maxBytes;
+  if (file.size > limit) return fail('too-large');
   return { ok: true, kind };
 }
 
