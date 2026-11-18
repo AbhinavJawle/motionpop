@@ -13,6 +13,8 @@ export default tseslint.config(
       '**/.check/**',
       'apps/**',
       'docs/**',
+      // Pireel's editor, vendored as-is (spec 17, D-076); its own tsconfig checks it.
+      'vendor/**',
     ],
   },
   js.configs.recommended,

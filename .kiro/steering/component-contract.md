@@ -42,7 +42,7 @@ export interface Composition {
 ## How it plugs into HyperFrames
 - The compiler (`packages/motion/src/compiler`) turns a project into one HyperFrames composition: one `.clip` per slot (`data-start`, `data-duration` in seconds derived from integer ms), audio elements, a captions host and `runtime.js`.
 - `runtime.js` listens for HyperFrames' `hf-seek` event and calls `composition.seek(t - slotStart)` on every active slot. Clips outside their range are hidden.
-- **No GSAP.** Do not use HyperFrames' GSAP timeline adapter. Our core (timeline, tween, eases, stagger, text split, path draw, count-up, rng, fitText) is the only animation engine.
+- **No GSAP in our components** (Pireel's own compositions may use it, D-076). Do not use HyperFrames' GSAP timeline adapter. Our core (timeline, tween, eases, stagger, text split, path draw, count-up, rng, fitText) is the only animation engine.
 - Verify the current `hf-seek` event shape and player API against the HyperFrames source/skills before changing the runtime.
 
 ## Rules

@@ -1,0 +1,678 @@
+'use client';
+
+/**
+ * Clip insertion for the multi-source main track: read durations, insert an equal-standing clip at the
+ * nearest shot bound (library asset / local file / image→still-clip), reconnect by re-picking, plus per-source filmstrips for inserted clips. Extracted from
+ * hyperframes-workbench.tsx — bodies verbatim.
+ */
+
+import { type MutableRefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { createClipStripsStore } from '@pireel/studio-ui/clip-strips-store';
+import { toast } from '@pireel/ui/toast';
+import {
+  type Composition,
+  type EditorDocumentV2,
+  type EditorMediaAsset,
+  type MediaTimelineClip,
+  type MediaRef,
+  type VideoShot,
+  applyEditorCommand,
+  isSentenceCaption,
+  positiveDurationFrames,
+  resolveCaptionStyle,
+  secondsToTimelineFrames,
+  shotId,
+} from '@pireel/studio-engine/composition';
+import type { AsrSegment } from '@pireel/studio-engine/build-blocks';
+import type { LocalAssetIndexEntry } from '@pireel/studio-engine/project-dto';
+import { studioProviders } from '@pireel/studio-engine/providers';
+import {
+  type FilmstripFrame,
+  type FilmstripSourceRange,
+  extractFilmstripAtTimestamps,
+  extractFilmstripFromUrlAtTimestamps,
+  fileSig,
+  filmstripTimestampsForRanges,
+} from '@pireel/studio-ui/media-ai';
+import { alignFileToSig, loadLocalVideo, resolveAssetBytes, saveLocalVideo } from '@pireel/studio-ui/local-media';
+import { materializeRemoteMedia } from '@pireel/studio-ui/remote-media';
+import {
+  isDeviceLocalLibraryAsset,
+  localImageSigFromLibraryAsset,
+} from '@pireel/studio-ui/library-asset-source';
+import { normalizeDims } from '@pireel/studio-ui/workbench-utils';
+import { t } from '@pireel/studio-ui/i18n';
+import { editorErrorMessage } from '@pireel/studio-ui/editor-error';
+import { registerNarrativeSourceRuntime } from '@pireel/studio-ui/clip-source-runtime';
+import type { DocumentOp } from '@pireel/studio-engine/document-transaction';
+import type { DocumentCommitter } from '@pireel/studio-ui/document-commit';
+import type { TimelineInsertMode, TimelineMediaDropTarget, TimelineVisualDropTarget } from '@pireel/studio-ui/timeline-asset-drop';
+
+/** Image → 5-second still-frame video (the user-defined default): freeze on canvas + MediaBunny avc mp4, no audio track
+ *  = silent clip. Uses a video shape rather than adding an image branch to shots — trim/split/framing/captions/export
+ *  all work automatically with zero changes. 30fps of identical frames, near-zero encode cost; dimensions clamped ≤1920 and made even (avc requirement). */
+const STILL_CLIP_SEC = 5;
+export const stillClipFromImage = async (blob: Blob, label?: string): Promise<File | null> => {
+  try {
+    const bmp = await createImageBitmap(blob);
+    const scale = Math.min(1, 1920 / Math.max(bmp.width, bmp.height));
+    const w = Math.max(2, Math.round((bmp.width * scale) / 2) * 2);
+    const h = Math.max(2, Math.round((bmp.height * scale) / 2) * 2);
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.getContext('2d')!.drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    const { BufferTarget, CanvasSource, Mp4OutputFormat, Output } = await import('mediabunny');
+    const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
+    const source = new CanvasSource(canvas, { codec: 'avc', bitrate: 2_000_000 });
+    output.addVideoTrack(source, { frameRate: 30 });
+    await output.start();
+    for (let i = 0; i < STILL_CLIP_SEC * 30; i++) await source.add(i / 30, 1 / 30);
+    await output.finalize();
+    const buf = (output.target as { buffer: ArrayBuffer | null }).buffer;
+    if (!buf) return null;
+    // Filename carries size + label: fileSig=name:size:0, and a plain 'still.mp4' collides on sig whenever size collides (cloud backup / OPFS cross-contamination)
+    const name = `still-${w}x${h}-${(label || 'image').replace(/[^\w一-龥-]/g, '').slice(0, 24) || 'image'}.mp4`;
+    return new File([buf], name, { type: 'video/mp4', lastModified: 0 });
+  } catch (e) {
+    console.warn('[studio] still clip encode failed', e);
+    return null;
+  }
+};
+
+interface InsertClipCoreOptions {
+  placement?: 'nearest' | 'exact';
+  mode?: TimelineInsertMode;
+  sceneId?: string;
+  localAsset?: LocalAssetIndexEntry;
+}
+
+interface InsertLibraryClipOptions {
+  target?: TimelineMediaDropTarget;
+  mode?: TimelineInsertMode;
+  /** Visual lanes only: play at most this long (a video is cut from its start, a still lasts exactly this long). */
+  fitSec?: number;
+}
+
+export interface ClipInsertDeps {
+  projectId: string;
+  compRef: MutableRefObject<Composition>;
+  clipFilesRef: MutableRefObject<Map<string, File>>;
+  cloudMediaRef: MutableRefObject<{ video?: { sig: string; key: string }; clips?: Record<string, { key: string }> }>;
+  clipAsrRef: MutableRefObject<Record<string, AsrSegment[]>>;
+  documentRef: MutableRefObject<EditorDocumentV2>;
+  localAssetIndexRef: MutableRefObject<LocalAssetIndexEntry[]>;
+  commit: DocumentCommitter['commit'];
+  /** Re-project the current document after session-only media bytes became resolvable. */
+  republishDocument: () => void;
+  rememberAssetUrl: (assetId: string, url: string) => void;
+  setSelectedId: (id: string | null) => void;
+  setSelectedShotId: (id: string | null) => void;
+  applyT: (v: number) => void;
+  ensureClipTranscripts: () => Promise<void>;
+  backupMediaToCloud: (file: File, sig: string, kind: 'video' | 'clip') => void;
+  runTool: (toolId: string, input: Record<string, unknown>) => Promise<unknown>;
+}
+
+export function useClipInsert(deps: ClipInsertDeps) {
+  const {
+    projectId, compRef, clipFilesRef, cloudMediaRef, clipAsrRef, documentRef, localAssetIndexRef, commit, republishDocument,
+    rememberAssetUrl, setSelectedId, setSelectedShotId, applyT, ensureClipTranscripts,
+    backupMediaToCloud, runTool,
+  } = deps;
+  const videoMetaOf = async (url: string): Promise<{ dur: number; w: number; h: number } | null> => {
+    for (let i = 0; i < 3; i++) {
+      const m = await videoMetaOnce(url);
+      if (m != null) return m;
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+    return null;
+  };
+  const videoDurationOf = async (url: string): Promise<number | null> => (await videoMetaOf(url))?.dur ?? null;
+  const videoMetaOnce = (url: string): Promise<{ dur: number; w: number; h: number } | null> =>
+    new Promise((res) => {
+      const v = document.createElement('video');
+      v.preload = 'metadata';
+      let settled = false;
+      const done = (d: number | null) => {
+        if (settled) return;
+        settled = true;
+        res(d != null ? { dur: d, w: v.videoWidth, h: v.videoHeight } : null);
+      };
+      const dur = () => (Number.isFinite(v.duration) && v.duration > 0.1 ? v.duration : null);
+      v.onerror = () => done(null);
+      v.onloadedmetadata = () => {
+        if (dur() != null) return done(dur());
+        v.ondurationchange = () => {
+          if (dur() != null) done(dur());
+        };
+        v.currentTime = 1e7;
+        setTimeout(() => done(dur()), 3000);
+      };
+      v.src = url;
+    });
+  /** Landing point (final seconds) while an external clip is being inserted (reading duration/extracting frames): the timeline shows an "inserting" badge there. */
+  const [clipPending, setClipPending] = useState<number | null>(null);
+  /** Filmstrips for external clips (**src → frames**, t = that source's own source time): the main filmstrip belongs
+   *  only to the main video; clips extract one set per **source**, shared by all clips of the same source — split/delete
+   *  just change the span, no re-extract (extracting by shot.id once meant a split's right half was a new id, re-extracting
+   *  the whole thing, a visibly flickering filmstrip redraw on large files). */
+  // Held in a store, not in state: thumbnails arrive while the timeline scrolls, and only the
+  // timeline draws them (clip-strips-store.ts).
+  const [clipStripsStore] = useState(createClipStripsStore);
+  const clipStripsRef = useRef<Record<string, FilmstripFrame[]>>({});
+  const setClipStrips = useCallback((next: Record<string, FilmstripFrame[]> | ((current: Record<string, FilmstripFrame[]>) => Record<string, FilmstripFrame[]>)) => {
+    clipStripsRef.current = typeof next === 'function' ? next(clipStripsRef.current) : next;
+    clipStripsStore.set(clipStripsRef.current);
+  }, [clipStripsStore]);
+  const clipStripAliveRef = useRef(true);
+  const clipStripGenerationRef = useRef(0);
+  const clipStripReqRef = useRef<Map<string, Set<number>>>(new Map()); // source-time buckets already requested (incl. in progress)
+  useEffect(() => {
+    const requests = clipStripReqRef.current;
+    clipStripAliveRef.current = true;
+    return () => {
+      clipStripGenerationRef.current += 1;
+      clipStripAliveRef.current = false;
+      for (const frames of Object.values(clipStripsRef.current)) {
+        for (const frame of frames) URL.revokeObjectURL(frame.url);
+      }
+      clipStripsRef.current = {};
+      clipStripsStore.set({});
+      requests.clear();
+    };
+  }, [clipStripsStore]);
+  const resetRuntime = useCallback(() => {
+    clipStripGenerationRef.current += 1;
+    for (const frames of Object.values(clipStripsRef.current)) {
+      for (const frame of frames) URL.revokeObjectURL(frame.url);
+    }
+    clipStripReqRef.current.clear();
+    setClipStrips({});
+    setClipPending(null);
+  }, [setClipStrips]);
+  const createClipObjectUrl = (file: Blob): string | null =>
+    clipStripAliveRef.current ? URL.createObjectURL(file) : null;
+  /** The timeline asks for the thumbnails of what it shows (and is about to): called as it scrolls,
+   *  so it sets no state; what is already asked for is not asked for again. */
+  const demandFilmstrip = useCallback((filmstripDemand: Readonly<Record<string, readonly FilmstripSourceRange[]>>) => {
+    for (const [src, ranges] of Object.entries(filmstripDemand)) {
+      const requested = clipStripReqRef.current.get(src) ?? new Set<number>();
+      clipStripReqRef.current.set(src, requested);
+      const missingTimestamps = filmstripTimestampsForRanges(ranges).filter((timestamp) => !requested.has(timestamp));
+      if (!missingTimestamps.length) continue;
+      missingTimestamps.forEach((timestamp) => requested.add(timestamp));
+      const generation = clipStripGenerationRef.current;
+      void (async () => {
+        let firstFrame: FilmstripFrame | null = null;
+        const showFirstFrame = (frame: FilmstripFrame) => {
+          if (firstFrame || !clipStripAliveRef.current || generation !== clipStripGenerationRef.current) return;
+          firstFrame = frame;
+          setClipStrips((current) => ({
+            ...current,
+            [src]: [...(current[src] ?? []), frame].sort((left, right) => left.t - right.t),
+          }));
+        };
+        try {
+          let frames: FilmstripFrame[];
+          if (src.startsWith('blob:')) {
+            const lf = clipFilesRef.current.get(src); // local mode: the File is already at hand, zero download
+            if (!lf) {
+              missingTimestamps.forEach((timestamp) => requested.delete(timestamp));
+              return;
+            }
+            frames = await extractFilmstripAtTimestamps(lf, missingTimestamps, showFirstFrame);
+          } else {
+            const proxyUrl = `/api/media/fetch?url=${encodeURIComponent(src)}`;
+            frames = await extractFilmstripFromUrlAtTimestamps(proxyUrl, missingTimestamps, showFirstFrame);
+          }
+          if (!clipStripAliveRef.current || generation !== clipStripGenerationRef.current) {
+            frames.forEach((frame) => URL.revokeObjectURL(frame.url));
+            return;
+          }
+          // Paint one decoded frame immediately so the track does not sit on the blue fallback, then
+          // append the rest in one update. This preserves fast feedback without repainting per frame.
+          const remainingFrames = firstFrame ? frames.filter((frame) => frame !== firstFrame) : frames;
+          if (remainingFrames.length) {
+            setClipStrips((current) => ({
+              ...current,
+              [src]: [...(current[src] ?? []), ...remainingFrames].sort((left, right) => left.t - right.t),
+            }));
+          }
+        } catch (e) {
+          missingTimestamps.forEach((timestamp) => {
+            if (!firstFrame || Math.abs(timestamp - firstFrame.t) > 0.01) requested.delete(timestamp);
+          });
+          console.warn('[studio] clip filmstrip failed', e);
+        }
+      })();
+    }
+  }, [clipFilesRef, setClipStrips]);
+  /** Nearest explicit V2 boundary, including leading/inter-clip gaps. */
+  const nearestShotBound = (document: EditorDocumentV2, t: number) => {
+    let at = 0;
+    let best = Infinity;
+    const track = document.timeline.tracks.find((candidate) => candidate.id === document.semantics.primaryNarrativeTrackId);
+    const fps = document.canvas.fps;
+    const bounds = [0, ...(track?.clips.flatMap((clip) => [clip.startFrame / fps, (clip.startFrame + clip.durationFrames) / fps]) ?? [])];
+    bounds.forEach((b) => {
+      const d = Math.abs(b - t);
+      if (d < best) {
+        best = d;
+        at = b;
+      }
+    });
+    return at;
+  };
+  /** Insert core: an external clip lands at the nearest split point (an equal-standing clip: framing/matte/audio/captions
+   *  same as the main source). Overlay blocks after the boundary shift right as a whole — the mirror of removeEditedInterval. file = local mode (blob url). */
+  const insertClipCore = (url: string, clipDur: number, atWish: number, file?: File, srcDims?: { w: number; h: number } | null, srcSigOverride?: string | null, options: InsertClipCoreOptions = {}): string => {
+    // First source into an empty project DECIDES the canvas ratio (per user) — later sources
+    // contain-fit into it; the ratio picker can override afterwards.
+    const documentBeforeInsert = documentRef.current;
+    const at = options.placement === 'exact' ? Math.max(0, atWish) : nearestShotBound(documentBeforeInsert, atWish);
+    const newlyOwnedObjectUrl = !!file && url.startsWith('blob:') && !clipFilesRef.current.has(url);
+    const sg = srcSigOverride ?? (file ? fileSig(file) : undefined);
+    const nb: VideoShot = { id: shotId(), src: url, ...(sg ? { srcSig: sg } : {}), srcStart: 0, srcEnd: clipDur, treatment: 'full' };
+    const dims = srcDims ? normalizeDims(srcDims.w, srcDims.h) : undefined;
+    const edit = commit({ op: 'narrative.add', input: {
+      shot: nb,
+      atSec: at,
+      ...(options.mode ? { mode: options.mode } : {}),
+      ...(dims ? { sourceWidth: dims.width, sourceHeight: dims.height } : {}),
+      ...(options.sceneId ? { sceneId: options.sceneId } : {}),
+      ...(options.localAsset ? {
+        assetId: options.localAsset.assetId,
+        assetLabel: options.localAsset.label,
+        assetLibrary: {
+          createdAt: options.localAsset.createdAt,
+          ...(options.localAsset.folder ? { folder: options.localAsset.folder } : {}),
+        },
+      } : {}),
+    } });
+    if (!edit.ok || !edit.assetId) {
+      if (newlyOwnedObjectUrl) URL.revokeObjectURL(url);
+      toast.error(edit.ok ? t('workbench.failedFetchInsertClip') : editorErrorMessage(edit.error));
+      return '';
+    }
+    if (file && sg) {
+      registerNarrativeSourceRuntime({
+        source: { file, url, sig: sg, durationSec: clipDur },
+        clipFiles: clipFilesRef.current,
+      });
+    }
+    // srcSigOverride = the source already has a LOCAL identity (including image → 5s derived still):
+    // persist bytes on-device and sync metadata only. Sig-less remote sources still use the legacy
+    // cloud rendezvous so a fetched CDN asset does not turn into an unrecoverable document-local blob.
+    if (file && !srcSigOverride) backupMediaToCloud(file, fileSig(file), 'clip');
+    // The asset id is minted by the insert; the session URL is attached after and re-projected.
+    rememberAssetUrl(edit.assetId, url);
+    republishDocument();
+    setSelectedId(null);
+    setSelectedShotId(nb.id);
+    applyT(at + Math.min(0.1, clipDur / 2));
+    toast.success(t('workbench.insertedBRoll'));
+    // Captions/translation already on → the new clip follows automatically (transcribe → re-lay captions; if a target language was chosen, also auto-fill the translation in that language)
+    if (compRef.current.blocks.some(isSentenceCaption)) void autoCaptionNewClip(url, nb.id);
+    return nb.id;
+  };
+  /** Auto-complete captions/translation for a newly inserted clip: a bonus, silent on failure (the panel/agent can still fill manually). */
+  const autoCaptionNewClip = async (src: string, insertedShotId: string) => {
+    try {
+      await ensureClipTranscripts(); // transcribe new sources on demand (cache / failure blacklist handled internally)
+      const segs = clipAsrRef.current[src];
+      if (!segs?.length) return;
+      // Transcript state drives the native caption derivation effect; no compatibility re-lay write.
+      // A target language was chosen in the panel → auto-fill the new clip's translation in that language (same executor writes data as manual translation)
+      const lang = resolveCaptionStyle(compRef.current).sub?.lang;
+      const t = studioProviders().translate;
+      if (lang && t) {
+        const out = await t(segs.map((x, i) => ({ index: i, text: x.text })), lang);
+        if (out.length) await runTool('set_captions', { clipId: insertedShotId, translations: { lang, items: out } });
+      }
+    } catch {
+      /* auto-complete failure is silent: the captions panel / agent can fill manually */
+    }
+  };
+  /** Reconnect every shot that references one indexed local asset. Images are identities of record:
+   *  reselect the original image, derive a fresh local still clip, and keep srcSig pointing at the image. */
+  const reconnectIndexedSource = async (oldSrc: string, sourceFile: File, sig: string, kind: 'video' | 'image') => {
+    const playbackFile = kind === 'image' ? await stillClipFromImage(sourceFile, sourceFile.name) : sourceFile;
+    if (!playbackFile) {
+      toast.error(t('workbench.couldNotConvertImage'));
+      return false;
+    }
+    const url = createClipObjectUrl(playbackFile);
+    if (!url) return false;
+    clipFilesRef.current.set(url, playbackFile);
+    await saveLocalVideo(sourceFile, sig).catch(() => {});
+    const clipById = new Map(documentRef.current.timeline.tracks.flatMap((track) => track.clips.map((clip) => [clip.id, clip] as const)));
+    for (const shot of compRef.current.shots ?? []) {
+      if (shot.src !== oldSrc) continue;
+      const clip = clipById.get(shot.id);
+      if (clip?.kind === 'narrative') rememberAssetUrl(clip.assetId, url);
+    }
+    republishDocument();
+    toast.success(t('workbench.bRollReconnected'));
+    return true;
+  };
+
+  const uniqueDocumentId = (base: string, used: ReadonlySet<string>) => {
+    const stem = base.replace(/[^a-zA-Z0-9_-]+/g, '_') || 'item';
+    let value = stem;
+    let suffix = 2;
+    while (used.has(value)) value = `${stem}_${suffix++}`;
+    return value;
+  };
+
+  /** Place native visual media on a real V2 visual lane. This intentionally keeps image assets as
+   * images (instead of encoding a five-second video) and keeps embedded video audio attached to the
+   * visual clip. The render/export plan already understands both forms. */
+  const insertVisualCore = (input: {
+    asset: MediaRef & { label?: string; sig?: string | null; localAssetId?: string | null; dims?: { w: number; h: number } };
+    url: string;
+    file: File;
+    durationSec: number;
+    dimensions?: { w: number; h: number } | null;
+    atSec: number;
+    target: TimelineVisualDropTarget;
+    mode: TimelineInsertMode;
+    fitSec?: number;
+  }): string => {
+    const before = documentRef.current;
+    const durableSig = input.asset.sig ?? fileSig(input.file);
+    const remoteUrl = !isDeviceLocalLibraryAsset(input.asset)
+      ? input.asset.url
+      : undefined;
+    const existing = input.asset.localAssetId
+      ? before.assets[input.asset.localAssetId]
+      : Object.values(before.assets).find((asset) => asset.kind === input.asset.type && (
+          asset.locator.localSig === durableSig || (!!remoteUrl && asset.locator.remoteUrl === remoteUrl)
+        ));
+    const usedAssetIds = new Set(Object.keys(before.assets));
+    const assetId = existing?.id
+      ?? (input.asset.localAssetId && !usedAssetIds.has(input.asset.localAssetId)
+        ? input.asset.localAssetId
+        : uniqueDocumentId(`asset_${input.asset.type}_${shotId()}`, usedAssetIds));
+    const localEntry = input.asset.localAssetId
+      ? localAssetIndexRef.current.find((entry) => entry.assetId === input.asset.localAssetId)
+      : undefined;
+    const mediaAsset: EditorMediaAsset = existing ?? {
+      id: assetId,
+      kind: input.asset.type,
+      label: input.asset.label ?? input.file.name,
+      locator: { localSig: durableSig, ...(remoteUrl ? { remoteUrl } : {}) },
+      metadata: {
+        durationSec: input.durationSec,
+        ...(input.dimensions?.w ? { width: input.dimensions.w } : {}),
+        ...(input.dimensions?.h ? { height: input.dimensions.h } : {}),
+        ...(input.asset.type === 'video' ? { hasAudio: true } : {}),
+      },
+      ...(localEntry ? {
+        library: {
+          createdAt: localEntry.createdAt,
+          ...(localEntry.folder ? { folder: localEntry.folder } : {}),
+        },
+      } : {}),
+    };
+    let document: EditorDocumentV2 = existing
+      ? before
+      : { ...before, assets: { ...before.assets, [assetId]: mediaAsset } };
+    // Everything below previews against `document` and lands as one transaction.
+    const ops: DocumentOp[] = existing ? [] : [{ op: 'assets.register', input: { asset: mediaAsset } }];
+    let trackId: string;
+    if (input.target.kind === 'visual') {
+      const requestedTrackId = input.target.trackId;
+      const track = document.timeline.tracks.find((candidate) => candidate.id === requestedTrackId);
+      if (!track || track.type === 'audio' || track.id === document.semantics.primaryNarrativeTrackId) {
+        toast.error(t('workbench.failedFetchInsertClip'));
+        return '';
+      }
+      trackId = track.id;
+    } else {
+      trackId = uniqueDocumentId(`track_visual_${shotId()}`, new Set(document.timeline.tracks.map((track) => track.id)));
+      const trackCommand = {
+        type: 'track.insert' as const,
+        index: input.target.slot,
+        track: {
+          id: trackId,
+          type: 'visual' as const,
+          role: 'broll' as const,
+          name: 'Visual media',
+          stackOrder: input.target.stackOrder,
+          syncLocked: true,
+        },
+      };
+      // Preview so the clip id derives from the lane; both commands land as one transaction below.
+      const insertedTrack = applyEditorCommand(document, trackCommand);
+      if (!insertedTrack.ok) {
+        toast.error(editorErrorMessage(insertedTrack.error));
+        return '';
+      }
+      document = insertedTrack.document;
+      ops.push({ op: 'command', input: { command: trackCommand } });
+    }
+    const clipId = uniqueDocumentId(`clip_visual_${shotId()}`, new Set(document.timeline.tracks.flatMap((track) => track.clips.map((clip) => clip.id))));
+    const clipSec = input.fitSec && input.fitSec > 0 ? (input.asset.type === 'video' ? Math.min(input.durationSec, input.fitSec) : input.fitSec) : input.durationSec;
+    const durationFrames = positiveDurationFrames(clipSec, document.canvas.fps);
+    const clip: Omit<MediaTimelineClip, 'startFrame'> & { offsetFrames: number } = {
+      id: clipId,
+      kind: 'media',
+      assetId,
+      offsetFrames: 0,
+      durationFrames,
+      enabled: true,
+      sourceInSec: 0,
+      sourceOutSec: input.asset.type === 'video' ? clipSec : input.durationSec,
+      fit: 'cover',
+    };
+    ops.push({ op: 'command', input: { command: {
+      type: 'clips.insert',
+      trackId,
+      atFrame: secondsToTimelineFrames(Math.max(0, input.atSec), document.canvas.fps),
+      clips: [clip],
+      mode: input.mode,
+      includeLinked: true,
+    } } });
+    const inserted = commit(ops);
+    if (!inserted.ok) {
+      toast.error(editorErrorMessage(inserted.error));
+      return '';
+    }
+    clipFilesRef.current.set(input.url, input.file);
+    void saveLocalVideo(input.file, durableSig).catch(() => {});
+    rememberAssetUrl(assetId, input.url);
+    republishDocument();
+    setSelectedId(null);
+    setSelectedShotId(null);
+    applyT(Math.max(0, input.atSec) + Math.min(0.1, input.durationSec / 2));
+    toast.success(t('workbench.insertedBRoll'));
+    return clipId;
+  };
+
+  const insertLibraryVisualAt = async (
+    a: MediaRef & { label?: string; sig?: string | null; localAssetId?: string | null; dims?: { w: number; h: number } },
+    at: number,
+    target: TimelineVisualDropTarget,
+    mode: TimelineInsertMode,
+    fitSec?: number,
+  ) => {
+    const locatorSig = localImageSigFromLibraryAsset(a);
+    const asset = locatorSig ? { ...a, sig: locatorSig } : a;
+    let file: File | null = null;
+    const held = a.type === 'video' ? clipFilesRef.current.get(a.url) : undefined;
+    if (held) file = held;
+    const localEntry = a.localAssetId
+      ? localAssetIndexRef.current.find((entry) => entry.assetId === a.localAssetId)
+      : undefined;
+    if (!file && localEntry) file = await resolveAssetBytes(localEntry, { projectId });
+    if (!file && locatorSig) file = await loadLocalVideo(locatorSig);
+    const local = isDeviceLocalLibraryAsset(a);
+    if (!file && !local) {
+      try {
+        const materialized = await materializeRemoteMedia(a.url, {
+          name: a.label || (a.type === 'video' ? 'video.mp4' : 'image'),
+          type: a.type === 'video' ? 'video/mp4' : 'image/png',
+          sig: asset.sig,
+          pinned: false,
+        });
+        file = materialized.file;
+        if (!asset.sig) asset.sig = materialized.sig;
+      } catch {
+        /* Report the common failure below. */
+      }
+    }
+    if (!file) {
+      toast.error(t(local ? 'workbench.localAssetUnreachable' : 'workbench.couldNotFetchAsset'));
+      return;
+    }
+    if (asset.sig) file = alignFileToSig(file, asset.sig);
+    const url = createClipObjectUrl(file);
+    if (!url) return;
+    if (a.type === 'video') {
+      const meta = await videoMetaOf(url);
+      if (!meta) {
+        URL.revokeObjectURL(url);
+        toast.error(t('workbench.couldNotReadDuration'));
+        return;
+      }
+      const inserted = insertVisualCore({ asset, url, file, durationSec: Math.round(meta.dur * 100) / 100, dimensions: meta, atSec: at, target, mode, fitSec });
+      if (!inserted) URL.revokeObjectURL(url);
+      return;
+    }
+    const inserted = insertVisualCore({ asset, url, file, durationSec: STILL_CLIP_SEC, dimensions: a.dims ?? null, atSec: at, target, mode, fitSec });
+    if (!inserted) URL.revokeObjectURL(url);
+  };
+  /** Dragging a library image/video onto the main track = insert a clip (per user 2026-07-17, reversing "video-into-main-track
+   *  was cut" — what was cut back then was OS file drops; library assets have direct links and caching, so the experience holds).
+   *  Bytes first via the asset direct link (CDN CORS is allowed), falling back to the /api/media/fetch same-origin proxy; then
+   *  the same insertClipCore as local first-media insertion (local persistence/caption auto-follow reused). */
+  const insertLibraryClipAt = async (a: MediaRef & { label?: string; sig?: string | null; localAssetId?: string | null; dims?: { w: number; h: number } }, at: number, options: InsertLibraryClipOptions = {}) => {
+    const locatorSig = localImageSigFromLibraryAsset(a);
+    let effectiveSig = locatorSig ?? a.sig;
+    const localEntry = a.localAssetId
+      ? localAssetIndexRef.current.find((entry) => entry.assetId === a.localAssetId)
+      : undefined;
+    const target = options.target ?? { kind: 'primary' as const };
+    const mode = options.mode ?? 'ripple';
+    setClipPending(at);
+    try {
+      if (target.kind !== 'primary') {
+        await insertLibraryVisualAt(a, at, target, mode, options.fitSec);
+        return;
+      }
+      const coreOptions: InsertClipCoreOptions = options.target
+        ? { placement: 'exact', mode, ...(localEntry ? { localAsset: localEntry } : {}) }
+        : { ...(localEntry ? { localAsset: localEntry } : {}) };
+      // Source already loaded this session (panel card for an on-track clip): reuse the held File
+      // outright — no fetch, no byte copy, and it works even if OPFS/handle lanes are cold.
+      if (a.type === 'video') {
+        const held = clipFilesRef.current.get(a.url);
+        if (held) {
+          const url = createClipObjectUrl(held);
+          if (!url) return;
+          const meta = await videoMetaOf(url);
+          if (meta) {
+            insertClipCore(url, Math.round(meta.dur * 100) / 100, at, held, meta, a.sig, coreOptions);
+            return;
+          }
+          URL.revokeObjectURL(url);
+        }
+      }
+      // Same asset already on the track (matched by sig): SHARE its src — one object URL and one
+      // engine decoder per file, no matter how many times it's inserted; the panel's per-file card
+      // dedupe relies on this staying the common case.
+      if (a.type === 'video' && a.sig) {
+        const twin = (compRef.current.shots ?? []).find((s) => s.srcSig === a.sig && s.src && clipFilesRef.current.has(s.src));
+        if (twin) {
+          const dur = await videoDurationOf(twin.src!);
+          if (dur) {
+            insertClipCore(twin.src!, Math.round(dur * 100) / 100, at, clipFilesRef.current.get(twin.src!), null, a.sig, coreOptions);
+            return;
+          }
+        }
+      }
+      // Local asset with a sig: reuse the device cache (or the cloud copy by key) — original identity
+      // kept (srcSig === panel sig). Falls through to the byte-fetch lane on a miss.
+      if (a.type === 'video' && a.sig) {
+        const f = localEntry
+          ? await resolveAssetBytes(localEntry, { projectId })
+          : await loadLocalVideo(a.sig);
+        if (f) {
+          const url = createClipObjectUrl(f);
+          if (!url) return;
+          const meta = await videoMetaOf(url);
+          if (meta) {
+            insertClipCore(url, Math.round(meta.dur * 100) / 100, at, f, meta, a.sig, coreOptions);
+            return;
+          }
+          URL.revokeObjectURL(url);
+        }
+      }
+      let sourceFile: File | null = null;
+      if (localEntry) sourceFile = await resolveAssetBytes(localEntry, { projectId });
+      if (!sourceFile && locatorSig) sourceFile = await loadLocalVideo(locatorSig);
+      if (!sourceFile && !isDeviceLocalLibraryAsset(a)) {
+        try {
+          const materialized = await materializeRemoteMedia(a.url, {
+            name: a.label || (a.type === 'video' ? 'video.mp4' : 'image'),
+            type: a.type === 'video' ? 'video/mp4' : 'image/png',
+            sig: effectiveSig,
+            pinned: false,
+          });
+          sourceFile = materialized.file;
+          if (!effectiveSig) effectiveSig = materialized.sig;
+        } catch {
+          /* Report the common failure below. */
+        }
+      }
+      // Browser URLs and pireel-local-image locators are device-local — the server proxy can never
+      // fetch them. A miss here means every local byte lane failed: say so precisely.
+      const local = isDeviceLocalLibraryAsset(a);
+      if (!sourceFile) {
+        toast.error(t(local ? 'workbench.localAssetUnreachable' : 'workbench.couldNotFetchAsset'));
+        return;
+      }
+      if (a.type === 'video') {
+        // Fetch-lane insert must not mint a new identity: when the panel told us the sig and the
+        // bytes match, alignFileToSig rebuilds the File under that SAME name/mtime (otherwise the
+        // panel would show the same file twice — track card + import card — after refresh).
+        let f = sourceFile;
+        if (effectiveSig) f = alignFileToSig(f, effectiveSig);
+        const url = createClipObjectUrl(f);
+        if (!url) return;
+        const meta = await videoMetaOf(url);
+        if (!meta) {
+          URL.revokeObjectURL(url);
+          toast.error(t('workbench.couldNotReadDuration'));
+          return;
+        }
+        void saveLocalVideo(f, fileSig(f)).catch(() => {});
+        insertClipCore(url, Math.round(meta.dur * 100) / 100, at, f, meta, effectiveSig, coreOptions);
+      } else {
+        const f = await stillClipFromImage(sourceFile, a.label);
+        if (!f) {
+          toast.error(t('workbench.couldNotConvertImage'));
+          return;
+        }
+        const url = createClipObjectUrl(f);
+        if (!url) return;
+        if (effectiveSig) {
+          // One asset, one identity: the shot records the IMAGE's sig (panel dedupe holds — no
+          // phantom "5s video" card); the image bytes persist through the local handle/OPFS only,
+          // and recovery re-derives the still clip from them.
+          const img = alignFileToSig(sourceFile, effectiveSig);
+          void saveLocalVideo(img, effectiveSig).catch(() => {});
+          insertClipCore(url, STILL_CLIP_SEC, at, f, a.dims ? { w: a.dims.w, h: a.dims.h } : null, effectiveSig, coreOptions);
+        } else {
+          void saveLocalVideo(f, fileSig(f)).catch(() => {});
+          insertClipCore(url, STILL_CLIP_SEC, at, f, a.dims ? { w: a.dims.w, h: a.dims.h } : null, undefined, coreOptions);
+        }
+      }
+    } finally {
+      setClipPending(null);
+    }
+  };
+  return { videoDurationOf, insertClipCore, reconnectIndexedSource, insertLibraryClipAt, clipPending, clipStripsStore, demandFilmstrip, resetRuntime };
+}

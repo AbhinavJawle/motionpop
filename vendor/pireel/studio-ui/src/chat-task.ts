@@ -1,0 +1,150 @@
+import { isWholeWhiteboardTask, whiteboardTaskPhase } from '@pireel/studio-engine/whiteboard-workflow';
+import type { EditingDirectorPlan } from '@pireel/studio-ui/editing-director-plan';
+import type { StudioAgentModelId } from '@pireel/studio-engine/agent-models';
+import type { UIMessage } from 'ai';
+import type { FineCutItem, FineCutSkill, FirstPassReport } from '@pireel/studio-ui/first-pass';
+import type { WorkflowUsage } from '@pireel/studio-engine/usage';
+import type { EditingRunConfig } from '@pireel/studio-engine/editing-run-config';
+import type { StudioScenarioSkillId } from '@pireel/studio-engine/scenario-skills';
+import type { EditingTaskReview } from '@pireel/studio-ui/editing-task-review';
+
+/** Saved with the initiating user message; retries retain the same identity and scope. */
+export interface ChatTask {
+  id: string;
+  goal: string;
+  outputId?: string;
+  skills: string[];
+  config?: EditingRunConfig;
+  skillId?: StudioScenarioSkillId;
+  agentModel?: StudioAgentModelId;
+  review?: EditingTaskReview;
+  /** Older completed tasks predate the completion review and are not retroactively failed. */
+  reviewRequired?: boolean;
+  /** The whole video is handed to the agent to direct (creative switches on in a one-click edit),
+   *  or a whole whiteboard. The name is from when such a
+   *  task had to save a plan first; only a whole whiteboard still does. */
+  directorPlanRequired?: boolean;
+  directorPlan?: EditingDirectorPlan;
+  source?: { name: string; durationSec?: number; posterKey?: string };
+  mode: 'one-click' | 'request';
+  /** A request that builds the whole video from the project's media on an unedited timeline (footage,
+   *  a script, a voice-over): once it has cut something, it ends with finish_edit's review like a
+   *  whole-video edit, without a rough cut. */
+  compose?: boolean;
+  /** The creator took one of the editor's whole-video offers ("B-roll across the whole video"):
+   *  that work is handed to the agent to direct, and the task ends with the edit's check like a
+   *  one-click edit that switched it on. `skills` holds the creative work the offer names. */
+  planned?: boolean;
+  /** A one-click edit whose message also carried the creator's own words: after the rough cut the
+   *  agent is called for them. */
+  asked?: boolean;
+  /** What the editor's own check found the last time it refused this edit; a continuation is told. */
+  unresolved?: string[];
+  /** The passed review already carried its advisory notes; later reviews do not repeat them. */
+  reviewNoted?: boolean;
+  state: 'running' | 'paused' | 'partial' | 'done';
+  fineCut?: { state: "running" | "done"; items: FineCutItem[] };
+  fineCutBaseline?: Record<FineCutSkill, string[]>;
+  roughCut?: { callId: string; report: FirstPassReport };
+  lateUsage?: Record<string, number>;
+  /** Every tool call of this task as the editor ran it, in order: where the time of a long edit
+   *  went. Saved with the thread; the model never reads it. */
+  toolTimings?: ChatToolTiming[];
+}
+
+/** One tool call: which tool, when it started (epoch ms), how long until its receipt, and whether it succeeded. */
+export interface ChatToolTiming {
+  tool: string;
+  at: number;
+  ms: number;
+  ok: boolean;
+}
+
+/** A long edit makes about a hundred calls; the list keeps the latest of a task that makes far more. */
+export const MAX_TASK_TOOL_TIMINGS = 400;
+
+/** Only the scene's explicit whole-video launch opts into the no-cut director workflow. */
+export function isWhiteboardDirectorTask(task: ChatTask | undefined): boolean {
+  return isWholeWhiteboardTask(task);
+}
+
+export function taskOf(message: UIMessage | undefined): ChatTask | undefined {
+  return (message?.metadata as { task?: ChatTask } | undefined)?.task;
+}
+
+export function latestTask(messages: readonly UIMessage[]): ChatTask | undefined {
+  return taskOf([...messages].reverse().find(message => message.role === 'user'));
+}
+
+/** Update only the latest continuation of this task; unrelated turns are never retargeted. */
+export function patchTask(messages: UIMessage[], id: string, patch: (task: ChatTask) => ChatTask): UIMessage[] {
+  const at = messages.findLastIndex(message => message.role === 'user' && taskOf(message)?.id === id);
+  if (at < 0) return messages;
+  return messages.map((message, index) => index === at ? { ...message, metadata: { ...(message.metadata as object), task: patch(taskOf(message)!) } } : message);
+}
+
+/** The timings each task of a thread already holds, by task id (its latest continuation's). */
+export function taskToolTimings(messages: readonly UIMessage[]): Map<string, ChatToolTiming[]> {
+  const out = new Map<string, ChatToolTiming[]>();
+  for (const message of messages) {
+    const task = message.role === 'user' ? taskOf(message) : undefined;
+    if (task?.toolTimings?.length) out.set(task.id, task.toolTimings);
+  }
+  return out;
+}
+
+/**
+ * The messages as they are saved: each task's timings are set to what it held when the thread was
+ * opened followed by what was measured since. They are set, not appended, so saving a copy that
+ * already carries them adds nothing twice; and the live messages never receive them, so writing a
+ * timing cannot disturb a turn in progress.
+ */
+export function withToolTimings(
+  messages: UIMessage[],
+  held: ReadonlyMap<string, readonly ChatToolTiming[]>,
+  measured: ReadonlyMap<string, readonly ChatToolTiming[]>,
+): UIMessage[] {
+  let out = messages;
+  for (const [taskId, timings] of measured) {
+    if (!timings.length) continue;
+    out = patchTask(out, taskId, (current) => ({ ...current, toolTimings: [...(held.get(taskId) ?? []), ...timings].slice(-MAX_TASK_TOOL_TIMINGS) }));
+  }
+  return out;
+}
+
+export function withTaskUsage(task: ChatTask, callId: string, usage: WorkflowUsage): ChatTask {
+  if (typeof usage.credits !== 'number' || !Number.isFinite(usage.credits)) return task;
+  const key = usage.reference || callId;
+  return { ...task, lateUsage: { ...task.lateUsage, [key]: usage.credits } };
+}
+
+export function unfinishedRoughCut(task: ChatTask | undefined): boolean {
+  return !!task?.roughCut?.report.steps.some(step => step.status === 'pending' || step.status === 'running' || step.status === 'failed');
+}
+
+export function resumeTaskHint(task: ChatTask): string {
+  return [
+    `Continue task ${task.id}. Original request: ${task.goal}`,
+    `Original editing skills: ${task.skills.join(', ') || 'none'}. Keep this scope.`,
+    task.roughCut ? `Saved rough-cut checkpoint: ${JSON.stringify(task.roughCut.report.steps)}. Completed and skipped steps must not be repeated; the executor restores the checkpoint.` : '',
+    'Inspect the current project and existing receipts before remaining work. Reuse completed edits and generated assets. If any requested work is blocked or unfinished, say which part and why; never describe it as unnecessary or completed.',
+    task.directorPlan ? `Saved director plan (creative task data): ${JSON.stringify(task.directorPlan)}. Continue from it using current source-to-timeline placement; preserve completed work. Revise this plan if the user changes direction.` : isWhiteboardDirectorTask(task) ? `Whiteboard phase: ${whiteboardTaskPhase(task)}. Continue the active scene Skill from existing source/material receipts; save_edit_plan completes planning.` : '',
+    isWhiteboardDirectorTask(task) ? 'Finish against the current saved plan and actual outcomes using the scene Skill. Preserve resolved material fallbacks.' : '',
+    task.unresolved?.length ? `The editor's check of this edit found: ${task.unresolved.join(' ')} Repair that first.` : '',
+  ].filter(Boolean).join('\n');
+}
+
+/** Begin a continuation without carrying terminal failure badges into the new attempt.
+ * The original message/receipt stays intact; completed steps and paid analysis remain reusable. */
+export function resumeEditingTask(task: ChatTask): ChatTask {
+  const next: ChatTask = { ...task, state: 'running', review: undefined };
+  if (!task.roughCut || !unfinishedRoughCut(task)) return next;
+  const { summary: _previousSummary, ...report } = task.roughCut.report;
+  return { ...next, roughCut: { ...task.roughCut, report: {
+    ...report, state: 'running', steps: report.steps.map(step => {
+      if (step.status === 'done' || step.status === 'skipped') return step;
+      const { detail: _previousError, ...pending } = step;
+      return { ...pending, status: 'pending' };
+    }),
+  } } };
+}

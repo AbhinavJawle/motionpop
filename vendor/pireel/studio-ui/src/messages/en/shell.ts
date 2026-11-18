@@ -1,0 +1,16 @@
+export const SHELL_EN: Record<string, string> = {
+  'shell.createFirstProject': 'Create your first project',
+  'shell.deleteProject': 'Delete project',
+  'shell.deleteTitleProjectChat': 'Delete "{title}"? The project and its chat history will be permanently removed.',
+  'shell.myProjects': 'My projects',
+  'shell.nElements': '{n} elements',
+  'shell.newProject': 'New project',
+  'shell.nShots': '{n} shots',
+  'shell.oneProjectManyOutputs': 'One project can hold many sources and independently editable outputs.',
+  'shell.planningFailed': 'Planning failed',
+  'shell.rename': 'Rename',
+  'shell.syncFailed': 'Sync failed',
+  'shell.draftPromptFailed': 'Could not draft a prompt',
+  'shell.translationFailed': 'Translation failed',
+  'shell.startWithMedia': 'Add one clip or many, choose a workflow in Chat, and build one or several finished cuts',
+};

@@ -1,0 +1,15 @@
+/* Studio stylesheet (spec 17): Pireel's own theme, scanned from the vendored packages. */
+@import 'tailwindcss';
+@import '@pireel/ui/theme.css';
+@import '@pireel/studio-ui/studio.css';
+
+@source '../../../../vendor/pireel/ui/src';
+@source '../../../../vendor/pireel/studio-ui/src';
+/* Streamdown (chat messages) ships its own class names. */
+@source '../../../../vendor/pireel/ui/node_modules/streamdown/dist/*.js';
+
+:root {
+  --font-ui: var(--font-geist-sans);
+  --font-cjk: 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei';
+  --font-jetbrains: var(--font-geist-mono);
+}

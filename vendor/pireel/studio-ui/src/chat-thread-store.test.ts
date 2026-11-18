@@ -1,0 +1,430 @@
+import type { UIMessage } from 'ai';
+import { describe, expect, it } from 'vitest';
+import {
+  assistantHasOpenOrInterruptedInteraction,
+  assistantMessageHasRenderableOutput,
+  assistantMessageSuggestsContinuation,
+  assistantTurnEndedWithAnswer,
+  assistantWorkDurationMs,
+  assistantWorkFold,
+  createStudioTurnLedger,
+  compactStudioChatMessages,
+  compactStudioChatMessagesForModel,
+  effectiveStudioTurnMessages,
+  recordStudioTurnToolResult,
+  shouldBlockStudioTurnUndo,
+  isRecoverableStudioChatError,
+  sanitizeRestored,
+  stampLatestAssistantWorkDuration,
+} from '@pireel/studio-ui/chat-thread-store';
+import { analyzeVisualSourceLabel, toolStatus } from '@pireel/studio-ui/chat-tool-parts';
+
+const assistant = (parts: UIMessage['parts']): UIMessage => ({
+  id: 'assistant-1',
+  role: 'assistant',
+  parts,
+});
+
+describe('sanitizeRestored', () => {
+  it('hides internal handoff prose in old chats and subsequent model history without dropping receipts', () => {
+    const receipt = { type: 'tool-get_state' as const, toolCallId: 'state', state: 'output-available' as const, input: {}, output: { ok: true } };
+    const messages = [assistant([receipt, { type: 'text', text: '让我按时间顺序梳理这段对话。\n初始用户消息：读品牌、调用工具。' }])];
+    expect(sanitizeRestored(messages)[0].parts).toEqual([receipt]);
+    expect(compactStudioChatMessagesForModel(messages)[0].parts).toEqual([receipt]);
+  });
+  it('keeps raw tool diagnostics in the receipt but shows a readable error state', () => {
+    const part = { type: 'tool-read_brand', state: 'output-error', errorText: 'Unknown operation read_brand {"detail":"unknown_id"}' };
+    expect(toolStatus(part).text).not.toContain('read_brand');
+    expect(toolStatus(part).text).not.toContain('unknown_id');
+    expect(part.errorText).toContain('unknown_id');
+  });
+  it('removes leaked provider tool markup from persisted assistant text', () => {
+    const [message] = sanitizeRestored([assistant([
+      { type: 'text', text: '先处理。<｜｜DSML｜｜tool_calls><｜｜DSML｜｜invoke name="resize_block">x</｜｜DSML｜｜tool_calls>完成。' },
+    ])]);
+    expect((message!.parts[0] as { text: string }).text).toBe('先处理。完成。');
+  });
+});
+
+describe('compactStudioChatMessages', () => {
+  it('keeps every visible text fragment when later tool calls stream in', () => {
+    const [message] = compactStudioChatMessages([assistant([
+      { type: 'text', text: '让我先检查素材。' },
+      { type: 'step-start' },
+      { type: 'tool-list_assets', toolCallId: 'list-1', state: 'output-available', input: {}, output: {} },
+      { type: 'text', text: '我需要再分析画面和参数。' },
+      { type: 'tool-inspect_media', toolCallId: 'vision-1', state: 'output-available', input: {}, output: {} },
+      { type: 'reasoning', text: 'private chain' },
+      { type: 'text', text: '已按旅行画面完成剪辑。' },
+    ] as UIMessage['parts'])]);
+
+    expect(message!.parts.map((part) => (part as { type: string }).type)).toEqual([
+      'text',
+      'tool-list_assets',
+      'text',
+      'tool-inspect_media',
+      'text',
+    ]);
+    expect(message!.parts
+      .filter((part) => (part as { type: string }).type === 'text')
+      .map((part) => (part as { text: string }).text)).toEqual([
+      '让我先检查素材。',
+      '我需要再分析画面和参数。',
+      '已按旅行画面完成剪辑。',
+    ]);
+    expect((message!.parts.at(-1) as { text: string }).text).toBe('已按旅行画面完成剪辑。');
+  });
+
+  it('preserves a direct assistant answer when no tool was used', () => {
+    const [message] = compactStudioChatMessages([assistant([{ type: 'text', text: '直接回答。' }])]);
+    expect(message!.parts).toEqual([{ type: 'text', text: '直接回答。' }]);
+  });
+});
+
+describe('assistantWorkFold', () => {
+  const completedTurn = assistant([
+    { type: 'text', text: '我先检查素材。' },
+    { type: 'step-start' },
+    { type: 'tool-list_assets', toolCallId: 'list-1', state: 'output-available', input: {}, output: {} },
+    { type: 'reasoning', text: 'private chain' },
+    { type: 'text', text: '素材已经检查并完成剪辑。' },
+  ] as UIMessage['parts']);
+
+  it('folds only a completed work log that is followed by a final summary', () => {
+    expect(assistantWorkFold(completedTurn, true)).toEqual({
+      lastWorkPartIndex: 2,
+    });
+    expect(assistantWorkFold(completedTurn, false)).toBeNull();
+  });
+
+  it('keeps direct answers and unfinished tool turns unfolded', () => {
+    expect(assistantWorkFold(assistant([{ type: 'text', text: '直接回答。' }]), true)).toBeNull();
+    expect(assistantWorkFold(assistant([
+      { type: 'text', text: '正在处理。' },
+      { type: 'tool-list_assets', toolCallId: 'list-1', state: 'output-available', input: {}, output: {} },
+    ] as UIMessage['parts']), true)).toBeNull();
+    expect(assistantWorkFold(assistant([
+      { type: 'tool-inspect_media', toolCallId: 'visual-1', state: 'output-available', input: {}, output: {} },
+      { type: 'text', text: '画面已经选好。现在执行。' },
+    ] as UIMessage['parts']), true)).toBeNull();
+  });
+});
+
+describe('assistant work duration', () => {
+  const completedParts = [
+    { type: 'tool-list_assets', toolCallId: 'list-1', state: 'output-available', input: {}, output: {} },
+    { type: 'text', text: '完成。' },
+  ] as UIMessage['parts'];
+
+  it('derives elapsed time from the preceding user request and then persists it', () => {
+    const messages: UIMessage[] = [
+      { id: 'user-1', role: 'user', metadata: { workStartedAt: 10_000 }, parts: [{ type: 'text', text: '开始' }] },
+      assistant(completedParts),
+    ];
+    expect(assistantWorkDurationMs(messages, 1, 28_400)).toBe(18_400);
+    const stamped = stampLatestAssistantWorkDuration(messages, 28_400);
+    expect((stamped[1]!.metadata as { workDurationMs: number }).workDurationMs).toBe(18_400);
+    expect(assistantWorkDurationMs(stamped, 1, 99_000)).toBe(18_400);
+  });
+
+  it('excludes time spent waiting on an interaction card from persisted work time', () => {
+    const messages: UIMessage[] = [
+      { id: 'user-1', role: 'user', metadata: { workStartedAt: 10_000 }, parts: [{ type: 'text', text: '开始' }] },
+      assistant(completedParts),
+    ];
+    const stamped = stampLatestAssistantWorkDuration(messages, 40_000, 12_500);
+    expect(stamped[1]!.metadata).toMatchObject({ workDurationMs: 17_500, workWaitDurationMs: 12_500 });
+  });
+
+  it('does not stamp a direct answer or an unfinished tool turn', () => {
+    const direct = [assistant([{ type: 'text', text: '直接回答。' }])];
+    expect(stampLatestAssistantWorkDuration(direct, 20_000)).toBe(direct);
+  });
+});
+
+describe('compactStudioChatMessagesForModel', () => {
+  it('replays each tool round as its own step: sequential assistant/tool messages and a stable prefix', async () => {
+    const { convertToModelMessages } = await import('ai');
+    const round = (n: number, text: string) => ([
+      { type: 'text', text },
+      { type: 'tool-add_clips', toolCallId: `call_00_r${n}`, state: 'output-available', input: { n }, output: { ok: true } },
+    ]);
+    // Persisted shape: no step-start parts at all.
+    const persisted = assistant([...round(1, '第一步'), ...round(2, '第二步'), ...round(3, '第三步')] as UIMessage['parts']);
+    const model = await convertToModelMessages(compactStudioChatMessagesForModel([persisted]));
+    expect(model.map((m) => m.role)).toEqual(['assistant', 'tool', 'assistant', 'tool', 'assistant', 'tool']);
+    // Each earlier step's serialization is unchanged once later steps exist.
+    const twoRounds = assistant([...round(1, '第一步'), ...round(2, '第二步')] as UIMessage['parts']);
+    const shorter = await convertToModelMessages(compactStudioChatMessagesForModel([twoRounds]));
+    expect(shorter.map((m) => JSON.stringify(m))).toEqual(model.slice(0, 4).map((m) => JSON.stringify(m)));
+    // Live shape: the SDK's own step-start parts win, never doubled.
+    const live = assistant([{ type: 'step-start' }, ...round(1, 'a'), { type: 'step-start' }, ...round(2, 'b')] as UIMessage['parts']);
+    expect(compactStudioChatMessagesForModel([live])[0]!.parts.filter((part) => (part as { type: string }).type === 'step-start')).toHaveLength(2);
+    // Parallel calls inside one step (ids call_00 / call_01) stay in one step.
+    const parallel = assistant([
+      { type: 'text', text: 'both' },
+      { type: 'tool-get_state', toolCallId: 'call_00_p', state: 'output-available', input: {}, output: { ok: true } },
+      { type: 'tool-get_transcript', toolCallId: 'call_01_p', state: 'output-available', input: {}, output: { ok: true } },
+    ] as UIMessage['parts']);
+    expect((await convertToModelMessages(compactStudioChatMessagesForModel([parallel]))).map((m) => m.role)).toEqual(['assistant', 'tool']);
+  });
+
+  it('replays every timeline snapshot unchanged so the request prefix stays byte-stable', () => {
+    const oldTimeline = {
+      type: 'tool-get_state', toolCallId: 'timeline-old', state: 'output-available', input: {},
+      output: { ok: true, data: { durationSec: 0, tracks: [{ role: 'primaryNarrative', clips: [] }], dense: 'x'.repeat(20_000) } },
+    };
+    const currentTimeline = {
+      type: 'tool-get_state', toolCallId: 'timeline-current', state: 'output-available', input: {},
+      output: { ok: true, data: { durationSec: 12, tracks: [{ role: 'primaryNarrative', clips: [{ id: 'shot-1' }] }] } },
+    };
+    const message = assistant([oldTimeline, currentTimeline] as UIMessage['parts']);
+
+    const [forModel] = compactStudioChatMessagesForModel([message]);
+    expect((forModel!.parts[0] as { output: unknown }).output).toEqual(oldTimeline.output);
+    expect((forModel!.parts[1] as { output: unknown }).output).toEqual(currentTimeline.output);
+  });
+
+  it('keeps the complete visual receipt for display but replays only editorial verdict evidence', () => {
+    const subjectTracks = Array.from({ length: 100 }, (_, index) => ({ startSec: index, dense: 'x'.repeat(200) }));
+    const message = assistant([{
+      type: 'tool-inspect_media',
+      toolCallId: 'vision-1',
+      state: 'output-available',
+      input: { assetId: 'asset-1', mode: 'editorial' },
+      output: {
+        ok: true,
+        summary: 'done',
+        data: {
+          analysisMode: 'editorial-candidates',
+          assetId: 'asset-1',
+          subjectTracks,
+          qualityWindows: Array.from({ length: 20 }, (_, index) => ({ rank: index + 1 })),
+          editorialCandidates: [{ candidateId: 'candidate-1', verdict: 'strong' }],
+          unusedDensePayload: 'y'.repeat(50_000),
+        },
+      },
+    }] as UIMessage['parts']);
+
+    const [forModel] = compactStudioChatMessagesForModel([message]);
+    const modelOutput = (forModel!.parts[0] as { output: { data: Record<string, unknown> } }).output.data;
+    expect(modelOutput).not.toHaveProperty('subjectTracks');
+    expect(modelOutput).not.toHaveProperty('qualityWindows');
+    expect(modelOutput.editorialCandidates).toEqual([{ candidateId: 'candidate-1', verdict: 'strong' }]);
+    expect(modelOutput).not.toHaveProperty('unusedDensePayload');
+    expect(((message.parts[0] as { output: { data: Record<string, unknown> } }).output.data.subjectTracks as unknown[])).toHaveLength(100);
+  });
+
+  it('replays the assistant\'s own progress prose between receipts, capped', () => {
+    const plan = '方案：第 2 句配新闻画面，第 4 句配桃子特写。'.repeat(200);
+    const message = assistant([
+      { type: 'text', text: '先落主轨，再审片。' },
+      { type: 'tool-add_clips', toolCallId: 'add-1', state: 'output-available', input: {}, output: { ok: true } },
+      { type: 'text', text: plan },
+      { type: 'tool-add_clips', toolCallId: 'add-2', state: 'output-available', input: {}, output: { ok: true } },
+      { type: 'text', text: '最终总结。' },
+    ] as UIMessage['parts']);
+    const [forModel] = compactStudioChatMessagesForModel([message]);
+    const replayed = forModel!.parts.filter((part) => (part as { type: string }).type !== 'step-start');
+    expect(replayed).toHaveLength(5);
+    expect(replayed[0]).toEqual({ type: 'text', text: '先落主轨，再审片。' });
+    const replayedPlan = (replayed[2] as { text: string }).text;
+    expect(replayedPlan.length).toBeLessThan(plan.length);
+    expect(replayedPlan.startsWith(plan.slice(0, 2_000))).toBe(true);
+    expect(replayedPlan.endsWith('[…]')).toBe(true);
+    expect(replayed[4]).toEqual({ type: 'text', text: '最终总结。' });
+    expect((message.parts[2] as { text: string }).text).toBe(plan);
+  });
+
+  it('replays v3 get_state snapshots unchanged as well', () => {
+    const older = {
+      type: 'tool-get_state', toolCallId: 'state-old', state: 'output-available', input: {},
+      output: { ok: true, data: { tracks: [{ role: 'primaryNarrative', clips: [] }], dense: 'x'.repeat(20_000) } },
+    };
+    const newest = {
+      type: 'tool-get_state', toolCallId: 'state-new', state: 'output-available', input: {},
+      output: { ok: true, data: { tracks: [{ role: 'primaryNarrative', clips: [{ id: 'clip-1' }] }] } },
+    };
+    const [forModel] = compactStudioChatMessagesForModel([assistant([older, newest] as UIMessage['parts'])]);
+    expect((forModel!.parts[0] as { output: unknown }).output).toEqual(older.output);
+    expect((forModel!.parts[1] as { output: unknown }).output).toEqual(newest.output);
+  });
+
+  it('compacts every source receipt in one editorial batch without dropping verdicts', () => {
+    const message = assistant([{
+      type: 'tool-inspect_media',
+      toolCallId: 'vision-batch',
+      state: 'output-available',
+      input: { mode: 'editorial', items: [{ assetId: 'asset-a' }, { assetId: 'asset-b' }] },
+      output: {
+        ok: true,
+        data: {
+          analysisMode: 'editorial-batch',
+          acceptedDurationSec: 7.5,
+          items: [
+            { ok: true, analysisMode: 'editorial-candidates', localAssetId: 'asset-a', editorialCandidates: [{ verdict: 'strong' }], dense: 'x'.repeat(10_000) },
+            { ok: true, analysisMode: 'editorial-candidates', localAssetId: 'asset-b', editorialCandidates: [{ verdict: 'reject' }], dense: 'y'.repeat(10_000) },
+          ],
+        },
+      },
+    }] as UIMessage['parts']);
+    const [forModel] = compactStudioChatMessagesForModel([message]);
+    const data = (forModel!.parts[0] as { output: { data: { items: Array<Record<string, unknown>> } } }).output.data;
+    expect(data).toMatchObject({ acceptedDurationSec: 7.5 });
+    expect(data.items).toHaveLength(2);
+    expect(data.items[0]!.editorialCandidates).toEqual([{ verdict: 'strong' }]);
+    expect(data.items[0]).not.toHaveProperty('dense');
+  });
+});
+
+describe('synchronous studio turn ledger', () => {
+  it('blocks undo after a failed mutation until another mutation actually succeeds', () => {
+    const ledger = createStudioTurnLedger();
+    recordStudioTurnToolResult(ledger, {
+      toolId: 'add_clips', toolCallId: 'failed-add', input: {},
+      errorText: 'outside accepted range', canMutate: true,
+    });
+    expect(shouldBlockStudioTurnUndo(ledger)).toBe(true);
+
+    recordStudioTurnToolResult(ledger, {
+      toolId: 'get_state', toolCallId: 'read-only', input: {},
+      output: { ok: true, data: { durationSec: 0 } }, canMutate: false,
+    });
+    expect(shouldBlockStudioTurnUndo(ledger)).toBe(true);
+
+    recordStudioTurnToolResult(ledger, {
+      toolId: 'add_clips', toolCallId: 'successful-add', input: {},
+      output: { ok: true, data: { delta: { duration: [0, 3] } } }, canMutate: true,
+    });
+    expect(shouldBlockStudioTurnUndo(ledger)).toBe(false);
+  });
+
+});
+
+describe('analyze visual card context', () => {
+  it('surfaces the resolved source label without showing an implementation id', () => {
+    expect(analyzeVisualSourceLabel({
+      type: 'tool-inspect_media',
+      state: 'output-available',
+      input: { assetId: 'asset-internal-123' },
+      output: { ok: true, data: { label: '海边回眸.mov' } },
+    })).toBe('海边回眸.mov');
+  });
+});
+
+describe('assistantMessageHasRenderableOutput', () => {
+  it('treats a reasoning-only completion as an empty response', () => {
+    expect(assistantMessageHasRenderableOutput(assistant([
+      { type: 'step-start' },
+      { type: 'reasoning', text: 'internal planning' },
+    ]))).toBe(false);
+  });
+
+  it('accepts visible text or a tool receipt', () => {
+    expect(assistantMessageHasRenderableOutput(assistant([{ type: 'text', text: '完成' }]))).toBe(true);
+    expect(assistantMessageHasRenderableOutput(assistant([
+      { type: 'tool-seek', toolCallId: 'tool-1', state: 'output-available', input: {}, output: {} },
+    ] as UIMessage['parts']))).toBe(true);
+  });
+
+  it('recognizes an interaction boundary that must not be auto-retried', () => {
+    expect(assistantHasOpenOrInterruptedInteraction(assistant([
+      { type: 'tool-ask_user', toolCallId: 'ask-1', state: 'output-error', input: {}, errorText: 'interrupted' },
+    ] as UIMessage['parts']))).toBe(true);
+    expect(assistantHasOpenOrInterruptedInteraction(assistant([
+      { type: 'tool-request_approval', toolCallId: 'approval-1', state: 'input-available', input: {} },
+    ] as UIMessage['parts']))).toBe(true);
+    expect(assistantHasOpenOrInterruptedInteraction(assistant([
+      { type: 'tool-ask_user', toolCallId: 'ask-2', state: 'output-available', input: {}, output: { ok: true } },
+    ] as UIMessage['parts']))).toBe(false);
+  });
+});
+
+describe('assistantMessageSuggestsContinuation', () => {
+  it('detects a normal provider stop immediately before promised work', () => {
+    expect(assistantMessageSuggestsContinuation(assistant([
+      { type: 'text', text: '方案已经确认，我现在开始组片。' },
+    ]))).toBe(true);
+    expect(assistantMessageSuggestsContinuation(assistant([
+      { type: 'text', text: '还有一部分需要处理，请点击继续。' },
+    ]))).toBe(true);
+    expect(assistantMessageSuggestsContinuation(assistant([
+      { type: 'text', text: '本轮先注册配音，再放置画面。\n\n执行。' },
+    ]))).toBe(true);
+    expect(assistantMessageSuggestsContinuation(assistant([
+      { type: 'text', text: '让我用一条自然收尾的镜头补上这段，然后加字幕。' },
+    ]))).toBe(true);
+    expect(assistantMessageSuggestsContinuation(assistant([
+      { type: 'text', text: '正在检查时间线。' },
+      { type: 'tool-get_state', toolCallId: 'timeline-final', state: 'output-available', input: {}, output: { ok: true } },
+    ] as UIMessage['parts']))).toBe(true);
+  });
+
+  it('detects an output-limit truncation but still replays its text (capped, byte-stable)', () => {
+    const truncated = assistant([
+      { type: 'tool-get_state', toolCallId: 'timeline-1', state: 'output-available', input: {}, output: {} },
+      { type: 'text', text: `${'继续计算镜头顺序。'.repeat(900)}clip_local_c` },
+    ] as UIMessage['parts']);
+    expect(assistantMessageSuggestsContinuation(truncated)).toBe(true);
+    const replayed = compactStudioChatMessagesForModel([truncated])[0]!.parts.filter((part) => (part as { type: string }).type !== 'step-start');
+    expect(replayed[0]).toEqual(truncated.parts[0]);
+    expect((replayed[1] as { text: string }).text.endsWith('[…]')).toBe(true);
+  });
+
+  it('does not annotate a completed answer or duplicate an approval interaction', () => {
+    expect(assistantMessageSuggestsContinuation(assistant([
+      { type: 'text', text: '已经完成剪辑并复检，字幕与视频等长。' },
+    ]))).toBe(false);
+    // An answer that hands the decision back names work it might do — that is a question, not a
+    // pending step (this exact shape re-prompted the model into unrequested edits on device).
+    expect(assistantMessageSuggestsContinuation(assistant([
+      { type: 'tool-remove_clips', toolCallId: 'rm-1', state: 'output-available', input: {}, output: { ok: true } },
+      { type: 'text', text: '第二个分镜已经删掉了。不过有两处问题：开头多了一张对比卡片，要不要我删掉？53 秒处结尾是全黑的，我可以把最后一个镜头的出点收回。你让我删第二个分镜，很可能就是因为看到了这个黑尾——如果是的话，告诉我，我按修正结尾来处理，而不是再去动分镜。' },
+    ] as UIMessage['parts']))).toBe(false);
+    expect(assistantTurnEndedWithAnswer(assistant([
+      { type: 'tool-remove_clips', toolCallId: 'rm-1', state: 'output-available', input: {}, output: { ok: true } },
+      { type: 'text', text: '第二个分镜已经删掉了，要不要我顺手把开头的卡片也删掉？' },
+    ] as UIMessage['parts']))).toBe(true);
+    expect(assistantTurnEndedWithAnswer(assistant([
+      { type: 'text', text: '先看一眼时间线。' },
+      { type: 'tool-get_state', toolCallId: 'gs-1', state: 'input-available', input: {} },
+    ] as UIMessage['parts']))).toBe(false);
+    expect(assistantTurnEndedWithAnswer(assistant([
+      { type: 'text', text: '让我用一条自然收尾的镜头补上这段，然后加字幕。' },
+    ]))).toBe(false);
+    expect(assistantMessageSuggestsContinuation(assistant([
+      { type: 'text', text: '所有时间线操作均已执行。' },
+    ]))).toBe(false);
+    expect(assistantMessageSuggestsContinuation(assistant([
+      { type: 'text', text: '确认后我会继续。' },
+      { type: 'tool-request_approval', toolCallId: 'approval-1', state: 'input-available', input: {} },
+    ] as UIMessage['parts']))).toBe(false);
+  });
+});
+
+describe('isRecoverableStudioChatError', () => {
+  it('allows one safe continuation for transport and stream interruption errors', () => {
+    for (const message of ['studio_stream_interrupted', 'Failed to fetch', 'NetworkError', 'connection reset', 'stream terminated']) {
+      expect(isRecoverableStudioChatError(new Error(message)), message).toBe(true);
+    }
+  });
+
+  it('does not retry billing, auth, validation or unknown application errors', () => {
+    for (const message of ['insufficient_tokens', '401 Unauthorized', 'invalid_messages', 'request_too_large', 'tool execution failed']) {
+      expect(isRecoverableStudioChatError(new Error(message)), message).toBe(false);
+    }
+  });
+});
+
+it('counts a tool refused again after reading state in between, until that tool itself succeeds', () => {
+  const ledger = createStudioTurnLedger();
+  const refuse = (callId: string) => recordStudioTurnToolResult(ledger, { toolId: 'finish_edit', toolCallId: callId, input: { features: [callId] }, output: { ok: false, error: 'sound is absent' }, canMutate: false });
+  const read = (callId: string) => recordStudioTurnToolResult(ledger, { toolId: 'get_state', toolCallId: callId, input: {}, output: { ok: true }, canMutate: false });
+  expect(refuse('a').toolFailureCount).toBe(1);
+  read('r1');
+  expect(refuse('b').toolFailureCount).toBe(2);
+  read('r2');
+  expect(refuse('c').toolFailureCount).toBe(3);
+  recordStudioTurnToolResult(ledger, { toolId: 'finish_edit', toolCallId: 'ok', input: {}, output: { ok: true }, canMutate: false });
+  expect(refuse('d').toolFailureCount).toBe(1);
+});

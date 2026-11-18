@@ -1,0 +1,1738 @@
+/**
+ * Client-side export (local compositing, the default path; server render is only a fallback).
+ *
+ *  Video layer (track 0, multi-source) — each source (main video File / insert-clip File|URL)
+ *    gets one sequential MediaBunny sample stream; frames are drawn to canvas per edited time.
+ *    Legacy framing transforms are copied from the hidden iframe; source-normalized precise framing
+ *    uses the same sourceDrawRect geometry as preview before transitions are composited.
+ *  Overlay layer (track ≥1) — after seekTimelines(t) on the same iframe, #root is serialized
+ *    into an SVG foreignObject → <img> → drawImage; the rasterizer is Blink itself. Fonts and
+ *    in-block images must be inlined as data: (foreignObject rasterization forbids any external
+ *    load); the main-track <video> is hidden with !important CSS (TRIM_SHIM's applyMode rewrites
+ *    inline opacity on every seek, so inline can't hold it down).
+ *  Audio track — concatenated in edited-segment order: main segments take the main video's audio,
+ *    insert clips take their own (matching the preview), timestamps re-stamped onto the edited timeline.
+ *
+ *  Known not exported: ad-hoc video elements embedded inside graphic blocks (V2 visual-track media
+ *    is composited separately), the person-matte layer (canvas isn't serialized, degrades gracefully
+ *    outside preview). Ported from experiments/client-export-spike (gotchas and notes all from real testing).
+ */
+
+import { whiteboardProgramFontText } from '@pireel/studio-engine/whiteboard-program';
+import {
+  ALL_FORMATS,
+  AudioSample,
+  AudioSampleSink,
+  AudioSampleSource,
+  BlobSource,
+  CanvasSource,
+  Input,
+  MovOutputFormat,
+  Mp4OutputFormat,
+  Output,
+  QUALITY_HIGH,
+  QUALITY_MEDIUM,
+  WebMOutputFormat,
+} from 'mediabunny';
+import {
+  type AudioClip,
+  type Composition,
+  type CompositionVisualLayer,
+  type ShotFilter,
+  type ShotPreciseFraming,
+  type SupplementalVisualMediaClip,
+  type TransitionDirection,
+  type VideoShotTimelinePlacement,
+  assembleHtml,
+  transitionWindows,
+  transitionHandleTime,
+  isSourceSplit,
+  displayTextLocalFontFamily,
+  parseClipInset,
+  localImageLocator,
+  localImageLocatorSigs,
+  parseLocalImageLocator,
+  segmentFadeFn,
+  shotFilterCss,
+  shotGain,
+  shotsContiguous,
+  sourceDrawRect,
+  totalDuration,
+  validateComposition,
+  videoTrackShots,
+  videoShotTimelineSpans,
+} from '@pireel/studio-engine/composition';
+import { lookFontIds } from '@pireel/studio-engine/look';
+import { BACKDROP_DIM, backdropBlurPx, backdropSampleSize } from '@pireel/studio-engine/source-framing';
+import { decodeAudioFile } from './audio-decode';
+import { LoudnessMeter, loudnessGainDb } from '@pireel/studio-engine/loudness-lufs';
+import {
+  type MixTone, mixAudioTrack } from './export-audio-mix';
+import { type MaskedAudioRange, maskedAudioAt } from '@pireel/studio-engine/word-masks';
+import { supplementalVisualAudioMixSegments } from './visual-render-plan';
+import {
+  activeVisualMedia,
+  prepareVisualPersonMattes,
+  disposeVisualImageBitmaps,
+  drawSupplementalVisualMedia,
+  loadExportVideoFile,
+  loadVisualImageBitmaps,
+  type SampledVisualVideo,
+} from './export-visual-media';
+import { disposeSourceRig, openSource, sampleAt, type SourceRig } from './export-video-source';
+import { exportAudioPacketLimit, exportVideoPacketLimit, openExportFileSink, type ExportFileSink } from './export-file-sink';
+import { createGlMixer, glDirection } from '@pireel/studio-engine/transition-gl';
+import { injectPreviewRuntime } from './sample-composition';
+import { materializeRemoteMedia } from './remote-media';
+import { buildInlineFonts, documentGeneratesText, fontRequestsIn, fontRulesFor, fontWarmups, type InlineFontRule } from './export-fonts';
+import { webFontIdOf } from '@pireel/studio-engine/font-library';
+import { googleFontRowOf } from '@pireel/studio-engine/google-fonts';
+import { componentPropsFontIds } from '@pireel/studio-engine/component-props';
+import { t } from './i18n';
+import {
+  browserOverlayElements,
+  browserVisualLayerPlan,
+  personMatteCompositingActive,
+  serializeBrowserOverlayElements,
+} from './browser-visual-layer-plan';
+import { fingerprintReviewPixels, type ReviewFrameFingerprint } from './review-similarity';
+import { segmentSourceRate, segmentSourceTimeAt } from './video-segment-time';
+import { loadLocalVideo } from './local-media';
+
+/** Export options (chosen in the dialog): res=short-side pixels (width for portrait), fps, format=container/codec. */
+export interface ExportRenderOpts {
+  res: number;
+  fps: number;
+  format: 'mp4' | 'mov' | 'webm';
+  /** Open the video on the project's cover: where a video is posted, its first frame is what is
+   *  shown for it. Off unless the creator switches it on; without a cover it changes nothing. */
+  cover?: boolean;
+}
+
+/** How long an exported video shows its cover before the picture: long enough to be the frame a
+ *  platform takes for the video, short enough to pass as a cut. The sound is not moved. */
+export const EXPORT_COVER_SEC = 0.1;
+
+/** The cover over the whole frame: all of it visible, on black where its shape differs from the video's. */
+function paintCover(ctx: CanvasRenderingContext2D, cover: ImageBitmap, width: number, height: number): void {
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.filter = 'none';
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, width, height);
+  const scale = Math.min(width / cover.width, height / cover.height);
+  const w = cover.width * scale;
+  const h = cover.height * scale;
+  ctx.drawImage(cover, (width - w) / 2, (height - h) / 2, w, h);
+  ctx.restore();
+}
+export const DEFAULT_RENDER_OPTS: ExportRenderOpts = { res: 1080, fps: 30, format: 'mp4' };
+
+/** How far ahead in a recording the next clip may start and still be read by the same run: what lies
+ *  between is decoded and passed over, cheap for the pauses a rough cut removes, wasteful for a jump. */
+const RUN_MAX_GAP_SEC = 20;
+/** Rounding at a seam: a run's reader only goes forward, so a clip starting any earlier than where
+ *  the last one ended (it would get a later frame) opens a run of its own. */
+const RUN_OVERLAP_SEC = 1e-3;
+
+/**
+ * Which reader reads each story clip, in timeline order: clips cut from one recording that follow
+ * each other forward in it share a run, one reader decoding straight through, as the main source
+ * always was (what lies between two clips is decoded and passed over). A reader per clip held the
+ * recording's whole sample index once per clip: 413 clips of a 44-minute file filled the tab before
+ * the first exported minute. A clip that goes back in its recording, or skips more than
+ * RUN_MAX_GAP_SEC ahead, starts a new run. Answers clip key (clip_<id>) → run key (its first clip's).
+ */
+export function exportReaderRuns(clips: readonly { id: string; src: string; srcStart: number; srcEnd: number }[]): Map<string, string> {
+  const open = new Map<string, { key: string; srcEnd: number }>();
+  const runOf = new Map<string, string>();
+  for (const clip of clips) {
+    const run = open.get(clip.src);
+    const joins = !!run && clip.srcStart >= run.srcEnd - RUN_OVERLAP_SEC && clip.srcStart - run.srcEnd <= RUN_MAX_GAP_SEC;
+    const key = joins ? run!.key : `clip_${clip.id}`;
+    open.set(clip.src, { key, srcEnd: joins ? Math.max(run!.srcEnd, clip.srcEnd) : clip.srcEnd });
+    runOf.set(`clip_${clip.id}`, key);
+  }
+  return runOf;
+}
+
+function assertExportableComposition(comp: Composition): void {
+  const issues = validateComposition(comp);
+  if (issues.length) throw new Error(`Invalid composition: ${issues.slice(0, 3).map((issue) => `${issue.path} ${issue.message}`).join('; ')}`);
+}
+
+/** Every font id a composition renders with: display-text blocks AND the caption layer (main + translation line). */
+function compositionFontIds(comp: Composition): unknown[] {
+  return [
+    ...comp.blocks.map((block) => block.slots.fontFamily),
+    ...comp.blocks.flatMap((block) => componentPropsFontIds(block)),
+    comp.captionStyle?.font,
+    comp.captionStyle?.sub?.font,
+    ...lookFontIds(comp.look),
+  ];
+}
+
+function compositionLocalFontFamilies(comp: Composition): string[] {
+  return [...new Set(compositionFontIds(comp)
+    .map((value) => displayTextLocalFontFamily(value))
+    .filter((family): family is string => family !== null))];
+}
+
+function compositionWebFontIds(comp: Composition): string[] {
+  return [...new Set(compositionFontIds(comp)
+    .filter((value): value is string => typeof value === 'string' && (webFontIdOf(value) !== null || googleFontRowOf(value) !== null)))];
+}
+
+/* ============================ Sources and segments ============================ */
+
+interface ExpSeg {
+  srcStart: number;
+  srcEnd: number;
+  /** Source key: 'main' or an insert-clip key (clip_<shotId>), used only as the rigs/files Map key. */
+  key: string;
+  timelineStart: number;
+  timelineEnd: number;
+  /** Per-shot color grade (CSS filter string; 'none'/absent = no grade) — same shotFilterCss as the preview's #vidEl filter. */
+  filter?: string;
+  /** Linear audio gain 0..1 (shotGain of the shot; absent = 1). 0 = the segment contributes no audio samples at all. */
+  gain?: number;
+  /** Segment-local fade factor (segmentFadeFn: shot fades × seam micro-fades); absent = flat. */
+  fadeAt?: (tLocal: number) => number;
+  /** Source-normalized precision is drawn before the element-level framing matrix. */
+  framing?: ShotPreciseFraming;
+}
+
+/** Segment-local envelope that silences the masked source seconds of a segment (on top of its fades).
+ *  tLocal is timeline seconds from the segment start; the source time follows the segment's rate. */
+export function maskedSegmentEnvelope(
+  masks: readonly MaskedAudioRange[],
+  srcStart: number,
+  srcEnd: number,
+  timelineLen: number,
+  base?: (tLocal: number) => number,
+): (tLocal: number) => number {
+  const rate = (srcEnd - srcStart) / Math.max(1e-6, timelineLen);
+  return (tLocal) => (maskedAudioAt(masks, srcStart + tLocal * rate) ? 0 : (base ? base(tLocal) : 1));
+}
+
+/** Rewrite an audio sample's PCM through a gain ENVELOPE (interleaved f32 round-trip; format/rate/channels
+ *  preserved). gainAt takes the sample-relative offset in seconds, so a shot's fades ride inside one sample
+ *  buffer too. Only called when the segment isn't a plain gain-1 passthrough. */
+export function scaleAudioSample(sample: AudioSample, gainAt: (offsetSec: number) => number): AudioSample {
+  const data = new Float32Array(sample.numberOfFrames * sample.numberOfChannels);
+  sample.copyTo(data, { planeIndex: 0, format: 'f32' });
+  const ch = sample.numberOfChannels;
+  for (let f = 0; f < sample.numberOfFrames; f++) {
+    const g = gainAt(f / sample.sampleRate);
+    for (let c = 0; c < ch; c++) data[f * ch + c]! *= g;
+  }
+  return new AudioSample({
+    data,
+    format: 'f32',
+    numberOfChannels: sample.numberOfChannels,
+    sampleRate: sample.sampleRate,
+    timestamp: sample.timestamp,
+  });
+}
+
+/* ============================ Overlay layer ============================ */
+
+interface HfWin extends Window {
+  __hfPreview?: { seekTimelines(t: number): void };
+  __pireelWhiteboardFlush?: () => Promise<void>;
+}
+
+interface Overlay {
+  iframe: HTMLIFrameElement;
+  win: HfWin;
+  doc: Document;
+  root: HTMLElement;
+  headCss: string;
+  dispose(): void;
+}
+
+function overlayFontText(overlay: Overlay, comp: Composition): string {
+  return (overlay.root.textContent ?? '') + comp.blocks
+    .filter(block => block.templateId === 'whiteboard')
+    .map(block => whiteboardProgramFontText(block.slots.doc)).join('');
+}
+
+function createOverlay(html: string, w: number, h: number): Promise<Overlay> {
+  return new Promise((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    // Off-screen by its own width: a fixed -200vw left a canvas wider than two windows (a 4K
+    // project, or any project in a narrow window) showing as a white strip at the page's left edge.
+    iframe.style.cssText = `position:absolute;left:${-(w + 1000)}px;top:0;width:${w}px;height:${h}px;border:0;`;
+    iframe.srcdoc = html;
+    iframe.addEventListener('load', () => {
+      void (async () => {
+        try {
+          const win = iframe.contentWindow as HfWin;
+          const doc = iframe.contentDocument!;
+          // Main-track video is drawn by the canvas layer, kept out of DOM rasterization (#vidEl is the canvas; insert clips have no separate element)
+          const hide = doc.createElement('style');
+          hide.textContent = '#vidEl, .hf-native-visual { opacity: 0 !important; }';
+          doc.head.appendChild(hide);
+          await win.__pireelWhiteboardFlush?.();
+          await doc.fonts.ready;
+          const root = doc.getElementById('root');
+          if (!root || !win.__hfPreview) throw new Error(t('common.overlayDocumentMissingRoot'));
+          const headCss = [...doc.head.querySelectorAll('style')].map((s) => s.textContent ?? '').join('\n');
+          resolve({ iframe, win, doc, root, headCss, dispose: () => iframe.remove() });
+        } catch (e) {
+          iframe.remove();
+          reject(e instanceof Error ? e : new Error(String(e)));
+        }
+      })();
+    });
+    document.body.appendChild(iframe);
+  });
+}
+
+function applyPrimaryOverlayVisibility(overlay: Overlay, hidden: boolean | undefined): void {
+  if (!hidden) return;
+  for (const id of ['vidEl', 'personCut', 'personBg']) {
+    const element = overlay.doc.getElementById(id);
+    if (element) element.style.visibility = 'hidden';
+  }
+}
+
+function blobDataUri(blob: Blob): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('read failed'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Inline every in-block <img> as a data URI (foreignObject rasterization forbids external loads).
+ * Device-local images are read from OPFS; public remote images go through the guarded media proxy. */
+async function inlineImages(root: HTMLElement): Promise<void> {
+  for (const sig of localImageLocatorSigs(root.innerHTML)) {
+    const file = await loadLocalVideo(sig);
+    if (!file) throw new Error(`Local image is unavailable on this device: ${sig}`);
+    const marker = localImageLocator(sig);
+    const dataUri = await blobDataUri(file);
+    for (const img of root.querySelectorAll('img[src]')) {
+      if (img.getAttribute('src') === marker) img.setAttribute('src', dataUri);
+    }
+    for (const element of root.querySelectorAll<HTMLElement>('[style]')) {
+      const style = element.getAttribute('style') ?? '';
+      if (style.includes(marker)) element.setAttribute('style', style.replaceAll(marker, dataUri));
+    }
+    for (const style of root.querySelectorAll('style')) {
+      if (style.textContent?.includes(marker)) style.textContent = style.textContent.replaceAll(marker, dataUri);
+    }
+  }
+  const imgs = [...root.querySelectorAll('img')];
+  await Promise.all(
+    imgs.map(async (img) => {
+      const src = img.getAttribute('src') ?? '';
+      if (!src || src.startsWith('data:')) return;
+      if (parseLocalImageLocator(src)) throw new Error('Local image locator could not be resolved for export');
+      try {
+        const materialized = await materializeRemoteMedia(src, {
+          name: 'component-image',
+          type: 'image/png',
+        });
+        img.setAttribute('src', await blobDataUri(materialized.file));
+      } catch (error) {
+        throw new Error(
+          `Required image could not be loaded for export: ${src}${error instanceof Error ? ` (${error.message})` : ''}`,
+        );
+      }
+    }),
+  );
+}
+
+function svgOpen(lw: number, lh: number, dw: number, dh: number, css: string): string {
+  // SVG must be a data: URI (blob: taints the canvas, verified in the spike).
+  // Device size dw×dh (can be > layout size) + viewBox = layout coordinate system: the browser
+  // re-rasterizes vector content at the target resolution (crisp 4K text/graphics, rather than
+  // upscaling a 1080 bitmap). When dw==lw the viewBox is identity, rendering matches the old version.
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${dw}" height="${dh}" viewBox="0 0 ${lw} ${lh}">` +
+    `<foreignObject width="100%" height="100%">` +
+    `<div xmlns="http://www.w3.org/1999/xhtml" style="width:${lw}px;height:${lh}px;position:relative;overflow:hidden;">` +
+    `<style>${css}${STYLE_CLOSE}`
+  );
+}
+const STYLE_CLOSE = `</style>`;
+const SVG_CLOSE = `</div></foreignObject></svg>`;
+
+async function rasterize(uri: string): Promise<HTMLImageElement> {
+  const img = new Image();
+  img.src = uri;
+  await img.decode();
+  return img;
+}
+
+/** Draws the overlay's markup as images for one export or capture. */
+interface OverlayPainter {
+  /** The image of `markup`, the serialized form of `elements` as they stand right now. */
+  draw(markup: string, elements: readonly Element[]): Promise<HTMLImageElement>;
+  /** The warm-up images. Keeping them keeps every font rule decoded until the painter is let go. */
+  warm: HTMLImageElement[];
+}
+
+/**
+ * The painter of one overlay. An image's address holds its whole stylesheet, fonts included, and
+ * stays in memory as long as the image does; a long talk's fonts are over 10 MB while the markup of
+ * one change is a few KB. So an image carries only the font rules its own text asks for, read from
+ * the live elements' computed styles. The shell, the stylesheet and each rule are encoded once.
+ *
+ * Every face is decoded before the first real frame (see fontWarmups): two passes with a short
+ * pause, the first triggers the lazy font loads, the second confirms they are held.
+ */
+async function overlayPainter(
+  overlay: Overlay, comp: Composition, W: number, H: number, outW: number, outH: number,
+  fonts: {
+    exactSubset?: boolean;
+    /** Warm every face at once. Right for a single frame, whose faces are a few small chunks; an
+     *  export warms them one by one, because a long video's faces are megabytes each. */
+    warmTogether?: boolean;
+  } = {},
+): Promise<OverlayPainter> {
+  const text = overlayFontText(overlay, comp);
+  const rules = await buildInlineFonts(text, undefined, compositionLocalFontFamilies(comp), compositionWebFontIds(comp), { exactSubset: fonts.exactSubset });
+  const open = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgOpen(W, H, outW, outH, '').slice(0, -STYLE_CLOSE.length));
+  const sheet = encodeURIComponent(`\n${overlay.headCss}\n#root{background:transparent !important;}${STYLE_CLOSE}`);
+  const close = encodeURIComponent(SVG_CLOSE);
+  const encoded = new Map<InlineFontRule, string>();
+  const address = (picked: readonly InlineFontRule[], markup: string) => {
+    const fonts = picked.map((rule) => {
+      let piece = encoded.get(rule);
+      if (piece === undefined) encoded.set(rule, (piece = encodeURIComponent(rule.css)));
+      return piece;
+    });
+    return open + fonts.join('%0A') + sheet + encodeURIComponent(markup) + close;
+  };
+
+  const warm: HTMLImageElement[] = [];
+  const warmFace = async (face: { rules: InlineFontRule[]; markup: string }) => {
+    const uri = address(face.rules, face.markup);
+    try {
+      await rasterize(uri);
+      await new Promise((resolve) => setTimeout(resolve, 120));
+      warm.push(await rasterize(uri));
+    } catch {
+      // a warm-up that fails to decode must never block the export itself
+    }
+  };
+  if (fonts.warmTogether) await Promise.all(fontWarmups(rules, text).map(warmFace));
+  else for (const face of fontWarmups(rules, text)) await warmFace(face);
+
+  const styleOf = (element: Element, pseudo?: string) => overlay.win.getComputedStyle(element, pseudo);
+  let sheets = -1;
+  let generated = false;
+  return {
+    warm,
+    draw(markup, elements) {
+      if (overlay.doc.styleSheets.length !== sheets) {
+        sheets = overlay.doc.styleSheets.length;
+        generated = documentGeneratesText(overlay.doc);
+      }
+      return rasterize(address(fontRulesFor(rules, fontRequestsIn(elements, styleOf, generated)), markup));
+    },
+  };
+}
+
+/** Canonical ground for composition pixels not covered by video, graphics, or a theme surface. */
+export const EMPTY_VIDEO_GROUND = '#000000';
+
+function resetExportFrameGround(ctx: CanvasRenderingContext2D, width: number, height: number): void {
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = EMPTY_VIDEO_GROUND;
+  ctx.fillRect(0, 0, width, height);
+}
+
+/** Begin one encoded frame from a genuinely empty target.
+ *
+ * Media compositions intentionally rasterize a transparent document background. Drawing that
+ * transparent bitmap with source-over does not erase pixels from the previous encoded frame, so a
+ * native-media gap (or the transparent area around an HTML card) otherwise freezes old pixels.
+ */
+export function paintExportFrameBase(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  background: CanvasImageSource,
+  primaryVideo: CanvasImageSource,
+): void {
+  resetExportFrameGround(ctx, width, height);
+  ctx.drawImage(background, 0, 0);
+  ctx.drawImage(primaryVideo, 0, 0);
+}
+
+interface ExportMediaGeometry {
+  m: DOMMatrix;
+  radius: number;
+  inset: { t: number; r: number; b: number; l: number };
+  layout: { x: number; y: number; width: number; height: number };
+}
+
+type BackdropSource = { draw(context: OffscreenCanvasRenderingContext2D, x: number, y: number, width: number, height: number): void };
+const backdropSamples = new Map<string, OffscreenCanvas>();
+/** The blurred fill behind a source that does not cover its layer (Composition.backdrop 'blur'), drawn
+ *  in layer coordinates with the preview shim's sample size, blur and dim (source-framing). `scale` is
+ *  output pixels per layer unit: canvas filters blur in output pixels. */
+function paintBlurredBackdrop(
+  g: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  source: BackdropSource, sourceWidth: number, sourceHeight: number,
+  box: { x: number; y: number; width: number; height: number }, scale: number,
+): void {
+  const size = backdropSampleSize(box.width, box.height);
+  const key = `${size.width}x${size.height}`;
+  let sample = backdropSamples.get(key);
+  if (!sample) { sample = new OffscreenCanvas(size.width, size.height); backdropSamples.set(key, sample); }
+  const s = sample.getContext('2d')!;
+  const k = Math.max(size.width / Math.max(1, sourceWidth), size.height / Math.max(1, sourceHeight));
+  s.clearRect(0, 0, size.width, size.height);
+  source.draw(s, (size.width - sourceWidth * k) / 2, (size.height - sourceHeight * k) / 2, sourceWidth * k, sourceHeight * k);
+  const blur = backdropBlurPx(box.width);
+  g.save();
+  g.imageSmoothingEnabled = true;
+  g.imageSmoothingQuality = 'high';
+  g.filter = `blur(${Math.round(blur * scale)}px)`;
+  g.drawImage(sample, box.x - 2 * blur, box.y - 2 * blur, box.width + 4 * blur, box.height + 4 * blur);
+  g.filter = 'none';
+  g.fillStyle = `rgba(0,0,0,${BACKDROP_DIM})`;
+  g.fillRect(box.x, box.y, box.width, box.height);
+  g.restore();
+}
+
+function readTransform(win: Window, el: Element | null, fallbackWidth: number, fallbackHeight: number): ExportMediaGeometry {
+  if (!el) return {
+    m: new DOMMatrix(), radius: 0, inset: { t: 0, r: 0, b: 0, l: 0 },
+    layout: { x: 0, y: 0, width: fallbackWidth, height: fallbackHeight },
+  };
+  const cs = win.getComputedStyle(el);
+  const m = cs.transform && cs.transform !== 'none' ? new DOMMatrix(cs.transform) : new DOMMatrix();
+  const finite = (value: string, fallback: number) => {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+  // clip-path carries the crop for fill-the-half splits (transform is only the park position
+  // there) — reading transform alone painted the full frame shifted, cropping nothing.
+  return {
+    m,
+    radius: parseFloat(cs.borderTopLeftRadius) || 0,
+    inset: parseClipInset(cs.clipPath),
+    layout: {
+      x: finite(cs.left, 0),
+      y: finite(cs.top, 0),
+      width: Math.max(0.0001, finite(cs.width, fallbackWidth)),
+      height: Math.max(0.0001, finite(cs.height, fallbackHeight)),
+    },
+  };
+}
+
+/** The element-local rect that survives transform + clip — clip-path lives in the element's own
+ *  coordinate system, so this rect is built in the media layer's layout box and clipped AFTER the matrix applies,
+ *  matching CSS order. Shared by the export loop and the still-frame capture. */
+function framedClipPath(vs: Pick<ExportMediaGeometry, 'radius' | 'inset' | 'layout'>): Path2D {
+  const path = new Path2D();
+  const { x, y, width, height } = vs.layout;
+  path.roundRect(
+    x + width * vs.inset.l,
+    y + height * vs.inset.t,
+    width * (1 - vs.inset.l - vs.inset.r),
+    height * (1 - vs.inset.t - vs.inset.b),
+    vs.radius,
+  );
+  return path;
+}
+
+/* ============================ Main export flow ============================ */
+
+export interface ClientExportOpts {
+  comp: Composition;
+  videoPlacements?: readonly VideoShotTimelinePlacement[];
+  primaryVisualHidden?: boolean;
+  primaryAudioMuted?: boolean;
+  visualMediaClips?: readonly SupplementalVisualMediaClip[];
+  timelineDurationSec?: number;
+  /** Main-source bytes. Null is valid for graphics/audio-only and clips-only documents. */
+  videoFile: File | null;
+  /** Local insert-clip Files (key = blob URL, same source as workbench clipFilesRef). */
+  clipFiles: Map<string, File>;
+  /** Audio-track clips + their bytes. Absent/empty = the untouched narration-only audio path. */
+  audio?: { clip: AudioClip; file: File }[] | null;
+  /** Denoise substitution: source key → baked blended audio file. That source's audio track is read
+   *  from this file instead of the source video (video decode untouched) — preview's dub, verbatim. */
+  denoise?: Map<string, File> | null;
+  /** Word masks: source key ('main' / clip_<shotId>) → source-seconds spans whose sound is replaced.
+   *  Both kinds silence the source; 'beep' additionally lays a tone on the timeline. */
+  audioMasks?: Map<string, readonly MaskedAudioRange[]> | null;
+  /** Word masks keyed by timeline clip id, for visual-lane videos and audio-lane clips (see clipAudioMasks). */
+  clipMasks?: Map<string, readonly MaskedAudioRange[]> | null;
+  /** The cover's image, when the export is to open on it (see ExportRenderOpts.cover). */
+  cover?: Blob | null;
+  /** Resolution/fps/format (default 1080p·30·MP4). */
+  render?: ExportRenderOpts;
+  /** The file the user picked in the save dialog: the export is written there as it encodes.
+   *  Absent, it goes to a private file (or memory, where the browser has no file storage). */
+  saveTo?: FileSystemFileHandle | null;
+  onProgress?: (done: number, total: number) => void;
+  /** What the export is doing before and while frames are written, and how far that part is (0..1).
+   *  The sound of the whole video is written before its first frame, so a long video spends a while
+   *  here with no frame to count. */
+  onStage?: (stage: ExportStage, fraction: number) => void;
+  shouldCancel?: () => boolean;
+}
+
+/** The parts of an export, in order: reading what it needs, the sound, then the picture frame by frame. */
+export type ExportStage = 'preparing' | 'sound' | 'picture';
+
+export class ExportCanceled extends Error {
+  constructor() {
+    super('export canceled');
+  }
+}
+
+/** Single-frame capture (used by the external agent's inspect_timeline verification tool): one frame
+ *  from the same render pipeline as export — theme background + source video frame (with framing
+ *  transform/rounded corners/shadow) + overlay foreignObject rasterization.
+ *  Returns a downsampled JPEG dataURL (small enough for LLM context); with no video, draws only background + overlay. */
+export interface CapturedCompositionFrame {
+  dataUrl: string;
+  width: number;
+  height: number;
+  /** Local-only fingerprint of the composed frame before the harness timecode is burned in. */
+  localSimilarityFingerprint?: ReviewFrameFingerprint;
+}
+
+/** Blocks this close to a captured moment are kept with it. A block draws nothing outside its own
+ *  span; the margin only spares a frame on a block's first or last instant from rounding. */
+const CAPTURE_BLOCK_MARGIN_SEC = 1;
+
+/**
+ * The composition as one frame needs it: only the blocks on screen at `atSec`. A capture builds a
+ * document for a single frame, and the whole overlay of a long talk (1,470 captions and every font
+ * face their text asks for) cost about three seconds of building and font warm-up per frame that
+ * showed two of those blocks.
+ */
+export function compositionAtMoment(comp: Composition, atSec: number): Composition {
+  return compositionAtMoments(comp, [atSec]);
+}
+
+/** The same for several moments: the blocks on screen at any of them, in their order. */
+export function compositionAtMoments(comp: Composition, atSecs: readonly number[]): Composition {
+  const blocks = comp.blocks.filter((block) => atSecs.some((atSec) => atSec >= block.startSec - CAPTURE_BLOCK_MARGIN_SEC && atSec < block.startSec + block.durationSec + CAPTURE_BLOCK_MARGIN_SEC));
+  return blocks.length === comp.blocks.length ? comp : { ...comp, blocks };
+}
+
+export async function captureCompositionFrame(opts: {
+  comp: Composition;
+  videoPlacements?: readonly VideoShotTimelinePlacement[];
+  primaryVisualHidden?: boolean;
+  visualMediaClips?: readonly SupplementalVisualMediaClip[];
+  timelineDurationSec?: number;
+  videoFile: File | null;
+  clipFiles: Map<string, File>;
+  atSec: number;
+  /** Output long-side pixels (default 960). */
+  maxDim?: number;
+  /** Burn a small dark chip with this text into the top-left corner — captured frames self-identify
+   *  (the agent may hold several) and the label survives any downstream re-encoding. */
+  burnLabel?: string;
+  /** Compute a local visual fingerprint for paid-review deduplication. */
+  localSimilarityFingerprint?: boolean;
+}): Promise<CapturedCompositionFrame> {
+  const { comp } = opts;
+  assertExportableComposition(comp);
+  const W = comp.width;
+  const H = comp.height;
+  const k = Math.min(1, (opts.maxDim ?? 960) / Math.max(W, H));
+  const even = (x: number) => Math.max(2, Math.round(x / 2) * 2);
+  const outW = even(W * k);
+  const outH = even(H * k);
+  const t = Math.max(0, Math.min(opts.timelineDurationSec ?? totalDuration(comp), opts.atSec));
+  // The overlay document and its fonts are built from what this frame shows; the footage below
+  // still reads the whole composition.
+  const shown = compositionAtMoment(comp, t);
+
+  // Find which edited segment t falls in (same logic as export's segAt), open only that one source
+  let rig: SourceRig | null = null;
+  let srcT = 0;
+  let sourceFraming: ShotPreciseFraming | undefined;
+  const shots = videoTrackShots(comp);
+  let file: File | null = null;
+  for (const sp of videoShotTimelineSpans(shots, opts.videoPlacements)) {
+    if (t >= sp.editedStart - 1e-6 && t < sp.editedEnd - 1e-6) {
+      const s = sp.clip as (typeof shots)[number] & { src?: string };
+      srcT = segmentSourceTimeAt(s, t, sp.editedStart, sp.editedEnd);
+      file = s.src ? (opts.clipFiles.get(s.src) ?? null) : opts.videoFile;
+      sourceFraming = s.preciseFraming?.coordinateSpace === 'source-normalized' ? s.preciseFraming : undefined;
+      break;
+    }
+  }
+  if (file) {
+    try {
+      rig = await openSource(file, Math.max(0, srcT - 0.1), srcT);
+    } catch {
+      rig = null; // Source won't open: degrade to no video frame (overlay still visible)
+    }
+  }
+  const activeVisuals = activeVisualMedia(opts.visualMediaClips ?? [], t);
+  const visualRigs = new Map<string, { rig: SourceRig; srcT: number }>();
+  const visualImages = await loadVisualImageBitmaps(activeVisuals);
+  const visualFiles = new Map<string, Promise<File>>();
+  for (const visual of activeVisuals) {
+    if (visual.kind !== 'video') continue;
+    try {
+      let visualFile = visualFiles.get(visual.source);
+      if (!visualFile) {
+        visualFile = loadExportVideoFile(visual.source, opts.clipFiles);
+        visualFiles.set(visual.source, visualFile);
+      }
+      const srcT = segmentSourceTimeAt(
+        { srcStart: visual.sourceInSec, srcEnd: visual.sourceOutSec },
+        t,
+        visual.startSec,
+        visual.endSec,
+      );
+      visualRigs.set(visual.clipId, {
+        rig: await openSource(await visualFile, Math.max(visual.sourceInSec, srcT - 0.1), srcT),
+        srcT,
+      });
+    } catch {
+      // One unavailable supplemental source must not hide the rest of the composed frame.
+    }
+  }
+
+  const disposeCaptureSources = () => {
+    if (rig) disposeSourceRig(rig);
+    for (const layer of visualRigs.values()) disposeSourceRig(layer.rig);
+    disposeVisualImageBitmaps(visualImages);
+  };
+  let overlay: Overlay;
+  try {
+    overlay = await createOverlay(injectPreviewRuntime(assembleHtml(shown, undefined, opts.videoPlacements, opts.visualMediaClips)), W, H);
+    applyPrimaryOverlayVisibility(overlay, opts.primaryVisualHidden);
+  } catch (error) {
+    disposeCaptureSources();
+    throw error;
+  }
+  try {
+    await inlineImages(overlay.root);
+    // One frame's text is a handful of characters, different for every frame: the standing chunk
+    // files (what the editor draws the same text with, and already fetched) serve them all.
+    const painter = await overlayPainter(overlay, shown, W, H, outW, outH, { exactSubset: false, warmTogether: true });
+    overlay.win.__hfPreview!.seekTimelines(t);
+    await overlay.win.__pireelWhiteboardFlush?.();
+    const el = overlay.doc.getElementById('vidEl');
+    const vs = readTransform(overlay.win, el, W, H);
+    const bg = await rasterize(
+      'data:image/svg+xml;charset=utf-8,' +
+        encodeURIComponent(svgOpen(W, H, outW, outH, overlay.headCss) + `<div xmlns="http://www.w3.org/1999/xhtml" id="root"></div>` + SVG_CLOSE),
+    );
+    const visualLayers = browserVisualLayerPlan(shown, activeVisuals, opts.videoPlacements);
+    const fullOverlayPass = personMatteCompositingActive(comp, opts.videoPlacements);
+    const overlayImages = await Promise.all(visualLayers.flatMap((layer) => {
+      if (layer.kind !== 'html') return [];
+      const blocks = fullOverlayPass ? undefined : layer.blocks;
+      return [painter.draw(
+        serializeBrowserOverlayElements(overlay.root, overlay.doc, blocks),
+        browserOverlayElements(overlay.root, overlay.doc, blocks),
+      )];
+    }));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d')!;
+    resetExportFrameGround(ctx, outW, outH);
+    ctx.drawImage(bg, 0, 0);
+    const sample = rig && !opts.primaryVisualHidden ? await sampleAt(rig, srcT) : null;
+    if (sample && rig && !opts.primaryVisualHidden) {
+      const Sx = outW / W;
+      const Sy = outH / H;
+      ctx.setTransform(Sx, 0, 0, Sy, 0, 0);
+      ctx.save();
+      const centerX = vs.layout.x + vs.layout.width / 2;
+      const centerY = vs.layout.y + vs.layout.height / 2;
+      ctx.translate(centerX, centerY);
+      ctx.transform(vs.m.a, vs.m.b, vs.m.c, vs.m.d, vs.m.e, vs.m.f);
+      ctx.translate(-centerX, -centerY);
+      ctx.clip(framedClipPath(vs));
+      if (comp.backdrop === 'blur') paintBlurredBackdrop(ctx, sample, rig.sw, rig.sh, vs.layout, Sx);
+      const rect = sourceDrawRect(rig.sw, rig.sh, vs.layout.width, vs.layout.height, sourceFraming);
+      sample.draw(ctx, vs.layout.x + rect.x, vs.layout.y + rect.y, rect.width, rect.height);
+      ctx.restore();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    const visualSamples = new Map<string, SampledVisualVideo>();
+    for (const [clipId, video] of visualRigs) {
+      const sample = await sampleAt(video.rig, video.srcT);
+      if (sample) visualSamples.set(clipId, { sourceWidth: video.rig.sw, sourceHeight: video.rig.sh, sample });
+    }
+    const releaseMattes = await prepareVisualPersonMattes(activeVisuals, visualSamples, t);
+    try {
+      let htmlLayerIndex = 0;
+      for (const layer of visualLayers) {
+        if (layer.kind === 'media') {
+          drawSupplementalVisualMedia({
+            ctx,
+            visuals: layer.visuals,
+            timelineTime: t,
+            imageBitmaps: visualImages,
+            videoSamples: visualSamples,
+            targetWidth: W,
+            targetHeight: H,
+            scaleX: outW / W,
+            scaleY: outH / H,
+          });
+        } else {
+          ctx.drawImage(overlayImages[htmlLayerIndex++]!, 0, 0);
+        }
+      }
+    } finally { releaseMattes(); }
+    let localSimilarityFingerprint: ReviewFrameFingerprint | undefined;
+    if (opts.localSimilarityFingerprint) {
+      try {
+        const pixels = ctx.getImageData(0, 0, outW, outH);
+        localSimilarityFingerprint = fingerprintReviewPixels(pixels.data, outW, outH) ?? undefined;
+      } catch {
+        // A tainted/unsupported canvas must never turn into a false local match: no fingerprint means
+        // this frame remains distinct and is conservatively sent to the cloud reviewer.
+      }
+    }
+    if (opts.burnLabel) {
+      const fs = Math.max(14, Math.round(Math.max(outW, outH) * 0.028));
+      const pad = Math.round(fs * 0.45);
+      ctx.font = `600 ${fs}px ui-monospace, SFMono-Regular, Menlo, monospace`;
+      const bw = ctx.measureText(opts.burnLabel).width + pad * 2;
+      const bh = fs + pad * 1.2;
+      ctx.fillStyle = 'rgba(0,0,0,0.72)';
+      ctx.beginPath();
+      ctx.roundRect(pad, pad, bw, bh, Math.round(fs * 0.25));
+      ctx.fill();
+      ctx.fillStyle = '#fff';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(opts.burnLabel, pad * 2, pad + bh / 2 + 0.5);
+    }
+    return {
+      dataUrl: canvas.toDataURL('image/jpeg', 0.8),
+      width: outW,
+      height: outH,
+      ...(localSimilarityFingerprint ? { localSimilarityFingerprint } : {}),
+    };
+  } finally {
+    disposeCaptureSources();
+    overlay.dispose();
+  }
+}
+
+/** Audio goes through the 48 kHz timeline mixer (instead of per-sample passthrough) when anything must
+ *  be summed or rewritten; a whole-mix loudness setting needs its master stage even for plain 1× narration. */
+/** What a placed block draws at one moment, measured on the export render (canvas px). */
+export interface MeasuredOverlayBlock {
+  /** Text, solid fills and images: what must stay readable and clear of the speaker. */
+  ink: { x: number; y: number; w: number; h: number } | null;
+  /** Everything painted, translucent fills and gradients included. */
+  paint: { x: number; y: number; w: number; h: number } | null;
+  /** Smallest and largest rendered text (after every scale), canvas px. */
+  minFontPx: number | null;
+  maxFontPx: number | null;
+}
+
+type MeasuredRect = NonNullable<MeasuredOverlayBlock['ink']>;
+
+function colorAlpha(color: string): number {
+  const value = color.trim();
+  if (!value || value === 'transparent') return 0;
+  const slash = /\/\s*([\d.]+%?)\s*\)$/.exec(value);
+  if (slash) return slash[1]!.endsWith('%') ? parseFloat(slash[1]!) / 100 : parseFloat(slash[1]!);
+  const rgba = /^rgba\(([^)]+)\)$/.exec(value);
+  if (rgba) {
+    const parts = rgba[1]!.split(/[\s,]+/).filter(Boolean);
+    return parts.length >= 4 ? parseFloat(parts[3]!) : 1;
+  }
+  return 1;
+}
+
+function measureBlockElement(win: Window & typeof globalThis, root: HTMLElement, container: HTMLElement): MeasuredOverlayBlock {
+  const origin = root.getBoundingClientRect();
+  let ink: MeasuredRect | null = null;
+  let paint: MeasuredRect | null = null;
+  let minFontPx = Infinity;
+  let maxFontPx = 0;
+  const grow = (current: MeasuredRect | null, r: DOMRect): MeasuredRect => {
+    const rect = { x: r.left - origin.left, y: r.top - origin.top, w: r.width, h: r.height };
+    if (!current) return rect;
+    const x = Math.min(current.x, rect.x);
+    const y = Math.min(current.y, rect.y);
+    return { x, y, w: Math.max(current.x + current.w, rect.x + rect.w) - x, h: Math.max(current.y + current.h, rect.y + rect.h) - y };
+  };
+  const opacity = new Map<Element, number>();
+  const opacityOf = (el: Element): number => {
+    const known = opacity.get(el);
+    if (known !== undefined) return known;
+    const cs = win.getComputedStyle(el);
+    const own = cs.visibility === 'hidden' || cs.display === 'none' ? 0 : parseFloat(cs.opacity || '1');
+    const value = (Number.isFinite(own) ? own : 1) * (el === container || !el.parentElement ? 1 : opacityOf(el.parentElement));
+    opacity.set(el, value);
+    return value;
+  };
+  const elements = container.querySelectorAll('*');
+  for (const el of elements) {
+    if (el instanceof win.SVGElement && !(el instanceof win.SVGSVGElement)) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 0.5 || r.height < 0.5) continue;
+    const alpha = opacityOf(el);
+    if (alpha < 0.1) continue;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'img' || tag === 'svg') { ink = grow(ink, r); paint = grow(paint, r); continue; }
+    const cs = win.getComputedStyle(el);
+    const fill = colorAlpha(cs.backgroundColor) * alpha;
+    const border = ['Top', 'Right', 'Bottom', 'Left'].some((side) => parseFloat(cs.getPropertyValue(`border-${side.toLowerCase()}-width`)) > 0
+      && colorAlpha(cs.getPropertyValue(`border-${side.toLowerCase()}-color`)) * alpha > 0.3);
+    if (fill >= 0.35) ink = grow(ink, r);
+    if (fill > 0.05 || border || (cs.backgroundImage && cs.backgroundImage !== 'none')) paint = grow(paint, r);
+  }
+  const walker = container.ownerDocument.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const range = container.ownerDocument.createRange();
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.nodeValue?.trim()) continue;
+    const parent = node.parentElement;
+    if (!parent || parent.tagName === 'STYLE' || parent.tagName === 'SCRIPT') continue;
+    const alpha = opacityOf(parent);
+    if (alpha < 0.1) continue;
+    range.selectNodeContents(node);
+    for (const r of range.getClientRects()) {
+      if (r.width < 0.5 || r.height < 0.5) continue;
+      paint = grow(paint, r);
+      if (alpha >= 0.3) ink = grow(ink, r);
+    }
+    if (alpha < 0.3) continue;
+    const size = parseFloat(win.getComputedStyle(parent).fontSize);
+    const html = parent as HTMLElement;
+    const shown = parent.getBoundingClientRect().height;
+    const scale = typeof html.offsetHeight === 'number' && html.offsetHeight > 0 && shown > 0 ? shown / html.offsetHeight : 1;
+    if (size > 0) { minFontPx = Math.min(minFontPx, size * scale); maxFontPx = Math.max(maxFontPx, size * scale); }
+  }
+  return { ink, paint, minFontPx: Number.isFinite(minFontPx) ? Math.round(minFontPx * 10) / 10 : null, maxFontPx: maxFontPx > 0 ? Math.round(maxFontPx * 10) / 10 : null };
+}
+
+/** Measure placed blocks on the same render as export: each at its own moment, after fonts load. */
+export async function measureOverlayBlocks(opts: {
+  comp: Composition;
+  videoPlacements?: readonly VideoShotTimelinePlacement[];
+  visualMediaClips?: readonly SupplementalVisualMediaClip[];
+  probes: readonly { blockId: string; atSec: number }[];
+}): Promise<Record<string, MeasuredOverlayBlock>> {
+  const out: Record<string, MeasuredOverlayBlock> = {};
+  if (!opts.probes.length) return out;
+  assertExportableComposition(opts.comp);
+  // Built from the blocks on screen at the moments probed. Fitting three titles of a long talk
+  // built its whole overlay (1,470 captions) two or three times over: seconds for each call.
+  const shown = compositionAtMoments(opts.comp, opts.probes.map((probe) => probe.atSec));
+  const overlay = await createOverlay(injectPreviewRuntime(assembleHtml(shown, undefined, opts.videoPlacements, opts.visualMediaClips)), opts.comp.width, opts.comp.height);
+  try {
+    // A block is measured in the faces it is drawn with. A face starts loading when text in it is
+    // laid out, not when its block is shown: seeking past every block and then waiting once waited
+    // for nothing (no layout had run), and a block was measured in the fallback face or the real
+    // one by chance, so the same edit fitted a graphic differently from one run to the next. Each
+    // block is laid out at its moment and its faces are waited for, until none is still on its way.
+    for (const probe of opts.probes) {
+      overlay.win.__hfPreview!.seekTimelines(probe.atSec);
+      const container = overlay.doc.getElementById(probe.blockId);
+      if (!container) continue;
+      for (let pass = 0; pass < 4; pass += 1) {
+        container.getBoundingClientRect();
+        await overlay.doc.fonts.ready;
+        container.getBoundingClientRect();
+        if (overlay.doc.fonts.status === 'loaded') break;
+      }
+      out[probe.blockId] = measureBlockElement(overlay.win as unknown as Window & typeof globalThis, overlay.root, (container.querySelector('[data-hf-content]') as HTMLElement | null) ?? container);
+    }
+  } finally {
+    overlay.dispose();
+  }
+  return out;
+}
+
+export function exportNeedsTimelineMix(input: { loudness: boolean; clips: boolean; visualVideos: number; tones: number; clipMaskBeep: boolean; unencodableSource: boolean; retimed: boolean }): boolean {
+  return input.loudness || input.clips || input.visualVideos > 0 || input.tones > 0 || input.clipMaskBeep || input.unencodableSource || input.retimed;
+}
+
+/** What the export reads its sound and picture from: the edited segment table (and the beeps its word
+ *  masks lay), the supplemental visual videos, and an open input per source (a denoised source reads
+ *  its baked sound). The video export and the loudness of its mix both read this, so they hear the same. */
+interface ExportSources {
+  shots: ReturnType<typeof videoTrackShots>;
+  durationSec: number;
+  segs: ExpSeg[];
+  tones: MixTone[];
+  visualMediaClips: SupplementalVisualMediaClip[];
+  visualVideos: SupplementalVisualMediaClip[];
+  visualVideoKeys: Map<string, string>;
+  rigs: Map<string, SourceRig>;
+  /** Each source's bytes, by segment key. */
+  files: Map<string, File>;
+  dispose(): void;
+}
+
+async function openExportSources(opts: ClientExportOpts): Promise<ExportSources> {
+  const { comp, videoFile, clipFiles } = opts;
+  const shots = videoTrackShots(comp);
+  const durationSec = Math.max(0.5, opts.timelineDurationSec ?? totalDuration(comp));
+
+  // Segment table (edited order) + each source's File
+  const segs: ExpSeg[] = [];
+  const tones: MixTone[] = [];
+  const files = new Map<string, File>();
+  if (videoFile) files.set('main', videoFile);
+  const spans = videoShotTimelineSpans(shots, opts.videoPlacements);
+  /** A clip's own key (clip_<shotId>) → the key of the run that reads it (denoise is given per clip). */
+  const runOf = exportReaderRuns(spans.flatMap(({ clip }) => {
+    const s = clip as (typeof shots)[number] & { src?: string };
+    return s.src ? [{ id: s.id, src: s.src, srcStart: s.srcStart, srcEnd: s.srcEnd }] : [];
+  }));
+  for (let i = 0; i < spans.length; i++) {
+    const s = spans[i]!.clip as (typeof shots)[number] & { src?: string; filter?: ShotFilter };
+    const filterCss = shotFilterCss(s.filter);
+    const filter = filterCss === 'none' ? {} : { filter: filterCss };
+    const g = opts.primaryAudioMuted ? 0 : shotGain(s);
+    const gain = g === 1 ? {} : { gain: g };
+    // Same envelope as the preview: own fades × seam micro-fades at edges that meet a non-contiguous neighbour
+    const prev = spans[i - 1]?.clip as typeof s | undefined;
+    const next = spans[i + 1]?.clip as typeof s | undefined;
+    const fadeFn = segmentFadeFn(
+      s,
+      Math.max(0.01, spans[i]!.editedEnd - spans[i]!.editedStart),
+      !!prev && (!shotsContiguous(prev, s) || Math.abs(spans[i - 1]!.editedEnd - spans[i]!.editedStart) > 1e-3),
+      !!next && (!shotsContiguous(s, next) || Math.abs(spans[i]!.editedEnd - spans[i + 1]!.editedStart) > 1e-3),
+    );
+    const framing = s.preciseFraming?.coordinateSpace === 'source-normalized' ? { framing: s.preciseFraming } : {};
+    const placement = { timelineStart: spans[i]!.editedStart, timelineEnd: spans[i]!.editedEnd };
+    const key = !s.src ? 'main' : `clip_${s.id}`;
+    // Word masks ride the same envelope as the fades: the masked source seconds read as silence
+    // (a beep, when asked for, is laid on the timeline by the mixer instead).
+    const masks = opts.audioMasks?.get(key);
+    const masked = masks?.length ? maskedSegmentEnvelope(masks, s.srcStart, s.srcEnd, placement.timelineEnd - placement.timelineStart, fadeFn ?? undefined) : fadeFn;
+    const fade = masked ? { fadeAt: masked } : {};
+    if (masks?.length) {
+      for (const range of masks) {
+        if (range.audio !== 'beep') continue;
+        const a = Math.max(range.start, s.srcStart);
+        const b = Math.min(range.end, s.srcEnd);
+        if (b <= a) continue;
+        const rate = (s.srcEnd - s.srcStart) / Math.max(1e-6, placement.timelineEnd - placement.timelineStart);
+        tones.push({ timelineStart: placement.timelineStart + (a - s.srcStart) / rate, timelineEnd: placement.timelineStart + (b - s.srcStart) / rate });
+      }
+    }
+    if (!s.src) {
+      segs.push({ srcStart: s.srcStart, srcEnd: s.srcEnd, key, ...placement, ...filter, ...gain, ...fade, ...framing });
+      continue;
+    }
+    const runKey = runOf.get(key) ?? key;
+    segs.push({ srcStart: s.srcStart, srcEnd: s.srcEnd, key: runKey, ...placement, ...filter, ...gain, ...fade, ...framing });
+    if (!files.has(runKey)) {
+      files.set(runKey, await loadExportVideoFile(s.src, clipFiles));
+    }
+  }
+  const visualMediaClips = [...(opts.visualMediaClips ?? [])];
+  const visualVideos = visualMediaClips.filter((clip) => clip.kind === 'video');
+  const visualVideoKeys = new Map<string, string>();
+  const visualFiles = new Map<string, Promise<File>>();
+  for (const visual of visualVideos) {
+    const key = `visual_${visual.trackId}_${visual.clipId}`;
+    visualVideoKeys.set(visual.clipId, key);
+    let visualFile = visualFiles.get(visual.source);
+    if (!visualFile) {
+      visualFile = loadExportVideoFile(visual.source, clipFiles);
+      visualFiles.set(visual.source, visualFile);
+    }
+    files.set(key, await visualFile);
+  }
+
+  // Per-source sequential sample stream: start = earliest time this source is used, end = latest
+  const rigs = new Map<string, SourceRig>();
+  const dnInputs: Input[] = [];
+  try {
+    for (const [key, file] of files) {
+      const mine = segs.filter((s) => s.key === key);
+      const visual = visualVideos.find((clip) => visualVideoKeys.get(clip.clipId) === key);
+      if (!mine.length && !visual) continue;
+      if (visual) {
+        rigs.set(key, await openSource(file, visual.sourceInSec, visual.sourceOutSec));
+        continue;
+      }
+      const from = Math.min(...mine.map((s) => s.srcStart));
+      const to = Math.max(...mine.map((s) => s.srcEnd));
+      rigs.set(key, await openSource(file, from, to));
+    }
+
+    // Denoise substitution: swap the source's audio track for the baked blend (same source seconds)
+    if (opts.denoise) {
+      const swapped = new Set<string>();
+      for (const [clipKey, f] of opts.denoise) {
+        // Given per clip; every clip of a run reads the same source, so its run takes it once.
+        const key = runOf.get(clipKey) ?? clipKey;
+        const rig = rigs.get(key);
+        if (!rig || swapped.has(key)) continue;
+        swapped.add(key);
+        const input = new Input({ source: new BlobSource(f), formats: ALL_FORMATS });
+        const at = await input.getPrimaryAudioTrack();
+        if (at) {
+          rig.audio = at;
+          dnInputs.push(input);
+        } else void input.dispose();
+      }
+    }
+
+
+  } catch (error) {
+    for (const rig of rigs.values()) disposeSourceRig(rig);
+    for (const input of dnInputs) void input.dispose();
+    throw error;
+  }
+  return {
+    shots, durationSec, segs, tones, visualMediaClips, visualVideos, visualVideoKeys, rigs, files,
+    dispose: () => {
+      for (const rig of rigs.values()) disposeSourceRig(rig);
+      for (const input of dnInputs) void input.dispose();
+    },
+  };
+}
+
+/** The export's sound, mixed on the 48 kHz timeline: narration segments, visual-lane videos, audio-lane
+ *  clips and beeps. `master` brings the whole mix to the project's loudness (then the limiter); without
+ *  it the mix is what the loudness is measured on. */
+async function mixExportAudio(
+  opts: ClientExportOpts,
+  sources: ExportSources,
+  push: (sample: AudioSample) => Promise<void>,
+  master?: { gainDb: number },
+): Promise<void> {
+  const { segs, visualVideoKeys, visualVideos, rigs, durationSec } = sources;
+  const allTones = [...sources.tones];
+  const audioTracks = new Map<string, NonNullable<SourceRig['audio']>>();
+  for (const [key, r] of rigs) if (r.audio && !key.startsWith('g_')) audioTracks.set(key, r.audio);
+  const clips: { clip: AudioClip; buffer: AudioBuffer; masks?: readonly MaskedAudioRange[] }[] = [];
+  for (const a of opts.audio ?? []) {
+    const masks = opts.clipMasks?.get(a.clip.id);
+    clips.push({ clip: a.clip, buffer: await decodeAudioFile(a.file), ...(masks?.length ? { masks } : {}) });
+  }
+  const supplementalAudioSegs = supplementalVisualAudioMixSegments(visualVideos).map((segment) => {
+    const masks = opts.clipMasks?.get(segment.clipId);
+    const timelineLen = segment.timelineEnd - segment.timelineStart;
+    const fadeAt = masks?.length && segment.gain > 0
+      ? maskedSegmentEnvelope(masks, segment.sourceInSec, segment.sourceOutSec, timelineLen, segment.fadeAt)
+      : segment.fadeAt;
+    if (masks?.length && segment.gain > 0) {
+      const rate = (segment.sourceOutSec - segment.sourceInSec) / Math.max(1e-6, timelineLen);
+      for (const range of masks) {
+        if (range.audio !== 'beep') continue;
+        const a = Math.max(range.start, segment.sourceInSec);
+        const b = Math.min(range.end, segment.sourceOutSec);
+        if (b <= a) continue;
+        allTones.push({ timelineStart: segment.timelineStart + (a - segment.sourceInSec) / rate, timelineEnd: segment.timelineStart + (b - segment.sourceInSec) / rate });
+      }
+    }
+    return {
+      srcStart: segment.sourceInSec,
+      srcEnd: segment.sourceOutSec,
+      key: visualVideoKeys.get(segment.clipId)!,
+      timelineStart: segment.timelineStart,
+      timelineEnd: segment.timelineEnd,
+      gain: segment.gain,
+      ...(fadeAt ? { fadeAt } : {}),
+    };
+  });
+  await mixAudioTrack({
+    segs: [
+      ...segs.map((s) => ({
+        srcStart: s.srcStart,
+        srcEnd: s.srcEnd,
+        key: s.key,
+        timelineStart: s.timelineStart,
+        timelineEnd: s.timelineEnd,
+        gain: s.gain ?? 1,
+        fadeAt: s.fadeAt,
+      })),
+      ...supplementalAudioSegs,
+    ],
+    audioTracks,
+    clips,
+    totalSec: durationSec,
+    tones: allTones,
+    ...(master ? { master } : {}),
+    push,
+  });
+}
+
+/**
+ * Integrated loudness (LUFS) of the mix this export would encode, before the master gain: every audible
+ * segment, visual-lane video, audio-lane clip (at its own level) and beep, mixed exactly as the export
+ * mixes them. The project's loudness gain is set from this, so it brings the finished video to its
+ * target rather than the raw recording. Null when the timeline has no sound.
+ */
+export async function measureExportLoudness(opts: ClientExportOpts): Promise<number | null> {
+  assertExportableComposition(opts.comp);
+  const sources = await openExportSources(opts);
+  try {
+    return await mixLoudness(opts, sources);
+  } finally {
+    sources.dispose();
+  }
+}
+
+/** The mix's integrated loudness, mixed by mixExportAudio without a master gain; null when silent.
+ *  `onMixed` is told how far into the timeline the mix has got, in seconds. */
+async function mixLoudness(opts: ClientExportOpts, sources: ExportSources, onMixed?: (timelineSec: number) => void): Promise<number | null> {
+  let meter: LoudnessMeter | null = null;
+  await mixExportAudio(opts, sources, async (sample) => {
+    try {
+      onMixed?.(sample.timestamp);
+      const channels = sample.numberOfChannels;
+      meter ??= new LoudnessMeter(sample.sampleRate, channels);
+      meter.push(Array.from({ length: channels }, (_, plane) => {
+        const data = new Float32Array(sample.numberOfFrames);
+        sample.copyTo(data, { planeIndex: plane, format: 'f32-planar' });
+        return data;
+      }));
+    } finally {
+      sample.close();
+    }
+  });
+  const lufs = meter ? (meter as LoudnessMeter).integrated() : -Infinity;
+  return Number.isFinite(lufs) ? lufs : null;
+}
+
+/** The master gain the export applies: measured on this very mix, so whatever changed since the gain
+ *  was stored (music added, a clip turned down) still lands on the target. The stored gain stands when
+ *  the mix is silent. */
+async function exportMasterGainDb(opts: ClientExportOpts, sources: ExportSources, loudness: { targetLufs: number; gainDb: number }, onMixed?: (timelineSec: number) => void): Promise<number> {
+  const measured = await mixLoudness(opts, sources, onMixed);
+  const gainDb = measured === null ? loudness.gainDb : loudnessGainDb(measured, loudness.targetLufs) ?? loudness.gainDb;
+  console.info(`[export] mix ${measured === null ? 'silent' : `${measured.toFixed(1)} LUFS`} → master ${gainDb >= 0 ? '+' : ''}${gainDb} dB for ${loudness.targetLufs} LUFS (stored ${loudness.gainDb >= 0 ? '+' : ''}${loudness.gainDb} dB)`);
+  return gainDb;
+}
+
+export async function clientExportVideo(opts: ClientExportOpts): Promise<Blob> {
+  const { comp, videoFile, clipFiles } = opts;
+  assertExportableComposition(comp);
+  // The account's export limit holds whatever size was asked for (a page's choice, an agent's export).
+  const cap = await (await import('./current-user')).exportResolutionCap().catch(() => null);
+  const asked = opts.render ?? DEFAULT_RENDER_OPTS;
+  const render = cap && asked.res > cap ? { ...asked, res: cap } : asked;
+  const FPS = render.fps;
+  const W = comp.width;
+  const H = comp.height;
+  // Output size: res=short side, downscale only, never upscale; layout/framing all still computed
+  // in comp coordinates, one setTransform scales at the canvas end.
+  // Width and height each rounded to even (encoder requires it) → Sx/Sy computed independently, no black bars from sub-pixel diff
+  const even = (x: number) => Math.max(2, Math.round(x / 2) * 2);
+  // res=output short-side pixels. Upscaling to 4K relies on the vector layer re-rasterizing at target
+  // resolution (svgOpen's viewBox) + the source video drawImage scaling straight from native frames to
+  // output (no 1080 intermediate). Cap at 4× as a safety net against canvas/memory blowup (dropdown max 2160=2×).
+  const k = Math.min(4, render.res / Math.min(W, H));
+  const outW = even(W * k);
+  const outH = even(H * k);
+  const Sx = outW / W;
+  const Sy = outH / H;
+  // Reported when the whole percent changes: the sound arrives a few milliseconds at a time.
+  let reported = '';
+  const stage = (name: ExportStage, fraction = 0) => {
+    const percent = Math.round(Math.max(0, Math.min(1, fraction)) * 100);
+    if (reported === `${name}:${percent}`) return;
+    reported = `${name}:${percent}`;
+    opts.onStage?.(name, percent / 100);
+  };
+  stage('preparing');
+  const sources = await openExportSources(opts);
+  const { shots, durationSec, segs, tones, visualMediaClips, visualVideos, visualVideoKeys, rigs, files } = sources;
+  let visualImageBitmaps: Awaited<ReturnType<typeof loadVisualImageBitmaps>> | undefined;
+  let overlay: Overlay;
+  // The file is written while it encodes (see export-file-sink): `sink` is where, `output` the muxer.
+  let sink: ExportFileSink | undefined;
+  let output: Output | undefined;
+  try {
+    visualImageBitmaps = await loadVisualImageBitmaps(visualMediaClips);
+    // Overlay document + asset inlining
+    overlay = await createOverlay(injectPreviewRuntime(assembleHtml(comp, undefined, opts.videoPlacements, opts.visualMediaClips)), W, H);
+    applyPrimaryOverlayVisibility(overlay, opts.primaryVisualHidden);
+  } catch (error) {
+    sources.dispose();
+    if (visualImageBitmaps) disposeVisualImageBitmaps(visualImageBitmaps);
+    throw error;
+  }
+  try {
+    await inlineImages(overlay.root);
+    // Layout coordinate system is always comp's W×H (font-size calibration unchanged); device size =
+    // output outW×outH → vectors rasterize crisply at 4K
+    const painter = await overlayPainter(overlay, comp, W, H, outW, outH);
+    // Theme background bitmap (once): empty root goes through the same rasterization pipeline (also at output resolution)
+    const bg = await rasterize(
+      'data:image/svg+xml;charset=utf-8,' +
+        encodeURIComponent(svgOpen(W, H, outW, outH, overlay.headCss) + `<div xmlns="http://www.w3.org/1999/xhtml" id="root"></div>` + SVG_CLOSE),
+    );
+
+    const canvas = document.createElement('canvas');
+    canvas.width = outW;
+    canvas.height = outH;
+    const ctx = canvas.getContext('2d')!;
+
+    const total = Math.max(1, Math.round(durationSec * FPS));
+    const mime = render.format === 'webm' ? 'video/webm' : render.format === 'mov' ? 'video/quicktime' : 'video/mp4';
+    sink = await openExportFileSink({ mime, extension: render.format, saveTo: opts.saveTo });
+    // A file written as it encodes still gets its index at the front (plays while it downloads, like
+    // the in-memory file did): the muxer reserves room for it, sized by each track's packet limit.
+    const reserveIndex = sink.streamed && render.format !== 'webm';
+    const container = reserveIndex ? { fastStart: 'reserve' as const } : {};
+    const outFormat = render.format === 'webm' ? new WebMOutputFormat() : render.format === 'mov' ? new MovOutputFormat(container) : new Mp4OutputFormat(container);
+    output = new Output({ format: outFormat, target: sink.target });
+    const videoSource = new CanvasSource(canvas, { codec: render.format === 'webm' ? 'vp9' : 'avc', bitrate: QUALITY_HIGH });
+    output.addVideoTrack(videoSource, { frameRate: FPS, ...(reserveIndex ? { maximumPacketCount: exportVideoPacketLimit(total) } : {}) });
+    const withClips = !!opts.audio?.length;
+    const clipMaskBeep = [...(opts.clipMasks?.values() ?? [])].some((ranges) => ranges.some((range) => range.audio === 'beep'));
+    // Browser AAC encoders take 44.1/48 kHz mono or stereo only; a source outside that (phone memos,
+    // synthesized speech at 22.05 kHz) goes through the 48 kHz mixer instead of being passed through.
+    const unencodableSource = [...rigs.values()].some((rig) => rig.audio && (![44100, 48000].includes(rig.audio.sampleRate) || rig.audio.numberOfChannels > 2));
+    const needsTimelineMix = exportNeedsTimelineMix({ loudness: !!comp.audioLoudness, clips: withClips, visualVideos: visualVideos.length, tones: tones.length, clipMaskBeep, unencodableSource, retimed: segs.some((segment) =>
+      Math.abs(segmentSourceRate(segment, segment.timelineStart, segment.timelineEnd) - 1) > 1e-6,
+    ) });
+    const anyAudio = withClips
+      || tones.length > 0
+      || segs.some((s) => (s.gain ?? 1) > 0 && rigs.get(s.key)?.audio)
+      || visualVideos.some((visual) => !visual.muted && rigs.get(visualVideoKeys.get(visual.clipId)!)?.audio);
+    // webm container can't hold aac, so audio switches to opus for that format
+    const audioSource = anyAudio ? new AudioSampleSource({ codec: render.format === 'webm' ? 'opus' : 'aac', bitrate: QUALITY_MEDIUM }) : null;
+    if (audioSource) output.addAudioTrack(audioSource, reserveIndex ? { maximumPacketCount: exportAudioPacketLimit(durationSec) } : {});
+    await output.start();
+
+    // Sound first. The muxer holds every packet back until each track has delivered one, so with the
+    // picture first a whole video waited in memory for the first audio packet; the sound of an hour
+    // is a few dozen megabytes, and once the first frame arrives everything goes straight to the file.
+    // Audio clips or a non-1× native placement use the 48k timeline mixer; exact 1× narration without
+    // lane clips keeps the cheaper timestamp-only passthrough.
+    // Per-shot volume: gain 1 passes samples through untouched (byte-identical to before the feature existed); gain 0 contributes
+    // nothing (a timestamp gap decodes as silence, same as a source without audio); anything between rewrites PCM (same shotGain as preview).
+    const soundSpan = Math.max(0.001, durationSec);
+    if (audioSource && needsTimelineMix) {
+      stage('sound');
+      // With a loudness target the mix runs twice: once to measure it, once to write it.
+      const measured = !!comp.audioLoudness;
+      const master = comp.audioLoudness
+        ? { gainDb: await exportMasterGainDb(opts, sources, comp.audioLoudness, (sec) => stage('sound', (sec / soundSpan) * 0.5)) }
+        : undefined;
+      await mixExportAudio(opts, sources, (sample) => {
+        const part = sample.timestamp / soundSpan;
+        stage('sound', measured ? 0.5 + part * 0.5 : part);
+        return audioSource.add(sample).then(() => sample.close());
+      }, master);
+    } else if (audioSource) {
+      stage('sound');
+      for (const s of segs) {
+        const rig = rigs.get(s.key);
+        const gain = s.gain ?? 1;
+        if (rig?.audio && gain > 0) {
+          const asink = new AudioSampleSink(rig.audio);
+          const flat = gain === 1 && !s.fadeAt;
+          for await (const sample of asink.samples(s.srcStart, s.srcEnd)) {
+            if (opts.shouldCancel?.()) { sample.close(); throw new ExportCanceled(); }
+            const base = sample.timestamp - s.srcStart; // segment-local seconds at this buffer's start
+            const out = flat ? sample : scaleAudioSample(sample, (off) => gain * (s.fadeAt ? s.fadeAt(base + off) : 1));
+            out.setTimestamp(Math.max(0, s.timelineStart + (sample.timestamp - s.srcStart)));
+            stage('sound', out.timestamp / soundSpan);
+            await audioSource.add(out);
+            if (out !== sample) out.close();
+            sample.close();
+          }
+        }
+      }
+    }
+    // The sound is complete: the muxer need not wait on this track again.
+    audioSource?.close();
+    stage('picture');
+
+    // Edited time → segment + time within source. Native gaps return the blank sentinel; they do
+    // not freeze the previous frame or jump forward to the next clip.
+    const segStarts = segs.map((segment) => segment.timelineStart);
+    const blankSeg: ExpSeg = { srcStart: 0, srcEnd: 0, key: '__blank', timelineStart: 0, timelineEnd: 0 };
+    const segAt = (te: number): { seg: ExpSeg; srcT: number } => {
+      if (!segs.length) return { seg: blankSeg, srcT: 0 };
+      const t = Math.max(0, te);
+      for (let i = 0; i < segs.length; i++) {
+        const s = segs[i]!;
+        const end = s.timelineEnd;
+        if (t >= segStarts[i]! - 1e-6 && t < end - 1e-6) {
+          return { seg: s, srcT: segmentSourceTimeAt(s, t, segStarts[i]!, end) };
+        }
+      }
+      return { seg: blankSeg, srcT: 0 };
+    };
+
+    // Cut transitions (true dual-stream, same math as the preview's videoFrameShim): the current frame
+    // draws into liveC, the "other side" (before the cut = B's pre-roll handle, after = A's tail handle)
+    // draws from a shadow sample stream into ghostC, then composites into vidC by from/to, with p spanning
+    // the whole window. Shadow sample out-of-range/absent = hard-cut fallback.
+    // Open a separate Input per transition per side: sampleAt is monotonic per stream, and the two sides'
+    // time domains don't connect, so they must be separate streams.
+    const vidC = new OffscreenCanvas(outW, outH);
+    const vctx = vidC.getContext('2d')!;
+    const liveC = new OffscreenCanvas(outW, outH);
+    const lctx = liveC.getContext('2d')!;
+    const ghostC = new OffscreenCanvas(outW, outH);
+    const gctx = ghostC.getContext('2d')!;
+    // A window that hands over at a spine cut decodes the other side; one without a cut plays the
+    // effect on the running picture (both sides are the current frame).
+    const trsX: { start: number; end: number; cut: number | null; effect: string; dir: string; preKey?: string; postKey?: string; segA?: ExpSeg; segB?: ExpSeg; split?: boolean }[] = [];
+    for (const tr of opts.primaryVisualHidden ? [] : transitionWindows(opts.comp.transitions, shots, opts.videoPlacements)) {
+      if (tr.cut == null) {
+        trsX.push({ start: tr.start, end: tr.end, cut: null, effect: tr.effect, dir: tr.dir });
+        continue;
+      }
+      let iB = -1;
+      for (let bi = 1; bi < segs.length; bi++) {
+        if (Math.abs(segStarts[bi]! - tr.cut) < 0.05) {
+          iB = bi;
+          break;
+        }
+      }
+      if (iB < 1) continue;
+      const segA = segs[iB - 1]!;
+      const segB = segs[iB]!;
+      const fA = files.get(segA.key);
+      const fB = files.get(segB.key);
+      if (!fA || !fB) continue;
+      const preKey = `g_pre_${trsX.length}`;
+      const postKey = `g_post_${trsX.length}`;
+      const rateA = segmentSourceRate(segA, segA.timelineStart, segA.timelineEnd);
+      const rateB = segmentSourceRate(segB, segB.timelineStart, segB.timelineEnd);
+      rigs.set(preKey, await openSource(fB, Math.max(0, segB.srcStart - (tr.cut - tr.start) * rateB), segB.srcStart + 0.2 * rateB));
+      // A split's tail holds A's last frame, just inside its end: the stream starts a little before it.
+      rigs.set(postKey, await openSource(fA, Math.max(0, segA.srcEnd - 0.1 * rateA), segA.srcEnd + (tr.end - tr.cut + 0.2) * rateA));
+      trsX.push({ start: tr.start, end: tr.end, cut: tr.cut, effect: tr.effect, dir: tr.dir, preKey, postKey, segA, segB, split: isSourceSplit(segA, segB, fA === fB) });
+    }
+    // gl-transitions mixer (output resolution; not built if there are no transitions)
+    const mixer = trsX.length ? createGlMixer(outW, outH) : null;
+
+    // Last-use time per source video stream (edited time): retire the video decoder once past it — in
+    // long projects each transition shadow stream (×2) and each insert clip holds a decoder; letting
+    // dozens pile up exhausts the hardware-decode quota and falls back to software (where sampling
+    // slows with duration). Can't dispose the input (still needed in the audio stage), only the video
+    // sample stream; shadow sources are entirely export-private, so dispose their input too.
+    const lastUse = new Map<string, number>();
+    for (let si = 0; si < segs.length; si++) {
+      const end = segs[si]!.timelineEnd;
+      lastUse.set(segs[si]!.key, Math.max(lastUse.get(segs[si]!.key) ?? 0, end));
+    }
+    for (const visual of visualVideos) lastUse.set(visualVideoKeys.get(visual.clipId)!, visual.endSec);
+    for (const x of trsX) {
+      if (x.preKey) lastUse.set(x.preKey, x.end);
+      if (x.postKey) lastUse.set(x.postKey, x.end);
+    }
+    const retireVideoStream = (rig: SourceRig) => {
+      rig.cur?.close();
+      rig.cur = null;
+      rig.pending?.close();
+      rig.pending = null;
+      void rig.it?.return?.(undefined);
+      rig.it = null;
+    };
+
+    // HTML tracks are rasterized as explicit passes around native media tracks. Adjacent HTML tracks
+    // are coalesced by the shared layer plan, so ordinary projects still pay for one overlay bitmap.
+    const visualLayers = browserVisualLayerPlan(comp, visualMediaClips, opts.videoPlacements);
+    const htmlLayers = visualLayers.filter((layer): layer is Extract<CompositionVisualLayer, { kind: 'html' }> => layer.kind === 'html');
+    const fullOverlayPass = personMatteCompositingActive(comp, opts.videoPlacements);
+    const layerBlocks = (layer: (typeof htmlLayers)[number]) => (fullOverlayPass ? undefined : layer.blocks);
+    const serializeHtmlLayers = () => htmlLayers.map((layer) => (
+      serializeBrowserOverlayElements(overlay.root, overlay.doc, layerBlocks(layer))
+    ));
+
+    // Overlay frame cache: during tween gaps / static caption periods the serialized string is identical
+    // frame to frame → reuse the previous frame's bitmap, skipping parse and rasterization of the whole
+    // data URI (with its inlined fonts — the bulk of export time).
+    const lastSerials = htmlLayers.map(() => '');
+    const lastOverlayImages = htmlLayers.map<HTMLImageElement | null>(() => null);
+    // Overlap encoding with next-frame prep: CanvasSource.add grabs the frame synchronously on call, and
+    // the returned Promise is only encoder backpressure — the canvas is free to change once grabbed, and
+    // we only await the backpressure right before the next frame's add.
+    let pendingAdd: Promise<void> | null = null;
+    // Per-phase timing (parallel phases each track their own wall clock, so the sum can exceed total wall time): data shows where the bottleneck is
+    const tm = { prep: 0, raster: 0, video: 0, draw: 0, enc: 0, rasterN: 0 };
+    const expT0 = performance.now();
+    // The cover is painted over the first frames as they are composed: nothing is inserted, so the
+    // sound, the captions and the length stay exactly as they are.
+    let coverImage = opts.cover ? await createImageBitmap(opts.cover) : null;
+    const coverFrames = Math.max(1, Math.round(EXPORT_COVER_SEC * FPS));
+    for (let i = 0; i < total; i++) {
+      if (opts.shouldCancel?.()) throw new ExportCanceled();
+      const t = i / FPS;
+      const tPrep = performance.now();
+      overlay.win.__hfPreview!.seekTimelines(t);
+      await overlay.win.__pireelWhiteboardFlush?.();
+      const { seg, srcT } = segAt(t);
+      const rig = rigs.get(seg.key);
+      // Read the framing transform uniformly from #vidEl: in canvas mode every segment's (including
+      // insert clips') framing keyframes land on this one canvas (videoFrameTimelineBody only does
+      // tl.to('#vidEl')); looking up an element by clip_<id> is a leftover from the old "insert clip =
+      // separate <video>" era — the element doesn't exist → identity matrix → export loses insert-clip framing
+      const el = overlay.doc.getElementById('vidEl');
+      const vs = readTransform(overlay.win, el, W, H);
+      const serials = serializeHtmlLayers();
+      tm.prep += performance.now() - tPrep;
+      const overlayP = Promise.all(serials.map((serial, index) => {
+        const hot = serial !== lastSerials[index] || !lastOverlayImages[index];
+        if (!hot) return Promise.resolve(lastOverlayImages[index]!);
+        tm.rasterN++;
+        const s0 = performance.now();
+        return painter.draw(serial, browserOverlayElements(overlay.root, overlay.doc, layerBlocks(htmlLayers[index]!)))
+          .then((img) => ((tm.raster += performance.now() - s0), img));
+      }));
+
+      const tr = trsX.find((x) => t >= x.start && t <= x.end) ?? null;
+      const handover = tr && tr.cut != null ? tr : null;
+      // Compute shadow sampling params first; the three decodes (overlay/current frame/shadow frame) are independent → parallel
+      const pre = handover ? t < handover.cut! : false;
+      const gseg = handover ? (pre ? handover.segB! : handover.segA!) : null;
+      const gRig = handover ? rigs.get(pre ? handover.preKey! : handover.postKey!) : undefined;
+      const gRate = gseg ? segmentSourceRate(gseg, gseg.timelineStart, gseg.timelineEnd) : 1;
+      const gSrcT = handover && gseg
+        ? transitionHandleTime(pre ? 'pre' : 'post', gseg, pre ? handover.cut! - t : t - handover.cut!, gRate, !!handover.split)
+        : 0;
+      const visualSamplesP = Promise.all(visualVideos.map(async (visual) => {
+        if (t < visual.startSec - 1e-6 || t >= visual.endSec - 1e-6) return null;
+        const key = visualVideoKeys.get(visual.clipId)!;
+        const visualRig = rigs.get(key);
+        if (!visualRig) return null;
+        const segment = { srcStart: visual.sourceInSec, srcEnd: visual.sourceOutSec };
+        const visualSrcT = segmentSourceTimeAt(segment, t, visual.startSec, visual.endSec);
+        const visualSample = await sampleAt(visualRig, visualSrcT);
+        return visualSample ? {
+          clipId: visual.clipId,
+          sourceWidth: visualRig.sw,
+          sourceHeight: visualRig.sh,
+          sample: visualSample,
+        } : null;
+      }));
+      const v0 = performance.now();
+      const [overlayImages, sample, gSample, visualSamples] = await Promise.all([
+        overlayP,
+        rig && !opts.primaryVisualHidden ? sampleAt(rig, srcT).then((s) => ((tm.video += performance.now() - v0), s)) : null,
+        gRig ? sampleAt(gRig, gSrcT) : null,
+        visualSamplesP,
+      ]);
+      for (let layerIndex = 0; layerIndex < serials.length; layerIndex++) {
+        lastSerials[layerIndex] = serials[layerIndex]!;
+        lastOverlayImages[layerIndex] = overlayImages[layerIndex]!;
+      }
+      // bg / overlay are already rasterized at output resolution (outW×outH) → draw 1:1 with identity
+      // transform (crisp text/graphics at 4K). The source video is still drawn in comp coordinates;
+      // setTransform(Sx) maps the target rect to output size, drawImage scales straight from native frames.
+      // Single-side video layer paint pipeline (shared by live and ghost): framing transform + rounded-corner clip + shadow + per-shot grade
+      const paintLayer = (
+        tc: OffscreenCanvasRenderingContext2D,
+        smp: { draw: (c2: OffscreenCanvasRenderingContext2D, x: number, y: number, w2: number, h2: number) => void },
+        rg: SourceRig,
+        layerSeg: ExpSeg,
+        filterCss?: string,
+      ) => {
+        tc.setTransform(1, 0, 0, 1, 0, 0);
+        tc.clearRect(0, 0, outW, outH);
+        tc.setTransform(Sx, 0, 0, Sy, 0, 0);
+        tc.save();
+        // transform-origin: center — the computed matrix excludes origin, so sandwich it manually as T(c)·M·T(-c)
+        const centerX = vs.layout.x + vs.layout.width / 2;
+        const centerY = vs.layout.y + vs.layout.height / 2;
+        tc.translate(centerX, centerY);
+        tc.transform(vs.m.a, vs.m.b, vs.m.c, vs.m.d, vs.m.e, vs.m.f);
+        tc.translate(-centerX, -centerY);
+        const path = framedClipPath(vs);
+        if (vs.m.a < 0.999) {
+          // Shadow only shows when framing is scaled down: fill a shadowed base first, then clip and draw the frame
+          tc.shadowColor = 'rgba(0,0,0,0.45)';
+          tc.shadowBlur = 90;
+          tc.shadowOffsetY = 30;
+          tc.fillStyle = '#000';
+          tc.fill(path);
+          tc.shadowColor = 'transparent';
+          tc.shadowBlur = 0;
+          tc.shadowOffsetY = 0;
+        }
+        tc.clip(path);
+        if (comp.backdrop === 'blur') paintBlurredBackdrop(tc, smp, rg.sw, rg.sh, vs.layout, Sx);
+        // Per-shot grade: same source as the preview's #vidEl CSS filter (canvas filter, same syntax); restore resets it
+        if (filterCss) tc.filter = filterCss;
+        const rect = sourceDrawRect(rg.sw, rg.sh, vs.layout.width, vs.layout.height, layerSeg.framing);
+        smp.draw(tc, vs.layout.x + rect.x, vs.layout.y + rect.y, rect.width, rect.height);
+        tc.restore();
+        tc.setTransform(1, 0, 0, 1, 0, 0);
+      };
+      lctx.setTransform(1, 0, 0, 1, 0, 0);
+      lctx.clearRect(0, 0, outW, outH);
+      if (sample && rig) paintLayer(lctx, sample, rig, seg, seg.filter);
+      // Shadow layer: the "other side" frame within the window (true dual-stream; sample out-of-range/absent = hard-cut fallback)
+      let ghostReady = false;
+      if (handover) {
+        gctx.setTransform(1, 0, 0, 1, 0, 0);
+        gctx.clearRect(0, 0, outW, outH);
+        if (gSample && gRig && gseg) {
+          paintLayer(gctx, gSample, gRig, gseg, gseg.filter);
+          ghostReady = true;
+        }
+      }
+      // Composite into vidC: gl-transitions mixer (same GL_MIXER_SRC as the preview shim / panel);
+      // shadow absent / GL unavailable → hard-cut fallback
+      vctx.setTransform(1, 0, 0, 1, 0, 0);
+      vctx.clearRect(0, 0, outW, outH);
+      let mixed = false;
+      if (tr && mixer && (ghostReady || !handover)) {
+        const p = Math.min(1, Math.max(0, (t - tr.start) / Math.max(1e-3, tr.end - tr.start))); // 0=window start, 1=end
+        const F = !handover ? liveC : pre ? liveC : ghostC;
+        const T = !handover ? liveC : pre ? ghostC : liveC;
+        const [dx, dy] = glDirection(tr.dir as TransitionDirection);
+        if (mixer.render(F, T, tr.effect, p, dx, dy)) {
+          vctx.drawImage(mixer.canvas, 0, 0);
+          mixed = true;
+        }
+      }
+      if (!mixed) vctx.drawImage(liveC, 0, 0);
+      const videoLayers = new Map<string, SampledVisualVideo>();
+      for (const layer of visualSamples) {
+        if (!layer) continue;
+        videoLayers.set(layer.clipId, layer);
+      }
+
+      const releaseMattes = await prepareVisualPersonMattes(visualMediaClips, videoLayers, t);
+      try {
+        const d0 = performance.now();
+        paintExportFrameBase(ctx, outW, outH, bg, vidC);
+        let htmlLayerIndex = 0;
+        for (const layer of visualLayers) {
+          if (layer.kind === 'media') {
+            drawSupplementalVisualMedia({
+              ctx,
+              visuals: layer.visuals,
+              timelineTime: t,
+              imageBitmaps: visualImageBitmaps,
+              videoSamples: videoLayers,
+              targetWidth: W,
+              targetHeight: H,
+              scaleX: Sx,
+              scaleY: Sy,
+            });
+          } else {
+            ctx.drawImage(overlayImages[htmlLayerIndex++]!, 0, 0);
+          }
+        }
+        tm.draw += performance.now() - d0;
+      } finally { releaseMattes(); }
+      if (coverImage) {
+        paintCover(ctx, coverImage, outW, outH);
+        if (i + 1 >= coverFrames) { coverImage.close(); coverImage = null; }
+      }
+      const e0 = performance.now();
+      if (pendingAdd) await pendingAdd; // Previous frame's encode backpressure: only awaited here, so the next frame is already being prepared during encoding
+      pendingAdd = videoSource.add(t, 1 / FPS);
+      tm.enc += performance.now() - e0;
+      // Retire once done (checked once per second): sources past their last-use time drop the video decode stream; shadow sources dispose their input too
+      if (i % FPS === 0) {
+        for (const [key, r2] of rigs) {
+          const lu = lastUse.get(key);
+          if (lu !== undefined && t > lu + 0.5 && r2.it) {
+            retireVideoStream(r2);
+            if (key.startsWith('g_')) {
+              void r2.input.dispose();
+              rigs.delete(key);
+            }
+          }
+        }
+      }
+      opts.onProgress?.(i + 1, total);
+    }
+    if (pendingAdd) await pendingAdd;
+    {
+      const wall = (performance.now() - expT0) / 1000;
+      const pct = (x: number) => `${Math.round((x / 1000 / wall) * 100)}%`;
+      console.info(
+        `[export] ${total} frames/${durationSec.toFixed(1)}s → ${wall.toFixed(1)}s (${(durationSec / wall).toFixed(2)}x) · ` +
+          `raster ${pct(tm.raster)} (hot passes ${tm.rasterN}) · fetch ${pct(tm.video)} · layout ${pct(tm.prep)} · draw ${pct(tm.draw)} · encoder wait ${pct(tm.enc)}`,
+      );
+    }
+
+    await output.finalize();
+    return await sink.finish();
+  } catch (error) {
+    // Stop the encoders and the muxer, then drop the partial file: nothing half-written is left behind.
+    if (output && output.state !== 'finalized' && output.state !== 'canceled') await output.cancel().catch(() => {});
+    await sink?.discard();
+    throw error;
+  } finally {
+    sources.dispose();
+    disposeVisualImageBitmaps(visualImageBitmaps);
+    overlay.dispose();
+  }
+}
+
+/* ============================ Graphics for other editors ============================ */
+
+/** One graphic clip to render alone: its block id and timeline window. */
+export interface GraphicRenderJob {
+  blockId: string;
+  startSec: number;
+  durationSec: number;
+}
+
+/** Render graphic blocks one at a time on a transparent ground, every frame of their window, as PNG
+ *  bytes at the composition's full size — the same document, seek and rasterizer as the video export,
+ *  serializing only that block. A frame whose markup did not change reuses the previous PNG. */
+export async function renderGraphicFramesPng(opts: {
+  comp: Composition;
+  jobs: readonly GraphicRenderJob[];
+  fps: number;
+  onGraphic: (blockId: string, frames: Uint8Array[]) => Promise<void> | void;
+  onProgress?: (done: number, total: number) => void;
+  shouldCancel?: () => boolean;
+}): Promise<void> {
+  const { comp, fps } = opts;
+  assertExportableComposition(comp);
+  const W = comp.width;
+  const H = comp.height;
+  const overlay = await createOverlay(injectPreviewRuntime(assembleHtml(comp)), W, H);
+  try {
+    await inlineImages(overlay.root);
+    const painter = await overlayPainter(overlay, comp, W, H, W, H);
+    const canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    const ctx = canvas.getContext('2d')!;
+    const total = opts.jobs.reduce((sum, job) => sum + Math.max(1, Math.round(job.durationSec * fps)), 0);
+    let done = 0;
+    for (const job of opts.jobs) {
+      const count = Math.max(1, Math.round(job.durationSec * fps));
+      const frames: Uint8Array[] = [];
+      let lastMarkup = '';
+      for (let i = 0; i < count; i += 1) {
+        if (opts.shouldCancel?.()) throw new ExportCanceled();
+        overlay.win.__hfPreview!.seekTimelines(job.startSec + i / fps);
+        await overlay.win.__pireelWhiteboardFlush?.();
+        const markup = serializeBrowserOverlayElements(overlay.root, overlay.doc, [{ id: job.blockId }]);
+        if (markup === lastMarkup && frames.length) {
+          frames.push(frames[frames.length - 1]!);
+        } else {
+          lastMarkup = markup;
+          const image = await painter.draw(markup, browserOverlayElements(overlay.root, overlay.doc, [{ id: job.blockId }]));
+          ctx.clearRect(0, 0, W, H);
+          ctx.drawImage(image, 0, 0);
+          const png = await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('PNG encoding failed'))), 'image/png'));
+          frames.push(new Uint8Array(await png.arrayBuffer()));
+        }
+        done += 1;
+        opts.onProgress?.(done, total);
+      }
+      await opts.onGraphic(job.blockId, frames);
+    }
+  } finally {
+    overlay.dispose();
+  }
+}

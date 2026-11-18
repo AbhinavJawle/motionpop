@@ -7,6 +7,9 @@ Both hackathons require disclosure of pre-existing code and third-party resource
 - Designs: generated with Figma AI from our prompts (Nov 14, 2026) and refined by us; exports in `/design`.
 - Motion references: some components are informed by reference animations generated with large language models outside the product; adopted timings/eases/layout ratios are noted per component README.
 
+## Pireel
+- The studio editor packages in `vendor/pireel/` come from Pireel's open-source code (github.com/pireel/pireel, AGPL-3.0, licence kept there); Motionpop's pipeline, engine and integration are built on top.
+
 ## Libraries (fill with versions)
 | Library | Licence | Use |
 |---|---|---|

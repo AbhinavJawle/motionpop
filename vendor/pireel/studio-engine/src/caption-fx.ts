@@ -1,0 +1,668 @@
+/**
+ * Animated caption-effect engine (client-side, native canvas).
+ *
+ * The core of "enhanced AI cloud editing": interpolate word-level timing + effect id per frame and draw straight
+ * into an OffscreenCanvas (bake) — the same render surface as the existing drawSubtitleLayer/drawCaptionLayer,
+ * no server-side Chrome needed.
+ *
+ * Design:
+ *  - Pure time functions; any frame depends only on t (no rAF/random), naturally aligned & deterministic with WebCodecs per-frame seek.
+ *  - Pure logic (chunking/easing) is reusable by the DOM preview layer (WYSIWYG), so effect timing matches on both ends.
+ *  - Effect ids share names with the server-side Hyperframes subset (highlight/pill-karaoke/kinetic-slam/
+ *    editorial-emphasis/word-pop), for a 1:1 mapping when long videos fall back to the server later.
+ *
+ * All time is ABSOLUTE SECONDS ON THE EDITED TIMELINE.
+ */
+
+import type { WordDecoration } from './build-blocks';
+
+export type CaptionEffect = 'highlight' | 'pill-karaoke' | 'kinetic-slam' | 'editorial-emphasis' | 'word-pop';
+
+/** Word + time window (absolute edited seconds). */
+export interface FxWord {
+  text: string;
+  start: number;
+  end: number;
+  emphasis?: boolean;
+  timing?: 'estimated';
+  decoration?: WordDecoration;
+  /** Original index within the source sentence's words (stamped on mapped/derived copies; edit/translation write-back key). */
+  si?: number;
+}
+
+/** Caption-effect render input (RenderOverlay takes the effect branch when it carries these fields). */
+export interface CaptionFxInput {
+  effect: CaptionEffect;
+  words: FxWord[];
+  /** Normalized center (reusing SubtitleCue's x/y). Default x=0.5, y=0.82. */
+  x?: number;
+  y?: number;
+  /** Font-size scale, 1=default. */
+  fontScale?: number;
+  color?: string;
+  /** Accent color for highlight/karaoke. */
+  accentColor?: string;
+  strokeColor?: string;
+  /** Words per screen (sliding window). slam forces 1. */
+  windowWords?: number;
+  uppercase?: boolean;
+}
+
+const CtxFont = (weight: number, px: number, font: string) => `${weight} ${px}px ${font}`;
+const TAIL = 0.3; // trailing hold at a chunk's end, to bridge into the next screen
+
+/* ============================ Pure logic (testable / reusable) ============================ */
+
+export function clamp01(x: number): number {
+  return x < 0 ? 0 : x > 1 ? 1 : x;
+}
+export function easeOutCubic(x: number): number {
+  return 1 - Math.pow(1 - Math.max(0, Math.min(1, x)), 3);
+}
+export function easeOutBack(x: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  const v = Math.max(0, Math.min(1, x));
+  return 1 + c3 * Math.pow(v - 1, 3) + c1 * Math.pow(v - 1, 2);
+}
+
+/** Two adjacent words both Latin/digit → a real space between them (adjacent CJK doesn't need one). Shared predicate
+ *  across three places: render-layer .sp spacing, sentence rebuild (joinWords), transcript panel word stream. */
+export const latinJoin = (a: string, b: string): boolean => /[A-Za-z0-9.,!?;:'")\]%]$/.test(a) && /^[A-Za-z0-9('"[$]/.test(b);
+
+/** Word array → sentence text: add spaces at Latin word boundaries (join('') would run English together; the caption-track chip hit this). */
+export function joinWords(texts: string[]): string {
+  let out = '';
+  texts.forEach((t, i) => {
+    out += t;
+    if (i < texts.length - 1 && latinJoin(t, texts[i + 1]!)) out += ' ';
+  });
+  return out;
+}
+
+/** ICU dictionary word segmentation (Intl.Segmenter, granularity 'word'): CJK breaks at real word
+ *  boundaries (「科学家」 stays one token — the old fixed 2-char slicing cut through words), Latin splits
+ *  on spaces, and punctuation glues onto the token before it (a subtitle token = word + trailing
+ *  punctuation, never a standalone token). Runtimes without Intl.Segmenter (defensive; all our
+ *  targets ship full ICU) fall back to whitespace + 2-char CJK slicing. */
+let icuSegmenter: Intl.Segmenter | null | undefined;
+export function segmentTokens(text: string): string[] {
+  const t = text.trim();
+  if (!t) return [];
+  if (icuSegmenter === undefined) {
+    try {
+      icuSegmenter = new Intl.Segmenter('zh-Hans', { granularity: 'word' });
+    } catch {
+      icuSegmenter = null;
+    }
+  }
+  if (!icuSegmenter) {
+    const toks: string[] = [];
+    for (const piece of t.split(/\s+/).filter(Boolean)) {
+      if (/[一-鿿぀-ヿ가-힯]/.test(piece)) {
+        for (let i = 0; i < piece.length; i += 2) toks.push(piece.slice(i, i + 2));
+      } else toks.push(piece);
+    }
+    return toks;
+  }
+  const toks: string[] = [];
+  // Protect identifiers and quantities before ICU finds ordinary linguistic boundaries.
+  const protectedText = /(?:[A-Za-z][A-Za-z0-9]*(?:[-_.+'’][A-Za-z0-9]+)*|[￥¥$€£]?[-+]?\d+(?:[.,]\d+)*(?:%|％|[万亿千百]?(?:元|块|美元|人民币|人|个|倍|次|年|月|天|秒|分钟|小时|公斤|公里)|[万亿])?)/g;
+  const append = (part: string) => {
+    for (const g of icuSegmenter!.segment(part)) {
+      const piece = g.segment.trim();
+      if (!piece) continue;
+      if (g.isWordLike || !toks.length || /[（(「『“‘《]$/.test(piece)) toks.push(piece);
+      else toks[toks.length - 1] += piece;
+    }
+  };
+  let offset = 0;
+  for (const match of t.matchAll(protectedText)) {
+    append(t.slice(offset, match.index));
+    toks.push(match[0]);
+    offset = match.index! + match[0].length;
+  }
+  append(t.slice(offset));
+  for (let i = toks.length - 2; i >= 0; i--) {
+    if (/^[（(「『“‘《]+$/.test(toks[i]!)) toks.splice(i, 2, toks[i]! + toks[i + 1]!);
+  }
+  return toks;
+}
+
+/**
+ * Cut word-level timing from one caption's text + time window. Tokens come from ICU word
+ * segmentation (segmentTokens); time is allocated linearly within [start,end] by char length.
+ * This is the NO-ASR fallback — real word timing comes from ASR (groupAsrWords).
+ */
+export function wordsFromText(text: string, start: number, end: number): FxWord[] {
+  const toks = segmentTokens(text);
+  if (toks.length === 0) return [];
+  const totalLen = toks.reduce((n, t) => n + t.length, 0) || 1;
+  const span = Math.max(0, end - start);
+  let cur = start;
+  const out: FxWord[] = [];
+  for (const tk of toks) {
+    const dur = (tk.length / totalLen) * span;
+    out.push({ text: tk, start: round3(cur), end: round3(cur + dur), timing: 'estimated' });
+    cur += dur;
+  }
+  return out;
+}
+
+/** Script-ratio language detection (fallback when the ASR provider doesn't report one): counts
+ *  letters by script over the text. Rough by design — it feeds defaults (translate target, budget
+ *  hints), never correctness-critical paths. Returns undefined when nothing is recognizable. */
+export function detectLang(text: string): string | undefined {
+  let han = 0;
+  let kana = 0;
+  let hangul = 0;
+  let latin = 0;
+  let total = 0;
+  for (const ch of text) {
+    const c = ch.codePointAt(0)!;
+    if (!/[\p{L}]/u.test(ch)) continue;
+    total++;
+    if (c >= 0x3040 && c <= 0x30ff) kana++;
+    else if (c >= 0xac00 && c <= 0xd7af) hangul++;
+    else if (c >= 0x4e00 && c <= 0x9fff) han++;
+    else if (c <= 0x024f) latin++;
+  }
+  if (!total) return undefined;
+  if (kana / total > 0.05) return 'ja'; // any real kana presence marks Japanese even though it borrows Han
+  if (hangul / total > 0.3) return 'ko';
+  if (han / total > 0.3) return 'zh';
+  if (latin / total > 0.7) return 'en';
+  return undefined;
+}
+
+/** Punctuation may differ between an ASR tokenizer and display copy; spoken characters must agree. */
+const alignmentText = (text: string) => text.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+/** Letters+digits only (any script) — the alignment currency between ASR tokens and ICU words:
+ *  punctuation/space counts are unreliable across tokenizers, letter counts are not. */
+export const alnumCount = (s: string): number => {
+  let n = 0;
+  for (const ch of s) if (/[\p{L}\p{N}]/u.test(ch)) n++;
+  return n;
+};
+
+/**
+ * Sentence text whose ASR tokens miss or change a few characters (recognizers drop some word stamps
+ * while the sentence text stays complete). Characters are matched in order; a token takes the time
+ * of its matched characters, and a token with none shares the gap between its matched neighbours
+ * (marked estimated). Null unless the two clearly say the same thing, so unrelated tokens stay raw.
+ */
+function alignByCharacters(toks: string[], flat: { text: string; start: number; end: number }[]): FxWord[] | null {
+  const a = toks.flatMap((tok, token) => [...alignmentText(tok)].map((char) => ({ char, token })));
+  const b = flat.flatMap((word) => {
+    const chars = [...alignmentText(word.text)];
+    const step = (word.end - word.start) / Math.max(1, chars.length);
+    return chars.map((char, at) => ({ char, start: word.start + step * at, end: word.start + step * (at + 1) }));
+  });
+  const n = a.length, m = b.length;
+  if (!n || !m || n * m > 4_000_000) return null;
+  // Longest common subsequence of the spoken characters.
+  const table = new Uint16Array((n + 1) * (m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) {
+    table[i * (m + 1) + j] = a[i]!.char === b[j]!.char ? table[(i + 1) * (m + 1) + j + 1]! + 1 : Math.max(table[(i + 1) * (m + 1) + j]!, table[i * (m + 1) + j + 1]!);
+  }
+  const matched = table[0]!;
+  if (matched < m * 0.9 || matched < n * 0.7) return null;
+  const time: ({ start: number; end: number } | null)[] = Array.from({ length: n }, () => null);
+  for (let i = 0, j = 0; i < n && j < m;) {
+    if (a[i]!.char === b[j]!.char) { time[i++] = b[j++]!; continue; }
+    if (table[(i + 1) * (m + 1) + j]! >= table[i * (m + 1) + j + 1]!) i++; else j++;
+  }
+  const out: FxWord[] = [];
+  toks.forEach((tok, token) => {
+    const own = a.flatMap((entry, at) => (entry.token === token ? [at] : []));
+    if (!own.length) { if (out.length) out[out.length - 1]!.text += tok; return; }
+    const stamped = own.flatMap((at) => (time[at] ? [time[at]!] : []));
+    if (stamped.length) { out.push({ text: tok, start: stamped[0]!.start, end: stamped[stamped.length - 1]!.end }); return; }
+    // No character of this token was stamped: it takes the gap between its stamped neighbours.
+    let before = own[0]! - 1; while (before >= 0 && !time[before]) before--;
+    let after = own[own.length - 1]! + 1; while (after < n && !time[after]) after++;
+    const from = before >= 0 ? time[before]!.end : time[after]?.start ?? 0;
+    const to = after < n ? Math.max(from, time[after]!.start) : from;
+    const run = after - before - 1;
+    const share = (to - from) / Math.max(1, run);
+    out.push({ text: tok, start: from + share * (own[0]! - before - 1), end: from + share * (own[own.length - 1]! - before), timing: 'estimated' });
+  });
+  return out.length ? out : null;
+}
+
+/**
+ * Words grouped where two segmentations of the same speech agree. `wordCounts` and `tokenCounts` are
+ * the letters+digits of each recognizer word and each dictionary word, in order; a span ends only at
+ * a boundary both have. So a recognizer word spanning several dictionary words stays whole (买了 over
+ * 买|了), and recognizer pieces of one dictionary word come together (B|o|l|t, 8|0|0|0, 什|么). Words
+ * with no letters or digits (punctuation the recognizer gave on its own) end the span before them.
+ * Returns [from, to) word ranges, or null when the two do not count the same characters.
+ */
+export function agreedWordSpans(wordCounts: readonly number[], tokenCounts: readonly number[]): Array<[number, number]> | null {
+  const sum = (counts: readonly number[]) => counts.reduce((total, count) => total + count, 0);
+  if (!wordCounts.length || sum(wordCounts) !== sum(tokenCounts)) return null;
+  const tokenEnds = new Set<number>();
+  tokenCounts.reduce((at, count) => { tokenEnds.add(at + count); return at + count; }, 0);
+  const spans: Array<[number, number]> = [];
+  let from = 0;
+  let at = 0;
+  for (let index = 0; index < wordCounts.length; index++) {
+    // A word with nothing to count joins the span before it (or the first span, at the start).
+    if (!wordCounts[index]) {
+      if (index === from) { if (spans.length) { spans[spans.length - 1]![1] = index + 1; from = index + 1; } }
+      continue;
+    }
+    at += wordCounts[index]!;
+    if (tokenEnds.has(at)) {
+      // Punctuation words right after the boundary stay with it.
+      let to = index + 1;
+      while (to < wordCounts.length && !wordCounts[to]) to++;
+      spans.push([from, to]);
+      from = to;
+      index = to - 1;
+    }
+  }
+  if (from < wordCounts.length) {
+    if (spans.length) spans[spans.length - 1]![1] = wordCounts.length;
+    else spans.push([from, wordCounts.length]);
+  }
+  return spans;
+}
+
+/**
+ * Recognizer words as the words of the sentence. Where the sentence and the words spell the same
+ * letters and digits, they are grouped at the boundaries both agree on (agreedWordSpans): each group
+ * reads as the sentence writes it and keeps the true start of its first word and end of its last,
+ * never a time invented inside a word. Text the words do not spell out is aligned character by
+ * character (alignByCharacters); unrelated text leaves the words as they are.
+ */
+export function groupAsrWords(text: string, asr: { text: string; start: number; end: number }[]): FxWord[] {
+  const flat = asr.filter((w) => w.text.trim() && Number.isFinite(w.start) && Number.isFinite(w.end) && w.end > w.start)
+    .map((w) => ({ ...w, text: w.text.trim() }));
+  const toks = segmentTokens(text);
+  if (!flat.length || !toks.length) return flat;
+  if (alignmentText(text) !== flat.map((w) => alignmentText(w.text)).join('')) return alignByCharacters(toks, flat) ?? flat;
+  const tokenCounts = toks.map((tok) => alignmentText(tok).length);
+  const spans = agreedWordSpans(flat.map((w) => alignmentText(w.text).length), tokenCounts);
+  if (!spans) return flat;
+  // Each span's text is the sentence's own tokens over the same characters.
+  const out: FxWord[] = [];
+  let token = 0;
+  let counted = 0;
+  for (const [from, to] of spans) {
+    const want = flat.slice(from, to).reduce((total, w) => total + alignmentText(w.text).length, 0);
+    const parts: string[] = [];
+    let got = 0;
+    while (token < toks.length && (got < want || (!tokenCounts[token] && parts.length))) {
+      got += tokenCounts[token]!;
+      parts.push(toks[token++]!);
+    }
+    counted += got;
+    if (!parts.length) { if (out.length) out[out.length - 1]!.end = flat[to - 1]!.end; continue; }
+    out.push({ text: joinWords(parts), start: flat[from]!.start, end: flat[to - 1]!.end });
+  }
+  while (token < toks.length && out.length) out[out.length - 1]!.text += toks[token++]!;
+  return counted === tokenCounts.reduce((total, count) => total + count, 0) ? out : flat;
+}
+
+function round3(x: number): number {
+  return Math.round(x * 1000) / 1000;
+}
+
+/** Group consecutive words into "screens". */
+export function chunkWords(words: FxWord[], size: number): FxWord[][] {
+  const out: FxWord[][] = [];
+  const s = Math.max(1, size);
+  for (let i = 0; i < words.length; i += s) out.push(words.slice(i, i + s));
+  return out;
+}
+
+/** Target visual width of one caption line (in CJK-char units; a Latin char counts as half). */
+export const CAPTION_LINE_UNITS = 13;
+/** Visual width: CJK≈1, Latin/digit≈0.5. */
+const visualWidth = (t: string) => [...t].reduce((a, ch) => a + (ch.charCodeAt(0) > 0x2e7f ? 1 : 0.5), 0);
+export const PUNCT_END = /[,，。.．!！?？;；、:：…]$/;
+
+/**
+ * Balanced line-breaking core: the sentence takes the fewest lines that fit, and the breaks are
+ * chosen together so every line comes as close as possible to an equal share of the width, never
+ * past the limit (a single word wider than the line stands alone). A break after punctuation earns
+ * a bonus; `breakCost(left, right)` adds a penalty, in width units, for breaking between two words.
+ * With a breakCost, one more line is allowed when it avoids a bad break (it costs 0.3 of a line).
+ * Choosing all breaks at once means a costly break avoided early never forces a worse one later.
+ * The whole sentence stays one line when it fits; this only breaks within a sentence, never across
+ * sentences (callers call per sentence). widthOf's unit is the caller's choice; limit shares it.
+ */
+/** A single Han character standing alone after ICU segmentation. Runs of them are usually a word the
+ * dictionary does not know (「口播」) or a reduplicated phrase (「聊一聊」), so a line should not
+ * break between two of them when a better break is nearby. */
+export const loneHan = (text: string) => /^\p{Script=Han}$/u.test(text.replace(/[^\p{L}\p{N}]/gu, ''));
+
+export function chunkWordsBalanced<W extends { text: string }>(words: W[], limit: number, widthOf: (w: W) => number, breakCost?: (left: W, right: W) => number): W[][] {
+  if (!words.length) return [];
+  const n = words.length;
+  const prefix = [0];
+  for (const word of words) prefix.push(prefix[prefix.length - 1]! + widthOf(word));
+  const total = prefix[n]!;
+  if (total <= limit) return [words];
+  const span = (from: number, to: number) => prefix[to]! - prefix[from]!;
+  const fits = (from: number, to: number) => to - from === 1 || span(from, to) <= limit + 1e-6;
+  let lines = 0;
+  for (let at = 0; at < n; lines++) { let end = at + 1; while (end < n && fits(at, end + 1)) end++; at = end; }
+  const punctTol = limit * 0.15; // punctuation-priority band (scales with the unit)
+  // Moving a break changes two lines' deviation, so the bonus counts twice.
+  const breakAfter = (at: number) => (PUNCT_END.test(words[at - 1]!.text) ? -2 * punctTol : 0) + (breakCost ? breakCost(words[at - 1]!, words[at]!) : 0);
+  const layout = (count: number) => {
+    const target = total / count;
+    // cost[k][j]: best layout of the first j words on k lines; back[k][j]: where its last line starts.
+    const cost = Array.from({ length: count + 1 }, () => new Array<number>(n + 1).fill(Infinity));
+    const back = Array.from({ length: count + 1 }, () => new Array<number>(n + 1).fill(-1));
+    cost[0]![0] = 0;
+    for (let k = 1; k <= count; k++) for (let to = k; to <= n; to++) {
+      for (let from = to - 1; from >= k - 1 && fits(from, to); from--) {
+        if (cost[k - 1]![from] === Infinity) continue;
+        const value = cost[k - 1]![from]! + Math.abs(span(from, to) - target) + (to < n ? breakAfter(to) : 0);
+        if (value < cost[k]![to]!) { cost[k]![to] = value; back[k]![to] = from; }
+      }
+    }
+    const out: W[][] = [];
+    for (let k = count, to = n; k > 0 && to > 0; k--) { const from = back[k]![to]!; out.unshift(words.slice(from, to)); to = from; }
+    return { out, cost: cost[count]![n]! };
+  };
+  let best = layout(lines);
+  if (!breakCost) return best.out;
+  // Up to two more lines when they avoid bad breaks; each extra line costs 0.3 of a line.
+  for (let extra = 1; extra <= 2 && lines + extra <= n; extra++) {
+    const more = layout(lines + extra);
+    if (more.cost + limit * 0.3 * extra < best.cost) best = { ...more, cost: more.cost + limit * 0.3 * extra };
+  }
+  return best.out;
+}
+
+/** Coarse visual-unit measure (CJK=1/Latin=0.5): the fallback when there's no font-size context. */
+export function chunkWordsByWidth(words: FxWord[], maxUnits = CAPTION_LINE_UNITS): FxWord[][] {
+  return chunkWordsBalanced(words, maxUnits, (w) => visualWidth(w.text));
+}
+
+/** Display-cue width split (one chunk = one on-screen caption line). Budget is in em at the default
+ *  caption font size, mirroring the default box width (56% of the width-normalized 1080 canvas ≈13em):
+ *  the canvas width is constant across aspects, so ONE budget holds everywhere — an aspect-specific
+ *  budget here once cut landscape cues wider than their box and forced chronic wrapping.
+ *  Object identity is preserved (chunks are slices), so callers' word metadata rides along. */
+export function cueChunks<W extends { text: string }>(words: W[], opts?: { maxEm?: number }): W[][] {
+  // (56% × 1080 − plate padding ≈ 558px) / 48px base ≈ 11.6em; words render with no inter-word
+  // gap (subtitle convention) → 11 keeps every preset's cue on one line at scale 1. displayCues
+  // passes the language-aware budget (CJK 11 = one line; Latin 22 ≈ two stacked lines).
+  // Latin words carry their following space (render .sp ≈0.3em) in the accounting — without it a
+  // long EN cue under-counted by the sum of its spaces and spilled onto a THIRD display line.
+  const maxEm = opts?.maxEm ?? 11;
+  return chunkWordsBalanced(words, maxEm, (w) => estWordEm(w.text) + (/[A-Za-z0-9]$/.test(w.text) ? 0.3 : 0));
+}
+
+/**
+ * Per-char pixel width estimate (in em, times font size gives px): CJK/full-width (incl. full-width punctuation)=1;
+ * uppercase/digit≈0.62; lowercase≈0.52; half-width punctuation/space≈0.34. One notch finer than "CJK=1/Latin=0.5";
+ * combined with gap/padding it apportions precisely so split segments are guaranteed to fit the fixed-width caption box
+ * (otherwise a visual line wrap = accident).
+ */
+export function estCharEm(ch: string): number {
+  const c = ch.codePointAt(0) ?? 0;
+  if (c >= 0x2e80) return 1; // from CJK radicals + full-width punctuation/kana/hangul
+  if (/[A-Z0-9]/.test(ch)) return 0.62;
+  if (/[a-z]/.test(ch)) return 0.52;
+  return 0.34;
+}
+export function estWordEm(text: string): number {
+  return [...text].reduce((a, ch) => a + estCharEm(ch), 0);
+}
+
+/** Canvas text measurement (pretext-style, trusting the browser font engine): font uses the exact same
+ *  `[italic] weight px family` string as rendering. No canvas in node/test → returns null, falls back to the estimate table. */
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+export function measureTextPx(text: string, font: string): number | null {
+  if (measureCtx === undefined) {
+    try {
+      measureCtx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+    } catch {
+      measureCtx = null;
+    }
+  }
+  if (!measureCtx) return null;
+  try {
+    measureCtx.font = font;
+    return measureCtx.measureText(text).width;
+  } catch {
+    return null;
+  }
+}
+
+/** The screen hit at the current time + its visible window [start,end] (absolute seconds, seamlessly bridging into the next screen). */
+export function activeChunk(
+  words: FxWord[],
+  size: number,
+  t: number,
+): { chunk: FxWord[]; index: number; visStart: number; visEnd: number } | null {
+  const cs = chunkWords(words, size);
+  for (let i = 0; i < cs.length; i++) {
+    const chunk = cs[i]!;
+    const visStart = chunk[0]!.start;
+    const next = cs[i + 1];
+    const visEnd = next ? next[0]!.start : (chunk[chunk.length - 1]!.end + TAIL);
+    if (t >= visStart && t < visEnd) return { chunk, index: i, visStart, visEnd };
+  }
+  return null;
+}
+
+/** Screen-level in/out opacity (0.22s rise on enter, 0.15s fall at the end). */
+export function chunkAlpha(t: number, visStart: number, visEnd: number): number {
+  const inA = easeOutCubic((t - visStart) / 0.22);
+  const outA = clamp01((visEnd - t) / 0.15);
+  return clamp01(Math.min(inA, outA));
+}
+
+/* ============================ Rendering ============================ */
+
+export function hasCaptionFx(o: { effect?: string; words?: unknown }): o is CaptionFxInput {
+  return typeof o.effect === 'string' && Array.isArray(o.words) && o.words.length > 0;
+}
+
+interface Ctx2D {
+  font: string;
+  textAlign: CanvasTextAlign;
+  textBaseline: CanvasTextBaseline;
+  fillStyle: string | CanvasGradient | CanvasPattern;
+  strokeStyle: string | CanvasGradient | CanvasPattern;
+  lineWidth: number;
+  globalAlpha: number;
+  save(): void;
+  restore(): void;
+  translate(x: number, y: number): void;
+  scale(x: number, y: number): void;
+  fillText(t: string, x: number, y: number): void;
+  strokeText(t: string, x: number, y: number): void;
+  measureText(t: string): { width: number };
+  beginPath(): void;
+  rect(x: number, y: number, w: number, h: number): void;
+  clip(): void;
+  moveTo(x: number, y: number): void;
+  arcTo(x: number, y: number, x2: number, y2: number, r: number): void;
+  closePath(): void;
+  fill(): void;
+}
+
+/** Main entry for the caption-effect branch. drawOverlays calls it when an effect is present. */
+export function drawCaptionFx(ctx: Ctx2D, o: CaptionFxInput, t: number, W: number, H: number, font: string): void {
+  const size = o.effect === 'kinetic-slam' ? 1 : Math.max(1, o.windowWords ?? 4);
+  const ac = activeChunk(o.words, size, t);
+  if (!ac) return;
+  const alpha = chunkAlpha(t, ac.visStart, ac.visEnd);
+  if (alpha <= 0) return;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  switch (o.effect) {
+    case 'kinetic-slam':
+      drawSlam(ctx, o, ac.chunk[0]!, t, W, H, font);
+      break;
+    case 'pill-karaoke':
+      drawLine(ctx, o, ac.chunk, t, ac.visStart, W, H, font, 'karaoke');
+      break;
+    case 'highlight':
+      drawLine(ctx, o, ac.chunk, t, ac.visStart, W, H, font, 'highlight');
+      break;
+    case 'editorial-emphasis':
+      drawLine(ctx, o, ac.chunk, t, ac.visStart, W, H, font, 'emphasis');
+      break;
+    case 'word-pop':
+    default:
+      drawLine(ctx, o, ac.chunk, t, ac.visStart, W, H, font, 'pop');
+      break;
+  }
+  ctx.restore();
+}
+
+type LineMode = 'highlight' | 'karaoke' | 'emphasis' | 'pop';
+
+/** Layout of one line of words + per-word animation (shared by highlight/karaoke/emphasis/pop). */
+function drawLine(
+  ctx: Ctx2D,
+  o: CaptionFxInput,
+  chunk: FxWord[],
+  t: number,
+  chunkStart: number,
+  W: number,
+  H: number,
+  font: string,
+  mode: LineMode,
+): void {
+  const base = Math.round(H * 0.046 * (o.fontScale ?? 1));
+  const weight = 800;
+  const space = base * 0.34;
+  const cx = (o.x ?? 0.5) * W;
+  const cy = (o.y ?? 0.82) * H;
+  const accent = o.accentColor ?? '#ff2e4d';
+  const color = o.color ?? '#fff';
+  const stroke = o.strokeColor ?? '#000';
+
+  const texts = chunk.map((w) => (o.uppercase ? w.text.toUpperCase() : w.text));
+  // measure line width using the emphasis words' potential larger size, uniformly (keeps layout stable)
+  ctx.font = CtxFont(weight, base, font);
+  const widths = texts.map((tx, i) => {
+    const emph = mode === 'emphasis' && chunk[i]!.emphasis;
+    ctx.font = CtxFont(weight, emph ? base * 1.28 : base, font);
+    return ctx.measureText(tx).width;
+  });
+  const totalW = widths.reduce((a, b) => a + b, 0) + space * (chunk.length - 1);
+  let penX = cx - totalW / 2;
+
+  for (let i = 0; i < chunk.length; i++) {
+    const w = chunk[i]!;
+    const wWidth = widths[i]!;
+    const wcx = penX + wWidth / 2;
+    penX += wWidth + space;
+
+    const emph = mode === 'emphasis' && w.emphasis;
+    const fs = emph ? base * 1.28 : base;
+    ctx.font = CtxFont(weight, fs, font);
+
+    // per-word entrance (pop / emphasis keyword)
+    let scale = 1;
+    let dy = 0;
+    if (mode === 'pop') {
+      const p = easeOutBack((t - w.start) / 0.16);
+      if (t < w.start) continue; // not yet reached
+      scale = 0.8 + 0.2 * clamp01(p);
+    } else if (emph) {
+      const p = easeOutBack((t - w.start) / 0.2);
+      scale = 0.7 + 0.3 * clamp01(p);
+    } else {
+      // highlight / karaoke: the whole line rises in
+      dy = (1 - easeOutCubic((t - chunkStart) / 0.2)) * base * 0.22;
+    }
+
+    ctx.save();
+    ctx.translate(wcx, cy + dy);
+    if (scale !== 1) ctx.scale(scale, scale);
+
+    if (mode === 'highlight') {
+      const activeWord = t >= w.start && t < w.end;
+      if (activeWord) {
+        const grow = easeOutCubic((t - w.start) / 0.12);
+        const pad = fs * 0.16;
+        ctx.fillStyle = accent;
+        roundRect(ctx, -wWidth / 2 - pad, -fs * 0.62, (wWidth + pad * 2) * clamp01(grow), fs * 1.24, fs * 0.16);
+        ctx.fill();
+      }
+      drawText(ctx, texts[i]!, fs, color, stroke);
+    } else if (mode === 'karaoke') {
+      // base color (dim white) + accent fills left to right over the word's duration
+      drawText(ctx, texts[i]!, fs, 'rgba(255,255,255,0.5)', stroke);
+      const fill = clamp01((t - w.start) / Math.max(0.08, w.end - w.start));
+      if (fill > 0) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(-wWidth / 2, -fs, wWidth * fill, fs * 2);
+        ctx.clip();
+        drawText(ctx, texts[i]!, fs, accent, stroke);
+        ctx.restore();
+      }
+    } else {
+      // emphasis / pop: emphasis keywords use the accent color
+      drawText(ctx, texts[i]!, fs, emph ? accent : color, stroke);
+    }
+    ctx.restore();
+  }
+}
+
+/** One word slams in full-screen (kinetic-slam): large, centered, alternating-direction bounce. */
+function drawSlam(ctx: Ctx2D, o: CaptionFxInput, w: FxWord, t: number, W: number, H: number, font: string): void {
+  const fs = Math.round(H * 0.09 * (o.fontScale ?? 1));
+  ctx.font = CtxFont(800, fs, font);
+  const cx = (o.x ?? 0.5) * W;
+  const cy = (o.y ?? 0.5) * H;
+  const text = o.uppercase ? w.text.toUpperCase() : w.text;
+
+  const tIn = (t - w.start) / 0.22;
+  const p = easeOutBack(tIn);
+  const idx = Math.max(0, o.words.indexOf(w));
+  const dirs = [
+    [-1, 0],
+    [1, 0],
+    [0, 1],
+    [0, -1],
+  ] as const;
+  const d = dirs[idx % dirs.length]!;
+  const off = (1 - clamp01(p)) * fs * 0.6;
+  const scale = 0.55 + 0.45 * clamp01(p);
+
+  ctx.save();
+  ctx.translate(cx + d[0] * off, cy + d[1] * off);
+  ctx.scale(scale, scale);
+  drawText(ctx, text, fs, o.color ?? '#fff', o.strokeColor ?? '#000');
+  ctx.restore();
+}
+
+/** Stroke + fill one line of text (caller already applied translate/scale, so drawn at the origin). */
+function drawText(ctx: Ctx2D, text: string, fs: number, color: string, stroke: string): void {
+  const hasStroke = !!stroke && stroke !== 'none';
+  if (hasStroke) {
+    ctx.lineWidth = Math.max(3, fs * 0.14);
+    ctx.strokeStyle = stroke;
+    ctx.strokeText(text, 0, 0);
+  }
+  ctx.fillStyle = color;
+  ctx.fillText(text, 0, 0);
+}
+
+function roundRect(ctx: Ctx2D, x: number, y: number, w: number, h: number, r: number): void {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}

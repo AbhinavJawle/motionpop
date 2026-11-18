@@ -1,0 +1,226 @@
+/**
+ * Block factory: the code-side convenience entry for "add block" (shared by
+ * agent tools / shot placement / panel insertion). All go through the template
+ * registry for default slots/track — adding a template automatically makes it constructible.
+ */
+
+import {
+  type Block,
+  type Composition,
+  type FxWord,
+  type NormBox,
+  type Slots,
+  blockId,
+  getTemplate,
+  span2,
+} from './composition-core';
+import { effectiveThemeVars, getTheme } from './theme';
+import { t } from './i18n';
+import type { DisplayTextAnimationId, DisplayTextFontId, DisplayTextPresetId } from './display-text-presets';
+
+/* ============================ Frozen look (Block.vars) ============================ */
+
+/** Block kinds whose look freezes at insertion. Captions follow the global caption style,
+ *  transitions are legacy render-only, media has no themed chrome — those keep tracking #root. */
+const UNFROZEN_TEMPLATES = new Set(['caption', 'transition', 'media']);
+export const blockFreezesVars = (templateId: string): boolean => !UNFROZEN_TEMPLATES.has(templateId);
+
+/** Preset components are THEMELESS by decree (user-set): a kit instance or a preset-library element
+ *  freezes at the NEUTRAL general tokens — the exact look of its library card — never the project's
+ *  palette. Themes relate to components only as references the LLM reads during generation; they do
+ *  not restyle the components themselves. */
+const isPresetComponent = (b: Block): boolean => b.templateId.startsWith('kit:') || !!(b.slots as { presetId?: unknown }).presetId;
+
+/** Insertion-time look freeze: stamp effective tokens onto every eligible block that doesn't carry
+ *  them yet (see Block.vars) — preset components get the neutral general set, everything else the
+ *  composition's current theme+palette. Idempotent, and returns the SAME reference when there is
+ *  nothing to stamp. This remains for standalone V1 import/tool execution; live V2 publication uses
+ *  freezeEditorDocumentBlockVars directly. */
+export function freezeBlockVars(comp: Composition): Composition {
+  const missing = (b: Block) => !b.vars && blockFreezesVars(b.templateId);
+  if (!comp.blocks.some(missing)) return comp;
+  const themed = effectiveThemeVars(getTheme(comp.theme), comp.palette);
+  const neutral = effectiveThemeVars(getTheme('general'));
+  return { ...comp, blocks: comp.blocks.map((b) => (missing(b) ? { ...b, vars: isPresetComponent(b) ? neutral : themed } : b)) };
+}
+
+/* ============================ Block factory ============================ */
+
+/** Registry-driven new block: fills placeholder data per the template slot schema, on the template's default track. For "add block" — adding a template makes it addable automatically. */
+export function newBlock(templateId: string, opts: { startSec: number; durationSec?: number }): Block {
+  const tpl = getTemplate(templateId);
+  const slots: Slots = {};
+  for (const [key, spec] of Object.entries(tpl.slots)) {
+    // Slot placeholder text is CONTENT baked into the block at creation time — resolve
+    // the catalog keys through t() here so the copy lands in the creator's locale.
+    if (spec.type === 'text') slots[key] = t(spec.label);
+    else if (spec.type === 'text[]') slots[key] = [t('presets.point1'), t('presets.point2'), t('presets.point3')];
+    else if (spec.type === 'enum') slots[key] = spec.options?.[0] ?? '';
+    else if (spec.type === 'words') slots[key] = [{ text: t('presets.sampleText'), start: opts.startSec, end: opts.startSec + 1.2 }];
+    // image / others: leave empty
+  }
+  return {
+    id: blockId(templateId),
+    templateId,
+    slots,
+    startSec: opts.startSec,
+    durationSec: opts.durationSec ?? 2.5,
+    trackIndex: tpl.defaultTrackIndex,
+    label: t(tpl.name),
+  };
+}
+
+/** Media-slot block (empty-area placeholder). Empty slots = placeholder; fill `slots.media={type,url}` to lay in image/video. box usually uses treatmentVacancyBox. */
+export function mediaBlock(opts: {
+  startSec: number;
+  durationSec: number;
+  box?: NormBox;
+  trackIndex?: number;
+  label?: string;
+}): Block {
+  return {
+    id: blockId('media'),
+    templateId: 'media',
+    slots: {},
+    startSec: opts.startSec,
+    durationSec: opts.durationSec,
+    trackIndex: opts.trackIndex ?? 2,
+    ...(opts.box ? { box: opts.box } : {}),
+    label: opts.label ?? t('common.media'),
+  };
+}
+
+export function customBlock(opts: {
+  innerHtml: string;
+  timelineBody: string;
+  startSec: number;
+  durationSec: number;
+  trackIndex?: number;
+  label?: string;
+}): Block {
+  return {
+    id: blockId('cst'),
+    templateId: 'custom',
+    slots: { innerHtml: opts.innerHtml, timelineBody: opts.timelineBody },
+    startSec: opts.startSec,
+    durationSec: opts.durationSec,
+    trackIndex: opts.trackIndex ?? 2,
+    ...(opts.label ? { label: opts.label } : {}),
+  };
+}
+
+export function titleBlock(opts: {
+  text: string;
+  startSec: number;
+  durationSec: number;
+  trackIndex?: number;
+  sub?: string;
+  preset?: DisplayTextPresetId;
+  animation?: DisplayTextAnimationId;
+  color?: string;
+  accentColor?: string;
+  fontSize?: number;
+  fontWeight?: number;
+  fontFamily?: DisplayTextFontId;
+  align?: 'left' | 'center' | 'right';
+}): Block {
+  return {
+    id: blockId('title'),
+    templateId: 'title',
+    slots: {
+      text: opts.text,
+      ...(opts.sub ? { sub: opts.sub } : {}),
+      ...(opts.preset ? { preset: opts.preset } : {}),
+      ...(opts.animation ? { animation: opts.animation } : {}),
+      ...(opts.color ? { color: opts.color } : {}),
+      ...(opts.accentColor ? { accentColor: opts.accentColor } : {}),
+      ...(opts.fontSize != null ? { fontSize: opts.fontSize } : {}),
+      ...(opts.fontWeight != null ? { fontWeight: opts.fontWeight } : {}),
+      ...(opts.fontFamily ? { fontFamily: opts.fontFamily } : {}),
+      ...(opts.align ? { align: opts.align } : {}),
+    },
+    startSec: opts.startSec,
+    durationSec: opts.durationSec,
+    trackIndex: opts.trackIndex ?? 2,
+    label: opts.text,
+  };
+}
+
+export function statBlock(opts: { value: string; label: string; startSec: number; durationSec: number; trackIndex?: number }): Block {
+  return {
+    id: blockId('stat'),
+    templateId: 'stat',
+    slots: { value: opts.value, label: opts.label },
+    startSec: opts.startSec,
+    durationSec: opts.durationSec,
+    trackIndex: opts.trackIndex ?? 2,
+    label: `${opts.value} ${opts.label}`,
+  };
+}
+
+export function bulletListBlock(opts: { title?: string; items: string[]; startSec: number; durationSec: number; trackIndex?: number }): Block {
+  return {
+    id: blockId('list'),
+    templateId: 'list',
+    slots: { ...(opts.title ? { title: opts.title } : {}), items: opts.items },
+    startSec: opts.startSec,
+    durationSec: opts.durationSec,
+    trackIndex: opts.trackIndex ?? 2,
+    label: opts.title ?? opts.items.join(' / '),
+  };
+}
+
+/** Caption block (duration driven by word timing). Captions are captions, components are components:
+ *  - sentence-level caption: carries only words (+ optional preset/yPct as the initial form when captionStyle is unset); visuals come from the global preset;
+ *  - effect='kinetic-slam' = keyword-slam component (has its own box, independently positioned, ignores the global caption style). */
+export function captionBlock(opts: {
+  /** Explicit id (derived display cues use a deterministic id from their ref, so selection/preview diffing stay stable across re-derivations). */
+  id?: string;
+  words: FxWord[];
+  /** Component-only: keyword slam. Not passed for sentence-level captions. */
+  effect?: 'kinetic-slam';
+  /** Bilingual caption sub-line (this segment's translation, rendered directly below the main line, visuals follow the preset). */
+  sub?: string;
+  /** Cue block (one derived display line): renders statically, never rotates; overflow wraps. */
+  cue?: boolean;
+  /** Source-sentence pointer {src, seg, w0, w1} for panel edit/translation write-back. */
+  ref?: { src: string | null; seg: number; w0: number; w1: number };
+  /** Visual preset id (caption-presets; initial form when captionStyle is unset). */
+  preset?: string;
+  yPct?: number;
+  label?: string;
+  trackIndex?: number;
+}): Block {
+  const { start, dur } = span2(opts.words);
+  return {
+    id: opts.id ?? blockId('cap'),
+    templateId: 'caption',
+    slots: {
+      words: opts.words,
+      ...(opts.cue ? { cue: true } : {}),
+      ...(opts.ref ? { ref: opts.ref } : {}),
+      ...(opts.effect ? { effect: opts.effect } : {}),
+      ...(opts.sub ? { sub: opts.sub } : {}),
+      ...(opts.preset ? { preset: opts.preset } : {}),
+      ...(opts.yPct != null ? { yPct: opts.yPct } : {}),
+    },
+    startSec: start,
+    durationSec: dur,
+    trackIndex: opts.trackIndex ?? 1,
+    label: opts.label ?? opts.words.map((w) => w.text).join(''),
+  };
+}
+
+/** Transition mask block (legacy form, kept only for rendering existing data): a real
+ *  transition is a content handoff at the cut point, via VideoShot.transIn (cutTransitions) — UI/tools no longer produce this block. */
+export function transitionBlock(opts: { startSec: number; durationSec?: number; effect?: 'wipe' | 'flash' | 'fade' | 'slide'; trackIndex?: number }): Block {
+  return {
+    id: blockId('tr'),
+    templateId: 'transition',
+    slots: { effect: opts.effect ?? 'wipe' },
+    startSec: opts.startSec,
+    durationSec: opts.durationSec ?? 0.5,
+    trackIndex: opts.trackIndex ?? 3,
+    label: t('tools.add_transition.label'),
+  };
+}

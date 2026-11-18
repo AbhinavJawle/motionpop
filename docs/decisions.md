@@ -286,3 +286,15 @@ Spec 11 R1 asked for projects in the account; design §2.1 stored each field as 
   - Projects compiled before this decision look different when re-rendered (they are staged by default).
   - The Openverse anonymous rate limit is shared by all creators on a server instance. The server cache softens this but doesn't remove it. A registered API key is the upgrade (not done).
   - Not measured in the hosted app: the pictures flow was tested with fake searches only, plus the existing search route.
+
+## D-076 · 2026-11-18 · decided (founder, in a Claude Code session) — Pireel becomes the editing surface; GSAP and AGPL-3.0 accepted
+- **Context:** the founder wants video and video editing in the product, working in sync with what Motionpop already does, and asked to build on an open-source editor rather than write one. Pireel (`github.com/pireel/pireel`, AGPL-3.0-only, commit `51fb487`) is an embeddable talking-head editor whose AI features are all host-supplied "providers". Its graphics run on GSAP. Comparison and design: `docs/research/pireel-integration.md`.
+- **Decision (founder: "i say yes to GSAP and the license"):**
+  - Pireel's editor is embedded as the editing surface. Motionpop supplies everything around it (start, recording, TTS, processing, Firebase, credits, render) and under it (providers: on-device Whisper, cleanup, Nano for the small AI jobs, Gemini for generation).
+  - **GSAP is allowed inside Pireel's compositions.** Our own motion core stays GSAP-free and deterministic; it runs inside Pireel blocks through a proxy tween that calls our `seek(t)`.
+  - **The repository licence changes from Apache-2.0 to AGPL-3.0** when Pireel code lands. Pireel is credited in `docs/third-party.md`, its notices are kept, and its packages stay recognisable as its work (built on top, not presented as ours).
+- **Consequences:**
+  - Steering updated: `CLAUDE.md` hard rules, `tech.md`, `component-contract.md`, `hackathon-compliance.md`.
+  - The custom-graphics lint's GSAP ban stays for our own generated graphics (`custom.compose`); Pireel blocks are linted by Pireel.
+  - Spec 17 (`.kiro/specs/17-pireel-studio/`) holds the work.
+- **Open:** Pireel hasn't been installed or run yet (needs the founder's go, since it runs third-party install scripts). The Vite/TS 5.5/pnpm 9 → Next 16/TS 6/pnpm 11 fit is unproven until the first embed.

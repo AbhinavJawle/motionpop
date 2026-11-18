@@ -12,6 +12,11 @@ const config: NextConfig = {
     '@motionpop/motion',
     '@motionpop/ai',
     '@motionpop/render',
+    // Pireel's editor (spec 17, D-076): TypeScript source as well.
+    '@pireel/studio-engine',
+    '@pireel/studio-ui',
+    '@pireel/studio-kit',
+    '@pireel/ui',
   ],
   // The development-only offline render route loads Chrome and the HyperFrames producer at run
   // time (`@motionpop/render/offline`). They are Node tools, not bundle material.
@@ -21,6 +26,7 @@ const config: NextConfig = {
   outputFileTracingRoot: join(import.meta.dirname, '..', '..'),
   outputFileTracingIncludes: {
     '/api/composition/assets': ['../../packages/motion/dist/**/*'],
+    '/mp-runtime/[file]': ['../../packages/motion/dist/block-runtime.js'],
   },
   reactStrictMode: true,
   // On App Hosting the web config arrives as FIREBASE_WEBAPP_CONFIG; inline it as NEXT_PUBLIC_*.

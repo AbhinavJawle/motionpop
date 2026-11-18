@@ -1,0 +1,153 @@
+import {
+  IDENTITY_MEDIA_FRAMING,
+  normalizeAtomicMediaFraming,
+  zoomAnchorShiftPercent,
+  parseLocalImageLocator,
+  shotFilterCss,
+  sourceDrawRect,
+  supplementalVisualStateAt,
+  type ShotPreciseFraming,
+  type SupplementalVisualMediaClip,
+} from '@pireel/studio-engine/composition';
+import { t } from './i18n';
+import { materializeRemoteMedia } from './remote-media';
+import { loadLocalVideo } from './local-media';
+
+export interface SampledVisualVideo {
+  sourceWidth: number;
+  sourceHeight: number;
+  sample: { draw: (ctx: VisualCanvasContext, x: number, y: number, width: number, height: number) => void };
+}
+
+type VisualCanvasContext = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+export async function loadExportVideoFile(source: string, localFiles: Map<string, File>): Promise<File> {
+  const local = localFiles.get(source);
+  if (local) return local;
+  try {
+    return (await materializeRemoteMedia(source, { name: 'visual-clip.mp4', type: 'video/mp4' })).file;
+  } catch {
+    throw new Error(t('workbench.failedFetchInsertClip'));
+  }
+}
+
+export async function loadVisualImageBitmaps(
+  visuals: readonly SupplementalVisualMediaClip[],
+): Promise<Map<string, ImageBitmap>> {
+  const images = new Map<string, ImageBitmap>();
+  await Promise.all(visuals.filter((visual) => visual.kind === 'image').map(async (visual) => {
+    const localSig = parseLocalImageLocator(visual.source);
+    const file = localSig
+      ? await loadLocalVideo(localSig)
+      : (await materializeRemoteMedia(visual.source, {
+          name: `visual-${visual.clipId}.image`,
+          type: 'image/png',
+        })).file;
+    if (!file) throw new Error(`Local image is unavailable on this device: ${localSig}`);
+    images.set(visual.clipId, await createImageBitmap(file));
+  }));
+  return images;
+}
+
+export function activeVisualMedia(
+  visuals: readonly SupplementalVisualMediaClip[],
+  timelineTime: number,
+): SupplementalVisualMediaClip[] {
+  return visuals.filter((visual) => (
+    timelineTime >= visual.startSec - 1e-6 && timelineTime < visual.endSec - 1e-6
+  ));
+}
+
+function visualFraming(visual: SupplementalVisualMediaClip, anchorX: number, anchorY: number): ShotPreciseFraming | undefined {
+  return visual.fit === 'cover'
+    ? { scale: 1, anchorX, anchorY, coordinateSpace: 'source-normalized' }
+    : undefined;
+}
+
+/** Draw already-sampled V2 visual media in adapter order (bottom-to-top). */
+export function drawSupplementalVisualMedia(args: {
+  ctx: VisualCanvasContext;
+  visuals: readonly SupplementalVisualMediaClip[];
+  timelineTime: number;
+  imageBitmaps: ReadonlyMap<string, ImageBitmap>;
+  videoSamples: ReadonlyMap<string, SampledVisualVideo>;
+  targetWidth: number;
+  targetHeight: number;
+  scaleX: number;
+  scaleY: number;
+}): void {
+  const { ctx, visuals, timelineTime, imageBitmaps, videoSamples, targetWidth, targetHeight, scaleX, scaleY } = args;
+  for (const visual of activeVisualMedia(visuals, timelineTime)) {
+    const state = supplementalVisualStateAt(visual, timelineTime);
+    if (state.opacity <= 0.0001) continue;
+    const targetX = state.box.x * targetWidth;
+    const targetY = state.box.y * targetHeight;
+    const boxWidth = state.box.w * targetWidth;
+    const boxHeight = state.box.h * targetHeight;
+    const framing = normalizeAtomicMediaFraming(visual.mediaFraming, IDENTITY_MEDIA_FRAMING);
+    ctx.save();
+    ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);
+    ctx.globalAlpha *= state.opacity;
+    ctx.filter = shotFilterCss(visual.filter);
+    // The animated push-in multiplies the framing scale and keeps its anchor point still — the same
+    // moves the stage plays as tweens (zoomMoves), evaluated here per frame.
+    const totalScale = framing.transform.scale * state.zoomScale;
+    const zoomShiftX = zoomAnchorShiftPercent(visual.zoom?.anchorX, framing.transform.scale, totalScale) / 100;
+    const zoomShiftY = zoomAnchorShiftPercent(visual.zoom?.anchorY, framing.transform.scale, totalScale) / 100;
+    const transformed = totalScale !== 1
+      || framing.transform.offsetX + zoomShiftX !== 0
+      || framing.transform.offsetY + zoomShiftY !== 0;
+    if (transformed) {
+      const centreX = targetX + boxWidth / 2;
+      const centreY = targetY + boxHeight / 2;
+      ctx.translate(
+        centreX + (framing.transform.offsetX + zoomShiftX) * boxWidth,
+        centreY + (framing.transform.offsetY + zoomShiftY) * boxHeight,
+      );
+      ctx.scale(totalScale, totalScale);
+      ctx.translate(-centreX, -centreY);
+    }
+    ctx.beginPath();
+    const cropX = targetX + framing.crop.left * boxWidth;
+    const cropY = targetY + framing.crop.top * boxHeight;
+    const cropW = boxWidth * (1 - framing.crop.left - framing.crop.right);
+    const cropH = boxHeight * (1 - framing.crop.top - framing.crop.bottom);
+    if (framing.rounding > 0) ctx.roundRect(cropX, cropY, cropW, cropH, framing.rounding);
+    else ctx.rect(cropX, cropY, cropW, cropH);
+    ctx.clip();
+    const image = imageBitmaps.get(visual.clipId);
+    const video = videoSamples.get(visual.clipId);
+    if (image) {
+      const rect = sourceDrawRect(image.width, image.height, boxWidth, boxHeight, visualFraming(visual, state.anchorX, state.anchorY));
+      ctx.drawImage(image, targetX + rect.x, targetY + rect.y, rect.width, rect.height);
+    } else if (video) {
+      const rect = sourceDrawRect(video.sourceWidth, video.sourceHeight, boxWidth, boxHeight, visualFraming(visual, state.anchorX, state.anchorY));
+      video.sample.draw(ctx, targetX + rect.x, targetY + rect.y, rect.width, rect.height);
+    }
+    ctx.restore();
+  }
+}
+
+export function disposeVisualImageBitmaps(images: ReadonlyMap<string, ImageBitmap>): void {
+  for (const image of images.values()) image.close();
+}
+
+/** Materialize alpha before entering the synchronous canvas layer compositor. */
+export async function prepareVisualPersonMattes(visuals: readonly SupplementalVisualMediaClip[], samples: Map<string, SampledVisualVideo>, time: number): Promise<() => void> {
+  const owned: ImageBitmap[] = [];
+  const release = () => owned.forEach(bitmap => bitmap.close());
+  try {
+    for (const visual of activeVisualMedia(visuals, time)) {
+      if (!visual.personMatte) continue;
+      const source = samples.get(visual.clipId);
+      if (!source) throw new Error(t('ui.personCutout.sourceUnreadable'));
+      const canvas = new OffscreenCanvas(source.sourceWidth, source.sourceHeight);
+      const ctx = canvas.getContext('2d'); if (!ctx) throw new Error(t('ui.personCutout.canvasUnavailable'));
+      source.sample.draw(ctx, 0, 0, canvas.width, canvas.height);
+      const { personCutoutFrame } = await import('./person-cutout-frame');
+      const bitmap = await personCutoutFrame(canvas.transferToImageBitmap(), { id: `export:${visual.clipId}`, t: time }); owned.push(bitmap);
+      samples.set(visual.clipId, { ...source, sample: { draw: (target, x, y, width, height) => target.drawImage(bitmap, x, y, width, height) } });
+    }
+    return release;
+  } catch (error) { release(); throw error; }
+}

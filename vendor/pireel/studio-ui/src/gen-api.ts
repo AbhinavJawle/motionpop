@@ -1,0 +1,231 @@
+'use client';
+import { editorRequest } from '@pireel/studio-ui/host-request';
+
+/**
+ * Client API layer for the Studio right-rail image/video generation panels.
+ *
+ * Reuses /create's unified generation infra: POST /api/create (tool_id picks the tool, billing, async
+ * atlas) + GET /api/create/:id to poll one item's status. A creation must hang off a space — each
+ * Studio project resolves one stable server-side space, with localStorage only as a per-project
+ * cache. Another browser resolves the same space from the project id, so history never becomes
+ * user-global and remains recoverable across devices.
+ * Assets are stored as bare R2 keys; display uses the imageThumb preset; inserting into a composition uses the 'original' full URL.
+ */
+
+import { imageThumb } from '@pireel/ui/image-url';
+import { t } from '@pireel/studio-ui/i18n';
+
+const SPACE_LS_PREFIX = 'pireel.studio.gen-space:v3:';
+
+const spaceCacheKey = (projectId: string) => `${SPACE_LS_PREFIX}${projectId}`;
+
+export interface GenAsset {
+  /** Bare key or full URL (verbatim from output_data.assets[].url) */
+  key: string;
+  /** Full original URL for inserting into a composition */
+  url: string;
+  mime: string;
+}
+
+export type GenStatus = 'pending' | 'succeeded' | 'failed';
+
+export {
+  generatedAssetIndexEntry,
+  generatedRecordsFromJobs,
+  type GeneratedAssetRecord,
+} from '@pireel/studio-engine/generated-assets';
+
+export interface GenJob {
+  coverRunId?: string;
+  id: string;
+  status: GenStatus;
+  prompt: string;
+  assets: GenAsset[];
+  /** The failure as the service reported it (for diagnostics and agents); show `generationFailureMessage` to people. */
+  error?: string;
+  createdAt: number;
+}
+
+/**
+ * A failed generation in words the user can act on. Providers report failures in their own terms
+ * (codes, HTTP status, JSON); only what the user can change is told apart: content a review turned
+ * down, and a run that timed out.
+ */
+export function generationFailureMessage(error?: string): string {
+  if (error && /sensitive|moderat|policy|copyright|rejected|privacy|safety|nsfw|violat|inappropriate/i.test(error)) return t('common.generationRejected');
+  if (error && /time ?out|timed out/i.test(error)) return t('common.generationTimedOut');
+  return t('common.generationFailedRetry');
+}
+
+export type StartResult =
+  | { ok: true; ids: string[] }
+  | { ok: false; kind: 'credits'; need: number; balance: number }
+  /** The account's plan does not include this generation (e.g. video needs Pro). */
+  | { ok: false; kind: 'plan'; requires: 'pro' | 'max'; message: string }
+  | { ok: false; kind: 'error'; message: string };
+
+function clearSpaceCache(projectId: string) {
+  try {
+    localStorage.removeItem(spaceCacheKey(projectId));
+  } catch {
+    /* Ignore under SSR/private mode */
+  }
+}
+
+function cacheSpaceId(projectId: string, id: string): string {
+  try {
+    localStorage.setItem(spaceCacheKey(projectId), id);
+  } catch {
+    /* ignore */
+  }
+  return id;
+}
+
+function cachedSpaceId(projectId: string): string | null {
+  try {
+    return localStorage.getItem(spaceCacheKey(projectId));
+  } catch {
+    return null;
+  }
+}
+
+/** Current project's dedicated generation space: cached locally, resolved idempotently by the server.
+ *  Creates the space, so it belongs to the paths that are about to write one. */
+export async function getStudioSpaceId(projectId: string): Promise<string> {
+  const cached = cachedSpaceId(projectId);
+  if (cached) return cached;
+  const r = await editorRequest(`/api/studio/projects/${encodeURIComponent(projectId)}/gen-space`, {
+    method: 'POST',
+  });
+  const j = (await r.json().catch(() => null)) as { space?: { id?: string } } | null;
+  const id = j?.space?.id;
+  if (!r.ok || !id) throw new Error('space_create_failed');
+  return cacheSpaceId(projectId, id);
+}
+
+/** Resolve the space for READING history. `null` when this project has none yet — a project that
+ *  was never saved to the cloud cannot own generations, and asking for its history must not create
+ *  a space (three panels ask on every open) or report a failure. */
+export async function resolveStudioSpaceId(projectId: string): Promise<string | null> {
+  const cached = cachedSpaceId(projectId);
+  if (cached) return cached;
+  const r = await editorRequest(`/api/studio/projects/${encodeURIComponent(projectId)}/gen-space`);
+  if (!r.ok) return null;
+  const j = (await r.json().catch(() => null)) as { space?: { id?: string } | null } | null;
+  const id = j?.space?.id;
+  return id ? cacheSpaceId(projectId, id) : null;
+}
+
+/** One generation request in a known space: the status lets a caller decide whether a stale space is worth retrying. */
+async function postGeneration(spaceId: string, toolId: 'image-gen' | 'video-gen', params: Record<string, unknown>, sceneRun?: string): Promise<{ status: number; result: StartResult }> {
+  const r = await editorRequest('/api/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ space_id: spaceId, tool_id: toolId, params, ...(sceneRun ? { scene_run: sceneRun } : {}) }),
+  });
+  const j = (await r.json().catch(() => null)) as
+    | { ok?: boolean; id?: string; ids?: string[]; error?: string; need?: number; balance?: number; requires?: string }
+    | null;
+  if (r.status === 402 && j?.error === 'insufficient_tokens') {
+    return { status: r.status, result: { ok: false, kind: 'credits', need: j.need ?? 0, balance: j.balance ?? 0 } };
+  }
+  if (r.status === 403 && j?.error === 'plan_locked') {
+    const requires = j.requires === 'max' ? 'max' : 'pro';
+    return { status: r.status, result: { ok: false, kind: 'plan', requires, message: t('chatGen.planLocked', { plan: requires === 'max' ? 'Max' : 'Pro' }) } };
+  }
+  if (!r.ok || !j?.ok || !j.id) {
+    // The service answers with an error code (creation_failed, unknown_skill…), not a message to show.
+    return { status: r.status, result: { ok: false, kind: 'error', message: typeof j?.error === 'string' && /\s/.test(j.error) ? j.error : t('chatGen.generationRequestFailedStatus', { status: r.status }) } };
+  }
+  return { status: r.status, result: { ok: true, ids: Array.isArray(j.ids) && j.ids.length > 0 ? j.ids : [j.id] } };
+}
+
+/** Start one generation in a space the caller owns (a standalone page with its own space). */
+export async function startSpaceGeneration(spaceId: string, toolId: 'image-gen' | 'video-gen', params: Record<string, unknown>): Promise<StartResult> {
+  return (await postGeneration(spaceId, toolId, params)).result;
+}
+
+/** Start one generation. 402 insufficient credits becomes its own kind; on invalid space (account change/deletion) clear the cache and retry once. */
+export async function startGeneration(
+  projectId: string,
+  toolId: 'image-gen' | 'video-gen',
+  params: Record<string, unknown>,
+  /** A scene run that takes the cost instead of the wallet (single image). */
+  sceneRun?: string,
+): Promise<StartResult> {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let spaceId: string;
+    try {
+      spaceId = await getStudioSpaceId(projectId);
+    } catch {
+      return { ok: false, kind: 'error', message: t('common.generationSpaceFailed') };
+    }
+    const { status, result } = await postGeneration(spaceId, toolId, params, sceneRun);
+    // 4xx and not yet retried → most likely an invalid space; clear the cache, get a new space, and retry
+    if (!result.ok && result.kind === 'error' && attempt === 0 && (status === 400 || status === 404)) {
+      clearSpaceCache(projectId);
+      continue;
+    }
+    return result;
+  }
+  return { ok: false, kind: 'error', message: t('chatGen.generationRequestFailed') };
+}
+
+export interface RawCreation {
+  id?: string;
+  status?: string;
+  prompt?: string;
+  params?: { user_prompt?: string; _cover_run_id?: string };
+  error?: string;
+  created_at?: number | string;
+  output_data?: { assets?: Array<{ url?: string; mime?: string }> };
+}
+
+function toAssets(data: RawCreation['output_data']): GenAsset[] {
+  return (data?.assets ?? [])
+    .filter((a): a is { url: string; mime?: string } => typeof a?.url === 'string')
+    .map((a) => ({ key: a.url, url: imageThumb(a.url, 'original'), mime: a.mime ?? '' }));
+}
+
+/** A creation row as the generation panels show it. */
+export function genJobFromCreation(raw: RawCreation): GenJob {
+  const status: GenStatus = raw.status === 'succeeded' ? 'succeeded' : raw.status === 'failed' ? 'failed' : 'pending';
+  const at = typeof raw.created_at === 'number' ? raw.created_at : Date.parse(String(raw.created_at ?? '')) || Date.now();
+  return {
+    id: raw.id ?? '',
+    ...(typeof raw.params?._cover_run_id === 'string' ? { coverRunId: raw.params._cover_run_id } : {}),
+    status,
+    prompt: raw.params?.user_prompt || raw.prompt || '',
+    assets: toAssets(raw.output_data),
+    ...(raw.error ? { error: raw.error } : {}),
+    createdAt: at,
+  };
+}
+
+/** Poll one creation. Network hiccups are treated as pending, checked again next round. */
+export async function pollCreation(id: string): Promise<GenJob | null> {
+  const r = await editorRequest(`/api/create/${encodeURIComponent(id)}`);
+  if (!r.ok) return null;
+  const j = (await r.json().catch(() => null)) as RawCreation | null;
+  if (!j) return null;
+  return genJobFromCreation({ ...j, id });
+}
+
+/** Fetch this project's generation history (including pending — resume polling on mount). */
+/** One space's generation history, newest first (pending included, so polling resumes on mount). */
+export async function listSpaceGens(spaceId: string, type: 'image' | 'video' | 'audio', limit = 30): Promise<GenJob[] | null> {
+  const creationType = type === 'audio' ? 'bgm' : type;
+  const r = await editorRequest(`/api/create/list?space_id=${encodeURIComponent(spaceId)}&type=${creationType}&limit=${limit}`);
+  if (!r.ok) return r.status === 400 || r.status === 404 ? null : [];
+  const j = (await r.json().catch(() => null)) as { items?: RawCreation[] } | null;
+  return (j?.items ?? []).map(genJobFromCreation).filter((x) => x.id);
+}
+
+/** Fetch this project's generation history (including pending — resume polling on mount). */
+export async function listStudioGens(projectId: string, type: 'image' | 'video' | 'audio', limit = 30): Promise<GenJob[]> {
+  const spaceId = await resolveStudioSpaceId(projectId).catch(() => null);
+  if (!spaceId) return [];
+  const jobs = await listSpaceGens(spaceId, type, limit);
+  if (!jobs) clearSpaceCache(projectId);
+  return jobs ?? [];
+}

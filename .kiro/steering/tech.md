@@ -33,7 +33,7 @@ const model = getGenerativeModel(ai, { mode: InferenceMode.PREFER_ON_DEVICE });
 
 ## Video
 - **HyperFrames** (Apache-2.0): `@hyperframes/player` (preview web component, sandboxed iframe), `@hyperframes/producer` (render to MP4/WebM), `@hyperframes/lint` (tier-2 checks). `@hyperframes/gcp-cloud-run` is the upgrade path for long videos.
-- Our own deterministic motion core in `packages/motion` drives every frame through HyperFrames' `hf-seek` event. **No GSAP anywhere in product code** (its licence excludes no-code animation tools).
+- Our own deterministic motion core in `packages/motion` drives every frame through HyperFrames' `hf-seek` event. **Our motion core uses no GSAP**; GSAP is allowed only inside the embedded Pireel editor's compositions (D-076; the founder accepted GSAP's licence terms for that use).
 - Maps: d3-geo + topojson-client + Natural Earth (public domain).
 - Render service: Cloud Run (`services/render`), built with Cloud Build.
 
@@ -46,7 +46,7 @@ const model = getGenerativeModel(ai, { mode: InferenceMode.PREFER_ON_DEVICE });
 transformers.js Whisper in a Web Worker (WebGPU, WASM fallback) for word timings · Web Audio / OfflineAudioContext for cleanup, peaks, synthesized SFX and ducking.
 
 ## Explicit non-choices
-No GSAP, no Remotion, no Rive, no ElevenLabs, no AWS services, no stock sound libraries.
+No GSAP outside Pireel's compositions (D-076), no Remotion, no Rive, no ElevenLabs, no AWS services, no stock sound libraries.
 
 ## Environments
 - **Local:** `pnpm dev` + Firebase Emulator Suite (Auth, Firestore, Storage); App Check debug token in `.env.local` (never committed).

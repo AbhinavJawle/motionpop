@@ -1,0 +1,240 @@
+/**
+ * Provider contracts — the capability seams between the pure engine/editor and
+ * whatever supplies LLM, ASR, storage, and persistence.
+ *
+ * The engine NEVER calls a provider itself (BYO-brain: briefs are assembled here,
+ * generation happens in the caller's model). These interfaces exist so an editor
+ * shell can be wired to different backends:
+ *  - the hosted app injects its own API-backed implementations;
+ *  - an OSS/self-hosted shell injects local or bring-your-own-key implementations,
+ *    or `unavailableProviders()` to run the editor pure-local (BYO agent only).
+ */
+
+import type { BlockEdit, ComposeContext, KitChoice } from '@pireel/studio-engine/compose';
+import type { AsrSegment } from '@pireel/studio-engine/build-blocks';
+import type { ProjectSaveResult, ProjectSaveWire, StudioProjectDto } from '@pireel/studio-engine/project-dto';
+import type { EditorDocumentV2 } from '@pireel/studio-engine/editor-document';
+import type { AssetSearchDocument } from '@pireel/studio-engine/asset-search';
+
+/** One block-generation request (the same shape the BYO brief is assembled from). */
+/** A title the hosted service planned for a new video, in frame percentages. */
+export interface PlannedTitle {
+  text: string;
+  startSec: number;
+  durationSec: number;
+  /** Box in percent of the frame. */
+  box: { xPct: number; yPct: number; widthPct: number; heightPct: number };
+  color: string;
+  /** Plate colour behind the text; null = text straight on the picture. */
+  plate: string | null;
+  /** Text height in percent of the frame height. */
+  sizePct: number;
+}
+
+export interface StudioOperationOptions {
+  signal?: AbortSignal; onUsage?: (usage: import('@pireel/studio-engine/usage').WorkflowUsage) => void;
+  /** Selective caption coloring; separate from active-word animations and headline graphics. */
+  highlightMode?: 'keywords' | 'numbers';
+  projectId?: string;
+  /** The fixed-price scene run this call belongs to: the host bills the run, not the call. */
+  sceneRun?: string;
+}
+/** Fixed-price scene generations (captions, dubbing, Auto SFX): charged once when a generation starts; its
+ *  paid steps then pass the run id. Resuming an interrupted generation continues its run. */
+export interface SceneRunService {
+  start(input: { id: string; projectId: string }, signal?: AbortSignal): Promise<{ id: string; credits: number; resumed: boolean }>;
+  /** A failed run is refunded (less the service cost it already incurred). */
+  finish(id: string, outcome: 'completed' | 'failed'): Promise<void>;
+}
+export interface ComposeRequest {
+  /** Billing attribution only — which project this generation belongs to. */
+  projectId?: string;
+  block: BlockEdit;
+  instruction: string;
+  theme?: string;
+  palette?: Record<string, string>;
+  /** The project's brand graphics prose (null: edited without a brand); omitted when the project never set a brand. */
+  brandGraphics?: string | null;
+  /** UI language for the human-facing note line. */
+  lang?: string;
+  context?: ComposeContext;
+  /** 'kit' asks for a component choice ({component, props}); default 'html' writes a markup fragment. */
+  mode?: 'kit' | 'html';
+  /** kit mode: the component this block already shows, when editing rather than creating. */
+  current?: KitChoice | null;
+}
+
+/** Generates block HTML/animation from a request. Hosted: server LLM. OSS: own key or unavailable (use the BYO agent flow instead). */
+export interface BlockComposer {
+  /** Resolves with the raw model output (note + ```html + ```js fences); onDelta streams partials. */
+  composeStream(req: ComposeRequest, onDelta?: (raw: string) => void, options?: StudioOperationOptions): Promise<string>;
+}
+
+/** Speech → timed sentences (source-clock seconds). */
+export interface Transcriber {
+  /** opts.projectId is billing attribution only. */
+  transcribe(file: File, opts?: { projectId?: string; onUsage?: (usage: import('@pireel/studio-engine/usage').WorkflowUsage) => void }): Promise<AsrSegment[]>;
+}
+
+/** Cloud byte rendezvous (content-addressed by signature): video, image and audio alike. Null results
+ * = degrade to device-local. backup progress is reported in [0,1]; fetch prefers an explicit cloud
+ * key when the caller has one (a key survives signature-format changes). */
+export interface MediaVault {
+  /** Persist a finished upload into its original project's existing media references. */
+  confirmUpload?(projectId: string, sig: string, key: string): Promise<boolean>;
+  /** Lightweight, short-lived URL for card thumbnails/preview. Does not download the media body. */
+  previewUrl?(sig: string, options: { cloudKey: string }): Promise<string | null>;
+  backup(file: File, sig: string, options?: { onProgress?: (fraction: number) => void; signal?: AbortSignal }): Promise<{ key: string } | null>;
+  fetch(sig: string, options?: { cloudKey?: string; label?: string }): Promise<File | null>;
+}
+
+/** A host that can read media bytes from the device itself (a desktop shell serving the user's
+ * disk). Consulted by the byte-resolution chain after the OPFS cache and before the cloud. Return
+ * a File, or a URL the media runtimes can stream directly; null = not on this device. */
+export interface LocalByteProvider {
+  resolve(contentSig: string): Promise<File | { url: string } | null>;
+}
+
+/** Project persistence beyond the current device. */
+export interface ProjectStore {
+  load(id: string): Promise<StudioProjectDto | null>;
+  /** Transport one save request (transactions + sections). Retries, baselines and the pending
+   *  list live in the sync layer; the store answers 'skip' when unreachable, 'need-full' when the
+   *  section baseline drifted, 'migration-required' when writes are blocked. */
+  save(id: string, wire: ProjectSaveWire): Promise<ProjectSaveResult | 'need-full'>;
+  remove(id: string): Promise<void>;
+  /** Project-card cover as image BYTES (null clears). Kept out of the JSON save payload:
+   * a base64 cover multiplies every project PUT/GET/list response. Optional — a shell
+   * without object storage simply keeps covers device-local. */
+  saveCover?(id: string, cover: Blob | null): Promise<void>;
+}
+
+/** Server-authoritative Studio chat sessions. Browser storage is not part of this contract. */
+export interface ChatThreadStore {
+  list(projectId: string): Promise<unknown[] | null>;
+  save(projectId: string, thread: unknown): Promise<void>;
+}
+
+/** Generic asset upload (panel images, stock uploads …) — returns a public URL + storage key. */
+export interface AssetUploader {
+  upload(blob: Blob, opts: { contentType: string; filename?: string }): Promise<{ url: string; key: string }>;
+}
+
+/** One reusable overlay component in a Studio project's library (few-KB HTML + timeline script). */
+export interface StoredElement {
+  id: string;
+  prompt: string;
+  label: string;
+  createdAt: number;
+  element: { seedId: string; innerHtml: string; timelineBody: string; label: string };
+}
+
+/** Project-level component library beyond the current device (localStorage stays as cache). */
+export interface ElementStore {
+  list(projectId: string): Promise<StoredElement[] | null>;
+  save(projectId: string, e: StoredElement): Promise<void>;
+  remove(projectId: string, id: string): Promise<void>;
+}
+
+export interface CuratedAssetSemanticResult {
+  query?: string;
+  mode: 'semantic' | 'metadata';
+  results: Array<{ assetId: string; kind?: string; score: number }>;
+}
+
+/** Optional host-owned catalog extension. OSS knows the search contract, never the catalog contents. */
+export interface CuratedAssetProvider {
+  listSearchDocuments(): Promise<AssetSearchDocument[]>;
+  semanticSearch(args: {
+    query: string;
+    kind: 'all' | 'image' | 'video' | 'audio' | 'element';
+    limit: number;
+    signal?: AbortSignal;
+  }): Promise<CuratedAssetSemanticResult | null>;
+}
+
+export interface StudioProviders {
+  /** HTTP transport supplied by the host; the editor never assumes a Pireel account. */
+  request?: typeof fetch;
+  /** Optional external-Agent websocket URL. Omitted means no bridge connection. */
+  bridgeUrl?: string;
+  mediaProxyUrl?: (url: string) => string;
+  /** Reusable brand presets. Each project explicitly selects its own snapshot; manage opens the library. */
+  brands?: { list: () => Promise<import('@pireel/studio-engine/project-brand-metadata').BrandPlaybook[]>; manage?: () => void };
+  workflowEnvironment?: () => Promise<{ scope: string; revision: string }>;
+  composer: BlockComposer;
+  transcriber: Transcriber;
+  vault: MediaVault;
+  /** Device-native byte source (desktop shells). Absent in the browser: OPFS cache + cloud only. */
+  localBytes?: LocalByteProvider;
+  /** 'always' (default): every import uploads to the rendezvous in the background. 'lazy': a host
+   * whose bytes are durably local (desktop) may defer uploads until another device or an agent
+   * needs them. */
+  uploadPolicy?: 'always' | 'lazy';
+  projects: ProjectStore;
+  /** Built-in chat persistence, independent from project document/version sync. */
+  chats?: ChatThreadStore;
+  uploads: AssetUploader;
+  /** Project component library sync (absent = pure-local localStorage library, e.g. the OSS shell). */
+  elements?: ElementStore;
+  /** Hosted/curated asset metadata and ranking; absent in the zero-content OSS shell. */
+  curatedAssets?: CuratedAssetProvider;
+  /** Endpoint for the built-in agent chat (a hosted-LLM feature; OSS shells may omit and rely on external agents via MCP). */
+  chatEndpoint?: string;
+  /** Cloud undo fallback: pop the newest entry off the project's server-side history ring and
+   *  return the restored V2 document (null = ring empty). Absent = in-memory undo only (OSS shell).
+   *  The server marks the restore as consumed — repeated calls walk strictly backward. */
+  historyUndo?: (projectId: string) => Promise<{ document: EditorDocumentV2; version: number } | null>;
+  /** Sentence translator for bilingual captions (hosted-LLM feature; absent = the captions panel hides its translation section — BYO agents translate themselves via set_caption_translations). */
+  translate?: (rows: { index: number; text: string }[], targetLanguage: string, options?: StudioOperationOptions) => Promise<{ index: number; text: string }[]>;
+  /** Dubbing script writer (hosted LLM): each turn's phrases with the seconds they hold, back as one
+   *  target-language phrase per source phrase sized to its time. Absent = video dubbing is unavailable. */
+  dubbingScript?: (turns: { text: string; seconds: number }[][], targetLanguage: string, options?: StudioOperationOptions) => Promise<string[][]>;
+  /** Caption auto-highlight picker (hosted-LLM feature; absent = the transcript hides its "Auto highlight" button and the keyword caption style is unavailable — BYO agents highlight via set_captions highlights). Returns exact phrases per row. */
+  autoHighlight?: (rows: { index: number; text: string }[], options?: StudioOperationOptions) => Promise<{ index: number; text: string }[]>;
+  /** Cleans up a raw talking-head recording from its whole transcript at once (hosted LLM): the repeats
+   *  to cut (retakes, false starts, crew talk) and the sensitive words to mask, each placed on the source
+   *  clock; `unsure` lists doubtful repeats the caller leaves in. Absent = the first pass leaves them. */
+  speechCleanup?: (segments: { start: number; end: number; text: string; words?: { text: string; start: number; end: number }[] }[], options?: StudioOperationOptions) => Promise<{ cuts: { seg: number; text: string; keep: number; kind: 'retake' | 'false-start' | 'crew-talk'; range: [number, number] }[]; sensitive: { seg: number; text: string; range: [number, number] }[]; unsure: { seg: number; text: string; note: string }[] }>;
+  /** Writes a one-click edit's titles from the brand's layout prompt: words, timing, place and look, for
+   *  this video's lines (hosted LLM). */
+  brandTitles?: (input: { rows: { index: number; text: string; startSec: number }[]; durationSec: number; guide: string; canvas: { width: number; height: number } }, options?: StudioOperationOptions) => Promise<{ titles: PlannedTitle[] }>;
+  /** Plans where a one-click edit places the platform's moves (punch-ins, transitions), following the brand's
+   *  prompt within the platform ceiling (hosted LLM). Picks are phrases of the given rows. */
+  editPlan?: (input: { rows: { index: number; text: string; startSec: number }[]; durationSec: number; guide: string; moves: { kind: 'punch_in' | 'transition'; variants: string[]; max: number }[] }, options?: StudioOperationOptions) => Promise<{ picks: { kind: 'punch_in' | 'transition'; index: number; text: string; variant: string; scale?: number }[] }>;
+  /** Drafts a generation prompt for "add over this transcript selection" (hosted LLM; absent = the add popover offers library picks only). */
+  draftInsertPrompt?: (req: { kind: 'mg' | 'sticker' | 'image' | 'video' | 'sfx'; text: string; before: string; after: string; durationSec: number }) => Promise<string>;
+  /** Fill a component's text slots from the narration around its time window (hosted-LLM feature;
+   *  absent = the toolbar hides its sync button — BYO agents edit blocks themselves). */
+  syncFill?: (
+    items: { index: number; text: string }[],
+    script: string,
+    block?: { html: string; timeline: string; id: string },
+  ) => Promise<{ items: { index: number; text: string; at?: number }[]; span?: { from: number; to: number }; timeline?: string; html?: string }>;
+}
+
+/** All capabilities absent, failing with actionable guidance — the pure-local baseline:
+ *  editing/preview/export still work; generation goes through the BYO agent flow. */
+export function unavailableProviders(hint = 'no provider configured — connect an agent via MCP (BYO) or inject providers'): StudioProviders {
+  const fail = (cap: string) => Promise.reject(new Error(`${cap} unavailable: ${hint}`));
+  return {
+    composer: { composeStream: () => fail('block composer') },
+    transcriber: { transcribe: () => fail('transcriber') },
+    vault: { backup: async () => null, fetch: async () => null },
+    projects: { load: async () => null, save: async () => 'skip', remove: async () => {} },
+    uploads: { upload: () => fail('asset uploader') },
+  };
+}
+
+/* ---------- Runtime registry (editor packages get capabilities via this; the shell injects impls at startup) ---------- */
+
+let current: StudioProviders = unavailableProviders();
+
+/** The currently active providers (editor code always gets them via this, never imports impls). */
+export const studioProviders = (): StudioProviders => current;
+
+/** The shell injects impls (hosted shell = API backend; OSS shell = local/BYO; tests = stub). */
+export function setStudioProviders(p: StudioProviders): void {
+  current = p;
+
+}
