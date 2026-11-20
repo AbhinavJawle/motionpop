@@ -1,4 +1,11 @@
-import type { Energy, Look, OverlayAnchor, SlotPlacement, SlotTiming } from '@motionpop/schemas';
+import type {
+  Energy,
+  Look,
+  OverlayAnchor,
+  SlotPlacement,
+  SlotTiming,
+  VideoStageMode,
+} from '@motionpop/schemas';
 import type { Format, ImageRef, StylePack } from '../contract';
 import type { CaptionGroup, CaptionPresetId } from '../captions/chunk';
 
@@ -45,6 +52,8 @@ export interface CompileSlot {
   placement?: SlotPlacement;
   /** Where an overlay graphic sits over the speaker frame. */
   overlayAnchor?: OverlayAnchor;
+  /** Coupled choreography stage mode for this beat on video projects (spec 19). */
+  videoStage?: VideoStageMode;
 }
 
 export interface CompileInput {

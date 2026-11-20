@@ -67,6 +67,7 @@ export function compileSlot(slot: Slot, transcript: EditorProject['transcript'])
     params: slot.params,
     ...(slot.placement ? { placement: slot.placement } : {}),
     ...(slot.overlayAnchor ? { overlayAnchor: slot.overlayAnchor } : {}),
+    ...(slot.videoStage ? { videoStage: slot.videoStage } : {}),
   };
   const withTimingField: CompileSlot = slot.timing ? { ...base, timing: { ...slot.timing } } : base;
   // Scenes and custom graphics get the voice (a custom script can land beats on words).

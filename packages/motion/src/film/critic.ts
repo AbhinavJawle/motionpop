@@ -60,6 +60,12 @@ export interface CriticOptions {
    * given, any other number on screen is reported.
    */
   allowNumbers?: readonly string[];
+  /**
+   * Transparent beat over live speaker video (spec 19 R3.4): relaxes full-frame coverage minimums
+   * and skips fallback contrast checks against the solid look background when no solid box sits
+   * behind the text.
+   */
+  transparent?: boolean;
 }
 
 export interface CriticSummary {
@@ -487,12 +493,13 @@ export function inspectBeat(
       const w = Math.min(o.width, u.right) - Math.max(0, u.left);
       const h = Math.min(o.height, u.bottom) - Math.max(0, u.top);
       const share = (w * h) / (o.width * o.height);
-      if (share < 0.3)
+      const minShare = o.transparent ? 0.1 : 0.3;
+      if (share < minShare)
         add(
           'small-picture',
           'fix',
           hold,
-          `everything on screen sits inside ${Math.round(share * 100)} % of the frame: make the picture and the hero bigger, so the composition spans at least half of the frame`,
+          `everything on screen sits inside ${Math.round(share * 100)} % of the frame: make the picture and the hero bigger, so the composition spans at least ${Math.round(minShare * 100)} % of the frame`,
         );
     }
   }
@@ -516,7 +523,9 @@ export function inspectBeat(
   for (const t of texts) {
     const fg = parseRgb(t.color);
     if (!fg) continue;
-    const behind = backgroundBehind(view, t.el, host) ?? parseRgb(o.bg);
+    const realBehind = backgroundBehind(view, t.el, host);
+    // On transparent beats over live video, there is no solid look bg behind floating text.
+    const behind = realBehind ?? (o.transparent ? null : parseRgb(o.bg));
     if (!behind) continue;
     const c = contrast(fg, behind);
     if (c < 2.6)

@@ -36,6 +36,7 @@ declare global {
           headMs?: number;
           lead?: string;
           allowNumbers?: readonly string[];
+          transparent?: boolean;
         },
       ) => CriticSummary | null;
     };
@@ -114,6 +115,7 @@ if (project) {
       headMs?: number;
       lead?: string;
       allowNumbers?: readonly string[];
+      transparent?: boolean;
     } = {},
   ): CriticSummary | null => {
     const slot = project.slots.find((s) => s.id === slotId);

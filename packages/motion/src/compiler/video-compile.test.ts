@@ -99,4 +99,59 @@ describe('compileProject (video overlay & cutaway mode)', () => {
     expect(html).toContain('class="clip mp-slot mp-slot-cutaway"');
     expect(html).toContain('<div class="mp-slot-bg"></div>');
   });
+
+  it('compiles custom choreographed video beats full-canvas without scale(0.44) card wrappers', () => {
+    const p = videoProject();
+    p.slots = [
+      {
+        id: 'beat-split',
+        startMs: 0,
+        endMs: 4000,
+        wordStart: 0,
+        wordEnd: 2,
+        reason: 'split beat',
+        componentId: 'custom',
+        skillId: 'film',
+        prompt: 'Split-screen stat',
+        params: {
+          brief: 'Split-screen stat',
+          title: 'Growth',
+          html: '<div class="x">40%</div>',
+          css: '.x { color: var(--ink); }',
+          script: 'const tl = mp.timeline(); return tl;',
+          keyMomentMs: 500,
+        },
+        status: 'ready',
+        notes: [],
+        videoStage: 'split-left',
+      },
+      {
+        id: 'beat-cut',
+        startMs: 4000,
+        endMs: 8000,
+        wordStart: 0,
+        wordEnd: 2,
+        reason: 'cutaway beat',
+        componentId: 'custom',
+        skillId: 'film',
+        prompt: 'Full cutaway',
+        params: {
+          brief: 'Full cutaway',
+          title: 'Cutaway',
+          html: '<div class="x">40%</div>',
+          css: '.x { color: var(--ink); }',
+          script: 'const tl = mp.timeline(); return tl;',
+          keyMomentMs: 500,
+        },
+        status: 'ready',
+        notes: [],
+        videoStage: 'cutaway',
+      },
+    ];
+    const input = projectCompileInput(p, { mode: 'preview' });
+    const html = compileProject({ ...input, style: editorialExplainer }, ASSETS);
+    expect(html).toContain('id="beat-split" class="clip mp-slot mp-slot-choreo"');
+    expect(html).not.toContain('id="beat-split" class="clip mp-slot mp-slot-overlay');
+    expect(html).toContain('id="beat-cut" class="clip mp-slot mp-slot-cutaway mp-slot-choreo"');
+  });
 });

@@ -154,14 +154,23 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
     const tail = Math.max(0, Math.min(s.tailMs ?? 0, durationMs - s.endMs));
     if (tail > 0) anyTail = true;
     const styleAttr = s.tailMs !== undefined || anyTail ? ` style="z-index:${z}"` : '';
-    const isOverlay = hasVideo && s.placement === 'overlay';
-    const isCutaway = hasVideo && !isOverlay;
+    // Spec 19 R2.2: choreographed `custom` beats render full-canvas directly over the dancing
+    // video stage (no boxy scale(0.44) card wrapper); only `cutaway` paints a full studio ground.
+    const isChoreoCustom = hasVideo && s.componentId === 'custom';
+    const isOverlay = !isChoreoCustom && hasVideo && s.placement === 'overlay';
+    const isCutaway = isChoreoCustom
+      ? s.videoStage === 'cutaway'
+      : hasVideo && !isOverlay;
     const anchor = s.overlayAnchor ?? 'top-right';
-    const cls = isOverlay
-      ? `clip mp-slot mp-slot-overlay mp-anchor-${escapeAttr(anchor)}`
-      : isCutaway
-        ? 'clip mp-slot mp-slot-cutaway'
-        : 'clip mp-slot';
+    const cls = isChoreoCustom
+      ? isCutaway
+        ? 'clip mp-slot mp-slot-cutaway mp-slot-choreo'
+        : 'clip mp-slot mp-slot-choreo'
+      : isOverlay
+        ? `clip mp-slot mp-slot-overlay mp-anchor-${escapeAttr(anchor)}`
+        : isCutaway
+          ? 'clip mp-slot mp-slot-cutaway'
+          : 'clip mp-slot';
     const inner = isCutaway ? '<div class="mp-slot-bg"></div>' : '';
     layers.push(
       `    <div id="${escapeAttr(s.id)}" class="${cls}" data-start="${sec(s.startMs)}" data-duration="${sec(s.endMs - s.startMs + tail)}" data-track-index="${tail > 0 ? 10 + (i % 2) : 1}"${styleAttr}>${inner}</div>`,
@@ -191,6 +200,8 @@ ${fontFaceCss(families, assets.fonts)}
 ${textureCss.join('\n')}
   .mp-slot { position: absolute; inset: 0; }
   .mp-slot-bg { position: absolute; inset: 0; background: ${style.colors.bg}; z-index: 0; }
+  .mp-slot-choreo { pointer-events: none; background: transparent; }
+  .mp-slot-choreo > .mp-cam { z-index: 1; background: transparent; }
   .mp-slot-cutaway > .mp-cam { z-index: 1; }
   .mp-slot-overlay { pointer-events: none; }
   .mp-slot-overlay > .mp-cam { background: color-mix(in srgb, ${style.colors.bg} 86%, transparent); border: 2px solid color-mix(in srgb, ${style.colors.ink} 16%, transparent); border-radius: 28px; box-shadow: 0 24px 64px rgb(0 0 0 / 0.36); backdrop-filter: blur(14px); overflow: hidden; }

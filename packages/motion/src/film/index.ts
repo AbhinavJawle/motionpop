@@ -11,3 +11,9 @@ export {
 } from './critic';
 export { KIT_ICON_NAMES } from './icons.generated';
 export { KIT_DOC, kitExample } from './doc';
+export {
+  ARCHETYPE_EXAMPLES,
+  archetypeExample,
+  videoStageZoneGuide,
+  type ArchetypeExample,
+} from './archetypes';
