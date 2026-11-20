@@ -1,4 +1,9 @@
-import type { KeptSegment, VideoPunchIn } from '@motionpop/schemas';
+import {
+  stageBoxForMode,
+  type KeptSegment,
+  type VideoPunchIn,
+  type VideoStageSegment,
+} from '@motionpop/schemas';
 
 export interface VideoCompositeArgs {
   sourceVideoPath: string;
@@ -12,17 +17,29 @@ export interface VideoCompositeArgs {
   durationMs: number;
   segments: readonly KeptSegment[];
   punchIns: readonly VideoPunchIn[];
+  /** Coupled per-beat video choreography stages (spec 19 R5.2). */
+  stages?: readonly VideoStageSegment[];
+  /** Studio look background hex colour exposed during split/pip/cutaway beats. */
+  bgColor?: string;
 }
 
 const sec = (ms: number): string => (ms / 1000).toFixed(3);
+const even = (n: number): number => Math.max(2, Math.floor(n / 2) * 2);
+const ffHex = (hex: string | undefined): string => {
+  const m = /^#([0-9a-fA-F]{6})$/.exec((hex ?? '').trim());
+  return m ? `0x${m[1]}` : '0x0E0E13';
+};
 
 /**
- * Pure FFmpeg argument builder for video projects (spec 18 R7.1):
+ * Pure FFmpeg argument builder for video projects (spec 18 R7.1, upgraded for stage choreography in
+ * spec 19 R5.2):
  * 1. Trims and concatenates each kept source video segment (non-destructive cuts).
  * 2. Scales and center-crops the footage to exact output `width × height` at `fps` (30).
- * 3. Applies punch-in zoom expressions cleanly on active cleaned-timeline windows.
- * 4. Composites the transparent HyperFrames graphics + captions stream over the footage.
- * 5. Muxes cleaned voice (+ optional SFX/music bed) into H.264 + AAC 1080p/720p MP4.
+ * 3. Applies punch-in zoom windows on the cleaned timeline.
+ * 4. Applies per-beat `VideoStageSegment` framing (`full`, `split-left`, `split-right`, `pip`,
+ *    `backdrop` blur+dim, `cutaway`) over the look's studio background canvas when stages exist.
+ * 5. Composites the transparent HyperFrames graphics + captions stream over the staged footage.
+ * 6. Muxes cleaned voice (+ optional SFX/music bed) into H.264 + AAC 1080p/720p MP4.
  */
 export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
   const { width, height, fps } = args;
@@ -58,7 +75,6 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
   }
 
   // 3. Apply punch-in zoom windows on the cleaned timeline (if any) into [vzoom].
-  // Each punch-in crops around (focusX, focusY) and scales back to W×H during its active window.
   if (args.punchIns.length === 0) {
     filters.push(`[vbase]null[vzoom]`);
   } else {
@@ -69,8 +85,8 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
       let cur = 'vbase';
       valid.forEach((p, i) => {
         const next = i === valid.length - 1 ? 'vzoom' : `vz${i}`;
-        const cw = Math.max(2, Math.floor(width / p.scale / 2) * 2);
-        const ch = Math.max(2, Math.floor(height / p.scale / 2) * 2);
+        const cw = even(width / p.scale);
+        const ch = even(height / p.scale);
         const cx = Math.max(0, Math.min(width - cw, Math.round(p.focusX * width - cw / 2)));
         const cy = Math.max(0, Math.min(height - ch, Math.round(p.focusY * height - ch / 2)));
         filters.push(
@@ -83,10 +99,63 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
     }
   }
 
-  // 4. Composite HyperFrames transparent overlay stream (input 1) onto [vzoom] -> [vout].
+  // 3b. Stage choreography (spec 19 R5.2): frame the speaker per beat on the look canvas.
+  const validStages = (args.stages ?? []).filter((s) => s.endMs > s.startMs);
+  const hasChoreography = validStages.some((s) => s.mode !== 'full');
+  let stagedLabel = 'vzoom';
+  if (hasChoreography) {
+    const visibleStages = validStages.filter((s) => s.mode !== 'cutaway');
+    filters.push(
+      `color=c=${ffHex(args.bgColor)}:s=${width}x${height}:r=${fps}:d=${sec(args.durationMs)}[vbg]`,
+    );
+    if (visibleStages.length === 0) {
+      filters.push(`[vzoom]nullsink`);
+      stagedLabel = 'vbg';
+    } else {
+      const splitOut = visibleStages.map((_, i) => `[vsrc${i}]`).join('');
+      if (visibleStages.length === 1) {
+        filters.push(`[vzoom]null[vsrc0]`);
+      } else {
+        filters.push(`[vzoom]split=${visibleStages.length}${splitOut}`);
+      }
+      let canvas = 'vbg';
+      visibleStages.forEach((s, i) => {
+        const next = i === visibleStages.length - 1 ? 'vstaged' : `vst${i}`;
+        const box = stageBoxForMode(s.mode, width, height, s.pipCorner);
+        const bw = even(box.w * width);
+        const bh = even(box.h * height);
+        const bx = Math.max(0, Math.min(width - bw, Math.round(box.x * width)));
+        const by = Math.max(0, Math.min(height - bh, Math.round(box.y * height)));
+        const fx = Math.max(0, Math.min(1, s.focusX));
+        const fy = Math.max(0, Math.min(1, s.focusY));
+
+        let stageFilter: string;
+        if (s.mode === 'backdrop') {
+          stageFilter = `[vsrc${i}]boxblur=10:2,eq=brightness=-0.24:contrast=0.92[vlay${i}]`;
+        } else if (s.mode === 'full') {
+          stageFilter = `[vsrc${i}]null[vlay${i}]`;
+        } else {
+          // Scale with cover aspect ratio and crop around the speaker's (focusX, focusY).
+          const cropX = `max(0\\,min(iw-${bw}\\,round(iw*${fx.toFixed(3)}-${bw}/2)))`;
+          const cropY = `max(0\\,min(ih-${bh}\\,round(ih*${fy.toFixed(3)}-${bh}/2)))`;
+          stageFilter =
+            `[vsrc${i}]scale=${bw}:${bh}:force_original_aspect_ratio=increase,` +
+            `crop=${bw}:${bh}:${cropX}:${cropY}[vlay${i}]`;
+        }
+        filters.push(
+          `${stageFilter};` +
+            `[${canvas}][vlay${i}]overlay=${bx}:${by}:enable='between(t,${sec(s.startMs)},${sec(s.endMs)})'[${next}]`,
+        );
+        canvas = next;
+      });
+      stagedLabel = 'vstaged';
+    }
+  }
+
+  // 4. Composite HyperFrames transparent overlay stream (input 1) onto staged video -> [vout].
   filters.push(
     `[1:v]fps=${fps},scale=${width}:${height},format=rgba[vovl]`,
-    `[vzoom][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]`,
+    `[${stagedLabel}][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]`,
   );
 
   // 5. Audio: input 2 is cleaned voice WAV; optional input 3 is mixed SFX/music bed WAV.

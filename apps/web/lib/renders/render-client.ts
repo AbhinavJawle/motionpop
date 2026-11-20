@@ -13,7 +13,7 @@ import {
 } from '@motionpop/schemas';
 import { getAuthClient, getDb, getStorageClient } from '../firebase/client';
 import { apiHeaders } from '../users/bootstrap-client';
-import { uploadVoice, VoiceError } from './voice-upload';
+import { resolveVideoBlob, uploadVideo, uploadVoice, VoiceError } from './voice-upload';
 import { assetsInUse } from '@motionpop/motion/compiler';
 import { ensureUploaded } from '@/lib/images/image-store';
 
@@ -117,6 +117,8 @@ export function offlineRenderClient(): RenderClient {
       const form = new FormData();
       form.set('request', JSON.stringify({ requestId, options, expectedCost, project }));
       form.set('voice', voice, 'voice');
+      const videoBlob = await resolveVideoBlob(project).catch(() => null);
+      if (videoBlob) form.set('video', videoBlob, 'source.mp4');
       try {
         return await parseStartResponse(
           await fetch('/api/local-renders', { method: 'POST', body: form }),
@@ -183,11 +185,19 @@ export function cloudRenderClient(): RenderClient {
     async start({ requestId, options, expectedCost, project, voice }) {
       let uid: string;
       let voicePath: string;
+      let videoPath: string | undefined;
       try {
         const auth = await getAuthClient();
         if (!auth.currentUser) return { ok: false, error: 'unauthorized' };
         uid = auth.currentUser.uid;
         voicePath = await uploadVoice(uid, project.id, voice);
+        if (project.video) {
+          const videoBlob = await resolveVideoBlob(project).catch(() => null);
+          if (videoBlob) {
+            const uploaded = await uploadVideo(uid, project.id, videoBlob).catch(() => null);
+            if (uploaded) videoPath = uploaded;
+          }
+        }
         // The job reads pictures from the account's media folder; make sure each one is there.
         // A picture that won't upload renders as its scene's image-free form.
         await Promise.all(
@@ -205,7 +215,14 @@ export function cloudRenderClient(): RenderClient {
         const res = await fetch('/api/renders', {
           method: 'POST',
           headers: { ...(await currentHeaders()), 'content-type': 'application/json' },
-          body: JSON.stringify({ requestId, options, expectedCost, project, voicePath }),
+          body: JSON.stringify({
+            requestId,
+            options,
+            expectedCost,
+            project,
+            voicePath,
+            ...(videoPath ? { videoPath } : {}),
+          }),
         });
         return await parseStartResponse(res);
       } catch {

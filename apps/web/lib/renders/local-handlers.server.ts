@@ -7,6 +7,7 @@ import {
   isSafeId,
   renderPaths,
   toRenderStatus,
+  videoPathFor,
   voicePathFor,
   type AppConfig,
   type CreateRenderResponse,
@@ -61,10 +62,17 @@ const VOICE_EXT: Readonly<Record<string, 'wav' | 'mp3' | 'm4a' | 'webm' | 'ogg'>
   'audio/ogg': 'ogg',
 };
 
+const LOCAL_VIDEO_EXT: Readonly<Record<string, 'mp4' | 'mov' | 'webm'>> = {
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+};
+
 export async function createLocalRender(
   deps: LocalDeps,
   requestText: string,
   voice: LocalVoice | null,
+  video: LocalVoice | null = null,
 ): Promise<HandlerResult> {
   if (Buffer.byteLength(requestText, 'utf8') > MAX_BODY_BYTES) return apiError('too-large');
   let raw: unknown;
@@ -97,6 +105,13 @@ export async function createLocalRender(
   const hash = createHash('sha256').update(voice.bytes).digest('hex').slice(0, 16);
   const voicePath = `users/${LOCAL_USER}/audio/${project.id}/voice-${hash}.${ext}`;
   if (!voicePathFor(LOCAL_USER, project.id).test(voicePath)) return apiError('invalid');
+  let videoPath: string | undefined;
+  if (video && video.size > 0 && video.bytes.length > 0) {
+    const vExt = LOCAL_VIDEO_EXT[video.type.split(';')[0]?.trim().toLowerCase() ?? ''] ?? 'mp4';
+    const vHash = createHash('sha256').update(video.bytes).digest('hex').slice(0, 16);
+    const candidate = `users/${LOCAL_USER}/video/${project.id}/source-${vHash}.${vExt}`;
+    if (videoPathFor(LOCAL_USER, project.id).test(candidate)) videoPath = candidate;
+  }
   let inputPath: string;
   try {
     inputPath = renderPaths(LOCAL_USER, project.id, renderId).input;
@@ -122,10 +137,12 @@ export async function createLocalRender(
     mode: 'offline',
     inputPath,
     voicePath,
+    ...(videoPath ? { videoPath } : {}),
     createdAt: deps.now(),
   });
   try {
     await deps.putBlob(voicePath, voice.bytes);
+    if (videoPath && video) await deps.putBlob(videoPath, video.bytes);
     await deps.putBlob(inputPath, JSON.stringify(project));
     deps.createDoc(renderId, doc);
     await deps.launch(renderId);

@@ -1,4 +1,4 @@
-import { isSafeId, voicePathFor, type EditorProject } from '@motionpop/schemas';
+import { isSafeId, videoPathFor, voicePathFor, type EditorProject } from '@motionpop/schemas';
 import { CANONICAL_TYPE, MAX_VOICE_BYTES, hash16, voiceExtFor } from '../audio/audio-path';
 import { appAudioStore } from '../audio/app-audio-store';
 import { isIdbAudioRef, type AudioStore } from '../audio/audio-store';
@@ -99,4 +99,52 @@ export async function uploadVoice(
     if (e instanceof VoiceError) throw e;
     throw new VoiceError('network', 'The voiceover could not be uploaded.');
   }
+}
+
+const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
+const VIDEO_EXT: Readonly<Record<string, 'mp4' | 'mov' | 'webm'>> = {
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+};
+const VIDEO_MIME: Readonly<Record<'mp4' | 'mov' | 'webm', string>> = {
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+};
+
+/** Resolves `project.video.src` into a Blob for export (returns null on voiceover-only projects). */
+export async function resolveVideoBlob(
+  project: EditorProject,
+  store: AudioStore = appAudioStore(),
+): Promise<Blob | null> {
+  const src = project.video?.src;
+  if (!src) return null;
+  if (isIdbAudioRef(src) || isStorageAudioRef(src)) {
+    return (await store.get(src).catch(() => null)) ?? null;
+  }
+  try {
+    const res = await fetch(src);
+    return res.ok ? await res.blob() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Uploads the source video for cloud export (`users/{uid}/video/{projectId}/source-{hash16}.{ext}`). */
+export async function uploadVideo(
+  uid: string,
+  projectId: string,
+  blob: Blob,
+  remote: () => Promise<RemoteAudio> = firebaseRemoteAudio,
+): Promise<string | null> {
+  if (!isSafeId(uid) || !isSafeId(projectId)) return null;
+  if (blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) return null;
+  const ext = VIDEO_EXT[blob.type.split(';')[0]?.trim().toLowerCase() ?? ''] ?? 'mp4';
+  const path = `users/${uid}/video/${projectId}/source-${await hash16(await blob.arrayBuffer())}.${ext}`;
+  if (!videoPathFor(uid, projectId).test(path)) return null;
+  const storage = await remote();
+  if (await storage.exists(path).catch(() => false)) return path;
+  await storage.upload(path, blob, VIDEO_MIME[ext]);
+  return path;
 }

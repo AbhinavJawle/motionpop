@@ -62,6 +62,32 @@ describe('buildVideoCompositeArgs', () => {
     expect(args).not.toContain('[aout]');
   });
 
+  it('builds stage choreography filter graph for split-left, pip, backdrop and cutaway beats', () => {
+    const args = buildVideoCompositeArgs({
+      sourceVideoPath: '/tmp/source.mp4',
+      overlayVideoPath: '/tmp/overlay.webm',
+      voiceWavPath: '/tmp/voice.wav',
+      outMp4Path: '/tmp/out.mp4',
+      width: 1280,
+      height: 720,
+      fps: 30,
+      durationMs: 9000,
+      segments: keptSourceSegments(9000, []),
+      punchIns: [],
+      bgColor: '#FAF8F5',
+      stages: [
+        { id: 's1', startMs: 0, endMs: 2500, mode: 'full', focusX: 0.5, focusY: 0.35, scaleFrom: 1, scaleTo: 1.05 },
+        { id: 's2', startMs: 2500, endMs: 5000, mode: 'split-left', focusX: 0.48, focusY: 0.35, scaleFrom: 1, scaleTo: 1.04 },
+        { id: 's3', startMs: 5000, endMs: 7000, mode: 'backdrop', focusX: 0.5, focusY: 0.35, scaleFrom: 1.04, scaleTo: 1.08 },
+        { id: 's4', startMs: 7000, endMs: 9000, mode: 'cutaway', focusX: 0.5, focusY: 0.35, scaleFrom: 1, scaleTo: 1 },
+      ],
+    });
+    const graph = args[args.indexOf('-filter_complex') + 1]!;
+    expect(graph).toContain('color=c=0xFAF8F5:s=1280x720');
+    expect(graph).toContain('boxblur=10:2');
+    expect(graph).toContain('[vstaged][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]');
+  });
+
   it('property: always emits valid concat count matching kept segments', () => {
     fc.assert(
       fc.property(

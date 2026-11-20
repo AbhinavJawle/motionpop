@@ -6,6 +6,7 @@ import {
   MAP_FILES,
   mapStylesInUse,
   projectCompileInput,
+  styleFor,
 } from '@motionpop/motion/compiler';
 import type { ImageRef } from '@motionpop/motion';
 import { mediaHashOf, mediaStoragePath } from '@motionpop/schemas';
@@ -14,6 +15,7 @@ import {
   isSafeId,
   keptSourceSegments,
   renderPaths,
+  videoPathFor,
   voicePathFor,
   type EditorProject,
   type RenderDoc,
@@ -176,15 +178,21 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       }
     }
 
-    // 2e. Source video for video projects (spec 18 R7.1), downloaded from the owner's project folder.
+    // 2e. Source video for video projects (spec 18 R7.1, spec 19 R5.1), downloaded from owner's folder.
     let sourceVideoFile: string | null = null;
     if (project.video && ffmpeg.compositeVideo) {
-      const rawSrc = project.video.src;
-      const storagePath = rawSrc.startsWith('storage:') ? rawSrc.slice('storage:'.length) : rawSrc;
-      if (voicePathFor(doc.ownerId, doc.projectId).test(storagePath)) {
+      const candidate =
+        doc.videoPath ??
+        (project.video.src.startsWith('storage:')
+          ? project.video.src.slice('storage:'.length)
+          : project.video.src);
+      const allowed =
+        videoPathFor(doc.ownerId, doc.projectId).test(candidate) ||
+        voicePathFor(doc.ownerId, doc.projectId).test(candidate);
+      if (allowed) {
         const dest = join(deps.workDir, 'source-video');
         try {
-          await blobs.download(storagePath, dest);
+          await blobs.download(candidate, dest);
           sourceVideoFile = dest;
         } catch (e) {
           log.error({ event: 'source-video-missing', renderId, error: errorText(e) });
@@ -280,6 +288,8 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
           durationMs: project.durationMs,
           segments: keptSourceSegments(project.video!.originalDurationMs, project.video!.cuts),
           punchIns: project.video!.punchIns,
+          ...(project.video!.stages?.length ? { stages: project.video!.stages } : {}),
+          bgColor: styleFor(project).colors.bg,
         }),
       );
     }

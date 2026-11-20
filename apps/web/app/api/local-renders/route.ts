@@ -23,14 +23,23 @@ export async function POST(req: Request): Promise<Response> {
     }
     const request = form.get('request');
     const voice = form.get('voice');
+    const video = form.get('video');
     if (typeof request !== 'string') return respond(apiError('invalid'));
     const file = voice instanceof File ? voice : null;
+    const videoFile = video instanceof File ? video : null;
     return respond(
       await createLocalRender(
         await localDeps(),
         request,
         file
           ? { type: file.type, size: file.size, bytes: Buffer.from(await file.arrayBuffer()) }
+          : null,
+        videoFile
+          ? {
+              type: videoFile.type,
+              size: videoFile.size,
+              bytes: Buffer.from(await videoFile.arrayBuffer()),
+            }
           : null,
       ),
     );
