@@ -1,7 +1,7 @@
 # Spec 18 · Tasks
 
 - [x] 0. Remove all third-party Pireel/studio code, restore Apache-2.0 licence, update steering/docs (D-077), verify typecheck + lint green. — R1.1, R1.2
-- [ ] 1. **[kiro]** Video-native schemas (`packages/schemas/src/video.ts`) + `EditorProject.video` + `Slot.placement` + `Slot.overlayAnchor` + time-mapping helpers (`keptSourceSegments`, `cleanedToSourceMs`, `sourceToCleanedMs`, `activePunchIn`) + unit & fast-check property tests. — R2.1, R2.2, R2.3
+- [x] 1. **[kiro]** Video-native schemas (`packages/schemas/src/video.ts`) + `EditorProject.video` + `Slot.placement` + `Slot.overlayAnchor` + time-mapping helpers (`keptSourceSegments`, `cleanedToSourceMs`, `sourceToCleanedMs`, `activePunchIn`) + unit & fast-check property tests. — R2.1, R2.2, R2.3
 - [ ] 2. **[kiro]** Default `modelStrong` to `gemini-4-neon`, add `PIP_MODEL_CHOICES` in `packages/schemas/src/config.ts`, add `model` override support in `packages/ai/src/router.ts`, and update tests. — R3.1, R3.2
 - [ ] 3. Multimodal AI Video Director task `video.direct` (`packages/ai/src/tasks/video-direct.ts`, prompt, enforcer, deterministic fallback, and tests including property tests). — R4.2, R4.3
 - [ ] 4. Video overlay & cutaway mode in `packages/motion` compiler + runtime (`hasVideo`, per-slot opaque cutaway backdrop vs positioned transparent overlay card, seek purity + compile tests). — R5.3

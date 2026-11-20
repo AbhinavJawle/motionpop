@@ -6,6 +6,7 @@ import { FormatSchema } from './format';
 import { EnergySchema } from './score';
 import { SCRIPT_MAX_CHARS } from './start';
 import { TranscriptSchema } from './transcript';
+import { OverlayAnchorSchema, SlotPlacementSchema, VideoTrackSchema } from './video';
 
 /** Families a project may pick in the Fonts panel (every one is bundled in packages/motion, OFL). */
 export const FONT_CHOICES = [
@@ -96,6 +97,10 @@ export const SlotSchema = z
     energy: EnergySchema.optional(),
     /** Timing overrides (speed, ease, fade). Unset keys mean the look's defaults; never an empty object. */
     timing: SlotTimingSchema.optional(),
+    /** Video projects (spec 18): full-screen cutaway or a card over the speaker. Absent means cutaway. */
+    placement: SlotPlacementSchema.optional(),
+    /** Video projects (spec 18): where an overlay card sits. Absent means the video's default anchor. */
+    overlayAnchor: OverlayAnchorSchema.optional(),
   })
   .refine((s) => s.endMs > s.startMs, {
     message: 'endMs must be greater than startMs',
@@ -311,6 +316,8 @@ export const EditorProjectBaseSchema = z.object({
   assets: z.array(ImageAssetSchema).max(60).optional(),
   /** Film mode (spec 07b): the storyboard and shared drawings the video's beats were built from. */
   film: ProjectFilmSchema.optional(),
+  /** Source video (spec 18): cuts, punch-ins and default overlay anchor. Absent for voice-only projects. */
+  video: VideoTrackSchema.optional(),
 });
 
 export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {
