@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { BrandSchema } from './brand';
 import { FormatSchema } from './format';
+import { OverlayAnchorSchema, SlotPlacementSchema } from './video';
 
 /**
- * Pip, the whole-video assistant (spec 10 design §2): a message becomes a plan of closed actions
- * that Apply all runs as commands. The model never writes params or code here.
+ * Pip, the whole-video assistant (spec 10 design §2, extended for video in spec 18 R6):
+ * a message becomes a plan of closed actions that Apply all runs as commands.
  */
 export const PIP_ACTIONS = [
   'updateSlot',
@@ -14,6 +15,10 @@ export const PIP_ACTIONS = [
   'setCaptions',
   'generateSlot',
   'setFormat',
+  'setPlacement',
+  'toggleCuts',
+  'addPunchIn',
+  'cutRange',
 ] as const;
 export const PipActionSchema = z.enum(PIP_ACTIONS);
 export type PipAction = z.infer<typeof PipActionSchema>;
@@ -52,8 +57,12 @@ export const PipStepSchema = z.object({
   brand: BrandSchema.optional(),
   format: FormatSchema.optional(),
   captions: PipCaptionChoiceSchema.optional(),
+  placement: SlotPlacementSchema.optional(),
+  overlayAnchor: OverlayAnchorSchema.optional(),
+  cutEnabled: z.boolean().optional(),
   componentId: z.string().optional(),
   atWord: z.number().int().nonnegative().optional(),
+  wordEnd: z.number().int().nonnegative().optional(),
   instruction: z.string().max(200).optional(),
   label: z.string().min(1).max(60),
   /** Credits this step spends when applied (code-computed, never from the model). */

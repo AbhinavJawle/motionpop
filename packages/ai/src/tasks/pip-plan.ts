@@ -13,6 +13,7 @@ export const PipPlanInputSchema = z.object({
   project: z.object({
     format: z.string(),
     styleId: z.string(),
+    hasVideo: z.boolean().optional(),
     styles: z.array(z.object({ id: z.string(), name: z.string() })).max(12),
     captions: z.object({ enabled: z.boolean(), preset: z.string() }),
     slots: z
@@ -52,10 +53,14 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
       'pop',
       'clean',
       'boxed',
+      'overlay',
+      'cutaway',
+      'enable',
+      'disable',
       ...input.project.components.map((c) => c.id),
       'none',
     ]),
-  ].slice(0, 40);
+  ].slice(0, 48);
   return {
     type: 'object',
     properties: {
@@ -76,6 +81,10 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
                 'setCaptions',
                 'generateSlot',
                 'setFormat',
+                'setPlacement',
+                'toggleCuts',
+                'addPunchIn',
+                'cutRange',
               ],
             },
             slot: { type: 'string', enum: slots },

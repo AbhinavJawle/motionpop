@@ -28,6 +28,8 @@ export interface ProviderRequest {
    * transcribe.cloud (cloud only: Gemini Nano takes no audio).
    */
   media?: { mimeType: MediaMimeType; base64: string };
+  /** Multiple inline media items (e.g. sampled video keyframes for video.direct, cloud only). */
+  mediaList?: { mimeType: MediaMimeType; base64: string }[];
 }
 
 export const MEDIA_MIME_TYPES = [
@@ -90,6 +92,7 @@ export interface TaskDef<I, O> {
    */
   jsonSchema?: (input: I) => Record<string, unknown>;
   media?: (input: I) => ProviderRequest['media'];
+  mediaList?: (input: I) => ProviderRequest['mediaList'];
 }
 
 export interface RouterConfig {
@@ -179,6 +182,11 @@ function parseOutput<O>(
 export interface RunOptions {
   mode?: InferenceMode;
   /**
+   * Model id for this call (the Pip model selector, spec 18). Blank or missing means the task's
+   * own model from the config. Used for the provider request, the cache key and the usage log.
+   */
+  model?: string;
+  /**
    * `false` turns off the task's `cloudFallback` for this call. The app passes it for every
    * device-routed edit and note: escalating to the cloud is a user click with its own chip, never
    * a silent charge (spec 09 D-035). Default: the task's own `cloudFallback`.
@@ -214,7 +222,7 @@ export function createRouter(deps: {
         throw new RouterError(task.id, 'kill-switch', 'Cloud AI is paused');
       }
       const mode: InferenceMode = cfg.killSwitch ? 'ONLY_ON_DEVICE' : chosen;
-      const model = task.model(cfg);
+      const model = opts.model?.trim() ? opts.model.trim() : task.model(cfg);
       // A cached answer: no model call, so no credits and the stored `ranOn` unchanged (R4.1).
       const cacheKey =
         deps.cache && task.cacheable && opts.allowCache !== false
@@ -263,6 +271,7 @@ export function createRouter(deps: {
         ...(task.thinking ? { thinking: task.thinking } : {}),
         ...(task.maxOutputTokens ? { maxOutputTokens: task.maxOutputTokens } : {}),
         ...(task.media ? { media: task.media(input.data) } : {}),
+        ...(task.mediaList ? { mediaList: task.mediaList(input.data) } : {}),
       };
       const cloudCost = task.cloudCost(input.data);
       const started = now();

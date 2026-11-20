@@ -1,6 +1,40 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { APP_CONFIG_DEFAULTS, AppConfigSchema, parseRemoteConfig } from './config';
+import { APP_CONFIG_DEFAULTS, AppConfigSchema, isPipModelId, PIP_MODEL_CHOICES, parseRemoteConfig, PipModelIdSchema } from './config';
+
+describe('Pip model choices (spec 18 R3)', () => {
+  it('defaults the strong model to gemini-4-neon, the first Pip choice', () => {
+    expect(APP_CONFIG_DEFAULTS.modelStrong).toBe('gemini-4-neon');
+    expect(PIP_MODEL_CHOICES[0]?.id).toBe(APP_CONFIG_DEFAULTS.modelStrong);
+  });
+
+  it('lists the five verified model ids with their labels', () => {
+    expect(PIP_MODEL_CHOICES.map((m) => m.id)).toEqual([
+      'gemini-4-neon',
+      'gemini-4-hydrogen',
+      'gemini-4-carbon',
+      'gemini-3.8-flash',
+      'gemini-3.5-flash-lite',
+    ]);
+    expect(PIP_MODEL_CHOICES[0]).toEqual({
+      id: 'gemini-4-neon',
+      label: 'Gemini 4 Neon',
+      badge: 'Frontier',
+      hint: 'Best for video editing & motion graphics',
+    });
+  });
+
+  it('keeps the schema enum in step with the choices', () => {
+    expect(PipModelIdSchema.options).toEqual(PIP_MODEL_CHOICES.map((m) => m.id));
+  });
+
+  it('isPipModelId accepts only listed ids', () => {
+    expect(isPipModelId('gemini-4-carbon')).toBe(true);
+    expect(isPipModelId('gemini-4-neon ')).toBe(false);
+    expect(isPipModelId('gpt-5')).toBe(false);
+    expect(isPipModelId(undefined)).toBe(false);
+  });
+});
 
 describe('film build model (spec 13b R3.1)', () => {
   it('defaults to the fast model; the director stays on the strong one', () => {

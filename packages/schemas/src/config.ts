@@ -69,8 +69,7 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   killSwitch: false,
   customProvider: 'gemini',
   modelFast: 'gemini-3.5-flash-lite',
-  // Plans and long slot detection (D-026). Raise to gemini-4-carbon in Remote Config if needed.
-  modelStrong: 'gemini-3.8-flash',
+  modelStrong: 'gemini-4-neon',
   modelFilmBuild: 'gemini-3.5-flash-lite',
   modelTts: 'gemini-3.8-flash-tts',
   modelImage: 'gemini-nano-banana-2.1',
@@ -165,4 +164,61 @@ export function parseRemoteConfig(raw: Record<string, string>): AppConfig {
     if (result.success) out[field] = result.data;
   }
   return AppConfigSchema.parse(out);
+}
+
+/** One model the Pip panel can use (spec 18 R3). */
+export interface PipModelChoice {
+  id: string;
+  label: string;
+  badge: string;
+  hint: string;
+}
+
+/** Models offered in the Pip model selector. The first entry is the default (`modelStrong`). */
+export const PIP_MODEL_CHOICES: readonly PipModelChoice[] = [
+  {
+    id: 'gemini-4-neon',
+    label: 'Gemini 4 Neon',
+    badge: 'Frontier',
+    hint: 'Best for video editing & motion graphics',
+  },
+  {
+    id: 'gemini-4-hydrogen',
+    label: 'Gemini 4 Hydrogen',
+    badge: 'Fast frontier',
+    hint: 'Quick creative direction',
+  },
+  {
+    id: 'gemini-4-carbon',
+    label: 'Gemini 4 Carbon',
+    badge: 'Deep',
+    hint: 'Complex multi-step plans',
+  },
+  {
+    id: 'gemini-3.8-flash',
+    label: 'Gemini 3.8 Flash',
+    badge: 'Balanced',
+    hint: 'Fast & reliable',
+  },
+  {
+    id: 'gemini-3.5-flash-lite',
+    label: 'Gemini 3.5 Flash Lite',
+    badge: 'Lite',
+    hint: 'Lowest latency',
+  },
+];
+
+/** Ids of the Pip models, as a zod enum (a string enum, per the schema rules). */
+export const PipModelIdSchema = z.enum([
+  'gemini-4-neon',
+  'gemini-4-hydrogen',
+  'gemini-4-carbon',
+  'gemini-3.8-flash',
+  'gemini-3.5-flash-lite',
+]);
+export type PipModelId = z.infer<typeof PipModelIdSchema>;
+
+/** True when `value` is one of the Pip model ids in `PIP_MODEL_CHOICES`. */
+export function isPipModelId(value: unknown): value is PipModelId {
+  return PipModelIdSchema.safeParse(value).success;
 }

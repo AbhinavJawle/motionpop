@@ -13,6 +13,7 @@ import {
   type TaskDef,
   type UsageEvent,
 } from './router';
+import { cacheKeyOf, createMemoryRouterCache } from './cache';
 import { slotsDetect, slotsDetectCost, type SlotsDetectInput } from './tasks/slots-detect';
 
 const CONFIG: RouterConfig = {
@@ -326,5 +327,57 @@ describe('slots.detect task', () => {
     const r = await make(p).router.run(slotsDetect, input(2));
     expect(r.output.slots).toEqual([suggestion]);
     expect(r).toMatchObject({ ranOn: 'device', costCredits: 0 });
+  });
+});
+
+describe('RunOptions.model override (spec 18 R3.2)', () => {
+  it('sends the override to the provider instead of the task model', async () => {
+    const p = scripted([answer('{"n":1}')]);
+    const { router } = make(p);
+    await router.run(task(), { q: 'a' }, { mode: 'ONLY_IN_CLOUD', model: 'gemini-4-carbon' });
+    expect(p.calls[0]?.model).toBe('gemini-4-carbon');
+  });
+
+  it('records the overridden model in RunResult.model and the usage event', async () => {
+    const p = scripted([answer('{"n":2}')]);
+    const { router, usage } = make(p);
+    const r = await router.run(
+      task(),
+      { q: 'a' },
+      { mode: 'ONLY_IN_CLOUD', model: 'gemini-4-hydrogen' },
+    );
+    expect(r.model).toBe('gemini-4-hydrogen');
+    expect(usage[0]).toMatchObject({ ok: true, ranOn: 'cloud', model: 'gemini-4-hydrogen' });
+  });
+
+  it('trims the override and ignores a blank one', async () => {
+    const p = scripted([answer('{"n":3}'), answer('{"n":3}')]);
+    const { router } = make(p);
+    await router.run(task(), { q: 'a' }, { mode: 'ONLY_IN_CLOUD', model: '  gemini-3.8-flash  ' });
+    expect(p.calls[0]?.model).toBe('gemini-3.8-flash');
+    await router.run(task(), { q: 'a' }, { mode: 'ONLY_IN_CLOUD', model: '   ' });
+    expect(p.calls[1]?.model).toBe('fast-model');
+  });
+
+  it('keys the answer cache by the model, so two models never share a cached answer', async () => {
+    const cache = createMemoryRouterCache(() => 0);
+    const cached = task({ cacheable: true, promptVersion: 'v1' });
+    const p = scripted([answer('{"n":5}'), answer('{"n":5}'), answer('{"n":5}')]);
+    const router = createRouter({ provider: p, config: () => CONFIG, cache });
+
+    const a = await router.run(cached, { q: 'x' }, { mode: 'ONLY_IN_CLOUD', model: 'model-a' });
+    const b = await router.run(cached, { q: 'x' }, { mode: 'ONLY_IN_CLOUD', model: 'model-b' });
+    expect(a.cached).toBe(false);
+    expect(b.cached).toBe(false);
+    expect(p.calls).toHaveLength(2);
+
+    const again = await router.run(cached, { q: 'x' }, { mode: 'ONLY_IN_CLOUD', model: 'model-a' });
+    expect(again.cached).toBe(true);
+    expect(again.model).toBe('model-a');
+    expect(p.calls).toHaveLength(2);
+
+    expect(cacheKeyOf({ task: 'test.task', promptVersion: 'v1', model: 'model-a', input: { q: 'x' } })).not.toBe(
+      cacheKeyOf({ task: 'test.task', promptVersion: 'v1', model: 'model-b', input: { q: 'x' } }),
+    );
   });
 });

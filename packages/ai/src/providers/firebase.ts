@@ -42,6 +42,14 @@ export function firebaseProvider(getAI: () => Promise<AI>): AIProvider {
           type: 'inlineData',
           inlineData: { mimeType: req.media.mimeType, data: req.media.base64 },
         });
+      if (req.mediaList?.length) {
+        for (const item of req.mediaList) {
+          parts.push({
+            type: 'inlineData',
+            inlineData: { mimeType: item.mimeType, data: item.base64 },
+          });
+        }
+      }
       const result = await model.generateContent(parts);
       return {
         text: result.response.text(),

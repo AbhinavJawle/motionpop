@@ -13,6 +13,10 @@ Actions (use the sentinels "none", -1 and "" for fields an action does not use):
 - setStyle: choice = a style id. Applies to the whole video.
 - setCaptions: choice = "on", "off", "pop", "clean" or "boxed".
 - setFormat: choice = "16:9", "9:16" or "1:1".
+- setPlacement: video projects only. Switch slot "sK" (or "none" for all slots) between "overlay" (floating over speaker) and "cutaway" (full-screen). choice = "overlay" or "cutaway".
+- toggleCuts: video projects only. Enable or restore all AI video cuts. choice = "enable" or "disable".
+- addPunchIn: video projects only. Add a camera zoom starting at word index atWord. instruction = short reason.
+- cutRange: video projects only. Cut the spoken video segment starting at word index atWord. instruction = short reason.
 Rules:
 - Only do what was asked. One step per slot per change. At most 8 steps.
 - "every chart", "all graphics" and similar mean one updateSlot step for each matching slot.
@@ -27,6 +31,7 @@ export interface PipPlanPromptInput {
   project: {
     format: string;
     styleId: string;
+    hasVideo?: boolean;
     styles: { id: string; name: string }[];
     captions: { enabled: boolean; preset: string };
     slots: {
@@ -54,7 +59,7 @@ export function pipPlanPromptV1(i: PipPlanPromptInput): string {
     )
     .join('\n');
   return [
-    `format: ${p.format}; style: ${p.styleId}; captions: ${p.captions.enabled ? p.captions.preset : 'off'}`,
+    `format: ${p.format}; style: ${p.styleId}; captions: ${p.captions.enabled ? p.captions.preset : 'off'}${p.hasVideo ? '; video: yes (supports setPlacement, toggleCuts, addPunchIn, cutRange)' : ''}`,
     `styles: ${p.styles.map((s) => `${s.id} (${s.name})`).join(', ')}`,
     `components: ${p.components.map((c) => `${c.id}: ${c.useWhen}`).join('; ')}`,
     `slots:\n${slots || '(none)'}`,

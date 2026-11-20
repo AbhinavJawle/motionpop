@@ -8,6 +8,7 @@ export * from './tasks/edit-patch';
 export * from './tasks/transcribe-cloud';
 export * from './tasks/component-fill';
 export * from './tasks/direct-plan';
+export * from './tasks/video-direct';
 export * from './direct/enforce';
 export * from './direct/fallback';
 export * from './direct/plan-video';
