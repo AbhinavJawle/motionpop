@@ -320,15 +320,24 @@ export async function downloadRender(
     return { status: 409, body: { error: 'not-done' } };
   }
   const disposition = deps.disposition(doc.title);
+  if (opts.stream) {
+    return { status: 200, stream: { path: doc.outputPath, disposition } };
+  }
   if (deps.mode === 'emulator') {
     // The Storage emulator can't check signed URLs: the route streams the bytes itself.
-    if (opts.stream) return { status: 200, stream: { path: doc.outputPath, disposition } };
     const body: DownloadResponse = { url: `/api/renders/${renderId}/download?stream=1` };
     return { status: 200, body };
   }
-  const url = await deps.signedUrl(doc.outputPath, disposition, DOWNLOAD_TTL_MS);
-  const body: DownloadResponse = { url };
-  return { status: 200, body };
+  try {
+    const url = await deps.signedUrl(doc.outputPath, disposition, DOWNLOAD_TTL_MS);
+    const body: DownloadResponse = { url };
+    return { status: 200, body };
+  } catch {
+    // Local dev ADC (`authorized_user`) has no `client_email` to sign V4 URLs: fall back to
+    // authenticated streaming through this route.
+    const body: DownloadResponse = { url: `/api/renders/${renderId}/download?stream=1` };
+    return { status: 200, body };
+  }
 }
 
 // ---------------------------------------------------------------------------------------------

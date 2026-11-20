@@ -149,6 +149,7 @@ const CHILD_ENV_KEYS = [
   'STORAGE_BUCKET',
   'GOOGLE_CLOUD_PROJECT',
   'GCLOUD_PROJECT',
+  'GOOGLE_APPLICATION_CREDENTIALS',
   'CHROME_NO_SANDBOX',
   'RENDER_WORK_ROOT',
   'FFMPEG_PATH',
@@ -266,6 +267,19 @@ export function launcherFor(mode: RenderMode, sources: LauncherSources = {}): Re
   switch (mode) {
     case 'cloud':
       if (!projectId) throw new LaunchError('the Google Cloud project is not configured');
+      // Outside production, run the real render job locally against cloud Firestore/Storage
+      // unless MP_CLOUD_RUN_RENDER=1 explicitly requests the remote Cloud Run job.
+      if (env['NODE_ENV'] !== 'production' && env['MP_CLOUD_RUN_RENDER'] !== '1') {
+        return childProcessLauncher({
+          renderDir: resolve(process.cwd(), '../../services/render'),
+          env: {
+            ...env,
+            GOOGLE_CLOUD_PROJECT: projectId,
+            ...(storageBucketFrom(env) ? { STORAGE_BUCKET: storageBucketFrom(env) } : {}),
+          },
+          logDir: join(tmpdir(), 'motionpop-renders'),
+        });
+      }
       return cloudRunLauncher({
         projectId,
         region: env['RENDER_REGION'] ?? 'us-central1',
