@@ -25,7 +25,7 @@ Project rules live in `.kiro/steering/`. The `inclusion: always` files are impor
 - Never commit secrets. Env vars / Secret Manager only.
 - No third-party brand names, creator names or trademarks in UI copy, style names, demo content or code.
 - Never add `.kiro/` to `.gitignore`.
-- Our motion components are deterministic pure functions of time and use no GSAP. GSAP is allowed only inside the embedded Pireel editor's compositions (D-076). HyperFrames is driven through `hf-seek`.
+- Our motion components are deterministic pure functions of time and use no GSAP. HyperFrames is driven through `hf-seek`.
 - All runtime AI goes through `packages/ai` (router, zod validation, cost tracking, Firebase AI Logic). No direct model calls from UI code.
 - Every external input (AI output, uploads, Firestore reads) is parsed with zod.
 - Time is stored as integer milliseconds. Frames are derived at render (30 fps).

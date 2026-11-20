@@ -2,8 +2,6 @@ packages:
   - apps/*
   - packages/*
   - services/*
-  # Pireel's editor packages, vendored at 51fb487 (AGPL-3.0, D-076).
-  - vendor/pireel/*
 
 # Dependencies allowed to run install scripts (pnpm 11 rejects unreviewed builds).
 allowBuilds:

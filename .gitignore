@@ -49,10 +49,3 @@ Information/
 
 # Playwright e2e output (apps/web)
 e2e-output/
-
-# Studio uploads in development (spec 17)
-apps/web/.local-assets/
-
-# Declarations emitted from the vendored Pireel project (tsc -b vendor/pireel)
-vendor/pireel/.types/
-vendor/pireel/tsconfig.tsbuildinfo

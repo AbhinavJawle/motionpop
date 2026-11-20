@@ -5,7 +5,7 @@ inclusion: always
 # Hackathon compliance (both rulebooks)
 
 ## Both
-- Public GitHub repo with an OSI licence visible in About (AGPL-3.0 once Pireel code lands, D-076; Apache-2.0 before).
+- Public GitHub repo with an OSI licence visible in About (Apache-2.0, D-077).
 - No secrets or PII in the repo, submission or test instructions.
 - No third-party trademarks, logos, creator names or copyrighted music in the app, demo or video.
 - Demo video < 3 min, public on YouTube, English.

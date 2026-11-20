@@ -15,7 +15,11 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "motion:check": "pnpm --filter @motionpop/motion motion:check",
-    "emulators": "npx -y firebase-tools@latest emulators:start"
+    "emulators": "npx -y firebase-tools@latest emulators:start",
+    "cloud:status": "node scripts/cloud-profile.mjs status",
+    "cloud:use": "node scripts/cloud-profile.mjs use",
+    "cloud:save": "node scripts/cloud-profile.mjs save",
+    "cloud:setup-lab": "node scripts/cloud-profile.mjs setup-lab"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",

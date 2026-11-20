@@ -20,7 +20,6 @@ import { clearPending, takePending } from '@/lib/intake/pending';
 import { runPipeline, type PipelineInput } from '@/lib/pipeline/run';
 import { sampleInput, sampleWords } from '@/lib/pipeline/sample';
 import { projectLibrary } from '@/lib/projects/use-project-list';
-import { hasStudioDocument } from '@/lib/studio/studio-store';
 import { DropZone } from './drop-zone';
 import { StepCard } from './step-card';
 import { WordStrip } from './word-strip';
@@ -57,11 +56,7 @@ export function ProcessingScreen({ id }: { id: string }) {
       .then((r) => {
         if (!live) return;
         if (!r.ok) return setPhase('interrupted');
-        void hasStudioDocument(id).then((studio) => {
-          if (!live) return;
-          if (studio) window.location.replace(`/studio/${encodeURIComponent(id)}`);
-          else router.replace(`/editor/${encodeURIComponent(id)}`);
-        });
+        router.replace(`/editor/${encodeURIComponent(id)}`);
       });
     return () => {
       live = false;
@@ -88,16 +83,6 @@ export function ProcessingScreen({ id }: { id: string }) {
         .then(async ({ projectId }) => {
           // The project owns the stored take now; only the hand-off goes.
           if (input.storedRef) await clearPending({ keepAudio: true });
-          // A talking-head video is edited for the studio (spec 17): cuts, punch-ins, captions,
-          // our graphics and sound, then the studio opens it (its own root layout: a full load).
-          if (input.file.type.startsWith('video/')) {
-            dispatch({ type: 'event', event: { type: 'step', step: 'plan', state: 'active', detail: 'Editing your video' } });
-            const { prepareStudio } = await import('@/lib/studio/prepare');
-            await prepareStudio(projectId);
-            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- the studio is a separate root layout; a full load is required
-            window.location.assign(`/studio/${encodeURIComponent(projectId)}`);
-            return;
-          }
           // Let the last check and Pip's celebration land before the editor opens.
           setTimeout(
             () => router.push(`/editor/${encodeURIComponent(projectId)}`),

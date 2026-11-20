@@ -33,20 +33,20 @@ const model = getGenerativeModel(ai, { mode: InferenceMode.PREFER_ON_DEVICE });
 
 ## Video
 - **HyperFrames** (Apache-2.0): `@hyperframes/player` (preview web component, sandboxed iframe), `@hyperframes/producer` (render to MP4/WebM), `@hyperframes/lint` (tier-2 checks). `@hyperframes/gcp-cloud-run` is the upgrade path for long videos.
-- Our own deterministic motion core in `packages/motion` drives every frame through HyperFrames' `hf-seek` event. **Our motion core uses no GSAP**; GSAP is allowed only inside the embedded Pireel editor's compositions (D-076; the founder accepted GSAP's licence terms for that use).
+- Our own deterministic motion core in `packages/motion` drives every frame through HyperFrames' `hf-seek` event. No GSAP.
 - Maps: d3-geo + topojson-client + Natural Earth (public domain).
 - Render service: Cloud Run (`services/render`), built with Cloud Build.
 
 ## AI
 - All runtime AI goes through `packages/ai` (router, tasks, prompts, zod, cost). See `hybrid-ai.md` and `ai-tasks.md`.
-- On-device: Gemini Nano via AI Logic. Cloud: `gemini-3.5-flash-lite` for fast tasks, `gemini-3.8-flash` for plans and slot detection (Remote Config). TTS: `gemini-3.8-flash-tts` via AI Logic. Models are served from the `global` endpoint only (D-025, D-026).
+- On-device: Gemini Nano via AI Logic. Cloud: `gemini-3.5-flash-lite` for fast tasks, `gemini-3.8-flash` for balanced tasks, and `gemini-4-neon` (plus selectable Gemini 4 family models in Pip) for agentic video directing, editing, and custom motion graphics. TTS: `gemini-3.8-flash-tts` via AI Logic. Models are served from the `global` endpoint only (D-025, D-026, D-077).
 - Tier-2 custom graphics: provider flag `AI_CUSTOM_PROVIDER = gemini | claude`. Claude only if the Firebase organisers allow it; always allowed in the Kiroween build. Claude calls go through a server route with the key in Secret Manager.
 
 ## Audio
 transformers.js Whisper in a Web Worker (WebGPU, WASM fallback) for word timings · Web Audio / OfflineAudioContext for cleanup, peaks, synthesized SFX and ducking.
 
 ## Explicit non-choices
-No GSAP outside Pireel's compositions (D-076), no Remotion, no Rive, no ElevenLabs, no AWS services, no stock sound libraries.
+No GSAP, no Remotion, no Rive, no ElevenLabs, no AWS services, no stock sound libraries.
 
 ## Environments
 - **Local:** `pnpm dev` + Firebase Emulator Suite (Auth, Firestore, Storage); App Check debug token in `.env.local` (never committed).

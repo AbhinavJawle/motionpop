@@ -9,7 +9,5 @@
     "paths": { "@/*": ["./*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", ".next", ".next-studio", "e2e", "playwright.config.ts"],
-  // The vendored Pireel editor is its own project with its own settings (spec 17); we read its declarations.
-  "references": [{ "path": "../../vendor/pireel" }]
+  "exclude": ["node_modules", ".next", "e2e", "playwright.config.ts"]
 }

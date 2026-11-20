@@ -287,14 +287,15 @@ Spec 11 R1 asked for projects in the account; design §2.1 stored each field as 
   - The Openverse anonymous rate limit is shared by all creators on a server instance. The server cache softens this but doesn't remove it. A registered API key is the upgrade (not done).
   - Not measured in the hosted app: the pictures flow was tested with fake searches only, plus the existing search route.
 
-## D-076 · 2026-11-18 · decided (founder, in a Claude Code session) — Pireel becomes the editing surface; GSAP and AGPL-3.0 accepted
-- **Context:** the founder wants video and video editing in the product, working in sync with what Motionpop already does, and asked to build on an open-source editor rather than write one. Pireel (`github.com/pireel/pireel`, AGPL-3.0-only, commit `51fb487`) is an embeddable talking-head editor whose AI features are all host-supplied "providers". Its graphics run on GSAP. Comparison and design: `docs/research/pireel-integration.md`.
-- **Decision (founder: "i say yes to GSAP and the license"):**
-  - Pireel's editor is embedded as the editing surface. Motionpop supplies everything around it (start, recording, TTS, processing, Firebase, credits, render) and under it (providers: on-device Whisper, cleanup, Nano for the small AI jobs, Gemini for generation).
-  - **GSAP is allowed inside Pireel's compositions.** Our own motion core stays GSAP-free and deterministic; it runs inside Pireel blocks through a proxy tween that calls our `seek(t)`.
-  - **The repository licence changes from Apache-2.0 to AGPL-3.0** when Pireel code lands. Pireel is credited in `docs/third-party.md`, its notices are kept, and its packages stay recognisable as its work (built on top, not presented as ours).
+## D-076 · 2026-11-18 · superseded by D-077 — Third-party studio embed experiment (removed)
+- **Context:** briefly tested vendoring an external third-party editor under `vendor/` to handle talking-head video.
+- **Outcome:** abandoned in D-077 — it replaced Motionpop's own editor UI, left almost all AI/storage providers unimplemented, broke hybrid AI visibility, and introduced AGPL-3.0 + GSAP baggage.
+
+## D-077 · 2026-11-20 · decided (founder) — Native AI Video + Motion Graphics Editor in Motionpop; Gemini 4 Neon + model selector in Pip; Apache-2.0 restored
+- **Context:** the founder wants Motionpop itself to be an end-to-end AI video editor that analyses uploaded footage, cuts retakes/dead air, adds punch-ins, layers motion graphics (transparent overlays + full-screen cutaways), and exports a finished MP4—all inside Motionpop's own `/editor/[id]` with Pip and Firebase Hybrid AI.
+- **Decision:**
+  - Remove all vendored third-party editor code (`vendor/`), `/studio`, GSAP, and AGPL-3.0. Restore **Apache-2.0**.
+  - Extend Motionpop's own `EditorProject`, `/processing`, `/editor/[id]` preview + transcript timeline, `packages/ai`, Pip, and `services/render` to natively support video editing + motion graphics compositing (spec 18: `.kiro/specs/18-ai-video-editor/`).
+  - Use **`gemini-4-neon`** (verified live on the Vertex `global` endpoint) for agentic video directing, editing, and custom motion graphics, alongside a **model selector inside Pip** so creators can pick between fast, balanced, and Gemini 4 frontier models (with on-device Gemini Nano still handling free instant edits).
 - **Consequences:**
-  - Steering updated: `CLAUDE.md` hard rules, `tech.md`, `component-contract.md`, `hackathon-compliance.md`.
-  - The custom-graphics lint's GSAP ban stays for our own generated graphics (`custom.compose`); Pireel blocks are linted by Pireel.
-  - Spec 17 (`.kiro/specs/17-pireel-studio/`) holds the work.
-- **Open:** Pireel hasn't been installed or run yet (needs the founder's go, since it runs third-party install scripts). The Vite/TS 5.5/pnpm 9 → Next 16/TS 6/pnpm 11 fit is unproven until the first embed.
+  - Single unified editor, single project schema, pure GSAP-free deterministic motion engine, Apache-2.0 licence, and full Firebase Hybrid AI / Auth / Firestore / Storage / Cloud Run integration for both hackathons.
