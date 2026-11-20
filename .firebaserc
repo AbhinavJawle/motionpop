@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "motionpop-48409"
+    "default": "motionpop-48409",
+    "personal": "motionpop-48409",
+    "lab": "fbailogic26vrt-3068"
   }
 }

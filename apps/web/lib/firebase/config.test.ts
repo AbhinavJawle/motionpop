@@ -45,4 +45,9 @@ describe('parseFirebaseEnv', () => {
   it('treats anything other than "true" as emulators off', () => {
     expect(parseFirebaseEnv({ ...full, useEmulators: '1' })?.useEmulators).toBe(false);
   });
+
+  it('keeps an optional trimmed cloudProfile when provided', () => {
+    expect(parseFirebaseEnv({ ...full, cloudProfile: ' lab ' })?.cloudProfile).toBe('lab');
+    expect(parseFirebaseEnv({ ...full, cloudProfile: '  ' })).not.toHaveProperty('cloudProfile');
+  });
 });

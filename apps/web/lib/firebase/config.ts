@@ -29,6 +29,8 @@ export interface FirebaseEnv {
    * Gemini Developer API) needs prepaid credits once billing is linked (D-025).
    */
   aiBackend: 'vertex' | 'google';
+  /** Active local dev cloud profile name (e.g. `personal` or `lab`), development builds only. */
+  cloudProfile?: string;
 }
 
 /** Raw env values, read with literal `process.env.X` so Next inlines them into the client bundle. */
@@ -44,6 +46,7 @@ export interface RawFirebaseEnv {
   appCheckDebugToken?: string;
   useEmulators?: string;
   aiBackend?: string;
+  cloudProfile?: string;
 }
 
 const blankToUndefined = (v: string | undefined): string | undefined =>
@@ -63,10 +66,12 @@ export function parseFirebaseEnv(raw: RawFirebaseEnv): FirebaseEnv | null {
   if (!parsed.success) return null;
   const recaptchaSiteKey = blankToUndefined(raw.recaptchaSiteKey);
   const appCheckDebugToken = blankToUndefined(raw.appCheckDebugToken);
+  const cloudProfile = blankToUndefined(raw.cloudProfile);
   return {
     config: parsed.data,
     ...(recaptchaSiteKey ? { recaptchaSiteKey } : {}),
     ...(appCheckDebugToken ? { appCheckDebugToken } : {}),
+    ...(cloudProfile ? { cloudProfile } : {}),
     useEmulators: raw.useEmulators?.trim().toLowerCase() === 'true',
     aiBackend: raw.aiBackend?.trim().toLowerCase() === 'google' ? 'google' : 'vertex',
   };
@@ -89,5 +94,7 @@ export function readFirebaseEnv(): FirebaseEnv | null {
         : undefined,
     useEmulators: process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS,
     aiBackend: process.env.NEXT_PUBLIC_AI_BACKEND,
+    cloudProfile:
+      process.env.NODE_ENV === 'development' ? process.env.NEXT_PUBLIC_CLOUD_PROFILE : undefined,
   });
 }
