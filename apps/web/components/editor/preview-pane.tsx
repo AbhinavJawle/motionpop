@@ -20,6 +20,7 @@ import { OfflineBanner } from './offline-banner';
 import { PreviewBadge } from './preview-badge';
 import { PreviewProgress } from './preview-progress';
 import { PreviewPlayer } from './preview-player';
+import { VideoCutsBar } from './video-cuts-bar';
 
 const ASPECT: Record<Format, string> = { '16:9': '16 / 9', '9:16': '9 / 16', '1:1': '1 / 1' };
 
@@ -159,6 +160,7 @@ export function PreviewPane() {
         </div>
       </div>
 
+      <VideoCutsBar />
       <footer className="relative z-10 mb-[19px] flex w-[720px] max-w-[calc(100%-48px)] items-center justify-between text-[11px] leading-[14px]">
         <span className="font-mono text-[10px] leading-[13px] tracking-[0.5px] text-text-3">
           SCENE {String(sceneIndex).padStart(2, '0')} / {String(sceneTotal).padStart(2, '0')}

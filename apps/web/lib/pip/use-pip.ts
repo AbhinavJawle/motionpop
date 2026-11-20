@@ -22,6 +22,7 @@ import { useSavedBrand } from '@/lib/brand/saved-brand';
 import { openRailPanel } from '@/lib/editor/rail-panel';
 import { loadThread, saveThread } from './persist';
 import { codePlan, enforcePlan, pipInput, type ChipId } from './plan';
+import { usePipModel } from './model-store';
 
 /**
  * Pip's conversation (spec 10), lean: one thread per project, kept in this browser across reloads
@@ -96,6 +97,8 @@ export interface SendDeps {
   getRouter: () => Promise<Router | null>;
   route: Route;
   config?: Pick<AppConfig, 'creditCosts' | 'imageCredits' | 'exportCredits'>;
+  /** Optional model id override (defaults to the Pip model selector's active model). */
+  model?: string;
 }
 
 export async function sendToPip(deps: SendDeps, text: string, scope: PipScope): Promise<void> {
@@ -152,9 +155,11 @@ export async function sendToPip(deps: SendDeps, text: string, scope: PipScope): 
     const router = await deps.getRouter().catch(() => null);
     try {
       if (!router) throw new Error('no router');
+      const selectedModel = deps.model ?? usePipModel.getState().model;
       const res = await router.run(pipPlanTask(), input, {
         mode: 'ONLY_IN_CLOUD',
         allowCloud: false,
+        ...(selectedModel ? { model: selectedModel } : {}),
       });
       const plan = enforcePlan(res.output, project, 'cloud');
       push({

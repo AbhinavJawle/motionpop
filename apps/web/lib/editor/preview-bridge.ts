@@ -15,14 +15,25 @@ const FPS = 30;
 let player: SeekablePlayer | null = null;
 let lastFrame = -1;
 let wantedMs = 0;
+const seekListeners = new Set<(ms: number) => void>();
 
 export function attachPreview(p: SeekablePlayer | null): void {
   player = p;
   lastFrame = -1;
 }
 
+/** Subscribe to every playhead seek/frame tick (used by the video preview layer, zero React rerenders). */
+export function subscribePreviewSeek(fn: (ms: number) => void): () => void {
+  seekListeners.add(fn);
+  fn(wantedMs);
+  return () => {
+    seekListeners.delete(fn);
+  };
+}
+
 export function seekPreview(ms: number): void {
   wantedMs = ms;
+  for (const fn of seekListeners) fn(ms);
   const frame = msToFrame(ms, FPS);
   // The custom element may not be upgraded yet (its module loads lazily).
   if (!player || typeof player.seek !== 'function' || frame === lastFrame) return;

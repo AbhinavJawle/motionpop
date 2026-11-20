@@ -31,3 +31,12 @@ export {
   updateNote,
   type NoteEdit,
 } from './notes';
+export {
+  addVideoCut,
+  addVideoPunchIn,
+  removeVideoPunchIn,
+  setAllSlotsPlacement,
+  setAllVideoCutsEnabled,
+  setSlotPlacement,
+  toggleVideoCut,
+} from './video';

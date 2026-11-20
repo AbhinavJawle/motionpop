@@ -1,6 +1,19 @@
 import type { PipPlan, PipStep, StepState } from '@motionpop/schemas';
 import type { Command } from '@/lib/commands/command';
-import { composite, deleteSlot, setBrand, setCaptions, setFormat, setStyle } from '@/lib/commands';
+import {
+  addVideoCut,
+  addVideoPunchIn,
+  composite,
+  deleteSlot,
+  setAllSlotsPlacement,
+  setAllVideoCutsEnabled,
+  setBrand,
+  setCaptions,
+  setFormat,
+  setSlotPlacement,
+  setStyle,
+} from '@/lib/commands';
+import { cleanedToSourceMs, keptSourceSegments } from '@motionpop/schemas';
 import { addSlot } from '@/lib/commands/slots';
 import type { Route } from '@/lib/ai/route';
 import { generateSlot, type GenerateDeps } from '@/lib/slots/generate';
@@ -37,6 +50,10 @@ const INSTANT = new Set<PipStep['action']>([
   'setCaptions',
   'addSlot',
   'removeSlot',
+  'setPlacement',
+  'toggleCuts',
+  'addPunchIn',
+  'cutRange',
 ]);
 
 function instantCommand(
@@ -72,6 +89,62 @@ function instantCommand(
         ...(step.instruction ? { prompt: step.instruction, reason: step.instruction } : {}),
       };
       return { cmd: addSlot(withIntent), slotId: id };
+    }
+    case 'setPlacement': {
+      const pl = step.placement;
+      if (!pl) return 'No placement';
+      if (step.slotId) {
+        return { cmd: setSlotPlacement(step.slotId, pl, step.overlayAnchor), slotId: step.slotId };
+      }
+      return { cmd: setAllSlotsPlacement(pl, step.overlayAnchor) };
+    }
+    case 'toggleCuts':
+      return project.video
+        ? { cmd: setAllVideoCutsEnabled(step.cutEnabled ?? true) }
+        : 'No video track';
+    case 'addPunchIn': {
+      if (!project.video || step.atWord === undefined) return 'No word to zoom on';
+      const w = project.transcript.words[step.atWord];
+      if (!w) return 'Word not found';
+      const startMs = Math.max(0, w.startMs);
+      const endMs = Math.min(project.durationMs, Math.max(w.endMs, startMs + 2400));
+      if (endMs <= startMs) return 'Not enough room for a punch-in';
+      return {
+        cmd: addVideoPunchIn({
+          id: `punch-${crypto.randomUUID().slice(0, 6)}`,
+          startMs,
+          endMs,
+          scale: 1.18,
+          focusX: 0.5,
+          focusY: 0.35,
+          reason: step.instruction || step.label,
+        }),
+      };
+    }
+    case 'cutRange': {
+      if (!project.video || step.atWord === undefined) return 'No word to cut';
+      const wStart = project.transcript.words[step.atWord];
+      const wEnd =
+        project.transcript.words[
+          step.wordEnd ?? Math.min(project.transcript.words.length - 1, step.atWord + 4)
+        ];
+      if (!wStart || !wEnd) return 'Words not found';
+      const segs = keptSourceSegments(project.video.originalDurationMs, project.video.cuts);
+      const startMs = cleanedToSourceMs(wStart.startMs, segs);
+      const endMs = Math.min(
+        project.video.originalDurationMs,
+        Math.max(startMs + 120, cleanedToSourceMs(wEnd.endMs, segs)),
+      );
+      return {
+        cmd: addVideoCut({
+          id: `cut-${crypto.randomUUID().slice(0, 6)}`,
+          startMs,
+          endMs,
+          kind: 'manual',
+          reason: step.instruction || step.label,
+          enabled: true,
+        }),
+      };
     }
     default:
       return 'Not an instant step';

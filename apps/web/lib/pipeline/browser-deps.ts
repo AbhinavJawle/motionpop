@@ -1,4 +1,4 @@
-import { detectLocal, planVideo } from '@motionpop/ai';
+import { detectLocal, directVideo, planVideo } from '@motionpop/ai';
 import { requestPlanAllowance } from '../ai/plan-allowance';
 import { getRouter } from '../ai/router-client';
 import { appAudioStore } from '../audio/app-audio-store';
@@ -8,6 +8,7 @@ import { encodeWav } from '../audio/wav';
 import { projectLibrary } from '../projects/use-project-list';
 import { validateParams } from '../slots/validate-params';
 import { transcribeOnDevice } from '../transcribe/whisper-client';
+import { probeAndSampleVideo } from '../video/frames';
 import type { PipelineDeps } from './run';
 
 /** Default style for new projects until the Styles page lands (spec 14). */
@@ -52,5 +53,7 @@ export function browserPipelineDeps(): PipelineDeps {
         cloudAllowed: requestPlanAllowance,
         seed: req.seed,
       }),
+    probeVideo: (file) => probeAndSampleVideo(file),
+    directVideo: async (params) => directVideo(await getRouter().catch(() => null), params),
   };
 }

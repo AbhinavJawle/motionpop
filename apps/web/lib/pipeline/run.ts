@@ -2,6 +2,8 @@ import {
   planVideo,
   postPass,
   tagSpans,
+  type AudioEdlCutInput,
+  type EnforcedVideoPlan,
   type PlannedVideo,
   type TaggedSpan,
   type ValidatedParams,
@@ -10,16 +12,22 @@ import {
   APP_CONFIG_DEFAULTS,
   DEFAULT_CAPTIONS,
   EditorProjectSchema,
+  cleanedDurationFromSegments,
+  keptSourceSegments,
   type EditorProject,
   type Format,
   type Look,
+  type OverlayAnchor,
   type Slot,
+  type SlotPlacement,
   type SlotSuggestion,
   type Transcript,
   type Version,
+  type VideoTrack,
   type Voiceover,
   type Word,
 } from '@motionpop/schemas';
+import type { VideoProbeResult } from '../video/frames';
 import { graphicForWords } from '../slots/graphic-types';
 import type { AudioStore } from '../audio/audio-store';
 import { isSilent, OUTPUT_SAMPLE_RATE, type DecodedAudio } from '../audio/decode';
@@ -100,6 +108,17 @@ export interface PipelineDeps {
    * server allows one, else the built-in rules. Default: the built-in rules only.
    */
   direct?(req: DirectorRequest): Promise<PlannedVideo>;
+  /** Video probe + keyframe sampler for uploaded video files (spec 18 R4.1). */
+  probeVideo?(file: Blob): Promise<VideoProbeResult>;
+  /** Multimodal AI video director (`video.direct`, Gemini 4 Neon, spec 18 R4.2). */
+  directVideo?(params: {
+    format: Format;
+    styleId: string;
+    durationMs: number;
+    words: readonly Word[];
+    frames: readonly { atMs: number; base64: string }[];
+    audioEdlCuts: readonly AudioEdlCutInput[];
+  }): Promise<EnforcedVideoPlan>;
   /** `imagesPerVideoMax` (Remote Config). */
   imagesMax?: number;
 }
@@ -226,30 +245,71 @@ export async function runPipeline(
         transcriptSummary(t.words.length, audio.durationMs),
     });
 
-    // Clean (R3).
+    // Clean (R3) + Video editorial directing (spec 18 R4).
     step = 'clean';
     onEvent({ type: 'step', step, state: 'active' });
+    const isVideoInput = input.file.type.startsWith('video/');
+    let videoProbe: VideoProbeResult | null = null;
+    if (isVideoInput && deps.probeVideo) {
+      videoProbe = await deps.probeVideo(input.file).catch(() => null);
+      checkAbort();
+    }
+    const targetFormat: Format = input.format ?? videoProbe?.format ?? '16:9';
+
     const edl = cleanupOn
       ? buildEdl(t.words, audio.durationMs)
       : { cuts: [], fillersRemoved: 0, pausesShortened: 0, skipped: undefined };
-    const cuts = edl.cuts;
-    const cleanedMs = cleanedDuration(audio.durationMs, cuts);
+
+    let videoPlan: EnforcedVideoPlan | null = null;
+    if (isVideoInput && deps.directVideo) {
+      onEvent({
+        type: 'step',
+        step,
+        state: 'active',
+        detail: 'Analyzing video & cuts with Gemini 4 Neon…',
+        route: 'cloud',
+      });
+      videoPlan = await deps
+        .directVideo({
+          format: targetFormat,
+          styleId,
+          durationMs: videoProbe?.durationMs ?? audio.durationMs,
+          words: t.words,
+          frames: videoProbe?.frames ?? [],
+          audioEdlCuts: edl.cuts.map((c) => ({ startMs: c.startMs, endMs: c.endMs })),
+        })
+        .catch(() => null);
+      checkAbort();
+    }
+
+    const cuts = videoPlan
+      ? videoPlan.cuts.filter((c) => c.enabled).map((c) => ({ startMs: c.startMs, endMs: c.endMs }))
+      : edl.cuts;
+    const cleanedMs = videoPlan
+      ? Math.max(
+          1,
+          cleanedDurationFromSegments(keptSourceSegments(audio.durationMs, videoPlan.cuts)),
+        )
+      : cleanedDuration(audio.durationMs, cuts);
     const cleanedWords = retimeWords(t.words, cuts);
     const cleanedPcm =
       cuts.length > 0 ? await deps.renderCleaned(audio.pcm24k, OUTPUT_SAMPLE_RATE, cuts) : null;
     checkAbort();
     onEvent({ type: 'words', words: cleanedWords, durationMs: cleanedMs });
+    const enabledVideoCuts = videoPlan ? videoPlan.cuts.filter((c) => c.enabled).length : 0;
     onEvent({
       type: 'step',
       step,
       state: 'done',
-      detail: !cleanupOn
-        ? input.source === 'tts'
-          ? 'Skipped for generated voices'
-          : 'Cleanup is off'
-        : edl.skipped
-          ? 'Kept your audio as it is'
-          : cleanupSummary(edl.fillersRemoved, edl.pausesShortened),
+      detail: videoPlan
+        ? `${enabledVideoCuts} ${enabledVideoCuts === 1 ? 'cut' : 'cuts'} · ${videoPlan.punchIns.length} punch-ins`
+        : !cleanupOn
+          ? input.source === 'tts'
+            ? 'Skipped for generated voices'
+            : 'Cleanup is off'
+          : edl.skipped
+            ? 'Kept your audio as it is'
+            : cleanupSummary(edl.fillersRemoved, edl.pausesShortened),
     });
 
     // Moments (spec 06 R1): the deterministic tagger on the cleaned words.
@@ -313,6 +373,25 @@ export async function runPipeline(
       };
     }
 
+    // Assign overlay vs cutaway placement on slots for video projects (spec 18 R4.2).
+    if (isVideoInput) {
+      const defaultAnchor: OverlayAnchor = videoPlan?.defaultOverlayAnchor ?? 'top-right';
+      const CUTAWAY_TYPES = new Set(['map-zoom', 'chart-story', 'timeline']);
+      slots = slots.map((slot) => {
+        const hint = videoPlan?.placements.find(
+          (pl) => pl.startMs < slot.endMs && pl.endMs > slot.startMs,
+        );
+        const placement: SlotPlacement =
+          hint?.placement ?? (CUTAWAY_TYPES.has(slot.componentId) ? 'cutaway' : 'overlay');
+        const overlayAnchor: OverlayAnchor = hint?.anchor ?? defaultAnchor;
+        return {
+          ...slot,
+          placement,
+          ...(placement === 'overlay' ? { overlayAnchor } : {}),
+        };
+      });
+    }
+
     // Store (spec 05 R4). Last chance to cancel before anything is written. A failure here
     // shows on the plan card, which stays active until the project is saved.
     checkAbort();
@@ -332,6 +411,18 @@ export async function runPipeline(
         : originalSrc;
       if (src !== originalSrc) written.push(src);
 
+      const videoTrack: VideoTrack | undefined = isVideoInput
+        ? {
+            src: originalSrc,
+            width: videoProbe?.width ?? 1920,
+            height: videoProbe?.height ?? 1080,
+            originalDurationMs: Math.max(1, videoProbe?.durationMs ?? audio.durationMs),
+            cuts: videoPlan?.cuts ?? [],
+            punchIns: videoPlan?.punchIns ?? [],
+            defaultOverlayAnchor: videoPlan?.defaultOverlayAnchor ?? 'top-right',
+          }
+        : undefined;
+
       const now = deps.now();
       const transcript = (words: Word[], cleaned: boolean): Transcript => ({
         words,
@@ -344,7 +435,7 @@ export async function runPipeline(
         schemaVersion: 1,
         id,
         title: input.title?.trim().slice(0, 80) || titleFrom(input.name),
-        format: input.format ?? '16:9',
+        format: targetFormat,
         fps: 30,
         styleId,
         durationMs: cleanedMs,
@@ -362,6 +453,7 @@ export async function runPipeline(
           },
           ...(input.tts ? { tts: input.tts } : {}),
         },
+        ...(videoTrack ? { video: videoTrack } : {}),
         transcript: {
           ...transcript(cleanedWords, cuts.length > 0),
           ...(delivery ? { prosody: delivery } : {}),

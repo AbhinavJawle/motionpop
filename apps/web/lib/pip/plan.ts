@@ -11,6 +11,7 @@ import {
   DEFAULT_CAPTIONS,
   FormatSchema,
   PipCaptionChoiceSchema,
+  SlotPlacementSchema,
   costOf,
   type Brand,
   type CostConfig,
@@ -50,6 +51,7 @@ export function pipInput(
     project: {
       format: project.format,
       styleId: project.styleId,
+      ...(project.video ? { hasVideo: true } : {}),
       styles: styleOptions()
         .slice(0, 12)
         .map((s) => ({ id: s.id, name: s.name })),
@@ -175,6 +177,48 @@ export function enforcePlan(
         steps.push({ ...base, captions: c.data, credits: 0 });
         break;
       }
+      case 'setPlacement': {
+        const pl = SlotPlacementSchema.safeParse(m.choice);
+        if (!pl.success) {
+          drop(label, 'Choose overlay or cutaway');
+          continue;
+        }
+        steps.push({
+          ...base,
+          ...(slotId ? { slotId } : {}),
+          placement: pl.data,
+          credits: 0,
+        });
+        break;
+      }
+      case 'toggleCuts': {
+        if (!project.video) {
+          drop(label, 'This project has no video cuts');
+          continue;
+        }
+        const enabled = m.choice !== 'disable';
+        steps.push({ ...base, cutEnabled: enabled, credits: 0 });
+        break;
+      }
+      case 'addPunchIn':
+      case 'cutRange': {
+        if (!project.video) {
+          drop(label, 'Only available for video projects');
+          continue;
+        }
+        const word = project.transcript.words[m.atWord];
+        if (!word || m.atWord < 0) {
+          drop(label, 'No word to anchor it on');
+          continue;
+        }
+        steps.push({
+          ...base,
+          atWord: m.atWord,
+          ...(m.instruction.trim() ? { instruction: m.instruction.trim().slice(0, 200) } : {}),
+          credits: 0,
+        });
+        break;
+      }
     }
     seen.add(key);
   }
@@ -184,7 +228,16 @@ export function enforcePlan(
 // ---------------------------------------------------------------------------------------------
 // Code-built plans for the suggestion chips (no model, free)
 
-export type ChipId = 'fill' | 'pictures' | 'brand' | 'title' | 'captions' | 'vertical';
+export type ChipId =
+  | 'fill'
+  | 'pictures'
+  | 'brand'
+  | 'title'
+  | 'captions'
+  | 'vertical'
+  | 'overlays'
+  | 'cutaways'
+  | 'toggleCuts';
 
 export interface Chip {
   id: ChipId;
@@ -220,6 +273,23 @@ export function cleanSubject(raw: string): string | null {
 /** The chips that make sense for this project right now (empty state). */
 export function chipsFor(project: EditorProject): Chip[] {
   const out: Chip[] = [];
+  if (project.video) {
+    const anyCutaway = project.slots.some((s) => s.placement !== 'overlay');
+    if (project.slots.length > 0) {
+      out.push(
+        anyCutaway
+          ? { id: 'overlays', label: 'Float graphics as overlays over speaker' }
+          : { id: 'cutaways', label: 'Make graphics full-screen cutaways' },
+      );
+    }
+    if (project.video.cuts.length > 0) {
+      const anyEnabled = project.video.cuts.some((c) => c.enabled);
+      out.push({
+        id: 'toggleCuts',
+        label: anyEnabled ? 'Restore all AI video cuts' : 'Re-apply AI video cuts',
+      });
+    }
+  }
   const empty = needsFill(project).length;
   if (empty > 0)
     out.push({ id: 'fill', label: `Fill the ${empty} empty slot${empty === 1 ? '' : 's'}` });
@@ -336,5 +406,34 @@ export function codePlan(
       return plan('Re-laid out for vertical', [
         { action: 'setFormat', format: '9:16', label: 'Switch to 9:16', credits: 0 },
       ]);
+    case 'overlays':
+      return plan('Floating every graphic over the speaker', [
+        {
+          action: 'setPlacement',
+          placement: 'overlay',
+          label: 'Make graphics transparent overlays',
+          credits: 0,
+        },
+      ]);
+    case 'cutaways':
+      return plan('Switching graphics to full-screen cutaways', [
+        {
+          action: 'setPlacement',
+          placement: 'cutaway',
+          label: 'Make graphics full-screen',
+          credits: 0,
+        },
+      ]);
+    case 'toggleCuts': {
+      const anyEnabled = Boolean(project.video?.cuts.some((c) => c.enabled));
+      return plan(anyEnabled ? 'Restoring the trimmed moments' : 'Applying your AI video cuts', [
+        {
+          action: 'toggleCuts',
+          cutEnabled: !anyEnabled,
+          label: anyEnabled ? 'Restore all video cuts' : 'Apply AI video cuts',
+          credits: 0,
+        },
+      ]);
+    }
   }
 }

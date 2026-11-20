@@ -1,7 +1,22 @@
 'use client';
 
-import type { PipPlan, PipScope } from '@motionpop/schemas';
-import { ArrowUp, Check, ChevronDown, Cloud, Mic, Paperclip, Plus, Zap } from 'lucide-react';
+import {
+  PIP_MODEL_CHOICES,
+  type PipModelId,
+  type PipPlan,
+  type PipScope,
+} from '@motionpop/schemas';
+import {
+  ArrowUp,
+  Check,
+  ChevronDown,
+  Cloud,
+  Mic,
+  Paperclip,
+  Plus,
+  Sparkles,
+  Zap,
+} from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { toast } from 'sonner';
@@ -16,6 +31,7 @@ import { closeSettingsPanel, useSettingsPanel } from '@/lib/editor/settings-pane
 import { slotCardText } from '@/lib/editor/slot-display';
 import { popIn } from '@/lib/motion/presets';
 import { chipsFor, planCredits } from '@/lib/pip/plan';
+import { pipModelLabel, usePipModel } from '@/lib/pip/model-store';
 import {
   applyPipPlan,
   chipToPip,
@@ -89,8 +105,15 @@ function PipPanelBody() {
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
+  const selectedModel = usePipModel((s) => s.model);
+  const setSelectedModel = usePipModel((s) => s.setModel);
+
   const send = (text: string) =>
-    void sendToPip({ store: editorStore, credits, getRouter, route, config }, text, scope);
+    void sendToPip(
+      { store: editorStore, credits, getRouter, route, config, model: selectedModel },
+      text,
+      scope,
+    );
   const apply = (id: string) =>
     void applyPipPlan(
       { store: editorStore, credits, getRouter, config, doc: document, editRoute, generateRoute },
@@ -165,7 +188,7 @@ function PipPanelBody() {
           )}
         </div>
       )}
-      <Composer busy={busy} onSend={send} />
+      <Composer busy={busy} model={selectedModel} onModelChange={setSelectedModel} onSend={send} />
       <p className="mt-2 flex shrink-0 items-center justify-center gap-1 text-[11px] leading-[14px]">
         {route.kind === 'cloud' ? (
           <span className="flex items-center gap-1 text-text-2">
@@ -243,7 +266,17 @@ function ScopeChip({
   );
 }
 
-function Composer({ busy, onSend }: { busy: boolean; onSend: (t: string) => void }) {
+function Composer({
+  busy,
+  model,
+  onModelChange,
+  onSend,
+}: {
+  busy: boolean;
+  model: PipModelId;
+  onModelChange: (m: PipModelId) => void;
+  onSend: (t: string) => void;
+}) {
   const [text, setText] = useState('');
   const ref = useRef<HTMLTextAreaElement>(null);
   const submit = () => {
@@ -275,19 +308,36 @@ function Composer({ busy, onSend }: { busy: boolean; onSend: (t: string) => void
         aria-label="Ask Pip"
         className="block w-full resize-none bg-transparent text-[13px] leading-[18px] text-text outline-none placeholder:text-text-3"
       />
-      <div className="mt-2 flex items-center gap-2.5 text-text-2">
+      <div className="mt-2 flex items-center gap-2 text-text-2">
         <Tooltip content="Attach images soon" side="top">
-          <Paperclip className="size-4" strokeWidth={1.5} aria-label="Attach (soon)" />
+          <Paperclip className="size-4 shrink-0" strokeWidth={1.5} aria-label="Attach (soon)" />
         </Tooltip>
         <Tooltip content="Voice input soon" side="top">
-          <Mic className="size-4" strokeWidth={1.5} aria-label="Voice (soon)" />
+          <Mic className="size-4 shrink-0" strokeWidth={1.5} aria-label="Voice (soon)" />
         </Tooltip>
+        <label className="relative flex min-w-0 items-center gap-1 rounded-full border border-white/8 bg-card-2 px-2 py-0.5 text-[10.5px] text-text-2 hover:border-violet/40 hover:text-text">
+          <Sparkles className="size-3 shrink-0 text-violet" strokeWidth={1.5} aria-hidden />
+          <select
+            aria-label="Pip AI model"
+            data-testid="pip-model-select"
+            value={model}
+            disabled={busy}
+            onChange={(e) => onModelChange(e.target.value as PipModelId)}
+            className="max-w-[132px] cursor-pointer truncate bg-transparent pr-1 text-[10.5px] text-text outline-none"
+          >
+            {PIP_MODEL_CHOICES.map((choice) => (
+              <option key={choice.id} value={choice.id} className="bg-panel text-text">
+                {choice.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <button
           type="button"
           aria-label="Send"
           disabled={!text.trim() || busy}
           onClick={submit}
-          className="ml-auto flex size-7 items-center justify-center rounded-full bg-ember-grad text-white shadow-ember transition disabled:opacity-40"
+          className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-ember-grad text-white shadow-ember transition disabled:opacity-40"
         >
           <ArrowUp className="size-4" strokeWidth={2} aria-hidden />
         </button>
@@ -309,9 +359,14 @@ function Message({ m, onApply }: { m: PipEntry; onApply: (id: string) => void })
   }
   return (
     <motion.div {...popIn} className="flex flex-col gap-2.5">
-      <div className="flex items-center gap-2 text-[12.5px] leading-[17px]">
+      <div className="flex flex-wrap items-center gap-2 text-[12.5px] leading-[17px]">
         <Pip state={m.planState === 'applied' ? 'done' : 'idle'} size={18} decorative />
         <span className="font-semibold text-text">Pip</span>
+        {m.model && (
+          <span className="rounded-full bg-card-2 px-1.5 py-0.5 font-mono text-[9.5px] text-text-3">
+            {pipModelLabel(m.model)}
+          </span>
+        )}
         <span className="text-text-2">{m.text}</span>
       </div>
       {m.plan &&
