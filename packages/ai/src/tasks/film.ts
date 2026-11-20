@@ -79,69 +79,83 @@ const int = { type: 'integer' };
  * `StoryboardSchema` and `storyboardIssues`, which run on the answer; a generated schema with
  * every bound in it was rejected by the model API (lab run, 2026-11-17).
  */
-const storyboardJsonSchema: Record<string, unknown> = {
-  type: 'object',
-  properties: {
-    title: str,
-    thesis: str,
-    world: str,
-    carrier: str,
-    props: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: { id: str, draw: str, width: { type: 'number' }, height: { type: 'number' } },
-        required: ['id', 'draw', 'width', 'height'],
-      },
-    },
-    beats: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: str,
-          wordStart: int,
-          wordEnd: int,
-          lead: { type: 'string', enum: ['picture', 'map', 'number', 'type'] },
-          archetype: { type: 'string', enum: [...BEAT_ARCHETYPES] },
-          videoStage: { type: 'string', enum: [...VIDEO_STAGE_MODES] },
-          focusX: { type: 'number' },
-          focusY: { type: 'number' },
-          clipId: str,
-          clipStartMs: int,
-          clipEndMs: int,
-          clipFocusX: { type: 'number' },
-          clipFocusY: { type: 'number' },
-          clipZoom: { type: 'number' },
-          idea: str,
-          text: { type: 'array', items: str },
-          landsOn: int,
-          staging: str,
-          seam: {
-            type: 'object',
-            properties: {
-              kind: { type: 'string', enum: ['push', 'lift', 'cover', 'zoom', 'match'] },
-              note: str,
-            },
-            required: ['kind', 'note'],
-          },
+function storyboardJsonSchemaFor(input: FilmDirectInput): Record<string, unknown> {
+  const hasClips = Boolean(input.mediaBin && input.mediaBin.length > 0);
+  const clipEnum = hasClips ? [...input.mediaBin!.map((c) => c.id), 'none'] : undefined;
+  const stageModes = hasClips
+    ? [...VIDEO_STAGE_MODES]
+    : ['full', 'split-left', 'split-right', 'pip', 'backdrop', 'cutaway'];
+  return {
+    type: 'object',
+    properties: {
+      title: str,
+      thesis: str,
+      world: str,
+      carrier: str,
+      props: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: { id: str, draw: str, width: { type: 'number' }, height: { type: 'number' } },
+          required: ['id', 'draw', 'width', 'height'],
         },
-        required: [
-          'id',
-          'wordStart',
-          'wordEnd',
-          'lead',
-          'idea',
-          'text',
-          'landsOn',
-          'staging',
-          'seam',
-        ],
+      },
+      beats: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: str,
+            wordStart: int,
+            wordEnd: int,
+            lead: { type: 'string', enum: ['picture', 'map', 'number', 'type'] },
+            archetype: { type: 'string', enum: [...BEAT_ARCHETYPES] },
+            videoStage: { type: 'string', enum: stageModes },
+            focusX: { type: 'number' },
+            focusY: { type: 'number' },
+            ...(clipEnum
+              ? {
+                  clipId: { type: 'string', enum: clipEnum },
+                  clipStartMs: int,
+                  clipEndMs: int,
+                  clipFocusX: { type: 'number' },
+                  clipFocusY: { type: 'number' },
+                  clipZoom: { type: 'number' },
+                }
+              : {}),
+            idea: str,
+            text: { type: 'array', items: str },
+            landsOn: int,
+            staging: str,
+            seam: {
+              type: 'object',
+              properties: {
+                kind: { type: 'string', enum: ['push', 'lift', 'cover', 'zoom', 'match'] },
+                note: str,
+              },
+              required: ['kind', 'note'],
+            },
+          },
+          required: [
+            'id',
+            'wordStart',
+            'wordEnd',
+            'lead',
+            'archetype',
+            ...(input.hasVideo ? ['videoStage'] : []),
+            ...(clipEnum ? ['clipId'] : []),
+            'idea',
+            'text',
+            'landsOn',
+            'staging',
+            'seam',
+          ],
+        },
       },
     },
-  },
-  required: ['title', 'thesis', 'world', 'carrier', 'props', 'beats'],
-};
+    required: ['title', 'thesis', 'world', 'carrier', 'props', 'beats'],
+  };
+}
 
 /** `film.direct`: the whole narration in, the storyboard out. Two repairs: the tiling is strict. */
 export const filmDirectTask: TaskDef<FilmDirectInput, Storyboard> = {
@@ -172,7 +186,7 @@ export const filmDirectTask: TaskDef<FilmDirectInput, Storyboard> = {
   cloudFallback: false,
   maxRepairs: 2,
   thinking: 'LOW',
-  jsonSchema: () => storyboardJsonSchema,
+  jsonSchema: (input) => storyboardJsonSchemaFor(input),
   check: (out, input) => {
     const issues = storyboardIssues(out, input.words, input.durationMs, {
       hasVideo: Boolean(input.hasVideo),

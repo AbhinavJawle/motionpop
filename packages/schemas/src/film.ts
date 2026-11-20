@@ -64,13 +64,31 @@ export const StoryBeatSchema = z.object({
   /** Speaker focal point 0..1 across frame (optional, inferred from keyframes). */
   focusX: z.number().min(0).max(1).optional(),
   focusY: z.number().min(0).max(1).optional(),
-  /** Optional Media Bin clip bound to this beat (spec 20). */
-  clipId: z.string().min(1).max(64).optional(),
-  clipStartMs: z.number().int().nonnegative().optional(),
-  clipEndMs: z.number().int().nonnegative().optional(),
-  clipFocusX: z.number().min(0).max(1).optional(),
-  clipFocusY: z.number().min(0).max(1).optional(),
-  clipZoom: z.number().min(1).max(2.4).optional(),
+  /** Optional Media Bin clip bound to this beat (spec 20). Tolerates model sentinels ("", "none", 0). */
+  clipId: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() && v.trim() !== 'none' ? v.trim() : undefined),
+    z.string().min(1).max(64).optional(),
+  ),
+  clipStartMs: z.preprocess(
+    (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.round(v) : undefined),
+    z.number().int().nonnegative().optional(),
+  ),
+  clipEndMs: z.preprocess(
+    (v) => (typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : undefined),
+    z.number().int().nonnegative().optional(),
+  ),
+  clipFocusX: z.preprocess(
+    (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1 ? v : undefined),
+    z.number().min(0).max(1).optional(),
+  ),
+  clipFocusY: z.preprocess(
+    (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1 ? v : undefined),
+    z.number().min(0).max(1).optional(),
+  ),
+  clipZoom: z.preprocess(
+    (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 1 ? Math.min(2.4, v) : undefined),
+    z.number().min(1).max(2.4).optional(),
+  ),
   /** The picture: what the viewer sees, concretely. */
   idea: z.string().min(8).max(500),
   /** On-screen copy, exact strings: the hero first, then a quiet label. */
@@ -192,6 +210,10 @@ const SPELLED: Readonly<Record<string, string>> = {
   thirty: '30',
   forty: '40',
   fifty: '50',
+  sixty: '60',
+  seventy: '70',
+  eighty: '80',
+  ninety: '90',
   hundred: '100',
   thousand: '1000',
   million: '1000000',
@@ -201,6 +223,9 @@ const SPELLED: Readonly<Record<string, string>> = {
   second: '2',
   third: '3',
 };
+
+const TENS: ReadonlySet<string> = new Set(['20', '30', '40', '50', '60', '70', '80', '90']);
+const ONES: ReadonlySet<string> = new Set(['1', '2', '3', '4', '5', '6', '7', '8', '9']);
 
 /** The numbers written in a piece of text, as plain digits ("3,500 miles" → ["3500"]). */
 export function numbersIn(text: string): string[] {
@@ -213,17 +238,27 @@ export function numbersIn(text: string): string[] {
 }
 
 /**
- * Every number the narration says, as plain digits, spelled-out small numbers included. Film
- * mode shows no figure that isn't in here: a made-up statistic on screen is the one mistake a
- * creator can't forgive.
+ * Every number the narration says, as plain digits, spelled-out numbers and compound tens+ones
+ * ("forty-five" / "forty five" → "45") included. Film mode shows no figure that isn't in here:
+ * a made-up statistic on screen is the one mistake a creator can't forgive.
  */
 export function spokenNumbers(words: readonly { text: string }[]): Set<string> {
   const out = new Set<string>();
+  const parts: string[] = [];
   for (const w of words) {
     for (const n of numbersIn(w.text)) out.add(n);
     for (const part of w.text.toLowerCase().split(/[^a-z]+/)) {
+      if (!part) continue;
+      parts.push(part);
       const n = SPELLED[part];
       if (n) out.add(n);
+    }
+  }
+  for (let i = 0; i + 1 < parts.length; i++) {
+    const a = SPELLED[parts[i]!];
+    const b = SPELLED[parts[i + 1]!];
+    if (a && b && TENS.has(a) && ONES.has(b)) {
+      out.add(String(Number(a) + Number(b)));
     }
   }
   return out;

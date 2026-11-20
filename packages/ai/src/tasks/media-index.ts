@@ -1,5 +1,4 @@
 import {
-  APP_CONFIG_DEFAULTS,
   MEDIA_CLIP_KINDS,
   MediaClipKindSchema,
   MediaClipMomentSchema,
@@ -97,7 +96,7 @@ export function mediaIndexTask(): TaskDef<MediaIndexInput, MediaIndexOutput> {
     input: MediaIndexInputSchema,
     output: MediaIndexOutputSchema,
     mode: () => 'ONLY_IN_CLOUD',
-    model: (cfg) => cfg.modelStrong || APP_CONFIG_DEFAULTS.modelStrong,
+    model: () => 'gemini-3.8-flash',
     system: MEDIA_INDEX_SYSTEM_V1,
     prompt: (i) =>
       mediaIndexPromptV1(

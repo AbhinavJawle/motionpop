@@ -1,4 +1,5 @@
 import {
+  isMediaStageMode,
   timeBeats,
   type FilmWord,
   type Format,
@@ -103,8 +104,10 @@ export interface FilmDeps {
     format: Format,
     clipFocus?: { focusX?: number; focusY?: number; clipSummary?: string },
   ) => string;
-  /** Explicit model id override for Director, Props and Builders (e.g. Pip model selector). */
+  /** Explicit model id override for the Director (`film.direct`, e.g. Pip model selector). */
   model?: string;
+  /** Optional model override for parallel Builders (`film.build`); defaults to `cfg.modelFilmBuild` for 8x faster parallel fan-out. */
+  buildModel?: string;
   /** Watches a built beat. Without it beats are only linted. */
   inspect?: (params: FilmBeatParams, beat: TimedBeat, words: FilmWord[]) => Promise<CriticVerdict>;
   onProgress?: (e: FilmProgress) => void;
@@ -251,8 +254,41 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
     }
     deps.onProgress?.({ phase: 'storyboard', state: 'done' });
   }
-  // Ids are ours: b1, b2, … whatever the model called them.
-  board = { ...board, beats: board.beats.map((b, i) => ({ ...b, id: `b${i + 1}` })) };
+  // Ids are ours: b1, b2, … whatever the model called them. Also backfill any media-stage beat
+  // with its best-matching Media Bin clip & moment parameters when omitted by the Director.
+  const bin = input.mediaBin ?? [];
+  const pickClipForStage = (mode: VideoStageMode): DirectMediaClip | undefined => {
+    if (bin.length === 0) return undefined;
+    if (mode === 'screen-showcase') {
+      return bin.find((c) => c.kind === 'screen-recording') ?? bin[0];
+    }
+    if (mode === 'media-card-pop') {
+      return bin.find((c) => c.kind === 'screenshot' || c.kind === 'photo') ?? bin[0];
+    }
+    return bin.find((c) => c.kind === 'broll') ?? bin[0];
+  };
+  board = {
+    ...board,
+    beats: board.beats.map((b, i) => {
+      const id = `b${i + 1}`;
+      if (!b.videoStage || !isMediaStageMode(b.videoStage)) return { ...b, id };
+      const clip = (b.clipId ? bin.find((c) => c.id === b.clipId) : undefined) ?? pickClipForStage(b.videoStage);
+      if (!clip) return { ...b, id, videoStage: 'full' as const };
+      const m = clip.moments?.[0];
+      return {
+        ...b,
+        id,
+        clipId: clip.id,
+        clipStartMs: b.clipStartMs ?? m?.startMs ?? 0,
+        ...(b.clipEndMs !== undefined || m?.endMs !== undefined
+          ? { clipEndMs: b.clipEndMs ?? m?.endMs }
+          : {}),
+        clipFocusX: b.clipFocusX ?? m?.focusX ?? 0.5,
+        clipFocusY: b.clipFocusY ?? m?.focusY ?? 0.45,
+        clipZoom: b.clipZoom ?? m?.zoom ?? (b.videoStage === 'screen-showcase' ? 1.5 : 1.05),
+      };
+    }),
+  };
   const timed = timeBeats(board, input.words, input.durationMs);
   stop();
 
@@ -267,7 +303,7 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
           film: { title: board.title, world: board.world },
           props: board.props,
         },
-        runOpts,
+        deps.buildModel ? { model: deps.buildModel } : { model: 'gemini-3.8-flash' },
       );
       calls += res.attempts;
       deps.onProgress?.({ phase: 'props', state: 'done' });
@@ -356,7 +392,7 @@ async function buildOne(
     ...(beatExample ? { beatExample } : {}),
     ...(stageGuide ? { stageGuide } : {}),
   });
-  const runOpts = deps.model ? { model: deps.model } : undefined;
+  const buildOpts = deps.buildModel ? { model: deps.buildModel } : undefined;
   const note = (state: 'building' | 'checking' | 'repairing' | 'ready' | 'failed') =>
     deps.onProgress?.({ phase: 'beat', beatId: beat.id, index: i, count: timed.length, state });
   const asParams = (out: FilmBuildOutput, props: Record<string, string>): FilmBeatParams => ({
@@ -376,7 +412,7 @@ async function buildOne(
     note(round === 0 ? 'building' : 'repairing');
     let out: FilmBuildOutput;
     try {
-      const res = await deps.router.run(task, fix ? { ...base, fix } : base, runOpts);
+      const res = await deps.router.run(task, fix ? { ...base, fix } : base, buildOpts);
       ownCalls += res.attempts;
       out = res.output;
     } catch {

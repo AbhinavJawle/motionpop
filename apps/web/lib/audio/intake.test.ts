@@ -21,7 +21,8 @@ describe('validateIntake', () => {
     expect(validateIntake(f('take.webm', ''))).toEqual({ ok: true, kind: 'webm' });
     expect(validateIntake(f('notes.txt', '')).ok).toBe(false);
     expect(validateIntake(f('noext', '')).ok).toBe(false);
-    expect(validateIntake(f('movie.mp3', 'video/mp4')).ok).toBe(false);
+    expect(validateIntake(f('movie.mp4', 'video/mp4'))).toEqual({ ok: true, kind: 'video' });
+    expect(validateIntake(f('doc.mp3', 'application/pdf')).ok).toBe(false);
   });
 
   it('rejects wrong types and empty files with the friendly line', () => {
@@ -29,7 +30,7 @@ describe('validateIntake', () => {
     expect(r).toEqual({
       ok: false,
       reason: 'not-audio',
-      message: "That doesn't look like audio. Try MP3, WAV or M4A.",
+      message: "That doesn't look like audio or video. Try MP3, WAV, M4A, MP4 or MOV.",
     });
     expect(validateIntake(f('a.mp3', 'audio/mpeg', 0))).toMatchObject({
       ok: false,
@@ -42,7 +43,7 @@ describe('validateIntake', () => {
     expect(validateIntake(f('a.mp3', 'audio/mpeg', INTAKE_LIMITS.maxBytes + 1))).toEqual({
       ok: false,
       reason: 'too-large',
-      message: "That's a big one. Up to 50 MB and 20 minutes for now.",
+      message: "That's a big one. Up to 50 MB of audio, 500 MB of video and 20 minutes for now.",
     });
   });
 
@@ -54,8 +55,12 @@ describe('validateIntake', () => {
         fc.integer({ min: -10, max: 200_000_000 }),
         (n, t, s) => {
           const r = validateIntake({ name: n, type: t, size: s });
-          if (r.ok) expect(s > 0 && s <= INTAKE_LIMITS.maxBytes).toBe(true);
-          else expect(r.message.length).toBeGreaterThan(0);
+          if (r.ok) {
+            const cap = r.kind === 'video' ? INTAKE_LIMITS.maxVideoBytes : INTAKE_LIMITS.maxBytes;
+            expect(s > 0 && s <= cap).toBe(true);
+          } else {
+            expect(r.message.length).toBeGreaterThan(0);
+          }
         },
       ),
     );

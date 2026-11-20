@@ -41,20 +41,26 @@ export const VideoDirectInputSchema = z.object({
 });
 export type VideoDirectInput = z.infer<typeof VideoDirectInputSchema>;
 
+const clampNum = (lo: number, hi: number) => (v: unknown) =>
+  typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : v;
+
+const trimMax = (max: number) => (v: unknown) =>
+  typeof v === 'string' ? v.trim().slice(0, max) : v;
+
 export const VideoDirectCutSuggestionSchema = z.object({
   wordStart: z.number().int().nonnegative(),
   wordEnd: z.number().int().nonnegative(),
   kind: VideoCutKindSchema,
-  reason: z.string().min(1).max(160),
+  reason: z.preprocess(trimMax(160), z.string().min(1).max(160)),
 });
 
 export const VideoDirectPunchInSuggestionSchema = z.object({
   wordStart: z.number().int().nonnegative(),
   wordEnd: z.number().int().nonnegative(),
-  scale: z.number().min(1.05).max(1.4),
-  focusX: z.number().min(0).max(1),
-  focusY: z.number().min(0).max(1),
-  reason: z.string().min(1).max(160),
+  scale: z.preprocess(clampNum(1.05, 1.4), z.number().min(1.05).max(1.4)),
+  focusX: z.preprocess(clampNum(0, 1), z.number().min(0).max(1)),
+  focusY: z.preprocess(clampNum(0, 1), z.number().min(0).max(1)),
+  reason: z.preprocess(trimMax(160), z.string().min(1).max(160)),
 });
 
 export const VideoDirectPlacementSuggestionSchema = z.object({
@@ -62,15 +68,24 @@ export const VideoDirectPlacementSuggestionSchema = z.object({
   wordEnd: z.number().int().nonnegative(),
   placement: SlotPlacementSchema,
   anchor: OverlayAnchorSchema,
-  reason: z.string().min(1).max(160),
+  reason: z.preprocess(trimMax(160), z.string().min(1).max(160)),
 });
 
 export const VideoDirectOutputSchema = z.object({
-  summary: z.string().min(1).max(240),
+  summary: z.preprocess(trimMax(240), z.string().min(1).max(240)),
   defaultOverlayAnchor: OverlayAnchorSchema,
-  cuts: z.array(VideoDirectCutSuggestionSchema).max(30),
-  punchIns: z.array(VideoDirectPunchInSuggestionSchema).max(20),
-  placements: z.array(VideoDirectPlacementSuggestionSchema).max(20),
+  cuts: z.preprocess(
+    (v) => (Array.isArray(v) ? v.slice(0, 30) : v),
+    z.array(VideoDirectCutSuggestionSchema).max(30),
+  ),
+  punchIns: z.preprocess(
+    (v) => (Array.isArray(v) ? v.slice(0, 20) : v),
+    z.array(VideoDirectPunchInSuggestionSchema).max(20),
+  ),
+  placements: z.preprocess(
+    (v) => (Array.isArray(v) ? v.slice(0, 20) : v),
+    z.array(VideoDirectPlacementSuggestionSchema).max(20),
+  ),
 });
 export type VideoDirectOutput = z.infer<typeof VideoDirectOutputSchema>;
 
@@ -185,7 +200,7 @@ export function videoDirectTask(): TaskDef<VideoDirectInput, VideoDirectOutput> 
     jsonSchema: videoDirectJsonSchema,
     cloudCost: () => 0,
     cloudFallback: false,
-    maxRepairs: 1,
+    maxRepairs: 0,
     thinking: 'LOW',
     maxOutputTokens: 4096,
   };

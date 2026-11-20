@@ -2,6 +2,7 @@ import {
   FilmCancelled,
   beatWords,
   makeFilm,
+  rebuildBeat,
   type FilmBeatResult,
   type FilmProgress,
   type FilmResult,
@@ -46,6 +47,7 @@ import { timelineIssues } from '@/lib/timeline/invariants';
 import { probeAndSampleVideo } from '@/lib/video/frames';
 import { indexUnindexedMediaClips } from '@/lib/video/media-bin';
 import { inspectInSandbox } from './sandbox-critic';
+import { runVisionQaPass } from './vision-qa';
 
 /**
  * Film mode in the editor (spec 07b R5, R6). One credited action for the whole video: the cloud
@@ -300,37 +302,38 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           .slice(0, 40)
       : [];
 
-    // Sample a compact set of keyframes for multimodal video choreography when `project.video` exists.
-    let frames: { timeMs: number; mimeType: 'image/jpeg' | 'image/png'; base64: string }[] = [];
-    if (hasVideo && project.video && typeof window !== 'undefined') {
+    // Sample speaker keyframes + auto-index any unindexed Media Bin clips IN PARALLEL (Spec 20/22)
+    // so Gemini 4 Neon gets both A-roll framing and B-roll/screen/screenshot understanding faster.
+    const framesPromise = (async (): Promise<
+      { timeMs: number; mimeType: 'image/jpeg' | 'image/png'; base64: string }[]
+    > => {
+      if (!hasVideo || !project.video || typeof window === 'undefined') return [];
       try {
         const blob = await appAudioStore().get(project.video.src);
-        if (blob) {
-          const probe = await probeAndSampleVideo(blob, 6);
-          frames = probe.frames.map((f) => ({
-            timeMs: f.atMs,
-            mimeType: 'image/jpeg' as const,
-            base64: f.base64,
-          }));
-        }
+        if (!blob) return [];
+        const probe = await probeAndSampleVideo(blob, 3);
+        return probe.frames.map((f) => ({
+          timeMs: f.atMs,
+          mimeType: 'image/jpeg' as const,
+          base64: f.base64,
+        }));
       } catch {
-        frames = [];
+        return [];
       }
-    }
+    })();
 
-    // Spec 20 R4.2: auto-index any unindexed Media Bin clips before directing so Gemini 4 Neon
-    // can weave B-roll, screen recordings, and screenshots directly into matching beats.
+    const mediaBinPromise = project.mediaBin?.length
+      ? indexUnindexedMediaClips(project.mediaBin, router, {
+          now,
+        }).catch(() => null)
+      : Promise.resolve(null);
+
+    const [frames, idxRes] = await Promise.all([framesPromise, mediaBinPromise]);
     let indexedMediaBin: MediaClip[] | undefined = project.mediaBin;
     let mediaBinUpdated = false;
-    if (project.mediaBin?.length) {
-      const idxRes = await indexUnindexedMediaClips(project.mediaBin, router, {
-        ...(deps.model ? { model: deps.model } : {}),
-        now,
-      }).catch(() => null);
-      if (idxRes && idxRes.indexedCount > 0) {
-        indexedMediaBin = idxRes.clips;
-        mediaBinUpdated = true;
-      }
+    if (idxRes && idxRes.indexedCount > 0) {
+      indexedMediaBin = idxRes.clips;
+      mediaBinUpdated = true;
     }
     const directMediaBin = (indexedMediaBin ?? []).map((c) => ({
       id: c.id,
@@ -397,6 +400,64 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
       return e instanceof FilmCancelled
         ? { outcome: 'cancelled' }
         : { outcome: 'failed', reason: COULDNT_FILM };
+    }
+
+    // Spec 22 R2.2: single-call Multimodal Vision Critic contact-sheet QA on real browser runs.
+    // Flags at most 2 clearly defective beats and surgically rebuilds only those beats; skips
+    // cleanly in headless tests or if vision QA returns pass.
+    if (typeof window !== 'undefined' && !deps.inspect && !deps.cancelled?.()) {
+      const flagged = await runVisionQaPass({
+        router,
+        beats: film.beats,
+        format: project.format,
+        style,
+        frames,
+      }).catch(() => []);
+      if (flagged.length > 0 && !deps.cancelled?.()) {
+        const patched = [...film.beats];
+        await Promise.all(
+          flagged.map(async (flag) => {
+            const idx = patched.findIndex((b) => b.beat.id === flag.beatId);
+            if (idx < 0) return;
+            const orig = patched[idx]!;
+            const nextIdea = `${orig.beat.idea} [Visual QA fix: ${flag.fixHint}]`.slice(0, 500);
+            try {
+              const rebuilt = await rebuildBeat(
+                {
+                  words,
+                  durationMs: project.durationMs,
+                  format: project.format,
+                  look: { name: style.name, description: style.description.slice(0, 300) },
+                  ...(hasVideo ? { hasVideo: true } : {}),
+                  ...(frames.length ? { frames } : {}),
+                  ...(directMediaBin.length ? { mediaBin: directMediaBin } : {}),
+                  ...(stressedWords.length ? { stressedWords } : {}),
+                },
+                {
+                  router,
+                  lint: lintCustom,
+                  lintProp,
+                  kitDoc: KIT_DOC,
+                  example: kitExample(),
+                  exampleFor: (beat) => archetypeExample(beat.archetype, beat.lead),
+                  stageGuideFor: videoStageZoneGuide,
+                  ...(deps.model ? { model: deps.model } : {}),
+                  ...(inspect ? { inspect } : {}),
+                  storyboard: film.storyboard,
+                  props: film.props,
+                  maxRepairs: 1,
+                },
+                idx,
+                nextIdea,
+              );
+              if (rebuilt.params) patched[idx] = rebuilt;
+            } catch {
+              // Keep the original beat if surgical polish fails.
+            }
+          }),
+        );
+        film = { ...film, beats: patched };
+      }
     }
 
     // The film was made for the video as it was: a different voiceover or length is another film.

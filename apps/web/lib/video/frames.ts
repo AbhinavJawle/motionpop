@@ -23,8 +23,12 @@ export function formatForVideo(width: number, height: number): Format {
 const FRAME_MAX_WIDTH = 480;
 const FRAME_JPEG_QUALITY = 0.7;
 
-function seekVideo(v: HTMLVideoElement, sec: number): Promise<void> {
+function seekVideo(v: HTMLVideoElement, sec: number, timeoutMs = 2500): Promise<void> {
   return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('seek timed out'));
+    }, timeoutMs);
     const onSeeked = () => {
       cleanup();
       resolve();
@@ -34,6 +38,7 @@ function seekVideo(v: HTMLVideoElement, sec: number): Promise<void> {
       reject(new Error('seek failed'));
     };
     const cleanup = () => {
+      clearTimeout(timer);
       v.removeEventListener('seeked', onSeeked);
       v.removeEventListener('error', onError);
     };
@@ -60,8 +65,15 @@ export async function probeAndSampleVideo(file: Blob, maxFrames = 6): Promise<Vi
 
   try {
     await new Promise<void>((resolve, reject) => {
-      v.onloadedmetadata = () => resolve();
-      v.onerror = () => reject(new Error('Could not read the uploaded video'));
+      const timer = setTimeout(() => reject(new Error('Video metadata timed out')), 4000);
+      v.onloadedmetadata = () => {
+        clearTimeout(timer);
+        resolve();
+      };
+      v.onerror = () => {
+        clearTimeout(timer);
+        reject(new Error('Could not read the uploaded video'));
+      };
       v.src = url;
     });
     const width = Math.max(1, v.videoWidth || 1920);

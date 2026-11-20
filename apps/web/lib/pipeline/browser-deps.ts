@@ -55,7 +55,11 @@ export function browserPipelineDeps(): PipelineDeps {
         seed: req.seed,
       }),
     probeVideo: (file) => probeAndSampleVideo(file),
-    directVideo: async (params) => directVideo(await getRouter().catch(() => null), params),
+    directVideo: async (params) =>
+      directVideo(await getRouter().catch(() => null), {
+        ...params,
+        model: 'gemini-3.8-flash',
+      }),
     ingestExtraClip: async (clip, projectId) => {
       const store = appAudioStore();
       const blob = await store.get(clip.ref);
