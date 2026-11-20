@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BeatArchetypeSchema, VideoStageModeSchema } from './video';
 
 /**
  * Film mode (spec 07b): the storyboard a Director model writes for a whole voiceover, and the
@@ -56,6 +57,13 @@ export const StoryBeatSchema = z.object({
   wordStart: z.number().int().nonnegative(),
   wordEnd: z.number().int().nonnegative(),
   lead: z.enum(BEAT_LEADS),
+  /** Visual archetype rotated across beats for variety (spec 19). */
+  archetype: BeatArchetypeSchema.optional(),
+  /** Coupled speaker video framing for this beat on video projects (spec 19). */
+  videoStage: VideoStageModeSchema.optional(),
+  /** Speaker focal point 0..1 across frame (optional, inferred from keyframes). */
+  focusX: z.number().min(0).max(1).optional(),
+  focusY: z.number().min(0).max(1).optional(),
   /** The picture: what the viewer sees, concretely. */
   idea: z.string().min(8).max(500),
   /** On-screen copy, exact strings: the hero first, then a quiet label. */
@@ -232,6 +240,7 @@ export function storyboardIssues(
   board: Storyboard,
   words: readonly FilmWord[],
   durationMs: number,
+  opts?: { hasVideo?: boolean },
 ): string[] {
   const issues: string[] = [];
   const n = words.length;
@@ -296,6 +305,28 @@ export function storyboardIssues(
       issues.push(`prop id "${p.id}" must be lowercase letters, digits and dashes`);
     if (propIds.has(p.id)) issues.push(`prop id "${p.id}" is used twice`);
     propIds.add(p.id);
+  }
+  // Spec 19 R3.2: anti-repetition checks for visual archetypes and video choreography stages.
+  for (let i = 1; i < board.beats.length; i++) {
+    const prev = board.beats[i - 1] as StoryBeat;
+    const cur = board.beats[i] as StoryBeat;
+    if (cur.archetype && prev.archetype && cur.archetype === prev.archetype) {
+      issues.push(
+        `beat ${i + 1} (${cur.id}) repeats archetype "${cur.archetype}" from beat ${i} (${prev.id}); pick a different archetype`,
+      );
+    }
+  }
+  if (opts?.hasVideo && board.beats.length >= 3) {
+    for (let i = 2; i < board.beats.length; i++) {
+      const a = board.beats[i - 2]?.videoStage ?? 'full';
+      const b = board.beats[i - 1]?.videoStage ?? 'full';
+      const c = board.beats[i]?.videoStage ?? 'full';
+      if (a === b && b === c) {
+        issues.push(
+          `beats ${i - 1}–${i + 1} all stay in videoStage "${c}"; vary the speaker framing (e.g. split-left, pip, backdrop, full, cutaway) so the video flows`,
+        );
+      }
+    }
   }
   return issues;
 }

@@ -72,6 +72,13 @@ export function voicePathFor(uid: string, projectId: string): RegExp {
   );
 }
 
+/** The only Storage paths a caller's source video upload may have (spec 19 R5.1). */
+export function videoPathFor(uid: string, projectId: string): RegExp {
+  return new RegExp(
+    `^users/${escapeRegExp(uid)}/video/${escapeRegExp(projectId)}/source-[0-9a-f]{16}\\.(mp4|mov|webm)$`,
+  );
+}
+
 export const RenderRequestSchema = z
   .object({
     requestId: z.uuid(),
@@ -80,6 +87,8 @@ export const RenderRequestSchema = z
     project: EditorProjectSchema,
     /** Checked against `voicePathFor(uid, project.id)` in the route. */
     voicePath: z.string().min(1).max(300),
+    /** Optional uploaded source video path (`videoPathFor(uid, project.id)`, spec 19 R5.1). */
+    videoPath: z.string().min(1).max(300).optional(),
   })
   .strict();
 export type RenderRequest = z.infer<typeof RenderRequestSchema>;
@@ -129,6 +138,7 @@ export const RenderDocSchema = z
     mode: RenderModeSchema,
     inputPath: z.string(),
     voicePath: z.string(),
+    videoPath: z.string().optional(),
     outputPath: z.string().optional(),
     thumbPath: z.string().optional(),
     sizeBytes: z.number().int().nonnegative().optional(),

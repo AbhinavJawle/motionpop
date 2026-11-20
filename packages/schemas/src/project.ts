@@ -6,7 +6,13 @@ import { FormatSchema } from './format';
 import { EnergySchema } from './score';
 import { SCRIPT_MAX_CHARS } from './start';
 import { TranscriptSchema } from './transcript';
-import { OverlayAnchorSchema, SlotPlacementSchema, VideoTrackSchema } from './video';
+import {
+  BeatArchetypeSchema,
+  OverlayAnchorSchema,
+  SlotPlacementSchema,
+  VideoStageModeSchema,
+  VideoTrackSchema,
+} from './video';
 
 /** Families a project may pick in the Fonts panel (every one is bundled in packages/motion, OFL). */
 export const FONT_CHOICES = [
@@ -101,6 +107,10 @@ export const SlotSchema = z
     placement: SlotPlacementSchema.optional(),
     /** Video projects (spec 18): where an overlay card sits. Absent means the video's default anchor. */
     overlayAnchor: OverlayAnchorSchema.optional(),
+    /** Coupled choreography stage mode for this beat on video projects (spec 19). */
+    videoStage: VideoStageModeSchema.optional(),
+    /** Visual archetype assigned by the Director for this beat (spec 19). */
+    archetype: BeatArchetypeSchema.optional(),
   })
   .refine((s) => s.endMs > s.startMs, {
     message: 'endMs must be greater than startMs',

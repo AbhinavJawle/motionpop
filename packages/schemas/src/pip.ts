@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { BrandSchema } from './brand';
 import { FormatSchema } from './format';
-import { OverlayAnchorSchema, SlotPlacementSchema } from './video';
+import { OverlayAnchorSchema, SlotPlacementSchema, VideoStageModeSchema } from './video';
 
 /**
- * Pip, the whole-video assistant (spec 10 design §2, extended for video in spec 18 R6):
+ * Pip, the whole-video assistant (spec 10 design §2, extended for video in spec 18 R6 & spec 19):
  * a message becomes a plan of closed actions that Apply all runs as commands.
  */
 export const PIP_ACTIONS = [
@@ -16,6 +16,7 @@ export const PIP_ACTIONS = [
   'generateSlot',
   'setFormat',
   'setPlacement',
+  'setVideoStage',
   'toggleCuts',
   'addPunchIn',
   'cutRange',
@@ -59,6 +60,7 @@ export const PipStepSchema = z.object({
   captions: PipCaptionChoiceSchema.optional(),
   placement: SlotPlacementSchema.optional(),
   overlayAnchor: OverlayAnchorSchema.optional(),
+  videoStage: VideoStageModeSchema.optional(),
   cutEnabled: z.boolean().optional(),
   componentId: z.string().optional(),
   atWord: z.number().int().nonnegative().optional(),

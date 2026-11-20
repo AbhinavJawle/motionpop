@@ -1,15 +1,21 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { EditorProjectSchema } from './project';
+import { storyboardIssues, type Storyboard } from './film';
+import { videoPathFor } from './render';
 import {
   activePunchIn,
   cleanedDurationFromSegments,
   cleanedToSourceMs,
+  easedPunchInAt,
   keptSourceSegments,
   OverlayAnchorSchema,
   sourceToCleanedMs,
+  STAGE_TRANSITION_MS,
+  stagesFromTimedBeats,
   VideoCutSchema,
   VideoPunchInSchema,
+  videoStageRectAt,
   VideoTrackSchema,
   type VideoCut,
   type VideoPunchIn,
@@ -254,5 +260,109 @@ describe('voice-only projects still parse', () => {
     const r = EditorProjectSchema.safeParse(project);
     expect(r.success).toBe(true);
     if (r.success) expect(r.data.video).toBeUndefined();
+  });
+});
+
+describe('video stage choreography (spec 19)', () => {
+  const stages = stagesFromTimedBeats([
+    { id: 'b1', startMs: 0, endMs: 3000, videoStage: 'full', focusX: 0.5, focusY: 0.35 },
+    { id: 'b2', startMs: 3000, endMs: 6000, videoStage: 'split-left', focusX: 0.48, focusY: 0.32 },
+    { id: 'b3', startMs: 6000, endMs: 9000, videoStage: 'pip', focusX: 0.5, focusY: 0.35 },
+    { id: 'b4', startMs: 9000, endMs: 12000, videoStage: 'backdrop' },
+    { id: 'b5', startMs: 12000, endMs: 15000, videoStage: 'cutaway' },
+  ]);
+
+  it('smoothly interpolates from full to split-left across STAGE_TRANSITION_MS', () => {
+    const start = videoStageRectAt(3000, stages, [], 1920, 1080);
+    const mid = videoStageRectAt(3000 + Math.floor(STAGE_TRANSITION_MS / 2), stages, [], 1920, 1080);
+    const settled = videoStageRectAt(3000 + STAGE_TRANSITION_MS + 100, stages, [], 1920, 1080);
+    expect(start.w).toBeCloseTo(1920, 0);
+    expect(mid.w).toBeLessThan(1920);
+    expect(mid.w).toBeGreaterThan(settled.w);
+    expect(settled.w).toBeCloseTo(1920 * 0.43, 0);
+    expect(settled.radius).toBeGreaterThan(20);
+  });
+
+  it('sets blur/dim for backdrop and hides video in cutaway', () => {
+    const bg = videoStageRectAt(9600, stages, [], 1920, 1080);
+    expect(bg.blurPx).toBeGreaterThanOrEqual(8);
+    expect(bg.dim).toBeGreaterThan(0.4);
+    const cutRect = videoStageRectAt(12600, stages, [], 1920, 1080);
+    expect(cutRect.opacity).toBe(0);
+  });
+
+  it('ramps punch-ins smoothly instead of hard-snapping', () => {
+    const p = punch(1000, 3000);
+    const atEdge = easedPunchInAt(1000, [p]);
+    const atMid = easedPunchInAt(2000, [p]);
+    expect(atEdge?.scale).toBeCloseTo(1, 3);
+    expect(atMid?.scale).toBeCloseTo(p.scale, 3);
+  });
+
+  it('validates source video storage paths via videoPathFor', () => {
+    const re = videoPathFor('user_1', 'proj_2');
+    expect(re.test('users/user_1/video/proj_2/source-0123456789abcdef.mp4')).toBe(true);
+    expect(re.test('users/user_1/video/proj_2/source-0123456789abcdef.mov')).toBe(true);
+    expect(re.test('users/user_1/video/proj_2/source-0123456789abcdef.wav')).toBe(false);
+    expect(re.test('users/other/video/proj_2/source-0123456789abcdef.mp4')).toBe(false);
+  });
+
+  it('flags consecutive duplicate archetypes and 3 identical videoStages in storyboardIssues', () => {
+    const words = Array.from({ length: 12 }, (_, i) => ({
+      text: `w${i}`,
+      startMs: i * 900,
+      endMs: i * 900 + 800,
+    }));
+    const board: Storyboard = {
+      title: 'Test',
+      thesis: 'Test thesis',
+      world: 'Clean studio world',
+      carrier: 'Accent line',
+      props: [],
+      beats: [
+        {
+          id: 'b1',
+          wordStart: 0,
+          wordEnd: 3,
+          lead: 'number',
+          archetype: 'hero-stat',
+          videoStage: 'full',
+          idea: 'Big stat over speaker',
+          text: ['40%'],
+          landsOn: 1,
+          staging: 'Pop stat on w1',
+          seam: { kind: 'push', note: 'Push right' },
+        },
+        {
+          id: 'b2',
+          wordStart: 4,
+          wordEnd: 7,
+          lead: 'picture',
+          archetype: 'hero-stat',
+          videoStage: 'full',
+          idea: 'Another stat repeated',
+          text: ['2x'],
+          landsOn: 5,
+          staging: 'Pop on w5',
+          seam: { kind: 'push', note: 'Push right' },
+        },
+        {
+          id: 'b3',
+          wordStart: 8,
+          wordEnd: 11,
+          lead: 'picture',
+          archetype: 'data-chart',
+          videoStage: 'full',
+          idea: 'Bar chart of growth',
+          text: ['Growth'],
+          landsOn: 9,
+          staging: 'Bars rise on w9',
+          seam: { kind: 'push', note: 'Hold' },
+        },
+      ],
+    };
+    const issues = storyboardIssues(board, words, 11_000, { hasVideo: true });
+    expect(issues.some((x) => x.includes('repeats archetype'))).toBe(true);
+    expect(issues.some((x) => x.includes('stay in videoStage'))).toBe(true);
   });
 });
