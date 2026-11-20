@@ -86,14 +86,16 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
     ...(input.seams === false ? { seams: false } : {}),
     ...(input.staging === false ? { staging: false } : {}),
     ...(input.film ? { film: true } : {}),
+    ...(input.hasVideo ? { hasVideo: true } : {}),
     slots: input.slots,
     ...(input.energy ? { energy: input.energy } : {}),
     ...(input.captions && input.captions.groups.length ? { captions: input.captions } : {}),
     ...(input.images && Object.keys(input.images).length ? { images: input.images } : {}),
   };
 
-  const opaque = background === 'style';
-  const needsTiles = opaque && (style.texture.grain > 0 || style.texture.paper);
+  const hasVideo = Boolean(input.hasVideo);
+  const opaque = background === 'style' && !hasVideo;
+  const needsTiles = (opaque || hasVideo) && (style.texture.grain > 0 || style.texture.paper);
   if (needsTiles && !assets.textures) {
     throw new Error('texture tiles missing (run build:runtime and pass textures.json)');
   }
@@ -151,9 +153,18 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
   input.slots.forEach((s, i) => {
     const tail = Math.max(0, Math.min(s.tailMs ?? 0, durationMs - s.endMs));
     if (tail > 0) anyTail = true;
-    const style = s.tailMs !== undefined || anyTail ? ` style="z-index:${z}"` : '';
+    const styleAttr = s.tailMs !== undefined || anyTail ? ` style="z-index:${z}"` : '';
+    const isOverlay = hasVideo && s.placement === 'overlay';
+    const isCutaway = hasVideo && !isOverlay;
+    const anchor = s.overlayAnchor ?? 'top-right';
+    const cls = isOverlay
+      ? `clip mp-slot mp-slot-overlay mp-anchor-${escapeAttr(anchor)}`
+      : isCutaway
+        ? 'clip mp-slot mp-slot-cutaway'
+        : 'clip mp-slot';
+    const inner = isCutaway ? '<div class="mp-slot-bg"></div>' : '';
     layers.push(
-      `    <div id="${escapeAttr(s.id)}" class="clip mp-slot" data-start="${sec(s.startMs)}" data-duration="${sec(s.endMs - s.startMs + tail)}" data-track-index="${tail > 0 ? 10 + (i % 2) : 1}"${style}></div>`,
+      `    <div id="${escapeAttr(s.id)}" class="${cls}" data-start="${sec(s.startMs)}" data-duration="${sec(s.endMs - s.startMs + tail)}" data-track-index="${tail > 0 ? 10 + (i % 2) : 1}"${styleAttr}>${inner}</div>`,
     );
     z += tail > 0 && s.over !== 'in' ? -1 : 1;
   });
@@ -179,6 +190,16 @@ ${fontFaceCss(families, assets.fonts)}
   .mp-texture { position: absolute; inset: 0; pointer-events: none; }
 ${textureCss.join('\n')}
   .mp-slot { position: absolute; inset: 0; }
+  .mp-slot-bg { position: absolute; inset: 0; background: ${style.colors.bg}; z-index: 0; }
+  .mp-slot-cutaway > .mp-cam { z-index: 1; }
+  .mp-slot-overlay { pointer-events: none; }
+  .mp-slot-overlay > .mp-cam { background: color-mix(in srgb, ${style.colors.bg} 86%, transparent); border: 2px solid color-mix(in srgb, ${style.colors.ink} 16%, transparent); border-radius: 28px; box-shadow: 0 24px 64px rgb(0 0 0 / 0.36); backdrop-filter: blur(14px); overflow: hidden; }
+  .mp-anchor-top-right > .mp-cam { transform-origin: 96% 6%; scale: 0.44; }
+  .mp-anchor-top-left > .mp-cam { transform-origin: 4% 6%; scale: 0.44; }
+  .mp-anchor-side-right > .mp-cam { transform-origin: 96% 48%; scale: 0.48; }
+  .mp-anchor-side-left > .mp-cam { transform-origin: 4% 48%; scale: 0.48; }
+  .mp-anchor-lower-third > .mp-cam { transform-origin: 50% 92%; scale: 0.46; }
+  .mp-anchor-center > .mp-cam { transform-origin: 50% 50%; scale: 0.62; }
   .mp-cam { position: absolute; inset: 0; transform-origin: 50% 50%; }
   .mp-slot-root { position: absolute; inset: 0; }
   .mp-texture-top { z-index: 9000; }

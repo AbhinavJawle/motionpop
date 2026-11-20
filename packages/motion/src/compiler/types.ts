@@ -1,4 +1,4 @@
-import type { Energy, Look, SlotTiming } from '@motionpop/schemas';
+import type { Energy, Look, OverlayAnchor, SlotPlacement, SlotTiming } from '@motionpop/schemas';
 import type { Format, ImageRef, StylePack } from '../contract';
 import type { CaptionGroup, CaptionPresetId } from '../captions/chunk';
 
@@ -41,6 +41,10 @@ export interface CompileSlot {
    * ignore `fade`.
    */
   timing?: SlotTiming;
+  /** Video projects (spec 18): `overlay` floats over the speaker; `cutaway` covers full-screen. */
+  placement?: SlotPlacement;
+  /** Where an overlay graphic sits over the speaker frame. */
+  overlayAnchor?: OverlayAnchor;
 }
 
 export interface CompileInput {
@@ -67,6 +71,8 @@ export interface CompileInput {
    * drifting backdrop is left out and the grain is laid over the graphics as well as under them.
    */
   film?: boolean;
+  /** Video projects (spec 18): transparent canvas between slots; cutaway slots paint their own backdrop. */
+  hasVideo?: boolean;
   /** Voiceover URL or relative asset path (e.g. "assets/voice.wav"). */
   voiceSrc?: string;
   /** The mixed effects and music bed (spec 12 §7), already levelled against the voice. */
@@ -92,6 +98,7 @@ export interface RuntimeProject {
   seams?: boolean;
   staging?: boolean;
   film?: boolean;
+  hasVideo?: boolean;
   captions?: CompileCaptions;
   images?: Record<string, ImageRef>;
   slots: CompileSlot[];

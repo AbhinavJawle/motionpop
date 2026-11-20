@@ -61,7 +61,7 @@ if (project) {
   const staged = project.staging !== false && project.slots.length > 0;
   const plan = staged && !project.film ? planVideo(project.slots) : null;
   const backdrop =
-    backdropHost && !project.film
+    backdropHost && !project.film && !project.hasVideo
       ? plan
         ? mountWorld(backdropHost, project, plan, projectSeams(project, plan))
         : mountBackdrop(backdropHost, project)

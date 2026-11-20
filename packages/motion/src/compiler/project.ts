@@ -65,6 +65,8 @@ export function compileSlot(slot: Slot, transcript: EditorProject['transcript'])
     endMs: slot.endMs,
     componentId: slot.componentId,
     params: slot.params,
+    ...(slot.placement ? { placement: slot.placement } : {}),
+    ...(slot.overlayAnchor ? { overlayAnchor: slot.overlayAnchor } : {}),
   };
   const withTimingField: CompileSlot = slot.timing ? { ...base, timing: { ...slot.timing } } : base;
   // Scenes and custom graphics get the voice (a custom script can land beats on words).
@@ -205,6 +207,7 @@ export function projectCompileInput(
   const slots = project.slots
     .filter((s) => isRenderable(s, format))
     .map((s) => compileSlot(withAssetIds(s, project.assets), project.transcript));
+  const hasVideo = Boolean(project.video);
   return {
     format,
     durationMs: project.durationMs,
@@ -214,8 +217,13 @@ export function projectCompileInput(
     ...(project.film && slots.some((s) => s.tailMs !== undefined || isFilmSlot(s.params))
       ? { film: true }
       : {}),
+    ...(hasVideo ? { hasVideo: true } : {}),
     mode: opts.mode,
-    ...(opts.background ? { background: opts.background } : {}),
+    ...(opts.background
+      ? { background: opts.background }
+      : hasVideo
+        ? { background: 'transparent' as const }
+        : {}),
     ...(opts.voiceSrc ? { voiceSrc: opts.voiceSrc } : {}),
     ...(opts.bedSrc ? { bedSrc: opts.bedSrc } : {}),
     ...captionsFor(project, format, opts.captions, slots),
