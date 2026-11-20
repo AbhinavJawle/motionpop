@@ -35,6 +35,29 @@ const KeyframeSchema = z.object({
   base64: z.string().min(16),
 });
 
+const DirectMediaClipSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(120),
+  kind: z.enum(['broll', 'screen-recording', 'screenshot', 'photo']),
+  durationMs: z.number().int().positive().optional(),
+  summary: z.string().max(320),
+  tags: z.array(z.string().max(40)).max(12).default([]),
+  moments: z
+    .array(
+      z.object({
+        startMs: z.number().int().nonnegative(),
+        endMs: z.number().int().nonnegative(),
+        focusX: z.number().min(0).max(1),
+        focusY: z.number().min(0).max(1),
+        zoom: z.number().min(1).max(2.4),
+        description: z.string().max(220),
+      }),
+    )
+    .max(6)
+    .default([]),
+});
+export type DirectMediaClip = z.infer<typeof DirectMediaClipSchema>;
+
 export const FilmDirectInputSchema = z.object({
   words: z.array(WordSchema).min(3).max(3000),
   durationMs: z.number().int().positive().max(FILM_MAX_MS),
@@ -42,6 +65,9 @@ export const FilmDirectInputSchema = z.object({
   look: LookSchema,
   hasVideo: z.boolean().optional(),
   frames: z.array(KeyframeSchema).max(16).optional(),
+  mediaBin: z.array(DirectMediaClipSchema).max(24).optional(),
+  /** Word indices with detected vocal emphasis from on-device prosody (spec 20). */
+  stressedWords: z.array(z.number().int().nonnegative()).max(60).optional(),
   note: z.string().trim().max(500).optional(),
 });
 export type FilmDirectInput = z.infer<typeof FilmDirectInputSchema>;
@@ -81,6 +107,12 @@ const storyboardJsonSchema: Record<string, unknown> = {
           videoStage: { type: 'string', enum: [...VIDEO_STAGE_MODES] },
           focusX: { type: 'number' },
           focusY: { type: 'number' },
+          clipId: str,
+          clipStartMs: int,
+          clipEndMs: int,
+          clipFocusX: { type: 'number' },
+          clipFocusY: { type: 'number' },
+          clipZoom: { type: 'number' },
           idea: str,
           text: { type: 'array', items: str },
           landsOn: int,
@@ -128,6 +160,8 @@ export const filmDirectTask: TaskDef<FilmDirectInput, Storyboard> = {
       look: i.look,
       ...(i.hasVideo ? { hasVideo: true } : {}),
       ...(i.frames?.length ? { frameTimesMs: i.frames.map((f) => f.timeMs) } : {}),
+      ...(i.mediaBin?.length ? { mediaBin: i.mediaBin } : {}),
+      ...(i.stressedWords?.length ? { stressedWords: i.stressedWords } : {}),
       ...(i.note ? { note: i.note } : {}),
     }),
   mediaList: (i) =>
@@ -137,11 +171,12 @@ export const filmDirectTask: TaskDef<FilmDirectInput, Storyboard> = {
   cloudCost: () => 0,
   cloudFallback: false,
   maxRepairs: 2,
-  thinking: 'MEDIUM',
+  thinking: 'LOW',
   jsonSchema: () => storyboardJsonSchema,
   check: (out, input) => {
     const issues = storyboardIssues(out, input.words, input.durationMs, {
       hasVideo: Boolean(input.hasVideo),
+      mediaBinIds: (input.mediaBin ?? []).map((c) => c.id),
     });
     return issues.length ? `fix these problems:\n- ${issues.slice(0, 12).join('\n- ')}` : null;
   },

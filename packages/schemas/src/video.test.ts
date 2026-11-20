@@ -8,7 +8,10 @@ import {
   cleanedDurationFromSegments,
   cleanedToSourceMs,
   easedPunchInAt,
+  isMediaStageMode,
   keptSourceSegments,
+  MediaClipSchema,
+  mediaLayerRectAt,
   OverlayAnchorSchema,
   sourceToCleanedMs,
   STAGE_TRANSITION_MS,
@@ -364,5 +367,134 @@ describe('video stage choreography (spec 19)', () => {
     const issues = storyboardIssues(board, words, 11_000, { hasVideo: true });
     expect(issues.some((x) => x.includes('repeats archetype'))).toBe(true);
     expect(issues.some((x) => x.includes('stay in videoStage'))).toBe(true);
+  });
+});
+
+describe('multi-clip Media Bin & dual-layer choreography (spec 20)', () => {
+  it('parses MediaClipSchema with moments and validates ranges', () => {
+    const ok = MediaClipSchema.safeParse({
+      id: 'clip-screen-1',
+      name: 'dashboard-demo.mp4',
+      src: 'idb:clip-1',
+      kind: 'screen-recording',
+      mimeType: 'video/mp4',
+      width: 1920,
+      height: 1080,
+      durationMs: 12_000,
+      summary: 'User clicks Deploy button in dashboard',
+      tags: ['dashboard', 'deploy', 'ui'],
+      dominantColors: ['#0b0c10', '#8b7cff'],
+      moments: [
+        {
+          startMs: 1200,
+          endMs: 4800,
+          focusX: 0.72,
+          focusY: 0.34,
+          zoom: 1.65,
+          description: 'Clicking the violet Deploy CTA',
+        },
+      ],
+      indexedAt: 1_700_000_000_000,
+    });
+    expect(ok.success).toBe(true);
+    expect(isMediaStageMode('screen-showcase')).toBe(true);
+    expect(isMediaStageMode('split-top-broll')).toBe(true);
+    expect(isMediaStageMode('broll-full')).toBe(true);
+    expect(isMediaStageMode('media-card-pop')).toBe(true);
+    expect(isMediaStageMode('split-left')).toBe(false);
+  });
+
+  it('evaluates mediaLayerRectAt with 3D tilt, smooth UI zoom, and glide-out exit', () => {
+    const stages = stagesFromTimedBeats([
+      { id: 'b1', startMs: 0, endMs: 3000, videoStage: 'full' },
+      {
+        id: 'b2',
+        startMs: 3000,
+        endMs: 7000,
+        videoStage: 'screen-showcase',
+        clipId: 'clip-1',
+        clipStartMs: 1500,
+        clipFocusX: 0.72,
+        clipFocusY: 0.3,
+        clipZoom: 1.7,
+      },
+      { id: 'b3', startMs: 7000, endMs: 10000, videoStage: 'split-left' },
+    ]);
+
+    // Hidden during non-media beat 1
+    expect(mediaLayerRectAt(1000, stages, 1080, 1920).visible).toBe(false);
+
+    // Enters and ramps zoom during screen-showcase beat 2
+    const enter = mediaLayerRectAt(3050, stages, 1080, 1920);
+    const settled = mediaLayerRectAt(5800, stages, 1080, 1920);
+    expect(enter.visible).toBe(true);
+    expect(enter.framed).toBe(true);
+    expect(enter.clipId).toBe('clip-1');
+    expect(enter.clipStartMs).toBe(1500);
+    expect(settled.scale).toBeGreaterThan(1.5);
+    expect(settled.focusX).toBeCloseTo(0.72, 2);
+    expect(Math.abs(settled.rotateY)).toBeGreaterThan(0);
+
+    // Speaker shrinks into PiP corner during screen-showcase
+    const speaker = videoStageRectAt(5800, stages, [], 1080, 1920);
+    expect(speaker.w).toBeLessThan(1080 * 0.4);
+    expect(speaker.opacity).toBe(1);
+
+    // Glides out smoothly on entering beat 3, then hides
+    const exiting = mediaLayerRectAt(7100, stages, 1080, 1920);
+    expect(exiting.visible).toBe(true);
+    expect(exiting.opacity).toBeGreaterThan(0);
+    expect(exiting.opacity).toBeLessThan(1);
+    expect(mediaLayerRectAt(7400, stages, 1080, 1920).visible).toBe(false);
+  });
+
+  it('validates unknown or missing clipId in storyboardIssues', () => {
+    const words = Array.from({ length: 6 }, (_, i) => ({
+      text: `w${i}`,
+      startMs: i * 900,
+      endMs: i * 900 + 800,
+    }));
+    const board: Storyboard = {
+      title: 'Multi-clip',
+      thesis: 'Show product demo',
+      world: 'Clean studio world',
+      carrier: 'Accent highlight',
+      props: [],
+      beats: [
+        {
+          id: 'b1',
+          wordStart: 0,
+          wordEnd: 2,
+          lead: 'picture',
+          archetype: 'callout-hud',
+          videoStage: 'screen-showcase',
+          clipId: 'clip-missing',
+          idea: 'Screen recording of dashboard',
+          text: ['Live demo'],
+          landsOn: 1,
+          staging: 'Show UI on w1',
+          seam: { kind: 'push', note: 'Push right' },
+        },
+        {
+          id: 'b2',
+          wordStart: 3,
+          wordEnd: 5,
+          lead: 'type',
+          archetype: 'kinetic-type',
+          videoStage: 'broll-full',
+          idea: 'B-roll without clipId',
+          text: ['Shipped'],
+          landsOn: 4,
+          staging: 'Pop on w4',
+          seam: { kind: 'push', note: 'Hold' },
+        },
+      ],
+    };
+    const issues = storyboardIssues(board, words, 6000, {
+      hasVideo: true,
+      mediaBinIds: ['clip-real'],
+    });
+    expect(issues.some((x) => x.includes('unknown clipId'))).toBe(true);
+    expect(issues.some((x) => x.includes('without a clipId'))).toBe(true);
   });
 });

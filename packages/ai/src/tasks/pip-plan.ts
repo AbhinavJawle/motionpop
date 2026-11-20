@@ -14,6 +14,10 @@ export const PipPlanInputSchema = z.object({
     format: z.string(),
     styleId: z.string(),
     hasVideo: z.boolean().optional(),
+    mediaBin: z
+      .array(z.object({ id: z.string(), name: z.string(), kind: z.string(), summary: z.string().optional() }))
+      .max(24)
+      .optional(),
     styles: z.array(z.object({ id: z.string(), name: z.string() })).max(12),
     captions: z.object({ enabled: z.boolean(), preset: z.string() }),
     slots: z
@@ -60,12 +64,17 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
       'split-right',
       'pip',
       'backdrop',
+      'split-top-broll',
+      'screen-showcase',
+      'broll-full',
+      'media-card-pop',
       'enable',
       'disable',
+      ...(input.project.mediaBin?.map((c) => c.id) ?? []),
       ...input.project.components.map((c) => c.id),
       'none',
     ]),
-  ].slice(0, 48);
+  ].slice(0, 64);
   return {
     type: 'object',
     properties: {
@@ -88,6 +97,7 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
                 'setFormat',
                 'setPlacement',
                 'setVideoStage',
+                'setBeatClip',
                 'toggleCuts',
                 'addPunchIn',
                 'cutRange',

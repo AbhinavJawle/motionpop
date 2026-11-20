@@ -20,12 +20,21 @@ export type StartDraft = z.infer<typeof StartDraftSchema>;
  */
 export const SCRIPT_MAX_CHARS = 6000;
 
+export const PendingExtraClipSchema = z.object({
+  ref: z.string().min(1),
+  name: z.string().min(1).max(120),
+  mimeType: z.string().min(1).max(80),
+});
+export type PendingExtraClip = z.infer<typeof PendingExtraClipSchema>;
+
 export const PendingIntakeSchema = z.object({
   ref: z.string().min(1),
   source: z.enum(['upload', 'record', 'sample', 'tts']),
   name: z.string().min(1),
   /** False for generated voices (spec 05 R6.1). */
   cleanup: z.boolean(),
+  /** Optional extra B-roll, screen recordings, or screenshots dropped alongside the main file (spec 20). */
+  extraClips: z.array(PendingExtraClipSchema).max(20).optional(),
   tts: z
     .object({
       voiceId: z.string().min(1),

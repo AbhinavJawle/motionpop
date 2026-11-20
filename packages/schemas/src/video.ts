@@ -54,7 +54,7 @@ export type OverlayAnchor = z.infer<typeof OverlayAnchorSchema>;
 export const SlotPlacementSchema = z.enum(['cutaway', 'overlay']);
 export type SlotPlacement = z.infer<typeof SlotPlacementSchema>;
 
-/** Coupled choreography modes for how the speaker video dances with each beat (spec 19). */
+/** Coupled choreography modes for how the speaker video dances with each beat (spec 19 + 20). */
 export const VIDEO_STAGE_MODES = [
   'full',
   'split-left',
@@ -62,9 +62,64 @@ export const VIDEO_STAGE_MODES = [
   'pip',
   'backdrop',
   'cutaway',
+  'split-top-broll',
+  'screen-showcase',
+  'broll-full',
+  'media-card-pop',
 ] as const;
 export const VideoStageModeSchema = z.enum(VIDEO_STAGE_MODES);
 export type VideoStageMode = z.infer<typeof VideoStageModeSchema>;
+
+/** Stage modes that display a secondary clip (B-roll, screen recording, or screenshot) from `mediaBin`. */
+export const MEDIA_STAGE_MODES = [
+  'split-top-broll',
+  'screen-showcase',
+  'broll-full',
+  'media-card-pop',
+] as const;
+export type MediaStageMode = (typeof MEDIA_STAGE_MODES)[number];
+export const isMediaStageMode = (mode: VideoStageMode): mode is MediaStageMode =>
+  (MEDIA_STAGE_MODES as readonly string[]).includes(mode);
+
+/** Kinds of secondary media a creator can attach to a project's Media Bin (spec 20). */
+export const MEDIA_CLIP_KINDS = ['broll', 'screen-recording', 'screenshot', 'photo'] as const;
+export const MediaClipKindSchema = z.enum(MEDIA_CLIP_KINDS);
+export type MediaClipKind = z.infer<typeof MediaClipKindSchema>;
+
+/** One AI-identified usable moment inside a B-roll video, screen recording, or screenshot (spec 20). */
+export const MediaClipMomentSchema = z
+  .object({
+    startMs: IntMsSchema,
+    endMs: IntMsSchema,
+    focusX: z.number().min(0).max(1).default(0.5),
+    focusY: z.number().min(0).max(1).default(0.5),
+    zoom: z.number().min(1).max(2.4).default(1),
+    description: z.string().max(220),
+  })
+  .refine((m) => m.endMs >= m.startMs, { message: 'endMs must be >= startMs' });
+export type MediaClipMoment = z.infer<typeof MediaClipMomentSchema>;
+
+/** One user-uploaded B-roll clip, screen recording, screenshot, or photo in the Media Bin (spec 20). */
+export const MediaClipSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(120),
+  /** Local AudioStore/Blob ref (`idb:…`) or uploaded storage path. */
+  src: z.string().min(1),
+  kind: MediaClipKindSchema,
+  mimeType: z.string().min(1).max(80),
+  width: z.number().int().positive(),
+  height: z.number().int().positive(),
+  /** Video duration in ms; omitted for still screenshots/photos. */
+  durationMs: z.number().int().positive().optional(),
+  /** One-sentence AI visual description populated by `media.index`. */
+  summary: z.string().max(320).optional(),
+  tags: z.array(z.string().max(40)).max(12).optional(),
+  dominantColors: z.array(z.string().max(20)).max(6).optional(),
+  moments: z.array(MediaClipMomentSchema).max(8).optional(),
+  /** Epoch ms when multimodal indexing finished. */
+  indexedAt: IntMsSchema.optional(),
+});
+export type MediaClip = z.infer<typeof MediaClipSchema>;
 
 /** Visual archetypes rotated across beats to enforce variety (spec 19). */
 export const BEAT_ARCHETYPES = [
@@ -82,7 +137,7 @@ export type BeatArchetype = z.infer<typeof BeatArchetypeSchema>;
 export const PipCornerSchema = z.enum(['bottom-left', 'bottom-right', 'top-left', 'top-right']);
 export type PipCorner = z.infer<typeof PipCornerSchema>;
 
-/** One choreographed video stage segment on the cleaned timeline (spec 19). */
+/** One choreographed video stage segment on the cleaned timeline (spec 19 + 20). */
 export const VideoStageSegmentSchema = z
   .object({
     id: z.string().min(1),
@@ -94,6 +149,13 @@ export const VideoStageSegmentSchema = z
     scaleFrom: z.number().min(1).max(1.35).default(1),
     scaleTo: z.number().min(1).max(1.35).default(1.05),
     pipCorner: PipCornerSchema.optional(),
+    /** Optional Media Bin clip bound to this beat (spec 20). */
+    clipId: z.string().min(1).max(64).optional(),
+    clipStartMs: IntMsSchema.optional(),
+    clipEndMs: IntMsSchema.optional(),
+    clipFocusX: z.number().min(0).max(1).optional(),
+    clipFocusY: z.number().min(0).max(1).optional(),
+    clipZoom: z.number().min(1).max(2.4).optional(),
   })
   .refine((s) => s.endMs > s.startMs, { message: 'endMs must be greater than startMs' });
 export type VideoStageSegment = z.infer<typeof VideoStageSegmentSchema>;
@@ -303,10 +365,243 @@ export function stageBoxForMode(
       return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 10, dim: 0.56, opacity: 1 };
     case 'cutaway':
       return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 0, dim: 0, opacity: 0 };
+    case 'split-top-broll':
+      return vertical
+        ? { x: 0.04, y: 0.54, w: 0.92, h: 0.42, radiusFrac: 0.028, shadow: 0.44, blurPx: 0, dim: 0, opacity: 1 }
+        : { x: 0.03, y: 0.08, w: 0.42, h: 0.84, radiusFrac: 0.024, shadow: 0.44, blurPx: 0, dim: 0, opacity: 1 };
+    case 'screen-showcase': {
+      const pw = vertical ? 0.3 : 0.21;
+      const ph = vertical ? 0.19 : 0.26;
+      const mx = 0.04;
+      const my = 0.045;
+      const x = pipCorner.endsWith('right') ? 1 - mx - pw : mx;
+      const y = pipCorner.startsWith('top') ? my : 1 - my - ph;
+      return { x, y, w: pw, h: ph, radiusFrac: 0.026, shadow: 0.56, blurPx: 0, dim: 0, opacity: 1 };
+    }
+    case 'broll-full':
+      return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 0, dim: 0, opacity: 0 };
+    case 'media-card-pop':
+      return vertical
+        ? { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 2, dim: 0.22, opacity: 1 }
+        : { x: 0.03, y: 0.06, w: 0.45, h: 0.88, radiusFrac: 0.024, shadow: 0.4, blurPx: 0, dim: 0, opacity: 1 };
     case 'full':
     default:
       return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 0, dim: 0, opacity: 1 };
   }
+}
+
+/** Evaluated deterministic secondary-media layer geometry (B-roll, screen recording, screenshot, spec 20). */
+export interface MediaLayerRect {
+  visible: boolean;
+  mode: VideoStageMode;
+  clipId: string | null;
+  /** Beat start on cleaned timeline (for computing synced media playback time). */
+  beatStartMs: number;
+  /** Offset into the source clip in ms. */
+  clipStartMs: number;
+  clipEndMs?: number;
+  /** Container bounds in frame pixels (0..width, 0..height). */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  radius: number;
+  shadow: number;
+  /** Smooth 3D perspective tilt in degrees (non-zero for `screen-showcase` / `media-card-pop`). */
+  rotateX: number;
+  rotateY: number;
+  /** Inner media zoom scale (>= 1). */
+  scale: number;
+  focusX: number;
+  focusY: number;
+  /** True when rendered inside a sleek rounded browser/app window frame (`screen-showcase`). */
+  framed: boolean;
+  /** Opacity 0..1 (springs smoothly in and out across transitions). */
+  opacity: number;
+  /** Layering order relative to A-roll (`0` = below A-roll PiP, `2` = floating above dimmed A-roll). */
+  zIndex: number;
+}
+
+interface NormalizedMediaBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  radiusFrac: number;
+  shadow: number;
+  rotateX: number;
+  rotateY: number;
+  framed: boolean;
+  zIndex: number;
+}
+
+/** Normalized layout box for secondary media clips across 9:16 and 16:9 formats (spec 20). */
+export function mediaBoxForMode(
+  mode: VideoStageMode,
+  width: number,
+  height: number,
+): NormalizedMediaBox | null {
+  const vertical = height > width;
+  switch (mode) {
+    case 'split-top-broll':
+      return vertical
+        ? { x: 0.04, y: 0.04, w: 0.92, h: 0.47, radiusFrac: 0.028, shadow: 0.48, rotateX: 0, rotateY: 0, framed: false, zIndex: 1 }
+        : { x: 0.48, y: 0.08, w: 0.49, h: 0.84, radiusFrac: 0.024, shadow: 0.48, rotateX: 0, rotateY: 0, framed: false, zIndex: 1 };
+    case 'screen-showcase':
+      return vertical
+        ? { x: 0.05, y: 0.09, w: 0.9, h: 0.56, radiusFrac: 0.026, shadow: 0.6, rotateX: 2.5, rotateY: -3.5, framed: true, zIndex: 0 }
+        : { x: 0.14, y: 0.09, w: 0.8, h: 0.78, radiusFrac: 0.022, shadow: 0.6, rotateX: 2.0, rotateY: -4.0, framed: true, zIndex: 0 };
+    case 'broll-full':
+      return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, rotateX: 0, rotateY: 0, framed: false, zIndex: 0 };
+    case 'media-card-pop':
+      return vertical
+        ? { x: 0.08, y: 0.12, w: 0.84, h: 0.42, radiusFrac: 0.03, shadow: 0.62, rotateX: 1.5, rotateY: 2.5, framed: false, zIndex: 2 }
+        : { x: 0.51, y: 0.14, w: 0.45, h: 0.72, radiusFrac: 0.026, shadow: 0.62, rotateX: 1.5, rotateY: -3.0, framed: false, zIndex: 2 };
+    default:
+      return null;
+  }
+}
+
+const MEDIA_EXIT_MS = 280;
+
+/**
+ * Pure deterministic evaluator for the secondary Media Bin layer (B-roll, screen recordings,
+ * screenshots) at frame time `cleanedMs` (spec 20 R1.4). Smoothly springs in on entry, smoothly
+ * zooms toward `(clipFocusX, clipFocusY, clipZoom)` across `screen-showcase` beats, and glides
+ * out across `MEDIA_EXIT_MS` when leaving a media beat so clips never hard-snap.
+ */
+export function mediaLayerRectAt(
+  cleanedMs: number,
+  stages: readonly VideoStageSegment[] | undefined,
+  width: number,
+  height: number,
+): MediaLayerRect {
+  const hidden: MediaLayerRect = {
+    visible: false,
+    mode: 'full',
+    clipId: null,
+    beatStartMs: 0,
+    clipStartMs: 0,
+    x: 0,
+    y: 0,
+    w: width,
+    h: height,
+    radius: 0,
+    shadow: 0,
+    rotateX: 0,
+    rotateY: 0,
+    scale: 1,
+    focusX: 0.5,
+    focusY: 0.5,
+    framed: false,
+    opacity: 0,
+    zIndex: 0,
+  };
+  if (!stages || stages.length === 0) return hidden;
+
+  let idx = stages.findIndex((s) => cleanedMs >= s.startMs && cleanedMs < s.endMs);
+  if (idx < 0) idx = cleanedMs < (stages[0]?.startMs ?? 0) ? 0 : stages.length - 1;
+  const cur = stages[idx] as VideoStageSegment;
+  const prev = idx > 0 ? stages[idx - 1] : undefined;
+  const shortSide = Math.min(width, height);
+
+  const curBox = cur.clipId ? mediaBoxForMode(cur.mode, width, height) : null;
+  const prevBox = prev?.clipId ? mediaBoxForMode(prev.mode, width, height) : null;
+
+  // Leaving a media beat into a non-media beat: glide out smoothly instead of popping off.
+  if (!curBox) {
+    if (prev && prevBox && prev.clipId && cleanedMs >= cur.startMs && cleanedMs < cur.startMs + MEDIA_EXIT_MS) {
+      const t = easeOutQuint((cleanedMs - cur.startMs) / MEDIA_EXIT_MS);
+      const liftY = lerp(0, 0.025, t);
+      return {
+        visible: true,
+        mode: prev.mode,
+        clipId: prev.clipId,
+        beatStartMs: prev.startMs,
+        clipStartMs: prev.clipStartMs ?? 0,
+        ...(prev.clipEndMs !== undefined ? { clipEndMs: prev.clipEndMs } : {}),
+        x: Math.round(prevBox.x * width * 10) / 10,
+        y: Math.round((prevBox.y + liftY) * height * 10) / 10,
+        w: Math.round(prevBox.w * width * 10) / 10,
+        h: Math.round(prevBox.h * height * 10) / 10,
+        radius: Math.round(prevBox.radiusFrac * shortSide * 10) / 10,
+        shadow: Math.round(prevBox.shadow * (1 - t) * 1000) / 1000,
+        rotateX: prevBox.rotateX,
+        rotateY: prevBox.rotateY,
+        scale: Math.round(lerp(prev.clipZoom ?? 1.05, 0.96, t) * 1000) / 1000,
+        focusX: prev.clipFocusX ?? 0.5,
+        focusY: prev.clipFocusY ?? 0.5,
+        framed: prevBox.framed,
+        opacity: Math.round((1 - t) * 1000) / 1000,
+        zIndex: prevBox.zIndex,
+      };
+    }
+    return hidden;
+  }
+
+  const curDur = Math.max(1, cur.endMs - cur.startMs);
+  const curProg = clamp01((cleanedMs - cur.startMs) / curDur);
+  const targetZoom = cur.clipZoom ?? (cur.mode === 'screen-showcase' ? 1.45 : cur.mode === 'broll-full' ? 1.07 : 1.04);
+  // Screen-showcase smoothly ramps into the UI focal region after a short settle, then eases gently.
+  const zoomCurve =
+    cur.mode === 'screen-showcase'
+      ? easeInOutCubic(clamp01((curProg - 0.12) / 0.55))
+      : curProg;
+  const innerScale = lerp(1.0, targetZoom, zoomCurve);
+
+  let x = curBox.x;
+  let y = curBox.y;
+  let w = curBox.w;
+  let h = curBox.h;
+  let radiusFrac = curBox.radiusFrac;
+  let shadow = curBox.shadow;
+  let rotateX = curBox.rotateX;
+  let rotateY = curBox.rotateY;
+  let opacity = 1;
+  let scale = innerScale;
+
+  if (cleanedMs >= cur.startMs && cleanedMs < cur.startMs + STAGE_TRANSITION_MS) {
+    const t = easeOutQuint((cleanedMs - cur.startMs) / STAGE_TRANSITION_MS);
+    if (prevBox && prev?.clipId === cur.clipId) {
+      x = lerp(prevBox.x, curBox.x, t);
+      y = lerp(prevBox.y, curBox.y, t);
+      w = lerp(prevBox.w, curBox.w, t);
+      h = lerp(prevBox.h, curBox.h, t);
+      radiusFrac = lerp(prevBox.radiusFrac, curBox.radiusFrac, t);
+      shadow = lerp(prevBox.shadow, curBox.shadow, t);
+      rotateX = lerp(prevBox.rotateX, curBox.rotateX, t);
+      rotateY = lerp(prevBox.rotateY, curBox.rotateY, t);
+    } else if (cur.startMs > 0 || cur.mode === 'media-card-pop' || cur.mode === 'screen-showcase') {
+      // Smooth spring-in from slightly below & scaled down.
+      y = lerp(curBox.y + 0.035, curBox.y, t);
+      opacity = t;
+      scale = lerp(0.94, innerScale, t);
+      rotateX = lerp(curBox.rotateX + 3, curBox.rotateX, t);
+    }
+  }
+
+  return {
+    visible: true,
+    mode: cur.mode,
+    clipId: cur.clipId ?? null,
+    beatStartMs: cur.startMs,
+    clipStartMs: cur.clipStartMs ?? 0,
+    ...(cur.clipEndMs !== undefined ? { clipEndMs: cur.clipEndMs } : {}),
+    x: Math.round(x * width * 10) / 10,
+    y: Math.round(y * height * 10) / 10,
+    w: Math.round(w * width * 10) / 10,
+    h: Math.round(h * height * 10) / 10,
+    radius: Math.round(radiusFrac * shortSide * 10) / 10,
+    shadow: Math.round(shadow * 1000) / 1000,
+    rotateX: Math.round(rotateX * 100) / 100,
+    rotateY: Math.round(rotateY * 100) / 100,
+    scale: Math.round(scale * 1000) / 1000,
+    focusX: cur.clipFocusX ?? 0.5,
+    focusY: cur.clipFocusY ?? 0.5,
+    framed: curBox.framed,
+    opacity: Math.round(opacity * 1000) / 1000,
+    zIndex: curBox.zIndex,
+  };
 }
 
 /** Eased punch-in multiplier at `cleanedMs` (smooth 340 ms ramp in and out, never hard-snapping). */
@@ -429,7 +724,7 @@ const DEFAULT_STAGE_RHYTHM: readonly VideoStageMode[] = [
   'cutaway',
 ];
 
-/** Builds gapless `VideoStageSegment[]` directly from timed storyboard beats (spec 19). */
+/** Builds gapless `VideoStageSegment[]` directly from timed storyboard beats (spec 19 + 20). */
 export function stagesFromTimedBeats(
   beats: ReadonlyArray<{
     id: string;
@@ -438,6 +733,12 @@ export function stagesFromTimedBeats(
     videoStage?: VideoStageMode;
     focusX?: number;
     focusY?: number;
+    clipId?: string;
+    clipStartMs?: number;
+    clipEndMs?: number;
+    clipFocusX?: number;
+    clipFocusY?: number;
+    clipZoom?: number;
   }>,
 ): VideoStageSegment[] {
   return beats.map((b, i) => {
@@ -453,6 +754,12 @@ export function stagesFromTimedBeats(
       focusY: b.focusY ?? 0.35,
       scaleFrom: mode === 'backdrop' ? 1.04 : alternatingZoom ? 1.0 : 1.06,
       scaleTo: mode === 'backdrop' ? 1.08 : alternatingZoom ? 1.06 : 1.01,
+      ...(b.clipId ? { clipId: b.clipId } : {}),
+      ...(b.clipStartMs !== undefined ? { clipStartMs: b.clipStartMs } : {}),
+      ...(b.clipEndMs !== undefined ? { clipEndMs: b.clipEndMs } : {}),
+      ...(b.clipFocusX !== undefined ? { clipFocusX: b.clipFocusX } : {}),
+      ...(b.clipFocusY !== undefined ? { clipFocusY: b.clipFocusY } : {}),
+      ...(b.clipZoom !== undefined ? { clipZoom: b.clipZoom } : {}),
     };
   });
 }

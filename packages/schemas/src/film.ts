@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { BeatArchetypeSchema, VideoStageModeSchema } from './video';
+import { BeatArchetypeSchema, isMediaStageMode, VideoStageModeSchema } from './video';
 
 /**
  * Film mode (spec 07b): the storyboard a Director model writes for a whole voiceover, and the
@@ -59,11 +59,18 @@ export const StoryBeatSchema = z.object({
   lead: z.enum(BEAT_LEADS),
   /** Visual archetype rotated across beats for variety (spec 19). */
   archetype: BeatArchetypeSchema.optional(),
-  /** Coupled speaker video framing for this beat on video projects (spec 19). */
+  /** Coupled speaker video framing for this beat on video projects (spec 19 + 20). */
   videoStage: VideoStageModeSchema.optional(),
   /** Speaker focal point 0..1 across frame (optional, inferred from keyframes). */
   focusX: z.number().min(0).max(1).optional(),
   focusY: z.number().min(0).max(1).optional(),
+  /** Optional Media Bin clip bound to this beat (spec 20). */
+  clipId: z.string().min(1).max(64).optional(),
+  clipStartMs: z.number().int().nonnegative().optional(),
+  clipEndMs: z.number().int().nonnegative().optional(),
+  clipFocusX: z.number().min(0).max(1).optional(),
+  clipFocusY: z.number().min(0).max(1).optional(),
+  clipZoom: z.number().min(1).max(2.4).optional(),
   /** The picture: what the viewer sees, concretely. */
   idea: z.string().min(8).max(500),
   /** On-screen copy, exact strings: the hero first, then a quiet label. */
@@ -240,7 +247,7 @@ export function storyboardIssues(
   board: Storyboard,
   words: readonly FilmWord[],
   durationMs: number,
-  opts?: { hasVideo?: boolean },
+  opts?: { hasVideo?: boolean; mediaBinIds?: readonly string[] },
 ): string[] {
   const issues: string[] = [];
   const n = words.length;
@@ -326,6 +333,30 @@ export function storyboardIssues(
           `beats ${i - 1}–${i + 1} all stay in videoStage "${c}"; vary the speaker framing (e.g. split-left, pip, backdrop, full, cutaway) so the video flows`,
         );
       }
+    }
+  }
+  // Spec 20 R2.2: validate Media Bin clip bindings.
+  const knownClips = opts?.mediaBinIds ? new Set(opts.mediaBinIds) : null;
+  for (let i = 0; i < board.beats.length; i++) {
+    const b = board.beats[i] as StoryBeat;
+    const isMedia = b.videoStage ? isMediaStageMode(b.videoStage) : false;
+    if (knownClips) {
+      if (b.clipId && !knownClips.has(b.clipId)) {
+        issues.push(
+          `beat ${i + 1} (${b.id}) references unknown clipId "${b.clipId}"; pick an id from the Media Bin or omit clipId`,
+        );
+      }
+      if (isMedia && !b.clipId) {
+        issues.push(
+          knownClips.size > 0
+            ? `beat ${i + 1} (${b.id}) uses videoStage "${b.videoStage}" without a clipId; set clipId from the Media Bin`
+            : `beat ${i + 1} (${b.id}) uses media videoStage "${b.videoStage}" but no Media Bin clips were provided; use full, split-left, split-right, pip, backdrop, or cutaway`,
+        );
+      }
+    } else if (isMedia && !b.clipId) {
+      issues.push(
+        `beat ${i + 1} (${b.id}) uses media videoStage "${b.videoStage}" without a clipId`,
+      );
     }
   }
   return issues;

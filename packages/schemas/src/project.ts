@@ -8,6 +8,7 @@ import { SCRIPT_MAX_CHARS } from './start';
 import { TranscriptSchema } from './transcript';
 import {
   BeatArchetypeSchema,
+  MediaClipSchema,
   OverlayAnchorSchema,
   SlotPlacementSchema,
   VideoStageModeSchema,
@@ -107,10 +108,17 @@ export const SlotSchema = z
     placement: SlotPlacementSchema.optional(),
     /** Video projects (spec 18): where an overlay card sits. Absent means the video's default anchor. */
     overlayAnchor: OverlayAnchorSchema.optional(),
-    /** Coupled choreography stage mode for this beat on video projects (spec 19). */
+    /** Coupled choreography stage mode for this beat on video projects (spec 19 + 20). */
     videoStage: VideoStageModeSchema.optional(),
     /** Visual archetype assigned by the Director for this beat (spec 19). */
     archetype: BeatArchetypeSchema.optional(),
+    /** Optional Media Bin clip bound to this beat (spec 20). */
+    clipId: z.string().min(1).max(64).optional(),
+    clipStartMs: IntMsSchema.optional(),
+    clipEndMs: IntMsSchema.optional(),
+    clipFocusX: z.number().min(0).max(1).optional(),
+    clipFocusY: z.number().min(0).max(1).optional(),
+    clipZoom: z.number().min(1).max(2.4).optional(),
   })
   .refine((s) => s.endMs > s.startMs, {
     message: 'endMs must be greater than startMs',
@@ -328,6 +336,8 @@ export const EditorProjectBaseSchema = z.object({
   film: ProjectFilmSchema.optional(),
   /** Source video (spec 18): cuts, punch-ins and default overlay anchor. Absent for voice-only projects. */
   video: VideoTrackSchema.optional(),
+  /** Secondary Media Bin clips: user-uploaded B-roll, screen recordings, screenshots & photos (spec 20). */
+  mediaBin: z.array(MediaClipSchema).max(24).optional(),
 });
 
 export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {

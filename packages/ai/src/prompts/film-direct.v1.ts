@@ -26,8 +26,23 @@ BEATS
 - For each beat:
   - lead: "picture" (a drawing carries it), "map" (the map carries it), "number" (a figure made physical), or "type" (words carry it; at most two beats, usually the hook and the last line).
   - archetype: pick one of "kinetic-type", "hero-stat", "callout-hud", "data-chart", "diagram-flow", "comparison-split", "map-story". Never use the same archetype on two consecutive beats.
-  - videoStage (when live speaker video is present): how the speaker footage dances with this beat — "full" (full-bleed speaker + frameless floating typography/arrows), "split-left" (speaker glides left, graphic owns right half), "split-right" (speaker glides right, graphic owns left half), "pip" (speaker shrinks to a clean bottom-left bubble while the graphic owns the canvas), "backdrop" (speaker softly dims/blurs behind bold bright typography/visuals), or "cutaway" (full-screen graphic beat). Never leave 3 consecutive beats in the same videoStage; vary the rhythm so the video feels alive.
+  - videoStage (when live speaker video is present): how the speaker footage dances with this beat —
+    - "full": full-bleed speaker + frameless floating typography/arrows
+    - "split-left": speaker glides left/top, graphic owns the open half
+    - "split-right": speaker glides right/bottom, graphic owns the open half
+    - "pip": speaker shrinks to a clean bottom-left bubble while the graphic owns the canvas
+    - "backdrop": speaker softly dims/blurs behind bold bright typography/visuals
+    - "cutaway": full-screen graphic beat
+    - When Media Bin clips are provided, ALSO weave them in on matching beats using:
+      - "split-top-broll": user B-roll plays in the upper/right panel while speaker stays visible alongside it
+      - "screen-showcase": user screen recording floats in a sleek 3D-tilted window with smooth auto-zoom to (clipFocusX, clipFocusY, clipZoom) and speaker in a PiP bubble
+      - "broll-full": full-bleed user B-roll J/L-cut over the voiceover with frameless kinetic typography
+      - "media-card-pop": user screenshot/photo pops in a floating showcase card alongside speaker with highlight callouts
+    - Whenever you choose one of the 4 media stages ("split-top-broll", "screen-showcase", "broll-full", "media-card-pop"), you MUST set "clipId" to an exact id from the Media Bin catalog, plus "clipStartMs", "clipFocusX", "clipFocusY", and "clipZoom" (using the clip's best matching moment). Never invent a clipId or use a media stage when no Media Bin clips exist.
+    - Never leave 3 consecutive beats in the same videoStage; vary the rhythm so the video flows.
   - focusX, focusY (when live speaker video is present): normalized 0..1 focal point of the speaker's face seen in the keyframes (usually around 0.5, 0.35).
+  - Beat 1 VIRAL HOOK: Make beat 1 immediately scroll-stopping — punchy 2-to-5 word hero copy that lands in the first 600 ms with bold kinetic energy (never a slow empty fade-in).
+  - VOCAL STRESS: When stressed word indices are listed, prefer landing hero reveals ("landsOn") on those stressed words so visuals hit on the speaker's natural vocal punch.
   - idea: the picture, concretely: what is drawn, where it sits in the frame, how big. A builder who has never seen the narration could draw it from this.
   - text: the on-screen copy as exact strings, hero first, then at most one quiet label. Up to 14 words in all. Never the spoken sentence word for word. Every figure in it is one the narration says: no lengths, dates, counts or sources from your own knowledge, however true.
   - landsOn: the index of the spoken word the hero lands on.
@@ -70,12 +85,32 @@ export interface FilmDirectPromptInput {
   hasVideo?: boolean;
   /** Timestamps of attached video keyframes, when `hasVideo` is true. */
   frameTimesMs?: number[];
+  /** Indexed Media Bin clips (B-roll, screen recordings, screenshots) the director can weave in (spec 20). */
+  mediaBin?: readonly {
+    id: string;
+    name: string;
+    kind: string;
+    durationMs?: number;
+    summary: string;
+    tags?: readonly string[];
+    moments?: readonly {
+      startMs: number;
+      endMs: number;
+      focusX: number;
+      focusY: number;
+      zoom: number;
+      description: string;
+    }[];
+  }[];
+  /** Indices of vocally stressed words from on-device prosody analysis (spec 20). */
+  stressedWords?: readonly number[];
   /** What the creator asked for, if anything. */
   note?: string;
 }
 
 export function filmDirectPromptV1(i: FilmDirectPromptInput): string {
   const spoken = i.words.map((w, k) => `${k}:${w.text}@${(w.startMs / 1000).toFixed(1)}`).join(' ');
+  const hasMedia = Boolean(i.mediaBin && i.mediaBin.length > 0);
   const videoLines = i.hasVideo
     ? [
         `Mode: LIVE SPEAKER VIDEO + COUPLED MOTION CHOREOGRAPHY.${
@@ -83,15 +118,48 @@ export function filmDirectPromptV1(i: FilmDirectPromptInput): string {
             ? ` Attached keyframes at: ${i.frameTimesMs.map((t) => `${(t / 1000).toFixed(1)}s`).join(', ')}.`
             : ''
         }`,
-        'Choreograph every beat with both an `archetype` and a `videoStage` ("full", "split-left", "split-right", "pip", "backdrop", "cutaway") plus `focusX`/`focusY` on the speaker face so speaker and graphics dance seamlessly with zero gaps.',
+        hasMedia
+          ? 'Choreograph every beat with both an `archetype` and a `videoStage` ("full", "split-left", "split-right", "pip", "backdrop", "cutaway", plus "split-top-broll", "screen-showcase", "broll-full", "media-card-pop" with matching `clipId` + `clipStartMs`/`clipFocusX`/`clipFocusY`/`clipZoom` from the Media Bin below) plus `focusX`/`focusY` on the speaker face so speaker, B-roll/screen-recordings, and graphics dance seamlessly with zero gaps.'
+          : 'Choreograph every beat with both an `archetype` and a `videoStage` ("full", "split-left", "split-right", "pip", "backdrop", "cutaway") plus `focusX`/`focusY` on the speaker face so speaker and graphics dance seamlessly with zero gaps. Do NOT use media-bin stages because no Media Bin clips are attached.',
       ]
     : ['Mode: VOICEOVER FILM (full-canvas motion graphics). Set `archetype` on every beat and vary it every beat.'];
+
+  const mediaLines: string[] = [];
+  if (hasMedia && i.mediaBin) {
+    mediaLines.push('', `MEDIA BIN (${i.mediaBin.length} uploaded ${i.mediaBin.length === 1 ? 'clip' : 'clips'} — weave into matching beats):`);
+    for (const c of i.mediaBin) {
+      const dur = c.durationMs ? `${(c.durationMs / 1000).toFixed(1)}s` : 'still';
+      const tags = c.tags?.length ? ` [${c.tags.join(', ')}]` : '';
+      const moments = c.moments?.length
+        ? ` · moments: ${c.moments
+            .slice(0, 3)
+            .map(
+              (m) =>
+                `[${m.startMs}..${m.endMs}ms focus=(${m.focusX},${m.focusY}) zoom=${m.zoom}: ${m.description}]`,
+            )
+            .join('; ')}`
+        : '';
+      mediaLines.push(`- id="${c.id}" (${c.kind}, ${dur}): ${c.summary}${tags}${moments}`);
+    }
+  }
+
+  const stressLines = i.stressedWords?.length
+    ? [
+        `Vocal stress peaks (prefer landing hero reveals on these word indices): ${i.stressedWords
+          .slice(0, 24)
+          .map((idx) => `${idx}:${i.words[idx]?.text ?? ''}`)
+          .join(', ')}`,
+      ]
+    : [];
+
   return [
     `Narration (index:word@seconds), ${i.words.length} words, ${(i.durationMs / 1000).toFixed(1)} s:`,
     spoken,
     '',
     `Format: ${i.format} · Look: ${i.look.name} (${i.look.description})`,
     ...videoLines,
+    ...stressLines,
+    ...mediaLines,
     ...(i.note ? [`The creator asks: ${i.note}`] : []),
     '',
     'Write the storyboard.',

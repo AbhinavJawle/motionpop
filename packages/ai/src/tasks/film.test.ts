@@ -23,9 +23,9 @@ describe('film model routing (spec 07b model setting)', () => {
   });
 });
 
-describe('film thinking levels (spec 13b R3.2)', () => {
-  it('film.direct is MEDIUM, film.build and film.props are LOW', () => {
-    expect(filmDirectTask.thinking).toBe('MEDIUM');
+describe('film thinking levels (spec 13b R3.2, tuned for fast Reels in spec 20)', () => {
+  it('film.direct, film.build and film.props use LOW thinking for responsive storyboarding', () => {
+    expect(filmDirectTask.thinking).toBe('LOW');
     expect(filmBuildTask(() => [], '').thinking).toBe('LOW');
     expect(filmPropsTask(() => []).thinking).toBe('LOW');
   });

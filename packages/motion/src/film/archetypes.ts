@@ -8,12 +8,19 @@ export interface ArchetypeExample {
 }
 
 /**
- * Spatial safe-zone contract for every coupled video stage mode (spec 19 R2.1 / R3.3).
- * Both the Director and Builders read this exact geometry so graphics dance around the speaker
- * cleanly without covering their face or using boxy corner cards.
+ * Spatial safe-zone contract for every coupled video stage mode (spec 19 R2.1 / R3.3, extended
+ * for multi-clip stages in spec 20 R2.3). Both the Director and Builders read this exact geometry
+ * so graphics dance around the speaker and secondary B-roll/screen-recording/screenshot cleanly.
  */
-export function videoStageZoneGuide(stage: VideoStageMode, format: Format): string {
+export function videoStageZoneGuide(
+  stage: VideoStageMode,
+  format: Format,
+  clipFocus?: { focusX?: number; focusY?: number; clipSummary?: string },
+): string {
   const vertical = format === '9:16';
+  const fxPct = Math.round((clipFocus?.focusX ?? 0.5) * 100);
+  const fyPct = Math.round((clipFocus?.focusY ?? 0.45) * 100);
+  const clipNote = clipFocus?.clipSummary ? ` Showing: "${clipFocus.clipSummary}".` : '';
   switch (stage) {
     case 'full':
       return vertical
@@ -33,6 +40,20 @@ export function videoStageZoneGuide(stage: VideoStageMode, format: Format): stri
       return 'VIDEO STAGE = backdrop (speaker video is softly dimmed and blurred full-frame behind you). Leave the root transparent (NO mp.sheet() opaque fill) so the atmospheric dimmed speaker glows through, and use high-contrast bright typography (#FFFFFF, var(--paper), var(--accent), var(--highlight)) and crisp vector visuals centered boldly in the frame.';
     case 'cutaway':
       return 'VIDEO STAGE = cutaway (full-screen motion graphic beat — speaker is hidden behind your frame). Start with const sheet = mp.sheet(); so the look’s studio background cleanly covers the frame and transitions with your seam.';
+    case 'split-top-broll':
+      return vertical
+        ? `VIDEO STAGE = split-top-broll (user B-roll plays in the TOP 48%, speaker plays in the BOTTOM 44%).${clipNote} Leave root transparent (NO opaque sheet). Anchor a crisp frameless kinetic pill, badge, or bold headline cleanly along the middle seam (top: 46%..56%) or top-left edge so both B-roll and speaker shine unobstructed.`
+        : `VIDEO STAGE = split-top-broll (speaker is on the LEFT 43%, user B-roll plays on the RIGHT 49%).${clipNote} Leave root transparent (NO opaque sheet). Place crisp floating kinetic callout badges, arrows, or a bold lower-third title over the bottom band without blocking faces or the B-roll subject.`;
+    case 'screen-showcase':
+      return vertical
+        ? `VIDEO STAGE = screen-showcase (3D-tilted product screen recording occupies top 9%..65%, speaker sits in bottom-left PiP).${clipNote} Leave root transparent (NO opaque sheet). Draw a bold concise title in the lower-right safe area (left: 38%..94%, top: 68%..88%) and an animated curved mp.line arrow pointing toward the highlighted UI region around (${fxPct}%, ${Math.round(9 + fyPct * 0.56)}%).`
+        : `VIDEO STAGE = screen-showcase (3D-tilted screen recording window occupies x 14%..94%, y 9%..87%, speaker sits in bottom-left PiP).${clipNote} Leave root transparent (NO opaque sheet). Place a clean floating HUD callout pill/badge near top-left or top-right and an animated mp.line arrow pointing toward the UI focal region around (${Math.round(14 + fxPct * 0.8)}%, ${Math.round(9 + fyPct * 0.78)}%).`;
+    case 'broll-full':
+      return `VIDEO STAGE = broll-full (full-bleed user B-roll plays across 100% of the frame over the voiceover).${clipNote} Leave root transparent (NO mp.sheet()). Use bold high-contrast frameless typography (#FFFFFF + crisp text-shadow or subtle bottom dark gradient scrim) and minimal vector accents so the B-roll footage feels cinematic.`;
+    case 'media-card-pop':
+      return vertical
+        ? `VIDEO STAGE = media-card-pop (user screenshot/photo pops in a floating showcase card at top 12%..54% over softly dimmed speaker).${clipNote} Leave root transparent (NO opaque sheet). Place bold kinetic typography and callout arrows in the bottom band (top: 58%..84%) or pointing toward (${fxPct}%, ${Math.round(12 + fyPct * 0.42)}%) on the screenshot.`
+        : `VIDEO STAGE = media-card-pop (speaker on LEFT 45%, user screenshot/photo pops in a showcase card on RIGHT 45% at x 51%..96%, y 14%..86%).${clipNote} Leave root transparent (NO opaque sheet). Draw a floating kicker/badge above the card (top: 4%..12%) or an animated mp.line callout arrow pointing at (${Math.round(51 + fxPct * 0.45)}%, ${Math.round(14 + fyPct * 0.72)}%).`;
   }
 }
 

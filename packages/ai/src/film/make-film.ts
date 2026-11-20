@@ -11,6 +11,7 @@ import {
   filmBuildTask,
   filmDirectTask,
   filmPropsTask,
+  type DirectMediaClip,
   type FilmBuildInput,
   type FilmBuildOutput,
 } from '../tasks/film';
@@ -39,6 +40,10 @@ export interface FilmInput {
   hasVideo?: boolean;
   /** Sampled keyframes for multimodal video choreography direction. */
   frames?: { timeMs: number; mimeType: 'image/jpeg' | 'image/png'; base64: string }[];
+  /** Indexed Media Bin clips (B-roll, screen recordings, screenshots) available to weave into beats (spec 20). */
+  mediaBin?: DirectMediaClip[];
+  /** Word indices with detected vocal emphasis from on-device prosody (spec 20). */
+  stressedWords?: number[];
   note?: string;
 }
 
@@ -92,8 +97,12 @@ export interface FilmDeps {
   example: { html: string; css: string; script: string };
   /** Dynamic archetype-specific example selector per beat (spec 19 R2.1). */
   exampleFor?: (beat: TimedBeat) => { html: string; css: string; script: string };
-  /** Spatial safe-zone guide for a video stage mode (spec 19 R3.3). */
-  stageGuideFor?: (stage: VideoStageMode, format: Format) => string;
+  /** Spatial safe-zone guide for a video stage mode (spec 19 R3.3, extended in spec 20). */
+  stageGuideFor?: (
+    stage: VideoStageMode,
+    format: Format,
+    clipFocus?: { focusX?: number; focusY?: number; clipSummary?: string },
+  ) => string;
   /** Explicit model id override for Director, Props and Builders (e.g. Pip model selector). */
   model?: string;
   /** Watches a built beat. Without it beats are only linted. */
@@ -228,6 +237,8 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
           look: input.look,
           ...(input.hasVideo ? { hasVideo: true } : {}),
           ...(input.frames?.length ? { frames: input.frames } : {}),
+          ...(input.mediaBin?.length ? { mediaBin: input.mediaBin } : {}),
+          ...(input.stressedWords?.length ? { stressedWords: input.stressedWords } : {}),
           ...(input.note ? { note: input.note } : {}),
         },
         runOpts,
@@ -326,7 +337,20 @@ async function buildOne(
   };
   const t0 = Date.now();
   const stageMode = input.hasVideo ? (beat.videoStage ?? 'full') : undefined;
-  const stageGuide = stageMode ? deps.stageGuideFor?.(stageMode, input.format) : undefined;
+  const boundClip = beat.clipId ? input.mediaBin?.find((c) => c.id === beat.clipId) : undefined;
+  const stageGuide = stageMode
+    ? deps.stageGuideFor?.(
+        stageMode,
+        input.format,
+        boundClip || beat.clipFocusX !== undefined || beat.clipFocusY !== undefined
+          ? {
+              ...(beat.clipFocusX !== undefined ? { focusX: beat.clipFocusX } : {}),
+              ...(beat.clipFocusY !== undefined ? { focusY: beat.clipFocusY } : {}),
+              ...(boundClip ? { clipSummary: boundClip.summary } : {}),
+            }
+          : undefined,
+      )
+    : undefined;
   const beatExample = deps.exampleFor?.(beat);
   const base = buildInputFor(board, timed, i, input, deps.example, {
     ...(beatExample ? { beatExample } : {}),

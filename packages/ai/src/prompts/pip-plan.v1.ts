@@ -14,7 +14,8 @@ Actions (use the sentinels "none", -1 and "" for fields an action does not use):
 - setCaptions: choice = "on", "off", "pop", "clean" or "boxed".
 - setFormat: choice = "16:9", "9:16" or "1:1".
 - setPlacement: video projects only. Switch slot "sK" (or "none" for all slots) between "overlay" (floating over speaker) and "cutaway" (full-screen). choice = "overlay" or "cutaway".
-- setVideoStage: video projects only. Change how the speaker video dances with slot "sK" (or "none" for all slots). choice = "full", "split-left", "split-right", "pip", "backdrop", or "cutaway".
+- setVideoStage: video projects only. Change how the speaker video dances with slot "sK" (or "none" for all slots). choice = "full", "split-left", "split-right", "pip", "backdrop", "cutaway", "split-top-broll", "screen-showcase", "broll-full", or "media-card-pop".
+- setBeatClip: video projects with Media Bin clips. Bind a Media Bin clip to slot "sK" (choice = clip id from mediaBin, or "none" to clear).
 - toggleCuts: video projects only. Enable or restore all AI video cuts. choice = "enable" or "disable".
 - addPunchIn: video projects only. Add a camera zoom starting at word index atWord. instruction = short reason.
 - cutRange: video projects only. Cut the spoken video segment starting at word index atWord. instruction = short reason.
@@ -33,6 +34,7 @@ export interface PipPlanPromptInput {
     format: string;
     styleId: string;
     hasVideo?: boolean;
+    mediaBin?: { id: string; name: string; kind: string; summary?: string }[];
     styles: { id: string; name: string }[];
     captions: { enabled: boolean; preset: string };
     slots: {
@@ -59,10 +61,14 @@ export function pipPlanPromptV1(i: PipPlanPromptInput): string {
         `${s.ref} ${s.componentId} "${s.title}" ${(s.startMs / 1000).toFixed(1)}-${(s.endMs / 1000).toFixed(1)}s ${s.status}`,
     )
     .join('\n');
+  const clips = p.mediaBin?.length
+    ? `mediaBin:\n${p.mediaBin.map((c) => `${c.id} (${c.kind}) "${c.name}"${c.summary ? ` — ${c.summary}` : ''}`).join('\n')}`
+    : '';
   return [
-    `format: ${p.format}; style: ${p.styleId}; captions: ${p.captions.enabled ? p.captions.preset : 'off'}${p.hasVideo ? '; video: yes (supports setVideoStage, setPlacement, toggleCuts, addPunchIn, cutRange)' : ''}`,
+    `format: ${p.format}; style: ${p.styleId}; captions: ${p.captions.enabled ? p.captions.preset : 'off'}${p.hasVideo ? '; video: yes (supports setVideoStage, setBeatClip, setPlacement, toggleCuts, addPunchIn, cutRange)' : ''}`,
     `styles: ${p.styles.map((s) => `${s.id} (${s.name})`).join(', ')}`,
     `components: ${p.components.map((c) => `${c.id}: ${c.useWhen}`).join('; ')}`,
+    clips,
     `slots:\n${slots || '(none)'}`,
     `transcript: ${p.words.map(([n, t]) => `${n}:${t}`).join(' ')}`,
     i.history.length ? `earlier:\n${i.history.map((h) => `${h.role}: ${h.text}`).join('\n')}` : '',
