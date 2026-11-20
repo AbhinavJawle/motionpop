@@ -52,6 +52,8 @@ const REQUIRED_WEB_KEYS = [
 const REQUIRED_APIS = [
   'firebase.googleapis.com',
   'firebasevertexai.googleapis.com',
+  'firebaseml.googleapis.com',
+  'generativelanguage.googleapis.com',
   'aiplatform.googleapis.com',
   'firebaseremoteconfig.googleapis.com',
   'firebaseappcheck.googleapis.com',
