@@ -88,6 +88,88 @@ describe('buildVideoCompositeArgs', () => {
     expect(graph).toContain('[vstaged][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]');
   });
 
+  it('composites multi-clip Media Bin videos and screenshots for screen-showcase, split-top-broll, broll-full and media-card-pop (spec 21)', () => {
+    const args = buildVideoCompositeArgs({
+      sourceVideoPath: '/tmp/aroll.mp4',
+      overlayVideoPath: '/tmp/overlay.webm',
+      voiceWavPath: '/tmp/voice.wav',
+      outMp4Path: '/tmp/out.mp4',
+      width: 1080,
+      height: 1920,
+      fps: 30,
+      durationMs: 12_000,
+      segments: keptSourceSegments(12_000, []),
+      punchIns: [],
+      bgColor: '#0B0C12',
+      mediaClips: {
+        'clip-screen': { path: '/tmp/screen.mp4', isVideo: true, durationMs: 8000 },
+        'clip-broll': { path: '/tmp/broll.mp4', isVideo: true, durationMs: 6000 },
+        'clip-shot': { path: '/tmp/shot.png', isVideo: false },
+      },
+      stages: [
+        {
+          id: 's1',
+          startMs: 0,
+          endMs: 3000,
+          mode: 'split-top-broll',
+          focusX: 0.5,
+          focusY: 0.35,
+          scaleFrom: 1,
+          scaleTo: 1.04,
+          clipId: 'clip-broll',
+          clipStartMs: 500,
+        },
+        {
+          id: 's2',
+          startMs: 3000,
+          endMs: 6500,
+          mode: 'screen-showcase',
+          focusX: 0.5,
+          focusY: 0.35,
+          scaleFrom: 1,
+          scaleTo: 1.03,
+          clipId: 'clip-screen',
+          clipStartMs: 1000,
+          clipFocusX: 0.72,
+          clipFocusY: 0.32,
+          clipZoom: 1.6,
+        },
+        {
+          id: 's3',
+          startMs: 6500,
+          endMs: 9500,
+          mode: 'broll-full',
+          focusX: 0.5,
+          focusY: 0.35,
+          scaleFrom: 1,
+          scaleTo: 1.04,
+          clipId: 'clip-broll',
+          clipStartMs: 1500,
+        },
+        {
+          id: 's4',
+          startMs: 9500,
+          endMs: 12_000,
+          mode: 'media-card-pop',
+          focusX: 0.5,
+          focusY: 0.35,
+          scaleFrom: 1,
+          scaleTo: 1.02,
+          clipId: 'clip-shot',
+        },
+      ],
+    });
+    expect(args).toContain('/tmp/screen.mp4');
+    expect(args).toContain('/tmp/broll.mp4');
+    expect(args).toContain('/tmp/shot.png');
+    const graph = args[args.indexOf('-filter_complex') + 1]!;
+    // B-roll clip used twice gets split cleanly into 2 streams
+    expect(graph).toContain('split=2[mc_');
+    // Screen-showcase adds crisp window border box
+    expect(graph).toContain('drawbox=x=0:y=0:w=iw:h=ih');
+    expect(graph).toContain('[vstaged][vovl]');
+  });
+
   it('property: always emits valid concat count matching kept segments', () => {
     fc.assert(
       fc.property(

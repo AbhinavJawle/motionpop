@@ -50,6 +50,8 @@ export interface SfxProject<S extends SfxSlot> {
   slots: readonly S[];
   transcript: { words: ReadonlyArray<{ startMs: number; filler?: boolean | undefined }> };
   audio?: AudioSetting | undefined;
+  /** Optional video choreography stages for automatic stage-glide SFX whooshes (spec 21 R3.3). */
+  video?: { stages?: ReadonlyArray<{ id: string; startMs: number; endMs: number; mode: string }> };
 }
 
 type Draft = Omit<SfxPlacement, 'take'>;
@@ -88,6 +90,31 @@ export function placeSfx<S extends SfxSlot>(
 
   const drafts: Draft[] = [];
   const peak = ready.find((s) => s.energy === 'hype');
+  // Spec 21 R3.3: automatic stage-glide whooshes whenever video stage framing transitions, plus
+  // an opening Beat 1 hook impact on video projects when no explicit `hype` slot exists.
+  const stages = project.video?.stages;
+  if (stages && stages.length > 0) {
+    if (!peak && ready[0]) {
+      drafts.push({
+        kind: 'impact',
+        atMs: keyAt(ready[0]),
+        slotId: ready[0].id,
+        gainDb: -2,
+      });
+    }
+    for (let i = 1; i < stages.length; i++) {
+      const prev = stages[i - 1]!;
+      const cur = stages[i]!;
+      if (cur.mode !== prev.mode && cur.startMs < project.durationMs) {
+        drafts.push({
+          kind: 'whoosh',
+          atMs: Math.min(project.durationMs, cur.startMs + SFX_FRAME_LAG_MS),
+          slotId: cur.id,
+          gainDb: -4,
+        });
+      }
+    }
+  }
   for (const s of ready) {
     if (s.startMs >= project.durationMs) continue;
     const category = componentFor(s.componentId)?.category;

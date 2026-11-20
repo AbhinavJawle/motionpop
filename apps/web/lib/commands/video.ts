@@ -8,6 +8,7 @@ import {
   type VideoStageMode,
   type VideoStageSegment,
   type VideoTrack,
+  type Word,
 } from '@motionpop/schemas';
 import { produce } from 'immer';
 import { CommandRejected, type Command } from './command';
@@ -557,6 +558,75 @@ export function setSlotMediaClip(
     },
     undo(p) {
       return produce(p, (d) => {
+        if (prevSlots) d.slots = prevSlots as typeof d.slots;
+        if (d.video) {
+          if (prevStages === undefined) delete d.video.stages;
+          else d.video.stages = prevStages as typeof d.video.stages;
+        }
+      });
+    },
+  };
+}
+
+/**
+ * Applies a freshly re-spliced cleaned voiceover WAV, duration, and retimed transcript after
+ * toggling video cuts (spec 21 R4.1), clamping slots/stages to stay timeline-valid.
+ */
+export function applyResplicedAudio(next: {
+  voiceSrc: string;
+  durationMs: number;
+  words: Word[];
+  hasCuts: boolean;
+}): Command {
+  let prevVoice: EditorProject['voiceover'] | undefined;
+  let prevDuration = 0;
+  let prevTranscript: EditorProject['transcript'] | undefined;
+  let prevSlots: EditorProject['slots'] | undefined;
+  let prevStages: VideoStageSegment[] | undefined;
+  return {
+    label: 'Re-sync audio to cuts',
+    do(p) {
+      prevVoice = p.voiceover;
+      prevDuration = p.durationMs;
+      prevTranscript = p.transcript;
+      prevSlots = p.slots;
+      prevStages = p.video?.stages;
+      const wordCount = next.words.length;
+      return produce(p, (d) => {
+        d.durationMs = Math.max(100, Math.round(next.durationMs));
+        d.voiceover.src = next.voiceSrc;
+        d.voiceover.durationMs = d.durationMs;
+        if (d.voiceover.cleanup) d.voiceover.cleanup.enabled = next.hasCuts;
+        d.transcript = {
+          ...d.transcript,
+          words: structuredClone(next.words),
+          cleaned: next.hasCuts,
+        };
+        delete d.transcript.prosody;
+        // Clamp slots & stages cleanly to the new cleaned duration and word range.
+        const maxWord = Math.max(0, wordCount - 1);
+        d.slots = d.slots
+          .filter((s) => s.startMs < d.durationMs)
+          .map((s) => ({
+            ...s,
+            endMs: Math.min(d.durationMs, s.endMs),
+            wordStart: Math.min(maxWord, s.wordStart),
+            wordEnd: Math.min(maxWord, Math.max(s.wordStart, s.wordEnd)),
+          }))
+          .filter((s) => s.endMs > s.startMs);
+        if (d.video?.stages) {
+          d.video.stages = d.video.stages
+            .filter((st) => st.startMs < d.durationMs)
+            .map((st) => ({ ...st, endMs: Math.min(d.durationMs, st.endMs) }))
+            .filter((st) => st.endMs > st.startMs);
+        }
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (prevVoice) d.voiceover = prevVoice as typeof d.voiceover;
+        if (prevDuration > 0) d.durationMs = prevDuration;
+        if (prevTranscript) d.transcript = prevTranscript as typeof d.transcript;
         if (prevSlots) d.slots = prevSlots as typeof d.slots;
         if (d.video) {
           if (prevStages === undefined) delete d.video.stages;

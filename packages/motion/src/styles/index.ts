@@ -4,6 +4,8 @@ import editorialExplainerJson from './editorial-explainer.json' with { type: 'js
 import fieldNotesJson from './field-notes.json' with { type: 'json' };
 import paperCollageJson from './paper-collage.json' with { type: 'json' };
 import newsprintJson from './newsprint.json' with { type: 'json' };
+import creatorDarkJson from './creator-dark.json' with { type: 'json' };
+import keynoteCleanJson from './keynote-clean.json' with { type: 'json' };
 import testInvertedJson from './test-inverted.json' with { type: 'json' };
 
 /** Parses a pack and checks that every font family it names is bundled (spec 03, review F3). */
@@ -55,8 +57,16 @@ export const paperCollage: Look = parseLook(paperCollageJson);
  */
 export const newsprint: Look = parseLook(newsprintJson);
 
-/** Polished looks (spec 07 R3.4). */
+/** Creator Dark: obsidian studio glass, electric ember/violet accents, built for modern Reels (spec 21). */
+export const creatorDark: Look = parseLook(creatorDarkJson);
+
+/** Keynote Clean: crisp midnight-slate product showcase look with sky-cyan accents (spec 21). */
+export const keynoteClean: Look = parseLook(keynoteCleanJson);
+
+/** Polished looks (spec 07 R3.4 + spec 21 modern Reel looks). */
 export const looks: Readonly<Record<string, Look>> = {
+  [creatorDark.id]: creatorDark,
+  [keynoteClean.id]: keynoteClean,
   [newsprint.id]: newsprint,
   [fieldNotes.id]: fieldNotes,
   [paperCollage.id]: paperCollage,

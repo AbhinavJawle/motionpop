@@ -8,6 +8,7 @@ import {
   exportAvailability,
   exportCost,
   isSafeId,
+  mediaClipPathFor,
   renderPaths,
   toRenderStatus,
   videoPathFor,
@@ -124,10 +125,16 @@ export async function createRender(
   }
   const parsed = RenderRequestSchema.safeParse(raw);
   if (!parsed.success) return apiError('invalid');
-  const { requestId, options, expectedCost, project, voicePath, videoPath } = parsed.data;
+  const { requestId, options, expectedCost, project, voicePath, videoPath, clipPaths } = parsed.data;
   if (!isSafeId(uid) || !isSafeId(project.id)) return apiError('invalid');
   if (!voicePathFor(uid, project.id).test(voicePath)) return apiError('invalid');
   if (videoPath && !videoPathFor(uid, project.id).test(videoPath)) return apiError('invalid');
+  if (clipPaths) {
+    const re = mediaClipPathFor(uid, project.id);
+    for (const p of Object.values(clipPaths)) {
+      if (!re.test(p)) return apiError('invalid');
+    }
+  }
 
   let renderId: string;
   let paths: ReturnType<typeof renderPaths>;
@@ -188,6 +195,7 @@ export async function createRender(
     inputPath: paths.input,
     voicePath,
     ...(videoPath ? { videoPath } : {}),
+    ...(clipPaths && Object.keys(clipPaths).length ? { clipPaths } : {}),
     key,
   };
   const started = await deps.startExport(renderId, render, cost, exportConfigOf(config), nowMs);

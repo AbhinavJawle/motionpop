@@ -79,6 +79,13 @@ export function videoPathFor(uid: string, projectId: string): RegExp {
   );
 }
 
+/** The only Storage paths a caller's Media Bin clip upload may have (spec 21 R5.1). */
+export function mediaClipPathFor(uid: string, projectId: string): RegExp {
+  return new RegExp(
+    `^users/${escapeRegExp(uid)}/video/${escapeRegExp(projectId)}/clip-[0-9a-f]{16}\\.(mp4|mov|webm|png|jpg|webp)$`,
+  );
+}
+
 export const RenderRequestSchema = z
   .object({
     requestId: z.uuid(),
@@ -89,6 +96,8 @@ export const RenderRequestSchema = z
     voicePath: z.string().min(1).max(300),
     /** Optional uploaded source video path (`videoPathFor(uid, project.id)`, spec 19 R5.1). */
     videoPath: z.string().min(1).max(300).optional(),
+    /** Optional uploaded Media Bin clip paths keyed by `clipId` (spec 21 R5.1). */
+    clipPaths: z.record(z.string().min(1).max(64), z.string().min(1).max(300)).optional(),
   })
   .strict();
 export type RenderRequest = z.infer<typeof RenderRequestSchema>;
@@ -139,6 +148,7 @@ export const RenderDocSchema = z
     inputPath: z.string(),
     voicePath: z.string(),
     videoPath: z.string().optional(),
+    clipPaths: z.record(z.string().min(1).max(64), z.string().min(1).max(300)).optional(),
     outputPath: z.string().optional(),
     thumbPath: z.string().optional(),
     sizeBytes: z.number().int().nonnegative().optional(),

@@ -80,6 +80,7 @@ if (project) {
           groups: project.captions.groups,
           accent: project.style.colors.accent,
           font: fontStack(project.style.fonts.body),
+          ...(project.captions.stageWindows ? { stageWindows: project.captions.stageWindows } : {}),
         },
         { width: project.width, height: project.height, format: project.format },
       );

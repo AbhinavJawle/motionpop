@@ -13,7 +13,13 @@ import {
 } from '@motionpop/schemas';
 import { getAuthClient, getDb, getStorageClient } from '../firebase/client';
 import { apiHeaders } from '../users/bootstrap-client';
-import { resolveVideoBlob, uploadVideo, uploadVoice, VoiceError } from './voice-upload';
+import {
+  resolveVideoBlob,
+  uploadReferencedMediaClips,
+  uploadVideo,
+  uploadVoice,
+  VoiceError,
+} from './voice-upload';
 import { assetsInUse } from '@motionpop/motion/compiler';
 import { ensureUploaded } from '@/lib/images/image-store';
 
@@ -186,6 +192,7 @@ export function cloudRenderClient(): RenderClient {
       let uid: string;
       let voicePath: string;
       let videoPath: string | undefined;
+      let clipPaths: Record<string, string> | undefined;
       try {
         const auth = await getAuthClient();
         if (!auth.currentUser) return { ok: false, error: 'unauthorized' };
@@ -197,6 +204,8 @@ export function cloudRenderClient(): RenderClient {
             const uploaded = await uploadVideo(uid, project.id, videoBlob).catch(() => null);
             if (uploaded) videoPath = uploaded;
           }
+          const uploadedClips = await uploadReferencedMediaClips(uid, project).catch(() => ({}));
+          if (Object.keys(uploadedClips).length > 0) clipPaths = uploadedClips;
         }
         // The job reads pictures from the account's media folder; make sure each one is there.
         // A picture that won't upload renders as its scene's image-free form.
@@ -222,6 +231,7 @@ export function cloudRenderClient(): RenderClient {
             project,
             voicePath,
             ...(videoPath ? { videoPath } : {}),
+            ...(clipPaths ? { clipPaths } : {}),
           }),
         });
         return await parseStartResponse(res);

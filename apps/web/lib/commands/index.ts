@@ -35,6 +35,7 @@ export {
   addMediaClips,
   addVideoCut,
   addVideoPunchIn,
+  applyResplicedAudio,
   removeMediaClip,
   removeVideoPunchIn,
   setAllSlotsPlacement,

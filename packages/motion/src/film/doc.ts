@@ -17,7 +17,7 @@ Timeline (declare everything once; it draws any time t, in any order)
   tl.to(target, { x: -300, opacity: 0 }, { at: 3200, dur: 300, ease: "in" })
   tl.fromTo(target, { scale: 0.6 }, { scale: 1 }, { at: 500 })      tl.set(target, { opacity: 1 }, { at: 900 })
     target: an element, an array of elements, or a selector string (looked up inside the graphic).
-    props:  x, y (px, or "50%" of the element), scale, scaleX, scaleY, rotate (deg), opacity, blur (px),
+    props:  x, y (px, or "50%" of the element), scale, scaleX, scaleY, rotate, rotateX, rotateY, skewX (deg), perspective (px), opacity, blur (px),
             and plain CSS numbers or colours: width, height, left, top, fontSize, color, background, fill, stroke…
             A [from, to] pair works in any call: tl.to(bar, { width: ["0%", "62%"] }, …).
     opts:   at: start time in ms, or a spoken word ("the tween starts on that word");
@@ -30,7 +30,7 @@ Timeline (declare everything once; it draws any time t, in any order)
   tl.draw(target, { on: "canal", dur: 700 })   draws strokes on: SVG path/line/circle…, or a mark, line or route from the kit.
   tl.wipe(el, { from: "left" | "right" | "top" | "bottom" | "center", at, dur })   reveals by opening a clip. { out: true } closes it.
   tl.fn((p) => { … }, { at, dur, ease })   your own drawing from eased progress p (0 before, 1 after).
-  tl.enter(kind, targets) / tl.exit(kind, targets, { origin })   the two halves of a film seam ("push" | "zoom" | "cover" | "lift"), with fixed distances and eases so both sides of a cut agree.
+  tl.enter(kind, targets) / tl.exit(kind, targets, { origin })   the two halves of a film seam ("push" | "zoom" | "cover" | "lift" | "whip"), with fixed distances and eases so both sides of a cut agree.
   return tl;   // or: return { seek(t) { tl.seek(t); … } }
 
 Materials and marks

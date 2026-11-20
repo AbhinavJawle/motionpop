@@ -25,6 +25,7 @@ export interface BedProject<S extends BedSlot = BedSlot> {
     words: ReadonlyArray<{ startMs: number; endMs: number; filler?: boolean | undefined }>;
   };
   audio?: AudioSetting | undefined;
+  video?: { stages?: ReadonlyArray<{ id: string; startMs: number; endMs: number; mode: string }> };
 }
 
 /** Music already decoded at 24 kHz mono, fitted to the video (or a loop the mixer fits). */

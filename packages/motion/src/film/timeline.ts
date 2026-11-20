@@ -62,8 +62,20 @@ interface Tween {
   order: number;
 }
 
-const TRANSFORM = new Set(['x', 'y', 'scale', 'scaleX', 'scaleY', 'rotate']);
+const TRANSFORM = new Set([
+  'x',
+  'y',
+  'scale',
+  'scaleX',
+  'scaleY',
+  'rotate',
+  'rotateX',
+  'rotateY',
+  'skewX',
+  'perspective',
+]);
 const UNITLESS = new Set(['opacity', 'scale', 'scaleX', 'scaleY', 'draw', 'wipe', 'zIndex']);
+const ANGLE = new Set(['rotate', 'rotateX', 'rotateY', 'skewX']);
 const COLOR = new Set(['color', 'background', 'backgroundColor', 'fill', 'stroke', 'borderColor']);
 
 function parseColor(s: string): [number, number, number] | null {
@@ -83,7 +95,7 @@ function parseColor(s: string): [number, number, number] | null {
 
 function parseVal(prop: string, v: PropValue): Val {
   if (typeof v === 'number') {
-    const unit = UNITLESS.has(prop) ? '' : prop === 'rotate' ? 'deg' : 'px';
+    const unit = UNITLESS.has(prop) ? '' : ANGLE.has(prop) ? 'deg' : 'px';
     return { n: Number.isFinite(v) ? v : 0, unit };
   }
   if (COLOR.has(prop)) {
@@ -92,7 +104,7 @@ function parseVal(prop: string, v: PropValue): Val {
   }
   const m = /^\s*(-?[\d.]+(?:e-?\d+)?)\s*([a-z%]*)\s*$/i.exec(v);
   if (!m) return { n: 0, unit: '' };
-  const unit = m[2] || (UNITLESS.has(prop) ? '' : prop === 'rotate' ? 'deg' : 'px');
+  const unit = m[2] || (UNITLESS.has(prop) ? '' : ANGLE.has(prop) ? 'deg' : 'px');
   return { n: Number(m[1]), unit };
 }
 
@@ -257,14 +269,16 @@ export function createTimeline(host: TimelineHost): Timeline {
 
   /** The value a property rests at when nothing tweens it. */
   const restOf = (prop: string): PropValue =>
-    prop === 'opacity' ||
-    prop === 'scale' ||
-    prop === 'scaleX' ||
-    prop === 'scaleY' ||
-    prop === 'draw' ||
-    prop === 'wipe'
-      ? 1
-      : 0;
+    prop === 'perspective'
+      ? 1200
+      : prop === 'opacity' ||
+          prop === 'scale' ||
+          prop === 'scaleX' ||
+          prop === 'scaleY' ||
+          prop === 'draw' ||
+          prop === 'wipe'
+        ? 1
+        : 0;
 
   const baseOf = (el: Element, prop: string): Val => {
     if (TRANSFORM.has(prop) || prop === 'blur' || prop === 'draw' || prop === 'wipe')
@@ -500,9 +514,17 @@ export function createTimeline(host: TimelineHost): Timeline {
           const sx = num(g('scaleX'), 1) * s;
           const sy = num(g('scaleY'), 1) * s;
           const r = num(g('rotate'), 0);
+          const rx = num(g('rotateX'), 0);
+          const ry = num(g('rotateY'), 0);
+          const skx = num(g('skewX'), 0);
+          const persp = num(g('perspective'), 1200);
           const parts: string[] = [];
+          if (rx || ry) parts.push(`perspective(${Math.round(persp)}px)`);
           if (x || y) parts.push(`translate(${x ? css(x) : '0px'}, ${y ? css(y) : '0px'})`);
           if (r) parts.push(`rotate(${Math.round(r * 1000) / 1000}deg)`);
+          if (rx) parts.push(`rotateX(${Math.round(rx * 1000) / 1000}deg)`);
+          if (ry) parts.push(`rotateY(${Math.round(ry * 1000) / 1000}deg)`);
+          if (skx) parts.push(`skewX(${Math.round(skx * 1000) / 1000}deg)`);
           if (sx !== 1 || sy !== 1)
             parts.push(`scale(${Math.round(sx * 1e4) / 1e4}, ${Math.round(sy * 1e4) / 1e4})`);
           style.transform = parts.join(' ') || 'none';

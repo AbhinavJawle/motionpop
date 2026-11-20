@@ -40,6 +40,18 @@ export function bedRequestFor(
         })),
       },
       audio,
+      ...(project.video?.stages?.length
+        ? {
+            video: {
+              stages: project.video.stages.map((st) => ({
+                id: st.id,
+                startMs: st.startMs,
+                endMs: st.endMs,
+                mode: st.mode,
+              })),
+            },
+          }
+        : {}),
     },
     voiceSrc: project.voiceover.src,
     voiceLevelDb,

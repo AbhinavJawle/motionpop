@@ -276,5 +276,16 @@ function captionsFor(
     presetId: setting.presetId,
     ...(project.transcript.prosody ? { stress: project.transcript.prosody.stress } : {}),
   }).filter((g) => !verbatim.some((s) => g.openMs < s.endMs && g.closeMs > s.startMs));
-  return groups.length ? { captions: { presetId: setting.presetId, groups } } : {};
+  const stageWindows = project.video?.stages?.length
+    ? project.video.stages.map((s) => ({ startMs: s.startMs, endMs: s.endMs, mode: s.mode }))
+    : undefined;
+  return groups.length
+    ? {
+        captions: {
+          presetId: setting.presetId,
+          groups,
+          ...(stageWindows ? { stageWindows } : {}),
+        },
+      }
+    : {};
 }

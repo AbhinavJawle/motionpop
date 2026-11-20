@@ -56,6 +56,7 @@ export type NewRender = Pick<
   | 'inputPath'
   | 'voicePath'
   | 'videoPath'
+  | 'clipPaths'
   | 'key'
 >;
 

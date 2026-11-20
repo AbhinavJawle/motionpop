@@ -2,9 +2,16 @@
 
 import { Scissors, ZoomIn } from 'lucide-react';
 import { useState } from 'react';
-import { addVideoPunchIn, removeVideoPunchIn, toggleVideoCut } from '@/lib/commands';
+import { toast } from 'sonner';
+import {
+  addVideoPunchIn,
+  applyResplicedAudio,
+  removeVideoPunchIn,
+  toggleVideoCut,
+} from '@/lib/commands';
 import { cn } from '@/lib/cn';
-import { useEditor } from '@/lib/stores/editor';
+import { editorStore, useEditor } from '@/lib/stores/editor';
+import { respliceProjectAudio } from '@/lib/video/resplice-audio';
 
 const fmtSec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
@@ -19,8 +26,25 @@ export function VideoCutsBar() {
   const playheadMs = useEditor((s) => s.playheadMs);
   const exec = useEditor((s) => s.exec);
   const [expanded, setExpanded] = useState(false);
+  const [resplicing, setResplicing] = useState(false);
 
   if (!video) return null;
+
+  const handleToggleCut = async (cutId: string) => {
+    if (resplicing) return;
+    exec(toggleVideoCut(cutId));
+    const latest = editorStore.getState().project;
+    if (!latest?.video) return;
+    setResplicing(true);
+    try {
+      const spliced = await respliceProjectAudio(latest);
+      if (spliced) exec(applyResplicedAudio(spliced));
+    } catch {
+      toast('Video cut updated (audio re-sync skipped).');
+    } finally {
+      setResplicing(false);
+    }
+  };
 
   const enabledCuts = video.cuts.filter((c) => c.enabled);
   const trimmedMs = enabledCuts.reduce((n, c) => n + (c.endMs - c.startMs), 0);
@@ -90,11 +114,12 @@ export function VideoCutsBar() {
       {expanded && (video.cuts.length > 0 || video.punchIns.length > 0) && (
         <div className="flex flex-wrap gap-1.5 rounded-chip border border-white/8 bg-card px-3 py-2 text-[11px]">
           {video.cuts.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => exec(toggleVideoCut(c.id))}
-              title={c.enabled ? 'Click to restore this cut' : 'Click to re-enable this cut'}
+              <button
+                key={c.id}
+                type="button"
+                disabled={resplicing}
+                onClick={() => void handleToggleCut(c.id)}
+                title={c.enabled ? 'Click to restore this cut' : 'Click to re-enable this cut'}
               className={cn(
                 'rounded-full border px-2 py-0.5 transition-colors',
                 c.enabled

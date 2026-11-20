@@ -1,0 +1,91 @@
+{
+  "id": "creator-dark",
+  "name": "Creator Dark",
+  "tagline": "Obsidian glass, razor-sharp kinetic type, electric accents.",
+  "tags": ["Reels", "Dark", "Modern"],
+  "description": "Deep obsidian canvas, crisp white display type, ember and electric violet accents built for modern Reels and creator explainers.",
+  "colors": {
+    "bg": "#0B0C12",
+    "ink": "#F6F7FB",
+    "muted": "#9599AD",
+    "accent": "#FF6B35",
+    "accent2": "#8B7CFF",
+    "highlight": "#FACC15",
+    "positive": "#34D399",
+    "negative": "#F87171",
+    "chart": ["#6366F1", "#8B7CFF", "#FF6B35"]
+  },
+  "fonts": {
+    "display": "Space Grotesk",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 700
+  },
+  "texture": {
+    "grain": 0.02,
+    "paper": false,
+    "vignette": 0.16
+  },
+  "motion": {
+    "enterEase": "outExpo",
+    "moveEase": "inOutCubic",
+    "enterMs": 440,
+    "staggerMs": 45,
+    "holdMs": 850,
+    "camera": {
+      "pushIn": 1.07
+    }
+  },
+  "shape": {
+    "radius": 14,
+    "stroke": 2.5
+  },
+  "allowPlayful": false,
+  "energy": "hype",
+  "personality": {
+    "preset": "snappy",
+    "enter": {
+      "text": "slam",
+      "number": "count",
+      "image": "slam",
+      "shape": "draw"
+    },
+    "overshoot": 0.08,
+    "popMax": 0.12,
+    "exitRatio": 0.55,
+    "snapMargin": 12
+  },
+  "camera": {
+    "push": [1, 1.07],
+    "snap": 0.07,
+    "whip": true,
+    "parallax": 20
+  },
+  "surfaces": {
+    "card": ["plain", "shadow-soft"],
+    "photo": ["shadow-soft"],
+    "label": ["plain"],
+    "strip": ["plain"]
+  },
+  "marks": {
+    "emphasis": "marker-underline",
+    "pointer": "arrow",
+    "divider": "rule",
+    "badge": "chip"
+  },
+  "juice": ["camera-snap", "camera-push", "accent-sweep", "decor-draw", "parallax-shift"],
+  "image": {
+    "recipe": "{subject}, moody studio lighting on deep dark slate background, crisp rim light, high contrast editorial photography",
+    "treatment": ["key", "shadow-soft"]
+  },
+  "sound": {
+    "enter": "whoosh",
+    "mark": "pen",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["push"],
+  "map": {
+    "style": "night"
+  }
+}

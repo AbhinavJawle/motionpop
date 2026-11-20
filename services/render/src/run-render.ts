@@ -14,6 +14,7 @@ import {
   EditorProjectSchema,
   isSafeId,
   keptSourceSegments,
+  mediaClipPathFor,
   renderPaths,
   videoPathFor,
   voicePathFor,
@@ -201,6 +202,30 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     }
     const videoComposite = Boolean(project.video && sourceVideoFile && ffmpeg.compositeVideo);
 
+    // 2f. Secondary Media Bin clips referenced by video stages (spec 21 R5.3).
+    const downloadedClips: Record<string, { path: string; isVideo: boolean; durationMs?: number }> = {};
+    if (videoComposite && doc.clipPaths && project.mediaBin?.length) {
+      const clipRe = mediaClipPathFor(doc.ownerId, doc.projectId);
+      let idx = 0;
+      for (const [clipId, storagePath] of Object.entries(doc.clipPaths)) {
+        if (!clipRe.test(storagePath)) continue;
+        const meta = project.mediaBin.find((c) => c.id === clipId);
+        if (!meta) continue;
+        const ext = storagePath.slice(storagePath.lastIndexOf('.'));
+        const dest = join(deps.workDir, `media-clip-${idx++}${ext}`);
+        try {
+          await blobs.download(storagePath, dest);
+          downloadedClips[clipId] = {
+            path: dest,
+            isVideo: meta.mimeType.startsWith('video/'),
+            ...(meta.durationMs !== undefined ? { durationMs: meta.durationMs } : {}),
+          };
+        } catch (e) {
+          log.error({ event: 'media-clip-missing', renderId, clipId, error: errorText(e) });
+        }
+      }
+    }
+
     // 3. Compile.
     const slots = await step('compile-failed', 'compiling', async () => {
       const input = projectCompileInput(project, {
@@ -289,6 +314,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
           segments: keptSourceSegments(project.video!.originalDurationMs, project.video!.cuts),
           punchIns: project.video!.punchIns,
           ...(project.video!.stages?.length ? { stages: project.video!.stages } : {}),
+          ...(Object.keys(downloadedClips).length ? { mediaClips: downloadedClips } : {}),
           bgColor: styleFor(project).colors.bg,
         }),
       );

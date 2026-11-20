@@ -33,6 +33,13 @@ export const BedRequestSchema = z.object({
       ),
     }),
     audio: AudioSettingSchema.optional(),
+    video: z
+      .object({
+        stages: z
+          .array(z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), mode: z.string() }))
+          .optional(),
+      })
+      .optional(),
   }),
   voiceSrc: z.string(),
   voiceLevelDb: z.number(),

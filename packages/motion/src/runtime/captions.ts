@@ -13,6 +13,8 @@ export interface CaptionsConfig {
   accent: string;
   /** CSS font stack (the look's body family). */
   font: string;
+  /** Optional video choreography stage windows for dynamic vertical dodging (spec 21 R2). */
+  stageWindows?: readonly { startMs: number; endMs: number; mode: string }[];
 }
 
 export interface CaptionFrame {
@@ -95,6 +97,53 @@ export function captionLayout(frame: CaptionFrame, presetId: CaptionPresetId) {
   return { bottom, maxWidth, base, min, scale };
 }
 
+const NUMERIC_POWER = /\d|%|[$€£]/;
+
+/** Pure stage-aware bottom offset in frame pixels so captions never collide with B-roll splits (spec 21 R2). */
+export function captionBottomForStage(
+  baseBottom: number,
+  frame: CaptionFrame,
+  tMs: number,
+  stageWindows?: readonly { startMs: number; endMs: number; mode: string }[],
+): number {
+  if (!stageWindows || stageWindows.length === 0) return baseBottom;
+  const vertical = frame.format === '9:16';
+  const targetFor = (mode: string): number => {
+    if (!vertical) {
+      if (mode === 'split-top-broll' || mode === 'screen-showcase') return Math.round(frame.height * 0.06);
+      return baseBottom;
+    }
+    switch (mode) {
+      case 'split-top-broll':
+        // Sits cleanly along the crisp center seam between top B-roll and bottom speaker.
+        return Math.round(frame.height * 0.44);
+      case 'screen-showcase':
+        // Sits cleanly below the tilted screen window without overlapping speaker PiP.
+        return Math.round(frame.height * 0.23);
+      case 'split-left':
+        return Math.round(frame.height * 0.51);
+      case 'split-right':
+        return Math.round(frame.height * 0.45);
+      case 'media-card-pop':
+        return Math.round(frame.height * 0.19);
+      default:
+        return baseBottom;
+    }
+  };
+  const idx = stageWindows.findIndex((s) => tMs >= s.startMs && tMs < s.endMs);
+  if (idx < 0) return baseBottom;
+  const cur = stageWindows[idx]!;
+  const target = targetFor(cur.mode);
+  const prev = idx > 0 ? stageWindows[idx - 1] : undefined;
+  const glideMs = 220;
+  if (prev && tMs - cur.startMs < glideMs) {
+    const p = outCubic((tMs - cur.startMs) / glideMs);
+    const from = targetFor(prev.mode);
+    return Math.round(from + (target - from) * p);
+  }
+  return target;
+}
+
 export function mountCaptions(
   host: HTMLElement,
   cfg: CaptionsConfig,
@@ -114,9 +163,10 @@ export function mountCaptions(
     const line = doc.createElement('div');
     line.setAttribute('data-text', '');
     const weight = cfg.presetId === 'pop' ? 800 : 600;
-    let lineCss = `font:${weight} ${base}px/1.2 ${cfg.font};color:#fff;text-align:center;white-space:nowrap;letter-spacing:${cfg.presetId === 'pop' ? '-0.01em' : '0'};`;
+    let lineCss = `font:${weight} ${base}px/1.2 ${cfg.font};color:#fff;text-align:center;white-space:nowrap;letter-spacing:${cfg.presetId === 'pop' ? '-0.015em' : '0'};`;
     if (cfg.presetId === 'pop') {
-      lineCss += 'background:rgba(8,8,12,.66);border-radius:.3em;padding:.15em .35em;';
+      lineCss +=
+        'background:rgba(8,8,12,.72);border-radius:.35em;padding:.18em .42em;box-shadow:0 8px 28px rgba(0,0,0,.45);';
     } else if (cfg.presetId === 'clean') {
       // The feather sits outside the padded box, so no glyph is on alpha below 0.66 (R5.4).
       lineCss +=
@@ -128,8 +178,10 @@ export function mountCaptions(
     const words = group.words.map((w, i) => {
       const span = doc.createElement('span');
       span.textContent = w.text;
-      span.style.cssText = 'display:inline-block;border-radius:.2em;padding:0 .12em;';
-      if (w.emphasis && cfg.presetId !== 'boxed') span.setAttribute('data-emphasis', '');
+      span.style.cssText = 'display:inline-block;border-radius:.22em;padding:0 .14em;';
+      if ((w.emphasis || NUMERIC_POWER.test(w.text)) && cfg.presetId !== 'boxed') {
+        span.setAttribute('data-emphasis', '');
+      }
       line.appendChild(span);
       if (i < group.words.length - 1) line.appendChild(doc.createTextNode(' '));
       return span;
@@ -164,12 +216,15 @@ export function mountCaptions(
     b.words.forEach((span, i) => {
       const w = b.group.words[i]!;
       const isCur = i === current;
+      const isHighlight = Boolean(w.emphasis) || NUMERIC_POWER.test(w.text);
       if (cfg.presetId === 'pop') {
         const p = isCur ? outCubic((tMs - w.startMs) / POP_MS) : 0;
         span.style.background = isCur ? pill.bg : 'transparent';
-        span.style.color = isCur ? pill.ink : w.emphasis ? emphasis : '#fff';
-        span.style.transform = `scale(${(1 + 0.06 * p).toFixed(4)})`;
+        span.style.color = isCur ? pill.ink : isHighlight ? emphasis : '#fff';
+        const lift = isCur ? -2 * scale * p : 0;
+        span.style.transform = `translateY(${lift.toFixed(2)}px) scale(${(1 + 0.11 * p).toFixed(4)})`;
       } else if (cfg.presetId === 'clean') {
+        span.style.color = isCur ? '#fff' : isHighlight ? emphasis : 'rgba(255,255,255,.92)';
         span.style.boxShadow = isCur
           ? `inset 0 -${Math.max(2, Math.round(4 * scale))}px 0 ${cfg.accent}`
           : 'none';
@@ -196,6 +251,8 @@ export function mountCaptions(
       const g = b.group;
       const enter = outCubic((tMs - g.openMs) / ENTER_MS);
       const exit = g.closeMs - tMs < EXIT_MS ? (g.closeMs - tMs) / EXIT_MS : 1;
+      const dynamicBottom = captionBottomForStage(bottom, frame, tMs, cfg.stageWindows);
+      b.root.style.bottom = `${dynamicBottom}px`;
       b.root.style.visibility = 'visible';
       b.root.style.opacity = (enter * exit).toFixed(4);
       b.root.style.transform = `translateY(${((1 - enter) * rise).toFixed(2)}px)`;

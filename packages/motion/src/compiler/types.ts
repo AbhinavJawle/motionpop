@@ -9,10 +9,12 @@ import type {
 import type { Format, ImageRef, StylePack } from '../contract';
 import type { CaptionGroup, CaptionPresetId } from '../captions/chunk';
 
-/** Captions for the overlay (spec 12 R4–R5); groups come from `chunkCaptions`, never stored. */
+/** Captions for the overlay (spec 12 R4–R5, stage dodging in spec 21); groups come from `chunkCaptions`. */
 export interface CompileCaptions {
   presetId: CaptionPresetId;
   groups: CaptionGroup[];
+  /** Optional video choreography stage windows so captions dodge split seams cleanly (spec 21 R2). */
+  stageWindows?: { startMs: number; endMs: number; mode: string }[];
 }
 
 /** What the compiler needs from a project. Integer milliseconds everywhere. */

@@ -1,4 +1,10 @@
-import { isSafeId, videoPathFor, voicePathFor, type EditorProject } from '@motionpop/schemas';
+import {
+  isSafeId,
+  mediaClipPathFor,
+  videoPathFor,
+  voicePathFor,
+  type EditorProject,
+} from '@motionpop/schemas';
 import { CANONICAL_TYPE, MAX_VOICE_BYTES, hash16, voiceExtFor } from '../audio/audio-path';
 import { appAudioStore } from '../audio/app-audio-store';
 import { isIdbAudioRef, type AudioStore } from '../audio/audio-store';
@@ -147,4 +153,52 @@ export async function uploadVideo(
   if (await storage.exists(path).catch(() => false)) return path;
   await storage.upload(path, blob, VIDEO_MIME[ext]);
   return path;
+}
+
+const CLIP_EXT: Readonly<Record<string, 'mp4' | 'mov' | 'webm' | 'png' | 'jpg' | 'webp'>> = {
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+};
+const CLIP_MIME: Readonly<Record<'mp4' | 'mov' | 'webm' | 'png' | 'jpg' | 'webp', string>> = {
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  webm: 'video/webm',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  webp: 'image/webp',
+};
+
+/** Uploads every Media Bin clip referenced by `project.video.stages` for cloud MP4 export (spec 21 R5). */
+export async function uploadReferencedMediaClips(
+  uid: string,
+  project: EditorProject,
+  store: AudioStore = appAudioStore(),
+  remote: () => Promise<RemoteAudio> = firebaseRemoteAudio,
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  if (!isSafeId(uid) || !isSafeId(project.id) || !project.mediaBin?.length) return out;
+  const usedIds = new Set(
+    (project.video?.stages ?? []).map((s) => s.clipId).filter((id): id is string => Boolean(id)),
+  );
+  if (usedIds.size === 0) return out;
+  const storage = await remote();
+  const re = mediaClipPathFor(uid, project.id);
+  for (const clip of project.mediaBin) {
+    if (!usedIds.has(clip.id)) continue;
+    const blob = await store.get(clip.src).catch(() => null);
+    if (!blob || blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) continue;
+    const base = (blob.type || clip.mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
+    const ext = CLIP_EXT[base] ?? (clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
+    const path = `users/${uid}/video/${project.id}/clip-${await hash16(await blob.arrayBuffer())}.${ext}`;
+    if (!re.test(path)) continue;
+    if (!(await storage.exists(path).catch(() => false))) {
+      await storage.upload(path, blob, CLIP_MIME[ext]);
+    }
+    out[clip.id] = path;
+  }
+  return out;
 }

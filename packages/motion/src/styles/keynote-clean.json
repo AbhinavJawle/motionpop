@@ -1,0 +1,91 @@
+{
+  "id": "keynote-clean",
+  "name": "Keynote Clean",
+  "tagline": "Product-launch polish with crisp studio contrast.",
+  "tags": ["Product", "Tech", "Clean"],
+  "description": "Deep midnight-slate studio canvas, crisp geometric sans, cool sky-cyan and violet highlights built for software demos and keynotes.",
+  "colors": {
+    "bg": "#0F141E",
+    "ink": "#FFFFFF",
+    "muted": "#94A3B8",
+    "accent": "#38BDF8",
+    "accent2": "#A78BFA",
+    "highlight": "#FDE047",
+    "positive": "#22C55E",
+    "negative": "#EF4444",
+    "chart": ["#38BDF8", "#818CF8", "#34D399"]
+  },
+  "fonts": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 700
+  },
+  "texture": {
+    "grain": 0.015,
+    "paper": false,
+    "vignette": 0.14
+  },
+  "motion": {
+    "enterEase": "outExpo",
+    "moveEase": "inOutCubic",
+    "enterMs": 500,
+    "staggerMs": 50,
+    "holdMs": 950,
+    "camera": {
+      "pushIn": 1.05
+    }
+  },
+  "shape": {
+    "radius": 16,
+    "stroke": 2
+  },
+  "allowPlayful": false,
+  "energy": "lively",
+  "personality": {
+    "preset": "snappy",
+    "enter": {
+      "text": "mask",
+      "number": "count",
+      "image": "slam",
+      "shape": "draw"
+    },
+    "overshoot": 0.05,
+    "popMax": 0.09,
+    "exitRatio": 0.6,
+    "snapMargin": 14
+  },
+  "camera": {
+    "push": [1, 1.06],
+    "snap": 0.05,
+    "whip": true,
+    "parallax": 16
+  },
+  "surfaces": {
+    "card": ["plain", "shadow-soft"],
+    "photo": ["shadow-soft"],
+    "label": ["plain"],
+    "strip": ["plain"]
+  },
+  "marks": {
+    "emphasis": "highlighter",
+    "pointer": "arrow",
+    "divider": "rule",
+    "badge": "chip"
+  },
+  "juice": ["camera-snap", "camera-push", "accent-sweep", "decor-draw", "parallax-shift"],
+  "image": {
+    "recipe": "{subject}, crisp Apple-keynote style product photography on dark slate surface, soft rim lighting, clean minimal shadows",
+    "treatment": ["key", "shadow-soft"]
+  },
+  "sound": {
+    "enter": "whoosh",
+    "mark": "pen",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["push"],
+  "map": {
+    "style": "night"
+  }
+}
