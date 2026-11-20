@@ -12,6 +12,7 @@ import { mediaHashOf, mediaStoragePath } from '@motionpop/schemas';
 import {
   EditorProjectSchema,
   isSafeId,
+  keptSourceSegments,
   renderPaths,
   voicePathFor,
   type EditorProject,
@@ -24,7 +25,7 @@ import { join } from 'node:path';
 import { prepareBed } from './bed';
 import { motionDistDir } from './compile-assets';
 import { contentDisposition } from './headers';
-import { outputIssues } from './output';
+import { expectedSize, outputIssues } from './output';
 import { preflightSamples } from './preflight-samples';
 import {
   RenderAbortedError,
@@ -175,20 +176,37 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       }
     }
 
+    // 2e. Source video for video projects (spec 18 R7.1), downloaded from the owner's project folder.
+    let sourceVideoFile: string | null = null;
+    if (project.video && ffmpeg.compositeVideo) {
+      const rawSrc = project.video.src;
+      const storagePath = rawSrc.startsWith('storage:') ? rawSrc.slice('storage:'.length) : rawSrc;
+      if (voicePathFor(doc.ownerId, doc.projectId).test(storagePath)) {
+        const dest = join(deps.workDir, 'source-video');
+        try {
+          await blobs.download(storagePath, dest);
+          sourceVideoFile = dest;
+        } catch (e) {
+          log.error({ event: 'source-video-missing', renderId, error: errorText(e) });
+        }
+      }
+    }
+    const videoComposite = Boolean(project.video && sourceVideoFile && ffmpeg.compositeVideo);
+
     // 3. Compile.
     const slots = await step('compile-failed', 'compiling', async () => {
       const input = projectCompileInput(project, {
         mode: 'render',
         format: doc.format,
-        background: 'style',
-        voiceSrc: 'assets/voice.wav',
-        ...(bedSrc ? { bedSrc } : {}),
+        background: videoComposite ? 'transparent' : 'style',
+        ...(videoComposite ? {} : { voiceSrc: 'assets/voice.wav' }),
+        ...(bedSrc && !videoComposite ? { bedSrc } : {}),
         // The job computes the caption groups itself from the snapshot (spec 12 R4.5).
         captions: doc.captions,
         images,
         ...(mapsBase ? { mapsBase } : {}),
       });
-      if (input.slots.length === 0) {
+      if (input.slots.length === 0 && !videoComposite) {
         throw new RenderStepError('compile-failed', 'nothing in the project can be rendered');
       }
       await writeFile(join(compDir, 'index.html'), compileProject(input, deps.assets));
@@ -214,6 +232,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
 
     // 4b. Produce, with progress through the throttle and the store as the abort switch.
     const out = join(deps.workDir, 'video.mp4');
+    const overlayOut = join(deps.workDir, 'overlay.webm');
     const throttle = new ProgressThrottle();
     let writes: Promise<void> = Promise.resolve();
     const onProgress = (p: { stage: JobStage; percent: number }): void => {
@@ -232,9 +251,10 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       try {
         return await deps.producer.render({
           compDir,
-          outPath: out,
+          outPath: videoComposite ? overlayOut : out,
           format: doc.format,
           resolution: doc.resolution,
+          ...(videoComposite ? { container: 'webm' as const } : {}),
           signal,
           onProgress,
         });
@@ -245,6 +265,24 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         throw e;
       }
     });
+    if (videoComposite && project.video && sourceVideoFile && ffmpeg.compositeVideo) {
+      const dims = expectedSize(doc.format, doc.resolution);
+      await step('render-failed', 'compositing video', () =>
+        ffmpeg.compositeVideo!({
+          sourceVideoPath: sourceVideoFile,
+          overlayVideoPath: overlayOut,
+          voiceWavPath: join(compDir, 'assets/voice.wav'),
+          ...(bedSrc ? { bedWavPath: join(compDir, bedSrc) } : {}),
+          outMp4Path: out,
+          width: dims.width,
+          height: dims.height,
+          fps: 30,
+          durationMs: project.durationMs,
+          segments: keptSourceSegments(project.video!.originalDurationMs, project.video!.cuts),
+          punchIns: project.video!.punchIns,
+        }),
+      );
+    }
     producerMs = clock.now() - t0;
     const total = result.perf?.['totalElapsedMs'];
     if (typeof total === 'number') perfTotalMs = total;

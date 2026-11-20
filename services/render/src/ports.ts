@@ -2,6 +2,7 @@
 // same orchestration runs in the cloud (Firestore + Storage), against the emulators and offline
 // (memory + filesystem), and tests drive it with fakes.
 import type { compileProject } from '@motionpop/motion/compiler';
+import type { VideoCompositeArgs } from './video-ffmpeg';
 import type {
   RenderDoc,
   RenderErrorCode,
@@ -112,6 +113,8 @@ export interface Producer {
     outPath: string;
     format: Format;
     resolution: Resolution;
+    /** Output container (`webm` carries alpha for video-overlay compositing; default `mp4`). */
+    container?: 'mp4' | 'webm';
     signal: AbortSignal;
     onProgress: (p: ProducerProgress) => void;
   }): Promise<{ perf?: Record<string, unknown> }>;
@@ -138,6 +141,8 @@ export interface Ffmpeg {
   toWav(src: string, destWav: string, opts: { maxMs: number; inputFormat?: string }): Promise<void>;
   /** One JPEG frame at `atMs`, `longSide` px on the long side. */
   frame(args: { video: string; atMs: number; destJpg: string; longSide: number }): Promise<void>;
+  /** Cut/zoom source video, composite transparent graphics overlay, and mux audio into MP4 (spec 18). */
+  compositeVideo?(args: VideoCompositeArgs): Promise<void>;
 }
 
 export type CompileAssets = Parameters<typeof compileProject>[1];

@@ -17,11 +17,11 @@ export const MAX_RENDER_MS = 140 * 60_000;
 
 export function createHyperframesProducer(opts: { maxRenderMs?: number } = {}): Producer {
   return {
-    async render({ compDir, outPath, format, resolution, signal, onProgress }) {
+    async render({ compDir, outPath, format, resolution, container, signal, onProgress }) {
       const preset = outputResolutionFor(format, resolution);
       const job = createRenderJob({
         ...PRODUCER_SETTINGS,
-        format: 'mp4',
+        format: container ?? 'mp4',
         maxRenderMs: opts.maxRenderMs ?? MAX_RENDER_MS,
         ...(preset ? { outputResolution: preset } : {}),
       });

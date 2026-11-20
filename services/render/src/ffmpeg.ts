@@ -4,6 +4,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import type { Ffmpeg, MediaProbe } from './ports';
+import { buildVideoCompositeArgs } from './video-ffmpeg';
 
 const run = promisify(execFile);
 
@@ -110,6 +111,9 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
         ],
         { timeout },
       );
+    },
+    async compositeVideo(args) {
+      await run(ffmpeg, buildVideoCompositeArgs(args), { timeout: timeout * 4 });
     },
   };
 }
