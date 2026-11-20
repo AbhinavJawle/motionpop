@@ -4,6 +4,8 @@ import {
   type SlotPlacement,
   type VideoCut,
   type VideoPunchIn,
+  type VideoStageMode,
+  type VideoStageSegment,
   type VideoTrack,
 } from '@motionpop/schemas';
 import { produce } from 'immer';
@@ -217,6 +219,113 @@ export function removeVideoPunchIn(punchInId: string): Command {
       return produce(p, (d) => {
         d.video?.punchIns.push(restore);
         d.video?.punchIns.sort((a, b) => a.startMs - b.startMs);
+      });
+    },
+  };
+}
+
+function syncStagesFromSlots(
+  slots: EditorProject['slots'],
+  existing: VideoStageSegment[] | undefined,
+): VideoStageSegment[] {
+  const byStart = new Map((existing ?? []).map((s) => [s.startMs, s]));
+  return [...slots]
+    .sort((a, b) => a.startMs - b.startMs)
+    .map((slot, i) => {
+      const prev = byStart.get(slot.startMs);
+      const mode: VideoStageMode =
+        slot.videoStage ?? prev?.mode ?? (slot.placement === 'cutaway' ? 'cutaway' : 'full');
+      return {
+        id: prev?.id ?? `stage-${slot.id}`,
+        startMs: slot.startMs,
+        endMs: slot.endMs,
+        mode,
+        focusX: prev?.focusX ?? 0.5,
+        focusY: prev?.focusY ?? 0.35,
+        scaleFrom: prev?.scaleFrom ?? (i % 2 === 0 ? 1 : 1.05),
+        scaleTo: prev?.scaleTo ?? (i % 2 === 0 ? 1.05 : 1.01),
+        ...(prev?.pipCorner ? { pipCorner: prev.pipCorner } : {}),
+      };
+    });
+}
+
+/** Switch one beat's coupled video choreography stage (spec 19 R4.3), syncing `video.stages`. */
+export function setSlotVideoStage(slotId: string, mode: VideoStageMode): Command {
+  let prevSlotStage: VideoStageMode | undefined;
+  let prevPlacement: SlotPlacement | undefined;
+  let prevStages: VideoStageSegment[] | undefined;
+  return {
+    label: `Set video stage (${mode})`,
+    do(p) {
+      const vid = requireVideo(p);
+      const slot = p.slots.find((s) => s.id === slotId);
+      if (!slot) throw new CommandRejected(`slot "${slotId}" does not exist`);
+      prevSlotStage = slot.videoStage;
+      prevPlacement = slot.placement;
+      prevStages = vid.stages;
+      return produce(p, (d) => {
+        const target = d.slots.find((s) => s.id === slotId);
+        if (!target || !d.video) return;
+        target.videoStage = mode;
+        target.placement = mode === 'cutaway' ? 'cutaway' : 'overlay';
+        d.video.stages = syncStagesFromSlots(d.slots, d.video.stages);
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        const target = d.slots.find((s) => s.id === slotId);
+        if (target) {
+          if (prevSlotStage === undefined) delete target.videoStage;
+          else target.videoStage = prevSlotStage;
+          if (prevPlacement === undefined) delete target.placement;
+          else target.placement = prevPlacement;
+        }
+        if (d.video) {
+          if (prevStages === undefined) delete d.video.stages;
+          else d.video.stages = prevStages as typeof d.video.stages;
+        }
+      });
+    },
+  };
+}
+
+/** Switch every beat's coupled video choreography stage in one undoable step. */
+export function setAllSlotsVideoStage(mode: VideoStageMode): Command {
+  let prevSlotStates: Map<string, { stage?: VideoStageMode; placement?: SlotPlacement }> | undefined;
+  let prevStages: VideoStageSegment[] | undefined;
+  return {
+    label: `Set all beats to ${mode}`,
+    do(p) {
+      const vid = requireVideo(p);
+      prevSlotStates = new Map(
+        p.slots.map((s) => [s.id, { stage: s.videoStage, placement: s.placement }]),
+      );
+      prevStages = vid.stages;
+      return produce(p, (d) => {
+        if (!d.video) return;
+        for (const s of d.slots) {
+          s.videoStage = mode;
+          s.placement = mode === 'cutaway' ? 'cutaway' : 'overlay';
+        }
+        d.video.stages = syncStagesFromSlots(d.slots, d.video.stages);
+      });
+    },
+    undo(p) {
+      if (!prevSlotStates) return p;
+      const saved = prevSlotStates;
+      return produce(p, (d) => {
+        for (const s of d.slots) {
+          const old = saved.get(s.id);
+          if (!old) continue;
+          if (old.stage === undefined) delete s.videoStage;
+          else s.videoStage = old.stage;
+          if (old.placement === undefined) delete s.placement;
+          else s.placement = old.placement;
+        }
+        if (d.video) {
+          if (prevStages === undefined) delete d.video.stages;
+          else d.video.stages = prevStages as typeof d.video.stages;
+        }
       });
     },
   };

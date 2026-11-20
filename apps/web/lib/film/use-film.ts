@@ -1,13 +1,16 @@
 'use client';
 
+import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { getRouter } from '@/lib/ai/router-client';
 import type { Route } from '@/lib/ai/route';
 import { useRoute } from '@/lib/ai/use-route';
 import { useCreditsBalance, useCreditsClient } from '@/lib/credits/use-credits-client';
+import { usePipModel } from '@/lib/pip/model-store';
 import { useAppConfig } from '@/lib/renders/hooks';
 import { useAIActivity } from '@/lib/stores/ai-activity';
 import { editorStore, useEditor } from '@/lib/stores/editor';
+import { consumeAutoChoreograph } from './auto-choreograph';
 import {
   beginFilm,
   endFilm,
@@ -76,10 +79,30 @@ export function useFilm() {
     : (filmBlockedReason(project) ?? (route.kind === 'disabled' ? route.reason : null));
   const run = () => {
     if (disabledReason !== null) return;
+    const selectedModel = usePipModel.getState().model || config.modelStrong;
     void runFilm(
-      { store: editorStore, credits, getRouter, config, model: config.modelStrong },
+      { store: editorStore, credits, getRouter, config, model: selectedModel },
       route,
     );
   };
   return { route, cost, film, disabledReason, run, hasFilm: Boolean(project?.film) };
+}
+
+/**
+ * Automatically starts the gapless Video Choreography Engine once when a freshly processed video
+ * project opens in the editor (spec 19 R4.2). Waits until cloud AI + credits are ready.
+ */
+export function useAutoChoreograph(ready: boolean): void {
+  const project = useEditor((s) => s.project);
+  const { disabledReason, run, route } = useFilm();
+  const projectId = project?.id ?? null;
+  const hasVideo = Boolean(project?.video);
+  const hasFilm = Boolean(project?.film);
+
+  useEffect(() => {
+    if (!ready || !projectId || !hasVideo || hasFilm) return;
+    if (disabledReason !== null || route.kind !== 'cloud' || route.insufficient) return;
+    if (!consumeAutoChoreograph(projectId)) return;
+    run();
+  }, [ready, projectId, hasVideo, hasFilm, disabledReason, route, run]);
 }

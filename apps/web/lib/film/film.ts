@@ -7,21 +7,32 @@ import {
   type FilmResult,
   type Router,
 } from '@motionpop/ai';
-import { KIT_DOC, customParams, kitExample, lintCustom, lintProp } from '@motionpop/motion';
+import {
+  KIT_DOC,
+  archetypeExample,
+  customParams,
+  kitExample,
+  lintCustom,
+  lintProp,
+  videoStageZoneGuide,
+} from '@motionpop/motion';
 import {
   APP_CONFIG_DEFAULTS,
   FILM_MAX_MS,
   costOf,
   filmUnits,
   spokenNumbers,
+  stagesFromTimedBeats,
   type AppConfig,
   type EditorProject,
   type ProjectFilm,
   type Slot,
   type Version,
+  type VideoStageSegment,
 } from '@motionpop/schemas';
 import { produce } from 'immer';
 import type { Route } from '@/lib/ai/route';
+import { appAudioStore } from '@/lib/audio/app-audio-store';
 import { CommandRejected, type Command } from '@/lib/commands';
 import { loadCompositionAssets } from '@/lib/composition/assets';
 import { styleFor } from '@/lib/composition/project-to-compile';
@@ -31,6 +42,7 @@ import { newVersion } from '@/lib/slots/new-version';
 import type { EditorStore } from '@/lib/stores/editor';
 import { draftedSlotForWords } from '@/lib/timeline/add-graphic';
 import { timelineIssues } from '@/lib/timeline/invariants';
+import { probeAndSampleVideo } from '@/lib/video/frames';
 import { inspectInSandbox } from './sandbox-critic';
 
 /**
@@ -134,6 +146,11 @@ export function filmSlots(
         status: 'ready',
         notes: [],
         currentVersionId: version.id,
+        ...(b.beat.videoStage ? { videoStage: b.beat.videoStage } : {}),
+        ...(b.beat.archetype ? { archetype: b.beat.archetype } : {}),
+        ...(project.video
+          ? { placement: b.beat.videoStage === 'cutaway' ? 'cutaway' : 'overlay' }
+          : {}),
       });
       versions.push(version);
       built++;
@@ -163,8 +180,13 @@ export function applyFilm(input: {
   slots: Slot[];
   versions: Version[];
   film: ProjectFilm;
+  videoStages?: VideoStageSegment[];
 }): Command {
-  let before: Pick<EditorProject, 'slots' | 'versions' | 'film'> | undefined;
+  let before:
+    | (Pick<EditorProject, 'slots' | 'versions' | 'film'> & {
+        videoStages?: VideoStageSegment[];
+      })
+    | undefined;
   return {
     label: 'Make it a film',
     do(p) {
@@ -172,10 +194,18 @@ export function applyFilm(input: {
         d.slots = structuredClone(input.slots);
         d.versions.push(...structuredClone(input.versions));
         d.film = structuredClone(input.film);
+        if (d.video && input.videoStages) {
+          d.video.stages = structuredClone(input.videoStages);
+        }
       });
       const issue = timelineIssues(next)[0];
       if (issue) throw new CommandRejected(issue);
-      before = { slots: p.slots, versions: p.versions, ...(p.film ? { film: p.film } : {}) };
+      before = {
+        slots: p.slots,
+        versions: p.versions,
+        ...(p.film ? { film: p.film } : {}),
+        ...(p.video?.stages ? { videoStages: p.video.stages } : {}),
+      };
       return next;
     },
     undo(p) {
@@ -186,6 +216,10 @@ export function applyFilm(input: {
         d.versions = prev.versions as typeof d.versions;
         if (prev.film) d.film = prev.film as typeof d.film;
         else delete d.film;
+        if (d.video) {
+          if (prev.videoStages) d.video.stages = prev.videoStages as typeof d.video.stages;
+          else delete d.video.stages;
+        }
       });
     },
   };
@@ -242,6 +276,25 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
       endMs: w.endMs,
     }));
     const allowNumbers = [...spokenNumbers(words)];
+    const hasVideo = Boolean(project.video);
+    // Sample a compact set of keyframes for multimodal video choreography when `project.video` exists.
+    let frames: { timeMs: number; mimeType: 'image/jpeg' | 'image/png'; base64: string }[] = [];
+    if (hasVideo && project.video && typeof window !== 'undefined') {
+      try {
+        const blob = await appAudioStore().get(project.video.src);
+        if (blob) {
+          const probe = await probeAndSampleVideo(blob, 6);
+          frames = probe.frames.map((f) => ({
+            timeMs: f.atMs,
+            mimeType: 'image/jpeg' as const,
+            base64: f.base64,
+          }));
+        }
+      } catch {
+        frames = [];
+      }
+    }
+
     const inspect: FilmDeps['inspect'] =
       deps.inspect ??
       (assets
@@ -254,6 +307,10 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
               style,
               assets,
               allowNumbers,
+              ...(hasVideo ? { hasVideo: true } : {}),
+              ...(hasVideo && (beat.videoStage ?? 'full') !== 'cutaway'
+                ? { transparent: true }
+                : {}),
               ...(deps.doc ? { doc: deps.doc } : {}),
             })
         : undefined);
@@ -266,6 +323,8 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           durationMs: project.durationMs,
           format: project.format,
           look: { name: style.name, description: style.description.slice(0, 300) },
+          ...(hasVideo ? { hasVideo: true } : {}),
+          ...(frames.length ? { frames } : {}),
         },
         {
           router,
@@ -273,6 +332,9 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           lintProp,
           kitDoc: KIT_DOC,
           example: kitExample(),
+          exampleFor: (beat) => archetypeExample(beat.archetype, beat.lead),
+          stageGuideFor: videoStageZoneGuide,
+          ...(deps.model ? { model: deps.model } : {}),
           ...(inspect ? { inspect } : {}),
           ...(deps.onProgress ? { onProgress: deps.onProgress } : {}),
           ...(deps.cancelled ? { cancelled: deps.cancelled } : {}),
@@ -311,6 +373,9 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
       await refund();
       return { outcome: 'failed', reason: COULDNT_FILM };
     }
+    const videoStages = current.video
+      ? stagesFromTimedBeats(film.beats.map((b) => b.beat))
+      : undefined;
     const ok = store.getState().exec(
       applyFilm({
         slots: made.slots,
@@ -321,6 +386,7 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           madeAt: stamp,
           ...(deps.model ? { model: deps.model } : {}),
         },
+        ...(videoStages ? { videoStages } : {}),
       }),
     );
     if (!ok) {

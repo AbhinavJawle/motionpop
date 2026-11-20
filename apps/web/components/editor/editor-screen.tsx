@@ -2,6 +2,7 @@
 
 import { useAutoFill } from '@/lib/slots/use-auto-fill';
 import { useAutoPictures } from '@/lib/images/use-auto-pictures';
+import { useAutoChoreograph } from '@/lib/film/use-film';
 import { useGenerateShortcut } from '@/lib/slots/use-generate';
 import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -66,6 +67,8 @@ export function EditorScreen({
   useAutoFill();
   // Spec 07c: free open-licence pictures arrive by themselves after the drafts.
   useAutoPictures();
+  // Spec 19 R4.2: freshly uploaded video projects automatically choreograph gapless beats.
+  useAutoChoreograph(phase.kind === 'ready');
   useGenerateShortcut();
 
   // The pen pauses playback (spec 09 R8.1).

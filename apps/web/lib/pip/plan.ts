@@ -12,6 +12,7 @@ import {
   FormatSchema,
   PipCaptionChoiceSchema,
   SlotPlacementSchema,
+  VideoStageModeSchema,
   costOf,
   type Brand,
   type CostConfig,
@@ -187,6 +188,24 @@ export function enforcePlan(
           ...base,
           ...(slotId ? { slotId } : {}),
           placement: pl.data,
+          credits: 0,
+        });
+        break;
+      }
+      case 'setVideoStage': {
+        if (!project.video) {
+          drop(label, 'Only available for video projects');
+          continue;
+        }
+        const st = VideoStageModeSchema.safeParse(m.choice);
+        if (!st.success) {
+          drop(label, 'Choose full, split-left, split-right, pip, backdrop, or cutaway');
+          continue;
+        }
+        steps.push({
+          ...base,
+          ...(slotId ? { slotId } : {}),
+          videoStage: st.data,
           credits: 0,
         });
         break;

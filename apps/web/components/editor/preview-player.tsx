@@ -1,7 +1,12 @@
 'use client';
 
 import { compileProject } from '@motionpop/motion/compiler';
-import { FORMATS, activePunchIn, cleanedToSourceMs, keptSourceSegments } from '@motionpop/schemas';
+import {
+  FORMATS,
+  cleanedToSourceMs,
+  keptSourceSegments,
+  videoStageRectAt,
+} from '@motionpop/schemas';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
 import { loadCompositionAssets } from '@/lib/composition/assets';
@@ -16,6 +21,7 @@ import {
   seekPreview,
   subscribePreviewSeek,
 } from '@/lib/editor/preview-bridge';
+import { lookFor } from '@/lib/motion/registry';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 
 type PlayerEl = HTMLElement & { seek(seconds: number): void; ready?: boolean };
@@ -25,11 +31,12 @@ const VIDEO_DRIFT_SEC = 0.14;
 
 /**
  * The HyperFrames player showing the compiled project (spec 04 R3.3), layered over the live
- * cut/zoomed `<video>` element when `project.video` is present (spec 18 R5). Muted: the editor
- * plays the cleaned voiceover track itself as the master clock.
+ * dancing `<video>` stage when `project.video` is present (spec 18 R5, spec 19 R4.1). Muted:
+ * the editor plays the cleaned voiceover track itself as the master clock.
  */
 export function PreviewPlayer({ onError }: { onError?: (message: string) => void }) {
   const ref = useRef<PlayerEl | null>(null);
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const project = useEditor((s) => s.project);
   const playheadMs = useEditor((s) => s.playheadMs);
@@ -39,6 +46,7 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
 
   const videoSrc = project?.video?.src ?? null;
   const videoUrl = videoSrc && loadedVideo?.src === videoSrc ? loadedVideo.url : null;
+  const lookBg = project ? lookFor(project.styleId).colors.bg : 'transparent';
 
   // Load the uploaded video blob into a managed object URL when present.
   useEffect(() => {
@@ -72,13 +80,15 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
     }
   }, [playing, videoUrl]);
 
-  // Synchronize `<video>` source clock (skipping enabled cuts) and punch-in zoom on every tick.
+  // Synchronize `<video>` source clock (skipping enabled cuts) and dancing choreography stage on every tick.
   useEffect(() => {
     if (!videoUrl) return;
-    return subscribePreviewSeek((ms) => {
+    const applyStage = (ms: number) => {
       const el = videoRef.current;
-      const vid = editorStore.getState().project?.video;
-      if (!el || !vid) return;
+      const stageEl = stageRef.current;
+      const proj = editorStore.getState().project;
+      const vid = proj?.video;
+      if (!el || !stageEl || !vid || !proj) return;
       const segments = keptSourceSegments(vid.originalDurationMs, vid.cuts);
       const targetSec = cleanedToSourceMs(ms, segments) / 1000;
       const isPlaying = editorStore.getState().playing;
@@ -87,16 +97,30 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
           el.currentTime = targetSec;
         }
       }
-      const punch = activePunchIn(ms, vid.punchIns);
-      if (punch) {
-        el.style.transformOrigin = `${Math.round(punch.focusX * 100)}% ${Math.round(punch.focusY * 100)}%`;
-        el.style.transform = `scale(${punch.scale})`;
-      } else {
-        el.style.transformOrigin = '50% 50%';
-        el.style.transform = 'scale(1)';
-      }
-    });
-  }, [videoUrl]);
+      const dims = FORMATS[proj.format];
+      const rect = videoStageRectAt(ms, vid.stages, vid.punchIns, dims.width, dims.height);
+      stageEl.style.left = `${(rect.x / dims.width) * 100}%`;
+      stageEl.style.top = `${(rect.y / dims.height) * 100}%`;
+      stageEl.style.width = `${(rect.w / dims.width) * 100}%`;
+      stageEl.style.height = `${(rect.h / dims.height) * 100}%`;
+      stageEl.style.borderRadius = `${Math.round((rect.radius / Math.min(dims.width, dims.height)) * 1000) / 10}%`;
+      stageEl.style.opacity = String(rect.opacity);
+      stageEl.style.boxShadow =
+        rect.shadow > 0.01 ? `0 20px 56px rgba(0, 0, 0, ${rect.shadow})` : 'none';
+      const fx = Math.round(rect.focusX * 100);
+      const fy = Math.round(rect.focusY * 100);
+      el.style.objectPosition = `${fx}% ${fy}%`;
+      el.style.transformOrigin = `${fx}% ${fy}%`;
+      el.style.transform = `scale(${rect.scale})`;
+      const brightness = Math.max(0.2, 1 - rect.dim);
+      el.style.filter =
+        rect.blurPx > 0.1 || rect.dim > 0.01
+          ? `blur(${rect.blurPx}px) brightness(${brightness.toFixed(3)})`
+          : 'none';
+    };
+    applyStage(editorStore.getState().playheadMs);
+    return subscribePreviewSeek(applyStage);
+  }, [videoUrl, project?.video?.stages, project?.video?.punchIns, project?.format]);
 
   // Only what the composition depends on: title renames and selection don't recompile.
   const input = useMemo(() => (project ? previewCompileInput(project) : null), [project]);
@@ -161,15 +185,28 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
   return (
     <>
       {videoUrl && (
-        <video
-          ref={videoRef}
-          src={videoUrl}
-          muted
-          playsInline
-          preload="auto"
-          data-testid="preview-video-layer"
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover transition-transform duration-200 ease-out"
-        />
+        <div
+          aria-hidden
+          data-testid="preview-video-backdrop"
+          className="pointer-events-none absolute inset-0"
+          style={{ background: lookBg }}
+        >
+          <div
+            ref={stageRef}
+            data-testid="preview-video-stage"
+            className="pointer-events-none absolute inset-0 overflow-hidden will-change-transform"
+          >
+            <video
+              ref={videoRef}
+              src={videoUrl}
+              muted
+              playsInline
+              preload="auto"
+              data-testid="preview-video-layer"
+              className="pointer-events-none h-full w-full object-cover"
+            />
+          </div>
+        </div>
       )}
       <hyperframes-player
         ref={ref}

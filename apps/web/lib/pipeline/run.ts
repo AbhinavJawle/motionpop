@@ -8,6 +8,7 @@ import {
   type TaggedSpan,
   type ValidatedParams,
 } from '@motionpop/ai';
+import { markAutoChoreograph } from '@/lib/film/auto-choreograph';
 import {
   APP_CONFIG_DEFAULTS,
   DEFAULT_CAPTIONS,
@@ -465,6 +466,7 @@ export async function runPipeline(
         updatedAt: now,
       });
       await deps.repo.save(project);
+      if (videoTrack) markAutoChoreograph(id);
       // The project owns its own copy now; the hand-off's local take can go.
       if (input.storedRef && !reuse && input.storedRef !== originalSrc) {
         await deps.audioStore.delete(input.storedRef).catch(() => undefined);

@@ -36,7 +36,9 @@ export {
   addVideoPunchIn,
   removeVideoPunchIn,
   setAllSlotsPlacement,
+  setAllSlotsVideoStage,
   setAllVideoCutsEnabled,
   setSlotPlacement,
+  setSlotVideoStage,
   toggleVideoCut,
 } from './video';

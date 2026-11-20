@@ -20,6 +20,10 @@ export interface SandboxCriticInput {
   assets: CompileAssets;
   /** Figures the beat may show, as plain digits. */
   allowNumbers: readonly string[];
+  /** True when the beat plays over live speaker video (spec 19 R3.4). */
+  hasVideo?: boolean;
+  /** True when the beat is transparent over live video (`videoStage !== 'cutaway'`). */
+  transparent?: boolean;
   doc?: Document;
   timeoutMs?: number;
 }
@@ -91,6 +95,7 @@ export async function inspectInSandbox(i: SandboxCriticInput): Promise<CriticVer
       style: i.style,
       mode: 'preview',
       film: true,
+      ...(i.hasVideo ? { hasVideo: true, background: 'transparent' as const } : {}),
       slots: [
         {
           id: i.beat.id,
@@ -99,6 +104,7 @@ export async function inspectInSandbox(i: SandboxCriticInput): Promise<CriticVer
           endMs: dur,
           params: i.params,
           words: i.words,
+          ...(i.beat.videoStage ? { videoStage: i.beat.videoStage } : {}),
           ...(i.beat.tailMs ? { tailMs: i.beat.tailMs, over: i.beat.over } : {}),
         },
       ],
@@ -111,6 +117,7 @@ export async function inspectInSandbox(i: SandboxCriticInput): Promise<CriticVer
     headMs: i.beat.headMs,
     lead: i.beat.lead,
     allowNumbers: [...i.allowNumbers],
+    ...(i.transparent ? { transparent: true } : {}),
   };
   const { width, height } = FORMATS[i.format];
   const frame = doc.createElement('iframe');

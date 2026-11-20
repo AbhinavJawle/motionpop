@@ -6,11 +6,13 @@ import {
   composite,
   deleteSlot,
   setAllSlotsPlacement,
+  setAllSlotsVideoStage,
   setAllVideoCutsEnabled,
   setBrand,
   setCaptions,
   setFormat,
   setSlotPlacement,
+  setSlotVideoStage,
   setStyle,
 } from '@/lib/commands';
 import { cleanedToSourceMs, keptSourceSegments } from '@motionpop/schemas';
@@ -51,6 +53,7 @@ const INSTANT = new Set<PipStep['action']>([
   'addSlot',
   'removeSlot',
   'setPlacement',
+  'setVideoStage',
   'toggleCuts',
   'addPunchIn',
   'cutRange',
@@ -97,6 +100,14 @@ function instantCommand(
         return { cmd: setSlotPlacement(step.slotId, pl, step.overlayAnchor), slotId: step.slotId };
       }
       return { cmd: setAllSlotsPlacement(pl, step.overlayAnchor) };
+    }
+    case 'setVideoStage': {
+      const st = step.videoStage;
+      if (!st) return 'No video stage';
+      if (step.slotId) {
+        return { cmd: setSlotVideoStage(step.slotId, st), slotId: step.slotId };
+      }
+      return { cmd: setAllSlotsVideoStage(st) };
     }
     case 'toggleCuts':
       return project.video
