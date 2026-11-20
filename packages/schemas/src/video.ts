@@ -420,6 +420,15 @@ export function videoStageRectAt(
   };
 }
 
+const DEFAULT_STAGE_RHYTHM: readonly VideoStageMode[] = [
+  'full',
+  'split-left',
+  'backdrop',
+  'split-right',
+  'pip',
+  'cutaway',
+];
+
 /** Builds gapless `VideoStageSegment[]` directly from timed storyboard beats (spec 19). */
 export function stagesFromTimedBeats(
   beats: ReadonlyArray<{
@@ -432,7 +441,8 @@ export function stagesFromTimedBeats(
   }>,
 ): VideoStageSegment[] {
   return beats.map((b, i) => {
-    const mode: VideoStageMode = b.videoStage ?? 'full';
+    const mode: VideoStageMode =
+      b.videoStage ?? (DEFAULT_STAGE_RHYTHM[i % DEFAULT_STAGE_RHYTHM.length] as VideoStageMode);
     const alternatingZoom = i % 2 === 0;
     return {
       id: `stage-${b.id}`,

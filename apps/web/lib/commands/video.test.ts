@@ -5,8 +5,10 @@ import {
   addVideoPunchIn,
   removeVideoPunchIn,
   setAllSlotsPlacement,
+  setAllSlotsVideoStage,
   setAllVideoCutsEnabled,
   setSlotPlacement,
+  setSlotVideoStage,
   toggleVideoCut,
 } from './video';
 
@@ -137,5 +139,23 @@ describe('video commands (spec 18)', () => {
     const p2 = rm.do(p1);
     expect(p2.video?.punchIns).toHaveLength(0);
     expect(rm.undo(p2).video?.punchIns).toHaveLength(1);
+  });
+
+  it('switches slot and all-slot video choreography stages with video.stages sync and undo', () => {
+    const p0 = sampleVideoProject();
+    const cmd = setSlotVideoStage('s1', 'split-left');
+    const p1 = cmd.do(p0);
+    expect(p1.slots[0]?.videoStage).toBe('split-left');
+    expect(p1.video?.stages?.[0]?.mode).toBe('split-left');
+
+    const p2 = cmd.undo(p1);
+    expect(p2.slots[0]?.videoStage).toBeUndefined();
+    expect(p2.video?.stages).toBeUndefined();
+
+    const all = setAllSlotsVideoStage('pip');
+    const p3 = all.do(p0);
+    expect(p3.slots[0]?.videoStage).toBe('pip');
+    expect(p3.video?.stages?.[0]?.mode).toBe('pip');
+    expect(all.undo(p3).video?.stages).toBeUndefined();
   });
 });

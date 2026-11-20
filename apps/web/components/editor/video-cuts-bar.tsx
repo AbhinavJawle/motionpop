@@ -24,6 +24,7 @@ export function VideoCutsBar() {
 
   const enabledCuts = video.cuts.filter((c) => c.enabled);
   const trimmedMs = enabledCuts.reduce((n, c) => n + (c.endMs - c.startMs), 0);
+  const activeStage = video.stages?.find((s) => playheadMs >= s.startMs && playheadMs < s.endMs);
 
   const addPunchAtPlayhead = () => {
     const startMs = Math.max(0, Math.min(Math.max(0, durationMs - 1500), playheadMs));
@@ -65,6 +66,17 @@ export function VideoCutsBar() {
             <ZoomIn className="size-3.5" strokeWidth={1.5} aria-hidden />
             {video.punchIns.length} punch-in{video.punchIns.length === 1 ? '' : 's'}
           </span>
+          {activeStage && (
+            <>
+              <span className="text-text-3">·</span>
+              <span
+                data-testid="active-stage-pill"
+                className="rounded-full bg-violet/16 px-2 py-0.5 font-mono text-[10px] text-violet-ink"
+              >
+                stage: {activeStage.mode}
+              </span>
+            </>
+          )}
         </div>
         <button
           type="button"

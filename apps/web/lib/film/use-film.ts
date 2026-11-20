@@ -85,24 +85,33 @@ export function useFilm() {
       route,
     );
   };
-  return { route, cost, film, disabledReason, run, hasFilm: Boolean(project?.film) };
+  return {
+    route,
+    cost,
+    film,
+    disabledReason,
+    run,
+    hasFilm: Boolean(project?.film),
+    hasCredits: credits !== null,
+  };
 }
 
 /**
  * Automatically starts the gapless Video Choreography Engine once when a freshly processed video
- * project opens in the editor (spec 19 R4.2). Waits until cloud AI + credits are ready.
+ * project opens in the editor (spec 19 R4.2). Waits until auth/credits and cloud AI are ready.
  */
 export function useAutoChoreograph(ready: boolean): void {
   const project = useEditor((s) => s.project);
-  const { disabledReason, run, route } = useFilm();
+  const busy = useAIActivity((s) => s.busy !== null);
+  const { disabledReason, run, route, hasCredits } = useFilm();
   const projectId = project?.id ?? null;
   const hasVideo = Boolean(project?.video);
   const hasFilm = Boolean(project?.film);
 
   useEffect(() => {
-    if (!ready || !projectId || !hasVideo || hasFilm) return;
+    if (!ready || !projectId || !hasVideo || hasFilm || busy || !hasCredits) return;
     if (disabledReason !== null || route.kind !== 'cloud' || route.insufficient) return;
     if (!consumeAutoChoreograph(projectId)) return;
     run();
-  }, [ready, projectId, hasVideo, hasFilm, disabledReason, route, run]);
+  }, [ready, projectId, hasVideo, hasFilm, busy, hasCredits, disabledReason, route, run]);
 }

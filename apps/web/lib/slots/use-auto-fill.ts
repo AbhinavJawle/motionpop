@@ -9,6 +9,7 @@ import { composite, type Command } from '@/lib/commands/command';
 import { loadAppConfig } from '@/lib/firebase/remote-config';
 import { sceneFor, schemaFor } from '@/lib/motion/registry';
 import { editorStore, useEditor, type EditorStore } from '@/lib/stores/editor';
+import { hasAutoChoreograph } from '@/lib/film/auto-choreograph';
 import { autoFillQueue } from './auto-fill-plan';
 import { componentFillInput } from './component-fill-input';
 import { sceneFallback, sceneFillInput, sceneGate } from './scene-fill';
@@ -140,7 +141,7 @@ async function fillComponent(
  */
 export async function runAutoFill(deps: AutoFillDeps, cancelled: () => boolean): Promise<number> {
   const start = deps.store.getState().project;
-  if (!start) return 0;
+  if (!start || hasAutoChoreograph(start.id)) return 0;
   const loaded = new Map(start.slots.map((s) => [s.id, s]));
   const tried = new Set<string>();
   const router = await deps.getRouter().catch(() => null);

@@ -9,6 +9,10 @@ export function markAutoChoreograph(projectId: string): void {
   pending.add(projectId);
 }
 
+export function hasAutoChoreograph(projectId: string): boolean {
+  return pending.has(projectId);
+}
+
 export function consumeAutoChoreograph(projectId: string): boolean {
   if (!pending.has(projectId)) return false;
   pending.delete(projectId);

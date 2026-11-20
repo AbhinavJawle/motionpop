@@ -21,6 +21,7 @@ export function FilmButton() {
     return (
       <span
         role="status"
+        data-testid="film-status"
         className="relative inline-flex h-7 items-center gap-2 overflow-hidden rounded-chip border border-violet/40 bg-violet/12 pr-1 pl-2.5 text-[12px] leading-4 font-medium text-violet-ink"
       >
         <motion.span
@@ -55,6 +56,7 @@ export function FilmButton() {
       <span>
         <motion.button
           type="button"
+          data-testid="film-button"
           {...buttonMotion}
           disabled={disabledReason !== null}
           onClick={run}

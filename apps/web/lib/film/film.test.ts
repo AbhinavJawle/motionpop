@@ -244,4 +244,31 @@ describe('makeFilmForProject', () => {
     expect(r).toEqual({ outcome: 'blocked', reason: 'Needs connection' });
     expect(credits.balance()).toBe(120);
   });
+
+  it('syncs gapless project.video.stages for video projects and restores cleanly on undo', async () => {
+    const { deps, store } = setup(async () =>
+      createFakeRouter({ latencyMs: 1, sleep: async () => {} }),
+    );
+    const base = store.getState().project!;
+    store.getState().load({
+      ...base,
+      video: {
+        src: 'idb:vid-1',
+        width: 1920,
+        height: 1080,
+        originalDurationMs: base.durationMs,
+        cuts: [],
+        punchIns: [],
+        defaultOverlayAnchor: 'top-right',
+      },
+    });
+    const r = await makeFilmForProject(deps, CLOUD);
+    expect(r.outcome).toBe('ready');
+    const after = store.getState().project!;
+    expect(after.video?.stages?.length).toBe(after.slots.length);
+    expect(after.video?.stages?.[0]?.startMs).toBe(0);
+    expect(after.video?.stages?.[after.video.stages.length - 1]?.endMs).toBe(after.durationMs);
+    store.getState().undo();
+    expect(store.getState().project?.video?.stages).toBeUndefined();
+  });
 });

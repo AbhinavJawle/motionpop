@@ -318,10 +318,10 @@ export function storyboardIssues(
   }
   if (opts?.hasVideo && board.beats.length >= 3) {
     for (let i = 2; i < board.beats.length; i++) {
-      const a = board.beats[i - 2]?.videoStage ?? 'full';
-      const b = board.beats[i - 1]?.videoStage ?? 'full';
-      const c = board.beats[i]?.videoStage ?? 'full';
-      if (a === b && b === c) {
+      const a = board.beats[i - 2]?.videoStage;
+      const b = board.beats[i - 1]?.videoStage;
+      const c = board.beats[i]?.videoStage;
+      if (a && b && c && a === b && b === c) {
         issues.push(
           `beats ${i - 1}–${i + 1} all stay in videoStage "${c}"; vary the speaker framing (e.g. split-left, pip, backdrop, full, cutaway) so the video flows`,
         );
