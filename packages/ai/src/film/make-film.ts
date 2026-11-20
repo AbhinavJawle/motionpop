@@ -4,6 +4,7 @@ import {
   type Format,
   type Storyboard,
   type TimedBeat,
+  type VideoStageMode,
 } from '@motionpop/schemas';
 import type { Router } from '../router';
 import {
@@ -34,6 +35,10 @@ export interface FilmInput {
   durationMs: number;
   format: Format;
   look: { name: string; description: string };
+  /** True when live speaker video plays beneath/beside the beats (spec 19). */
+  hasVideo?: boolean;
+  /** Sampled keyframes for multimodal video choreography direction. */
+  frames?: { timeMs: number; mimeType: 'image/jpeg' | 'image/png'; base64: string }[];
   note?: string;
 }
 
@@ -85,9 +90,22 @@ export interface FilmDeps {
   lintProp: (svg: string) => string[];
   kitDoc: string;
   example: { html: string; css: string; script: string };
+  /** Dynamic archetype-specific example selector per beat (spec 19 R2.1). */
+  exampleFor?: (beat: TimedBeat) => { html: string; css: string; script: string };
+  /** Spatial safe-zone guide for a video stage mode (spec 19 R3.3). */
+  stageGuideFor?: (stage: VideoStageMode, format: Format) => string;
+  /** Explicit model id override for Director, Props and Builders (e.g. Pip model selector). */
+  model?: string;
   /** Watches a built beat. Without it beats are only linted. */
   inspect?: (params: FilmBeatParams, beat: TimedBeat, words: FilmWord[]) => Promise<CriticVerdict>;
   onProgress?: (e: FilmProgress) => void;
+  /** Fires immediately as each parallel beat finishes so the editor can stream beats live. */
+  onBeatReady?: (
+    result: FilmBeatResult,
+    index: number,
+    storyboard: Storyboard,
+    timed: readonly TimedBeat[],
+  ) => void;
   /** Critic rounds per beat (default 2). */
   maxRepairs?: number;
   /** Beats built at once (default 4). */
@@ -131,6 +149,10 @@ export function buildInputFor(
   i: number,
   input: FilmInput,
   example: FilmDeps['example'],
+  opts?: {
+    beatExample?: FilmDeps['example'];
+    stageGuide?: string;
+  },
 ): FilmBuildInput {
   const beat = timed[i] as TimedBeat;
   const prev = timed[i - 1];
@@ -142,6 +164,9 @@ export function buildInputFor(
       index: i,
       count: timed.length,
       lead: beat.lead,
+      ...(beat.archetype ? { archetype: beat.archetype } : {}),
+      ...(beat.videoStage ? { videoStage: beat.videoStage } : {}),
+      ...(opts?.stageGuide ? { stageGuide: opts.stageGuide } : {}),
       idea: beat.idea,
       text: beat.text,
       staging: beat.staging,
@@ -163,6 +188,7 @@ export function buildInputFor(
     format: input.format,
     look: input.look,
     example,
+    ...(opts?.beatExample ? { beatExample: opts.beatExample } : {}),
   };
 }
 
@@ -187,18 +213,25 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
   };
   let calls = 0;
 
+  const runOpts = deps.model ? { model: deps.model } : undefined;
   // 1. The storyboard.
   let board = deps.storyboard;
   if (!board) {
     deps.onProgress?.({ phase: 'storyboard', state: 'start' });
     try {
-      const res = await deps.router.run(filmDirectTask, {
-        words: input.words,
-        durationMs: input.durationMs,
-        format: input.format,
-        look: input.look,
-        ...(input.note ? { note: input.note } : {}),
-      });
+      const res = await deps.router.run(
+        filmDirectTask,
+        {
+          words: input.words,
+          durationMs: input.durationMs,
+          format: input.format,
+          look: input.look,
+          ...(input.hasVideo ? { hasVideo: true } : {}),
+          ...(input.frames?.length ? { frames: input.frames } : {}),
+          ...(input.note ? { note: input.note } : {}),
+        },
+        runOpts,
+      );
       calls += res.attempts;
       board = res.output;
     } catch (e) {
@@ -217,10 +250,14 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
     if (board.props.length === 0) return {};
     deps.onProgress?.({ phase: 'props', state: 'start' });
     try {
-      const res = await deps.router.run(filmPropsTask(deps.lintProp), {
-        film: { title: board.title, world: board.world },
-        props: board.props,
-      });
+      const res = await deps.router.run(
+        filmPropsTask(deps.lintProp),
+        {
+          film: { title: board.title, world: board.world },
+          props: board.props,
+        },
+        runOpts,
+      );
       calls += res.attempts;
       deps.onProgress?.({ phase: 'props', state: 'done' });
       return Object.fromEntries(res.output.props.map((p) => [p.id, p.svg]));
@@ -231,9 +268,11 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
     }
   })();
 
-  const beats = await pool(timed, deps.concurrency ?? 4, (_beat, i) =>
-    buildOne(board, timed, i, input, deps, propsJob),
-  );
+  const beats = await pool(timed, deps.concurrency ?? 4, async (_beat, i) => {
+    const built = await buildOne(board, timed, i, input, deps, propsJob);
+    deps.onBeatReady?.(built, i, board, timed);
+    return built;
+  });
   return {
     storyboard: board,
     props: await propsJob,
@@ -286,7 +325,14 @@ async function buildOne(
     if (deps.cancelled?.()) throw new FilmCancelled();
   };
   const t0 = Date.now();
-  const base = buildInputFor(board, timed, i, input, deps.example);
+  const stageMode = input.hasVideo ? (beat.videoStage ?? 'full') : undefined;
+  const stageGuide = stageMode ? deps.stageGuideFor?.(stageMode, input.format) : undefined;
+  const beatExample = deps.exampleFor?.(beat);
+  const base = buildInputFor(board, timed, i, input, deps.example, {
+    ...(beatExample ? { beatExample } : {}),
+    ...(stageGuide ? { stageGuide } : {}),
+  });
+  const runOpts = deps.model ? { model: deps.model } : undefined;
   const note = (state: 'building' | 'checking' | 'repairing' | 'ready' | 'failed') =>
     deps.onProgress?.({ phase: 'beat', beatId: beat.id, index: i, count: timed.length, state });
   const asParams = (out: FilmBuildOutput, props: Record<string, string>): FilmBeatParams => ({
@@ -306,7 +352,7 @@ async function buildOne(
     note(round === 0 ? 'building' : 'repairing');
     let out: FilmBuildOutput;
     try {
-      const res = await deps.router.run(task, fix ? { ...base, fix } : base);
+      const res = await deps.router.run(task, fix ? { ...base, fix } : base, runOpts);
       ownCalls += res.attempts;
       out = res.output;
     } catch {

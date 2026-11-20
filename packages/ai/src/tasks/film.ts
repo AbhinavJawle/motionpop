@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import {
+  BEAT_ARCHETYPES,
   FILM_MAX_MS,
   FormatSchema,
   StoryboardSchema,
+  VIDEO_STAGE_MODES,
   storyboardIssues,
   type Storyboard,
 } from '@motionpop/schemas';
@@ -27,11 +29,19 @@ const WordSchema = z.object({
   endMs: z.number().int().nonnegative(),
 });
 
+const KeyframeSchema = z.object({
+  timeMs: z.number().int().nonnegative(),
+  mimeType: z.enum(['image/jpeg', 'image/png']),
+  base64: z.string().min(16),
+});
+
 export const FilmDirectInputSchema = z.object({
   words: z.array(WordSchema).min(3).max(3000),
   durationMs: z.number().int().positive().max(FILM_MAX_MS),
   format: FormatSchema,
   look: LookSchema,
+  hasVideo: z.boolean().optional(),
+  frames: z.array(KeyframeSchema).max(16).optional(),
   note: z.string().trim().max(500).optional(),
 });
 export type FilmDirectInput = z.infer<typeof FilmDirectInputSchema>;
@@ -67,6 +77,10 @@ const storyboardJsonSchema: Record<string, unknown> = {
           wordStart: int,
           wordEnd: int,
           lead: { type: 'string', enum: ['picture', 'map', 'number', 'type'] },
+          archetype: { type: 'string', enum: [...BEAT_ARCHETYPES] },
+          videoStage: { type: 'string', enum: [...VIDEO_STAGE_MODES] },
+          focusX: { type: 'number' },
+          focusY: { type: 'number' },
           idea: str,
           text: { type: 'array', items: str },
           landsOn: int,
@@ -112,15 +126,23 @@ export const filmDirectTask: TaskDef<FilmDirectInput, Storyboard> = {
       durationMs: i.durationMs,
       format: i.format,
       look: i.look,
+      ...(i.hasVideo ? { hasVideo: true } : {}),
+      ...(i.frames?.length ? { frameTimesMs: i.frames.map((f) => f.timeMs) } : {}),
       ...(i.note ? { note: i.note } : {}),
     }),
+  mediaList: (i) =>
+    i.frames?.length
+      ? i.frames.map((f) => ({ mimeType: f.mimeType, base64: f.base64 }))
+      : undefined,
   cloudCost: () => 0,
   cloudFallback: false,
   maxRepairs: 2,
   thinking: 'MEDIUM',
   jsonSchema: () => storyboardJsonSchema,
   check: (out, input) => {
-    const issues = storyboardIssues(out, input.words, input.durationMs);
+    const issues = storyboardIssues(out, input.words, input.durationMs, {
+      hasVideo: Boolean(input.hasVideo),
+    });
     return issues.length ? `fix these problems:\n- ${issues.slice(0, 12).join('\n- ')}` : null;
   },
 };
@@ -141,6 +163,9 @@ export const FilmBuildInputSchema = z.object({
     index: z.number().int().nonnegative(),
     count: z.number().int().positive(),
     lead: z.string(),
+    archetype: z.string().optional(),
+    videoStage: z.string().optional(),
+    stageGuide: z.string().optional(),
     idea: z.string(),
     text: z.array(z.string()),
     staging: z.string(),
@@ -167,6 +192,8 @@ export const FilmBuildInputSchema = z.object({
   format: FormatSchema,
   look: LookSchema,
   example: BeatCodeSchema,
+  /** Dynamic archetype-specific example for this beat (spec 19 R2.1 / R3.3). */
+  beatExample: BeatCodeSchema.optional(),
   fix: BeatCodeSchema.extend({ problems: z.string() }).optional(),
 });
 export type FilmBuildInput = z.infer<typeof FilmBuildInputSchema>;

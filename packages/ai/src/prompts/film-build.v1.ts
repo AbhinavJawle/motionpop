@@ -73,6 +73,9 @@ export interface FilmBuildPromptInput {
     index: number;
     count: number;
     lead: string;
+    archetype?: string;
+    videoStage?: string;
+    stageGuide?: string;
     idea: string;
     text: string[];
     staging: string;
@@ -93,6 +96,8 @@ export interface FilmBuildPromptInput {
   format: string;
   look: { name: string; description: string };
   example: { html: string; css: string; script: string };
+  /** Dynamic archetype-specific reference example for this beat (spec 19). */
+  beatExample?: { html: string; css: string; script: string };
   /** A repair: the beat as built, and what the critic found. */
   fix?: { html: string; css: string; script: string; problems: string };
 }
@@ -134,7 +139,8 @@ export function filmSharedV1(i: FilmBuildPromptInput): string {
 export function filmBeatV1(i: FilmBuildPromptInput): string {
   const spoken = i.words.map((w, k) => `${k}:${w.text}@${w.startMs}`).join(' ');
   const lines = [
-    `YOUR BEAT: ${i.beat.index + 1} of ${i.beat.count}, led by ${i.beat.lead}.`,
+    `YOUR BEAT: ${i.beat.index + 1} of ${i.beat.count}, led by ${i.beat.lead}${i.beat.archetype ? ` (archetype: ${i.beat.archetype})` : ''}.`,
+    ...(i.beat.stageGuide ? [i.beat.stageGuide] : []),
     `Picture: ${i.beat.idea}`,
     `On-screen text, exactly: ${i.beat.text.length ? i.beat.text.map((t) => `"${t}"`).join(' / ') : '(none)'}`,
     `Staging: ${i.beat.staging}`,
@@ -149,6 +155,15 @@ export function filmBeatV1(i: FilmBuildPromptInput): string {
       ? `LEAVE by "${i.seamOut.kind}": ${i.seamOut.note} (The next beat: ${i.seamOut.to})`
       : 'LEAVE: you are the last beat. Land everything and hold.',
   ];
+  if (i.beatExample) {
+    lines.push(
+      '',
+      `Archetype reference (${i.beat.archetype ?? i.beat.lead}) — match this craft and spatial cleanliness, never copy its wording:`,
+      `html: ${i.beatExample.html}`,
+      `css: ${i.beatExample.css}`,
+      `script:\n${i.beatExample.script}`,
+    );
+  }
   if (i.fix) {
     lines.push(
       '',

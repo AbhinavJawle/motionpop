@@ -25,6 +25,9 @@ BEATS
 - Cut the narration into beats at sentence and clause boundaries. A beat is one idea and lasts about 2.5 to 7 seconds. Beats cover every word, in order: the first starts at word 0, each next one starts at the word after the previous beat's last, the last ends on the final word.
 - For each beat:
   - lead: "picture" (a drawing carries it), "map" (the map carries it), "number" (a figure made physical), or "type" (words carry it; at most two beats, usually the hook and the last line).
+  - archetype: pick one of "kinetic-type", "hero-stat", "callout-hud", "data-chart", "diagram-flow", "comparison-split", "map-story". Never use the same archetype on two consecutive beats.
+  - videoStage (when live speaker video is present): how the speaker footage dances with this beat — "full" (full-bleed speaker + frameless floating typography/arrows), "split-left" (speaker glides left, graphic owns right half), "split-right" (speaker glides right, graphic owns left half), "pip" (speaker shrinks to a clean bottom-left bubble while the graphic owns the canvas), "backdrop" (speaker softly dims/blurs behind bold bright typography/visuals), or "cutaway" (full-screen graphic beat). Never leave 3 consecutive beats in the same videoStage; vary the rhythm so the video feels alive.
+  - focusX, focusY (when live speaker video is present): normalized 0..1 focal point of the speaker's face seen in the keyframes (usually around 0.5, 0.35).
   - idea: the picture, concretely: what is drawn, where it sits in the frame, how big. A builder who has never seen the narration could draw it from this.
   - text: the on-screen copy as exact strings, hero first, then at most one quiet label. Up to 14 words in all. Never the spoken sentence word for word. Every figure in it is one the narration says: no lengths, dates, counts or sources from your own knowledge, however true.
   - landsOn: the index of the spoken word the hero lands on.
@@ -63,17 +66,32 @@ export interface FilmDirectPromptInput {
   durationMs: number;
   format: string;
   look: { name: string; description: string };
+  /** True when live speaker video plays with these beats (spec 19). */
+  hasVideo?: boolean;
+  /** Timestamps of attached video keyframes, when `hasVideo` is true. */
+  frameTimesMs?: number[];
   /** What the creator asked for, if anything. */
   note?: string;
 }
 
 export function filmDirectPromptV1(i: FilmDirectPromptInput): string {
   const spoken = i.words.map((w, k) => `${k}:${w.text}@${(w.startMs / 1000).toFixed(1)}`).join(' ');
+  const videoLines = i.hasVideo
+    ? [
+        `Mode: LIVE SPEAKER VIDEO + COUPLED MOTION CHOREOGRAPHY.${
+          i.frameTimesMs?.length
+            ? ` Attached keyframes at: ${i.frameTimesMs.map((t) => `${(t / 1000).toFixed(1)}s`).join(', ')}.`
+            : ''
+        }`,
+        'Choreograph every beat with both an `archetype` and a `videoStage` ("full", "split-left", "split-right", "pip", "backdrop", "cutaway") plus `focusX`/`focusY` on the speaker face so speaker and graphics dance seamlessly with zero gaps.',
+      ]
+    : ['Mode: VOICEOVER FILM (full-canvas motion graphics). Set `archetype` on every beat and vary it every beat.'];
   return [
     `Narration (index:word@seconds), ${i.words.length} words, ${(i.durationMs / 1000).toFixed(1)} s:`,
     spoken,
     '',
     `Format: ${i.format} · Look: ${i.look.name} (${i.look.description})`,
+    ...videoLines,
     ...(i.note ? [`The creator asks: ${i.note}`] : []),
     '',
     'Write the storyboard.',
