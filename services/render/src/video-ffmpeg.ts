@@ -70,9 +70,15 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
 
   // Base inputs: 0 = A-roll source video, 1 = transparent overlay WebM, 2 = cleaned voice WAV,
   // optional 3 = mixed SFX/music bed WAV, followed by any unique referenced Media Bin clips.
+  // Note: FFmpeg's default native `vp9` decoder drops alpha (`yuva420p`); passing `-c:v libvpx-vp9`
+  // before a `.webm` overlay preserves true transparency during compositing.
+  const overlayDecoderArgs = args.overlayVideoPath.toLowerCase().endsWith('.webm')
+    ? ['-c:v', 'libvpx-vp9']
+    : [];
   const inputs: string[] = [
     '-i',
     args.sourceVideoPath,
+    ...overlayDecoderArgs,
     '-i',
     args.overlayVideoPath,
     '-i',

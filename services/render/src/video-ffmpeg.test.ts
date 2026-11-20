@@ -35,6 +35,8 @@ describe('buildVideoCompositeArgs', () => {
 
     const fcIdx = args.indexOf('-filter_complex');
     expect(fcIdx).toBeGreaterThan(-1);
+    const ovlIdx = args.indexOf('/tmp/overlay.webm');
+    expect(args.slice(ovlIdx - 3, ovlIdx + 1)).toEqual(['-c:v', 'libvpx-vp9', '-i', '/tmp/overlay.webm']);
     const graph = args[fcIdx + 1]!;
     expect(graph).toContain('concat=n=3:v=1:a=0[vbase]');
     expect(graph).toContain("overlay=0:0:enable='between(t,1.000,3.000)'[vzoom]");
