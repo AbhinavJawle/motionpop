@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'rea
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/cn';
 import { START_COPY as C } from '@/lib/dashboard/copy';
-import { handOffFile, handOffSample, PROCESSING_NEW } from '@/lib/intake/hand-off';
+import { handOffFile, handOffFiles, handOffSample, PROCESSING_NEW } from '@/lib/intake/hand-off';
 import { handOffSingle, SINGLE_MAX_WORDS } from '@/lib/intake/single';
 import { useStartDraft } from '@/lib/intake/use-start-draft';
 import { hoverLift } from '@/lib/motion/presets';
@@ -15,7 +15,8 @@ import { ProjectTopBar } from './project-top-bar';
 import { putScriptDraft, readScriptDraft } from '@/lib/script/hand-off';
 import { StartHero } from './start-hero';
 
-const ACCEPT = 'audio/*,video/mp4,video/quicktime,video/webm,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus,.mp4,.mov';
+const ACCEPT =
+  'audio/*,video/mp4,video/quicktime,video/webm,image/png,image/jpeg,image/webp,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus,.mp4,.mov,.png,.jpg,.jpeg,.webp';
 
 /** Static ember waveform of the Record card (start.png). Deterministic heights. */
 const WAVE = Array.from({ length: 60 }, (_, i) => {
@@ -59,7 +60,11 @@ export function StartScreen() {
           <RecordCard onStart={() => router.push('/start/record')} />
           <UploadCard
             busy={busy}
-            onFile={(f) => void go(() => handOffFile(f, draft))}
+            onFiles={(files) =>
+              void go(() =>
+                files.length === 1 ? handOffFile(files[0]!, draft) : handOffFiles(files, draft),
+              )
+            }
             onSample={() => void go(() => handOffSample(draft))}
           />
           <ScriptCard initial={search.get('text') ?? readScriptDraft()} />
@@ -145,11 +150,11 @@ function RecordCard({ onStart }: { onStart: () => void }) {
 
 function UploadCard({
   busy,
-  onFile,
+  onFiles,
   onSample,
 }: {
   busy: boolean;
-  onFile: (f: File) => void;
+  onFiles: (files: File[]) => void;
   onSample: () => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -157,8 +162,8 @@ function UploadCard({
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setOver(false);
-    const f = e.dataTransfer.files[0];
-    if (f) onFile(f);
+    const list = Array.from(e.dataTransfer.files);
+    if (list.length > 0) onFiles(list);
   };
   return (
     <Card
@@ -189,7 +194,7 @@ function UploadCard({
           {C.upload.drop}
         </button>
         <p className="mt-[9px] text-[9px] leading-3 text-text-2">
-          {C.upload.formats} ·{' '}
+          A-roll + B-roll / screenshots ·{' '}
           <button
             type="button"
             disabled={busy}
@@ -202,12 +207,13 @@ function UploadCard({
         <input
           ref={input}
           type="file"
+          multiple
           accept={ACCEPT}
           className="hidden"
           onChange={(e) => {
-            const f = e.target.files?.[0];
+            const list = e.target.files ? Array.from(e.target.files) : [];
             e.target.value = '';
-            if (f) onFile(f);
+            if (list.length > 0) onFiles(list);
           }}
         />
       </div>

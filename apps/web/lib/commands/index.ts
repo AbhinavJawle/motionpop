@@ -32,13 +32,17 @@ export {
   type NoteEdit,
 } from './notes';
 export {
+  addMediaClips,
   addVideoCut,
   addVideoPunchIn,
+  removeMediaClip,
   removeVideoPunchIn,
   setAllSlotsPlacement,
   setAllSlotsVideoStage,
   setAllVideoCutsEnabled,
+  setSlotMediaClip,
   setSlotPlacement,
   setSlotVideoStage,
   toggleVideoCut,
+  updateMediaClips,
 } from './video';

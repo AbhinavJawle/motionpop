@@ -18,7 +18,9 @@ import {
   type EditorProject,
   type Format,
   type Look,
+  type MediaClip,
   type OverlayAnchor,
+  type PendingExtraClip,
   type Slot,
   type SlotPlacement,
   type SlotSuggestion,
@@ -72,6 +74,8 @@ export interface PipelineInput {
   /** False skips the cut list (generated voices, spec 05 R6.1). Default true. */
   cleanup?: boolean;
   tts?: NonNullable<Voiceover['tts']>;
+  /** Optional extra B-roll / screen-recording / screenshot clips dropped alongside the main file (spec 20). */
+  extraClips?: PendingExtraClip[];
   /** A single graphic: silent audio with typed `words`, one slot over all of them, no captions. */
   single?: boolean;
 }
@@ -120,6 +124,8 @@ export interface PipelineDeps {
     frames: readonly { atMs: number; base64: string }[];
     audioEdlCuts: readonly AudioEdlCutInput[];
   }): Promise<EnforcedVideoPlan>;
+  /** Optional extra-clip ingester for B-roll / screen-recordings / screenshots dropped on /start (spec 20). */
+  ingestExtraClip?(clip: PendingExtraClip, projectId: string): Promise<MediaClip | null>;
   /** `imagesPerVideoMax` (Remote Config). */
   imagesMax?: number;
 }
@@ -424,6 +430,17 @@ export async function runPipeline(
           }
         : undefined;
 
+      const mediaBin: MediaClip[] = [];
+      if (input.extraClips?.length && deps.ingestExtraClip) {
+        for (const extra of input.extraClips.slice(0, 20)) {
+          const clip = await deps.ingestExtraClip(extra, id).catch(() => null);
+          if (clip) {
+            mediaBin.push(clip);
+            if (clip.src !== extra.ref) written.push(clip.src);
+          }
+        }
+      }
+
       const now = deps.now();
       const transcript = (words: Word[], cleaned: boolean): Transcript => ({
         words,
@@ -455,6 +472,7 @@ export async function runPipeline(
           ...(input.tts ? { tts: input.tts } : {}),
         },
         ...(videoTrack ? { video: videoTrack } : {}),
+        ...(mediaBin.length ? { mediaBin } : {}),
         transcript: {
           ...transcript(cleanedWords, cuts.length > 0),
           ...(delivery ? { prosody: delivery } : {}),

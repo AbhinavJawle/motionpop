@@ -25,6 +25,7 @@ import {
   stagesFromTimedBeats,
   type AppConfig,
   type EditorProject,
+  type MediaClip,
   type ProjectFilm,
   type Slot,
   type Version,
@@ -43,6 +44,7 @@ import type { EditorStore } from '@/lib/stores/editor';
 import { draftedSlotForWords } from '@/lib/timeline/add-graphic';
 import { timelineIssues } from '@/lib/timeline/invariants';
 import { probeAndSampleVideo } from '@/lib/video/frames';
+import { indexUnindexedMediaClips } from '@/lib/video/media-bin';
 import { inspectInSandbox } from './sandbox-critic';
 
 /**
@@ -148,6 +150,12 @@ export function filmSlots(
         currentVersionId: version.id,
         ...(b.beat.videoStage ? { videoStage: b.beat.videoStage } : {}),
         ...(b.beat.archetype ? { archetype: b.beat.archetype } : {}),
+        ...(b.beat.clipId ? { clipId: b.beat.clipId } : {}),
+        ...(b.beat.clipStartMs !== undefined ? { clipStartMs: b.beat.clipStartMs } : {}),
+        ...(b.beat.clipEndMs !== undefined ? { clipEndMs: b.beat.clipEndMs } : {}),
+        ...(b.beat.clipFocusX !== undefined ? { clipFocusX: b.beat.clipFocusX } : {}),
+        ...(b.beat.clipFocusY !== undefined ? { clipFocusY: b.beat.clipFocusY } : {}),
+        ...(b.beat.clipZoom !== undefined ? { clipZoom: b.beat.clipZoom } : {}),
         ...(project.video
           ? { placement: b.beat.videoStage === 'cutaway' ? 'cutaway' : 'overlay' }
           : {}),
@@ -181,10 +189,12 @@ export function applyFilm(input: {
   versions: Version[];
   film: ProjectFilm;
   videoStages?: VideoStageSegment[];
+  mediaBin?: MediaClip[];
 }): Command {
   let before:
     | (Pick<EditorProject, 'slots' | 'versions' | 'film'> & {
         videoStages?: VideoStageSegment[];
+        mediaBin?: MediaClip[];
       })
     | undefined;
   return {
@@ -197,6 +207,9 @@ export function applyFilm(input: {
         if (d.video && input.videoStages) {
           d.video.stages = structuredClone(input.videoStages);
         }
+        if (input.mediaBin) {
+          d.mediaBin = structuredClone(input.mediaBin);
+        }
       });
       const issue = timelineIssues(next)[0];
       if (issue) throw new CommandRejected(issue);
@@ -205,6 +218,7 @@ export function applyFilm(input: {
         versions: p.versions,
         ...(p.film ? { film: p.film } : {}),
         ...(p.video?.stages ? { videoStages: p.video.stages } : {}),
+        ...(p.mediaBin ? { mediaBin: p.mediaBin } : {}),
       };
       return next;
     },
@@ -220,6 +234,8 @@ export function applyFilm(input: {
           if (prev.videoStages) d.video.stages = prev.videoStages as typeof d.video.stages;
           else delete d.video.stages;
         }
+        if (prev.mediaBin) d.mediaBin = prev.mediaBin as typeof d.mediaBin;
+        else delete d.mediaBin;
       });
     },
   };
@@ -277,6 +293,13 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
     }));
     const allowNumbers = [...spokenNumbers(words)];
     const hasVideo = Boolean(project.video);
+    const stressedWords = project.transcript.prosody?.stress
+      ? project.transcript.prosody.stress
+          .map((score, idx) => (score >= 65 ? idx : -1))
+          .filter((idx) => idx >= 0)
+          .slice(0, 40)
+      : [];
+
     // Sample a compact set of keyframes for multimodal video choreography when `project.video` exists.
     let frames: { timeMs: number; mimeType: 'image/jpeg' | 'image/png'; base64: string }[] = [];
     if (hasVideo && project.video && typeof window !== 'undefined') {
@@ -294,6 +317,30 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
         frames = [];
       }
     }
+
+    // Spec 20 R4.2: auto-index any unindexed Media Bin clips before directing so Gemini 4 Neon
+    // can weave B-roll, screen recordings, and screenshots directly into matching beats.
+    let indexedMediaBin: MediaClip[] | undefined = project.mediaBin;
+    let mediaBinUpdated = false;
+    if (project.mediaBin?.length) {
+      const idxRes = await indexUnindexedMediaClips(project.mediaBin, router, {
+        ...(deps.model ? { model: deps.model } : {}),
+        now,
+      }).catch(() => null);
+      if (idxRes && idxRes.indexedCount > 0) {
+        indexedMediaBin = idxRes.clips;
+        mediaBinUpdated = true;
+      }
+    }
+    const directMediaBin = (indexedMediaBin ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      kind: c.kind,
+      ...(c.durationMs !== undefined ? { durationMs: c.durationMs } : {}),
+      summary: c.summary ?? c.name,
+      tags: c.tags ?? [],
+      moments: (c.moments ?? []).slice(0, 6),
+    }));
 
     const inspect: FilmDeps['inspect'] =
       deps.inspect ??
@@ -325,6 +372,8 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           look: { name: style.name, description: style.description.slice(0, 300) },
           ...(hasVideo ? { hasVideo: true } : {}),
           ...(frames.length ? { frames } : {}),
+          ...(directMediaBin.length ? { mediaBin: directMediaBin } : {}),
+          ...(stressedWords.length ? { stressedWords } : {}),
         },
         {
           router,
@@ -387,6 +436,7 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           ...(deps.model ? { model: deps.model } : {}),
         },
         ...(videoStages ? { videoStages } : {}),
+        ...(mediaBinUpdated && indexedMediaBin ? { mediaBin: indexedMediaBin } : {}),
       }),
     );
     if (!ok) {

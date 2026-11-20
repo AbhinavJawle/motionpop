@@ -129,6 +129,7 @@ export function ProcessingScreen({ id }: { id: string }) {
             : p.meta.source === 'sample'
               ? { words: sampleWords() }
               : {}),
+          ...(p.meta.extraClips?.length ? { extraClips: p.meta.extraClips } : {}),
           ...(p.meta.single ? { single: true } : {}),
         });
       });

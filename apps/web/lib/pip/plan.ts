@@ -53,6 +53,16 @@ export function pipInput(
       format: project.format,
       styleId: project.styleId,
       ...(project.video ? { hasVideo: true } : {}),
+      ...(project.mediaBin?.length
+        ? {
+            mediaBin: project.mediaBin.map((c) => ({
+              id: c.id,
+              name: c.name,
+              kind: c.kind,
+              ...(c.summary ? { summary: c.summary } : {}),
+            })),
+          }
+        : {}),
       styles: styleOptions()
         .slice(0, 12)
         .map((s) => ({ id: s.id, name: s.name })),
@@ -199,13 +209,35 @@ export function enforcePlan(
         }
         const st = VideoStageModeSchema.safeParse(m.choice);
         if (!st.success) {
-          drop(label, 'Choose full, split-left, split-right, pip, backdrop, or cutaway');
+          drop(label, 'Unknown video stage mode');
           continue;
         }
         steps.push({
           ...base,
           ...(slotId ? { slotId } : {}),
           videoStage: st.data,
+          credits: 0,
+        });
+        break;
+      }
+      case 'setBeatClip': {
+        if (!project.video) {
+          drop(label, 'Only available for video projects');
+          continue;
+        }
+        if (!slotId) {
+          drop(label, 'Pick a specific beat to attach a clip to');
+          continue;
+        }
+        const clipChoice = m.choice === 'none' ? '' : m.choice;
+        if (clipChoice && !project.mediaBin?.some((c) => c.id === clipChoice)) {
+          drop(label, 'That clip is not in the Media Bin');
+          continue;
+        }
+        steps.push({
+          ...base,
+          slotId,
+          clipId: clipChoice,
           credits: 0,
         });
         break;

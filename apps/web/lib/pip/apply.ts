@@ -11,6 +11,7 @@ import {
   setBrand,
   setCaptions,
   setFormat,
+  setSlotMediaClip,
   setSlotPlacement,
   setSlotVideoStage,
   setStyle,
@@ -54,6 +55,7 @@ const INSTANT = new Set<PipStep['action']>([
   'removeSlot',
   'setPlacement',
   'setVideoStage',
+  'setBeatClip',
   'toggleCuts',
   'addPunchIn',
   'cutRange',
@@ -108,6 +110,11 @@ function instantCommand(
         return { cmd: setSlotVideoStage(step.slotId, st), slotId: step.slotId };
       }
       return { cmd: setAllSlotsVideoStage(st) };
+    }
+    case 'setBeatClip': {
+      if (!step.slotId) return 'No beat selected';
+      const clipId = step.clipId ? step.clipId : null;
+      return { cmd: setSlotMediaClip(step.slotId, clipId), slotId: step.slotId };
     }
     case 'toggleCuts':
       return project.video

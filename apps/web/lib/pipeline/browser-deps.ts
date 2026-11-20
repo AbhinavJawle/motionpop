@@ -9,6 +9,7 @@ import { projectLibrary } from '../projects/use-project-list';
 import { validateParams } from '../slots/validate-params';
 import { transcribeOnDevice } from '../transcribe/whisper-client';
 import { probeAndSampleVideo } from '../video/frames';
+import { ingestMediaClipBlob } from '../video/media-bin';
 import type { PipelineDeps } from './run';
 
 /** Default style for new projects until the Styles page lands (spec 14). */
@@ -55,5 +56,21 @@ export function browserPipelineDeps(): PipelineDeps {
       }),
     probeVideo: (file) => probeAndSampleVideo(file),
     directVideo: async (params) => directVideo(await getRouter().catch(() => null), params),
+    ingestExtraClip: async (clip, projectId) => {
+      const store = appAudioStore();
+      const blob = await store.get(clip.ref);
+      if (!blob) return null;
+      const probed = await ingestMediaClipBlob(
+        blob,
+        {
+          name: clip.name,
+          mimeType: clip.mimeType,
+          projectId,
+          ...(!store.syncs?.() ? { existingRef: clip.ref } : {}),
+        },
+        store,
+      );
+      return probed.clip;
+    },
   };
 }

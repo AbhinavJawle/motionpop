@@ -1,5 +1,6 @@
 import {
   type EditorProject,
+  type MediaClip,
   type OverlayAnchor,
   type SlotPlacement,
   type VideoCut,
@@ -235,6 +236,12 @@ function syncStagesFromSlots(
       const prev = byStart.get(slot.startMs);
       const mode: VideoStageMode =
         slot.videoStage ?? prev?.mode ?? (slot.placement === 'cutaway' ? 'cutaway' : 'full');
+      const clipId = slot.clipId ?? prev?.clipId;
+      const clipStartMs = slot.clipStartMs ?? prev?.clipStartMs;
+      const clipEndMs = slot.clipEndMs ?? prev?.clipEndMs;
+      const clipFocusX = slot.clipFocusX ?? prev?.clipFocusX;
+      const clipFocusY = slot.clipFocusY ?? prev?.clipFocusY;
+      const clipZoom = slot.clipZoom ?? prev?.clipZoom;
       return {
         id: prev?.id ?? `stage-${slot.id}`,
         startMs: slot.startMs,
@@ -245,6 +252,12 @@ function syncStagesFromSlots(
         scaleFrom: prev?.scaleFrom ?? (i % 2 === 0 ? 1 : 1.05),
         scaleTo: prev?.scaleTo ?? (i % 2 === 0 ? 1.05 : 1.01),
         ...(prev?.pipCorner ? { pipCorner: prev.pipCorner } : {}),
+        ...(clipId ? { clipId } : {}),
+        ...(clipStartMs !== undefined ? { clipStartMs } : {}),
+        ...(clipEndMs !== undefined ? { clipEndMs } : {}),
+        ...(clipFocusX !== undefined ? { clipFocusX } : {}),
+        ...(clipFocusY !== undefined ? { clipFocusY } : {}),
+        ...(clipZoom !== undefined ? { clipZoom } : {}),
       };
     });
 }
@@ -322,6 +335,229 @@ export function setAllSlotsVideoStage(mode: VideoStageMode): Command {
           if (old.placement === undefined) delete s.placement;
           else s.placement = old.placement;
         }
+        if (d.video) {
+          if (prevStages === undefined) delete d.video.stages;
+          else d.video.stages = prevStages as typeof d.video.stages;
+        }
+      });
+    },
+  };
+}
+
+/** Add one or more B-roll / screen-recording / screenshot clips to `project.mediaBin` (spec 20). */
+export function addMediaClips(clips: readonly MediaClip[]): Command {
+  let prev: MediaClip[] | undefined;
+  return {
+    label: clips.length === 1 ? `Add clip ${clips[0]?.name ?? ''}` : `Add ${clips.length} clips`,
+    do(p) {
+      prev = p.mediaBin;
+      return produce(p, (d) => {
+        const list = d.mediaBin ?? [];
+        const existingIds = new Set(list.map((c) => c.id));
+        for (const c of clips) {
+          if (!existingIds.has(c.id) && list.length < 24) {
+            list.push(structuredClone(c));
+            existingIds.add(c.id);
+          }
+        }
+        d.mediaBin = list;
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (prev === undefined) delete d.mediaBin;
+        else d.mediaBin = prev as typeof d.mediaBin;
+      });
+    },
+  };
+}
+
+/** Replace `project.mediaBin` metadata after multimodal `media.index` enrichment (spec 20). */
+export function updateMediaClips(clips: readonly MediaClip[]): Command {
+  let prev: MediaClip[] | undefined;
+  return {
+    label: 'Analyze project clips',
+    do(p) {
+      prev = p.mediaBin;
+      return produce(p, (d) => {
+        d.mediaBin = structuredClone([...clips]).slice(0, 24);
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (prev === undefined) delete d.mediaBin;
+        else d.mediaBin = prev as typeof d.mediaBin;
+      });
+    },
+  };
+}
+
+/** Remove a clip from `project.mediaBin` and detach it from any slots/stages that referenced it. */
+export function removeMediaClip(clipId: string): Command {
+  let prevBin: MediaClip[] | undefined;
+  let prevSlots: EditorProject['slots'] | undefined;
+  let prevStages: VideoStageSegment[] | undefined;
+  return {
+    label: 'Remove clip',
+    do(p) {
+      prevBin = p.mediaBin;
+      prevSlots = p.slots;
+      prevStages = p.video?.stages;
+      return produce(p, (d) => {
+        if (d.mediaBin) {
+          d.mediaBin = d.mediaBin.filter((c) => c.id !== clipId);
+        }
+        for (const s of d.slots) {
+          if (s.clipId === clipId) {
+            delete s.clipId;
+            delete s.clipStartMs;
+            delete s.clipEndMs;
+            delete s.clipFocusX;
+            delete s.clipFocusY;
+            delete s.clipZoom;
+            if (
+              s.videoStage === 'split-top-broll' ||
+              s.videoStage === 'screen-showcase' ||
+              s.videoStage === 'broll-full' ||
+              s.videoStage === 'media-card-pop'
+            ) {
+              s.videoStage = 'full';
+            }
+          }
+        }
+        if (d.video?.stages) {
+          d.video.stages = syncStagesFromSlots(d.slots, d.video.stages).map((st) =>
+            st.clipId === clipId
+              ? {
+                  id: st.id,
+                  startMs: st.startMs,
+                  endMs: st.endMs,
+                  mode: st.mode,
+                  focusX: st.focusX,
+                  focusY: st.focusY,
+                  scaleFrom: st.scaleFrom,
+                  scaleTo: st.scaleTo,
+                  ...(st.pipCorner ? { pipCorner: st.pipCorner } : {}),
+                }
+              : st,
+          );
+        }
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (prevBin === undefined) delete d.mediaBin;
+        else d.mediaBin = prevBin as typeof d.mediaBin;
+        if (prevSlots) d.slots = prevSlots as typeof d.slots;
+        if (d.video) {
+          if (prevStages === undefined) delete d.video.stages;
+          else d.video.stages = prevStages as typeof d.video.stages;
+        }
+      });
+    },
+  };
+}
+
+/**
+ * Bind (or unbind with `null`) a Media Bin clip to a beat slot (spec 20 R3.4). When binding a
+ * clip to a beat that isn't already on a media stage, automatically switches it to the best stage
+ * for that clip kind (`screen-showcase`, `media-card-pop`, or `split-top-broll`).
+ */
+export function setSlotMediaClip(
+  slotId: string,
+  clipId: string | null,
+  opts?: {
+    stageMode?: VideoStageMode;
+    clipStartMs?: number;
+    clipEndMs?: number;
+    clipFocusX?: number;
+    clipFocusY?: number;
+    clipZoom?: number;
+  },
+): Command {
+  let prevSlots: EditorProject['slots'] | undefined;
+  let prevStages: VideoStageSegment[] | undefined;
+  return {
+    label: clipId ? 'Assign clip to beat' : 'Clear beat clip',
+    do(p) {
+      const slot = p.slots.find((s) => s.id === slotId);
+      if (!slot) throw new CommandRejected(`slot "${slotId}" does not exist`);
+      const clip = clipId ? p.mediaBin?.find((c) => c.id === clipId) : undefined;
+      if (clipId && !clip) throw new CommandRejected(`clip "${clipId}" is not in the Media Bin`);
+      prevSlots = p.slots;
+      prevStages = p.video?.stages;
+      return produce(p, (d) => {
+        const target = d.slots.find((s) => s.id === slotId);
+        if (!target) return;
+        if (!clipId || !clip) {
+          delete target.clipId;
+          delete target.clipStartMs;
+          delete target.clipEndMs;
+          delete target.clipFocusX;
+          delete target.clipFocusY;
+          delete target.clipZoom;
+          if (
+            target.videoStage === 'split-top-broll' ||
+            target.videoStage === 'screen-showcase' ||
+            target.videoStage === 'broll-full' ||
+            target.videoStage === 'media-card-pop'
+          ) {
+            target.videoStage = 'full';
+          }
+        } else {
+          const moment = clip.moments?.[0];
+          const defaultStage: VideoStageMode =
+            clip.kind === 'screen-recording'
+              ? 'screen-showcase'
+              : clip.kind === 'screenshot' || clip.kind === 'photo'
+                ? 'media-card-pop'
+                : 'split-top-broll';
+          const alreadyMedia =
+            target.videoStage === 'split-top-broll' ||
+            target.videoStage === 'screen-showcase' ||
+            target.videoStage === 'broll-full' ||
+            target.videoStage === 'media-card-pop';
+          target.videoStage = opts?.stageMode ?? (alreadyMedia ? target.videoStage : defaultStage);
+          target.placement = 'overlay';
+          target.clipId = clip.id;
+          target.clipStartMs = opts?.clipStartMs ?? moment?.startMs ?? 0;
+          if (opts?.clipEndMs !== undefined || moment?.endMs !== undefined) {
+            target.clipEndMs = opts?.clipEndMs ?? moment?.endMs;
+          }
+          target.clipFocusX = opts?.clipFocusX ?? moment?.focusX ?? 0.5;
+          target.clipFocusY = opts?.clipFocusY ?? moment?.focusY ?? 0.45;
+          target.clipZoom =
+            opts?.clipZoom ??
+            moment?.zoom ??
+            (target.videoStage === 'screen-showcase' ? 1.5 : 1.05);
+        }
+        if (d.video) {
+          const nextStages = syncStagesFromSlots(d.slots, d.video.stages);
+          if (!clipId) {
+            d.video.stages = nextStages.map((st) =>
+              st.startMs === target.startMs
+                ? {
+                    id: st.id,
+                    startMs: st.startMs,
+                    endMs: st.endMs,
+                    mode: target.videoStage ?? 'full',
+                    focusX: st.focusX,
+                    focusY: st.focusY,
+                    scaleFrom: st.scaleFrom,
+                    scaleTo: st.scaleTo,
+                    ...(st.pipCorner ? { pipCorner: st.pipCorner } : {}),
+                  }
+                : st,
+            );
+          } else {
+            d.video.stages = nextStages;
+          }
+        }
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (prevSlots) d.slots = prevSlots as typeof d.slots;
         if (d.video) {
           if (prevStages === undefined) delete d.video.stages;
           else d.video.stages = prevStages as typeof d.video.stages;
