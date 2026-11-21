@@ -14,6 +14,7 @@ import { MemoryProjectRepository, type ProjectRepository } from '../projects/rep
 import { validateParams } from '../slots/validate-params';
 import { cleanupSummary, PipelineError, transcriptSummary, type PipelineEvent } from './events';
 import {
+  REEL_STEP_TITLES,
   rulesOnly,
   runPipeline,
   type PipelineDeps,
@@ -1019,6 +1020,83 @@ describe('runPipeline: talking-head reels (spec 25)', () => {
       brief: 'Warm lo-fi, soft piano, 90 bpm',
       src: 'idb:music-1',
     });
+  });
+
+  it('cuts dead air from the audio and removes a retake, with the cloud review (spec 28)', async () => {
+    // "I use the camera daily." said twice, a 3 s pause after each line; Whisper stretches the
+    // last word of each line over the pause.
+    const lines = [
+      ['I', 'use', 'the', 'camera', 'daily.'],
+      ['I', 'use', 'the', 'camera', 'daily.'],
+      ['Follow', 'for', 'more', 'tips', 'now.'],
+    ];
+    const words: Word[] = [];
+    const speech: { a: number; b: number }[] = [];
+    let at = 500;
+    for (const line of lines) {
+      const a = at;
+      for (const t of line) {
+        words.push(w(words.length, t, at, at + 260));
+        at += 300;
+      }
+      speech.push({ a, b: at - 40 });
+      words[words.length - 1] = { ...words[words.length - 1]!, endMs: at + 2500 };
+      at += 3000;
+    }
+    const durationMs = at;
+    const tone = (rate: number) => {
+      const out = new Float32Array(Math.round((durationMs * rate) / 1000)).fill(0.0005);
+      for (const r of speech)
+        for (let i = Math.round((r.a * rate) / 1000); i < (r.b * rate) / 1000; i++)
+          out[i] = 0.3 * Math.sin((2 * Math.PI * 180 * i) / rate);
+      return out;
+    };
+    const h = makeHarness({
+      words,
+      durationMs,
+      decoded: { pcm16k: tone(16_000), pcm24k: tone(24_000), durationMs },
+    });
+    h.deps.probeVideo = async () => ({
+      width: 1080,
+      height: 1920,
+      durationMs,
+      format: '9:16' as const,
+      frames: [],
+    });
+    // Like the Whisper worker: the transcriber takes the PCM buffer, the array left is empty.
+    h.transcribe.mockImplementation(async (pcm16k) => {
+      structuredClone(pcm16k.buffer, { transfer: [pcm16k.buffer] });
+      return { words, ranOn: 'device', timingQuality: 'word' };
+    });
+    const reviewEdit = vi.fn<NonNullable<PipelineDeps['reviewEdit']>>(async () => ({
+      cut: [],
+      keep: [],
+    }));
+    h.deps.reviewEdit = reviewEdit;
+    await runPipeline(
+      makeInput({ file: new Blob(['fake mp4'], { type: 'video/mp4' }), name: 'raw.mp4' }),
+      h.deps,
+      h.onEvent,
+    );
+    expect(h.events.find((e) => e.type === 'titles')).toEqual({
+      type: 'titles',
+      titles: REEL_STEP_TITLES,
+    });
+    expect(reviewEdit).toHaveBeenCalledOnce();
+    expect(reviewEdit.mock.calls[0]![0].phrases.map((p) => p[2])).toEqual([true, false, false]);
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    const p = loaded.project;
+    expect(p.video?.cuts.some((c) => c.kind === 'retake')).toBe(true);
+    expect(p.transcript.words.map((x) => x.text).join(' ')).toBe(
+      'I use the camera daily. Follow for more tips now.',
+    );
+    // Every pause is down to a breath: the edit is about 3.3 s of a 12.5 s recording.
+    expect(p.durationMs).toBeLessThan(4500);
+    const moments = h.events.filter(
+      (e) => e.type === 'step' && e.step === 'moments' && e.state === 'done',
+    );
+    expect(JSON.stringify(moments)).toContain('1 retake cut');
   });
 
   it('honours an explicit styleId override on a video upload', async () => {

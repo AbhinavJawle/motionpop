@@ -12,10 +12,14 @@ export type PipelineEvent =
       step: PipelineStep;
       state: Exclude<StepState, 'pending'>;
       detail?: string;
+      /** Replaces the step's usual title (reels name their own steps, spec 28 R4). */
+      title?: string;
       /** Where an AI step runs, for its route chip (hybrid-ai.md: show the route first). */
       route?: 'device' | 'cloud';
     }
   | { type: 'progress'; step: 'transcribe'; stage: 'loading' | 'transcribing'; percent?: number }
+  /** The step titles for this kind of input (reels name their own steps, spec 28 R4). */
+  | { type: 'titles'; titles: Partial<Record<PipelineStep, string>> }
   | { type: 'words'; words: Word[]; durationMs: number }
   | { type: 'peaks'; peaks: Float32Array; bucketMs: number; durationMs: number }
   | { type: 'slots'; slots: Slot[] }

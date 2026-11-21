@@ -3,7 +3,10 @@ import { PIPELINE_STEPS, type PipelineEvent, type PipelineStep, type StepState }
 
 /** What the Processing screen shows, folded from pipeline events (spec 05 R5). Pure. */
 export interface ProcessingState {
-  steps: Record<PipelineStep, { state: StepState; detail?: string; route?: 'device' | 'cloud' }>;
+  steps: Record<
+    PipelineStep,
+    { state: StepState; detail?: string; title?: string; route?: 'device' | 'cloud' }
+  >;
   words: Word[];
   /** Stable key per word: its index in the first (original) word list, so re-timed words glide. */
   wordKeys: number[];
@@ -43,7 +46,7 @@ export function initialProcessing(): ProcessingState {
 export function reduceProcessing(s: ProcessingState, e: PipelineEvent): ProcessingState {
   switch (e.type) {
     case 'step': {
-      const title = STEP_TITLES[e.step];
+      const title = e.title ?? s.steps[e.step].title ?? STEP_TITLES[e.step];
       const announcement =
         e.state === 'active'
           ? `${title}…`
@@ -56,7 +59,14 @@ export function reduceProcessing(s: ProcessingState, e: PipelineEvent): Processi
         ...s,
         steps: {
           ...s.steps,
-          [e.step]: { state: e.state, detail: e.detail, ...(e.route ? { route: e.route } : {}) },
+          [e.step]: {
+            state: e.state,
+            detail: e.detail,
+            ...((e.title ?? s.steps[e.step].title)
+              ? { title: e.title ?? s.steps[e.step].title }
+              : {}),
+            ...(e.route ? { route: e.route } : {}),
+          },
         },
         announcement,
       };
@@ -66,7 +76,17 @@ export function reduceProcessing(s: ProcessingState, e: PipelineEvent): Processi
         e.stage === 'loading'
           ? `Downloading the voice model${e.percent === undefined ? '' : ` · ${Math.round(e.percent)} %`}`
           : 'Listening to your voice…';
-      return { ...s, steps: { ...s.steps, transcribe: { state: 'active', detail } } };
+      return {
+        ...s,
+        steps: { ...s.steps, transcribe: { ...s.steps.transcribe, state: 'active', detail } },
+      };
+    }
+    case 'titles': {
+      const steps = { ...s.steps };
+      for (const [k, title] of Object.entries(e.titles) as [PipelineStep, string][]) {
+        steps[k] = { ...steps[k], title };
+      }
+      return { ...s, steps };
     }
     case 'words':
       return {

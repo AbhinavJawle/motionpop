@@ -2505,3 +2505,35 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - `?? packages/motion/scripts/film-lab/tts.ts`
   - `?? packages/motion/scripts/film-lab/words.ts`
 <!-- /kiro-session:sess_afa57316-9292-4201-9078-3650be1588f9 -->
+
+<!-- kiro-session:sess_90a14ec9-cfdc-4e7e-a56b-7fc813a3b5c6 -->
+### 2026-11-21 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-21T21:12:05.831Z · last stop: 2026-11-21T21:12:21.987Z · session: sess_90a14ec9-cfdc-4e7e-a56b-7fc813a3b5c6
+- commits since start: 
+  - 89c75ea fix(27-reel-pro-pass): tasks 8-9 raw footage export, close-out and dev log
+- uncommitted changes: 
+  - `M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_90a14ec9-cfdc-4e7e-a56b-7fc813a3b5c6 -->

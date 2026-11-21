@@ -44,6 +44,15 @@ import { graphicForWords } from '../slots/graphic-types';
 import type { AudioStore } from '../audio/audio-store';
 import { isSilent, OUTPUT_SAMPLE_RATE, type DecodedAudio } from '../audio/decode';
 import { buildEdl, cleanedDuration, retimeWords } from '../audio/edl';
+import { planAutoCuts, spokenWords, type AutoCutPlan } from '../audio/autocut';
+import {
+  applyReview,
+  findRetakes,
+  phrasesOf,
+  reviewPhrases,
+  type EditReview,
+} from '../audio/retakes';
+import { speechMap } from '../audio/speech';
 import { checkDuration, validateIntake } from '../audio/intake';
 import { prosody as analyseProsody, stressedCount, type Prosody } from '../audio/prosody';
 import { styleFor } from '../composition/project-to-compile';
@@ -147,6 +156,11 @@ export interface PipelineDeps {
     frames?: readonly { atMs: number; base64: string }[];
   }): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }>;
   /**
+   * The cloud editor's review of the automatic retake cuts (spec 28 R3). Optional; without it
+   * (or on failure) the rule-based edit stands.
+   */
+  reviewEdit?(params: { phrases: [number, string, boolean][] }): Promise<EditReview | null>;
+  /**
    * Generates and stores the reel's music from the director's brief (spec 27 R3.2). Optional;
    * without it (or on failure) the reel plays with its sound effects only.
    */
@@ -204,7 +218,6 @@ export function firstVersions(
 }
 
 /** Reels cut tighter than voiceovers: pauses over 0.5 s keep 0.24 s of air (spec 25). */
-const REEL_EDL = { pauseMs: 500, keepMs: 240 } as const;
 
 function titleFrom(name: string): string {
   const base = name.replace(/\.[a-z0-9]{2,5}$/i, '').trim();
@@ -261,6 +274,7 @@ export async function runPipeline(
     });
     if (!intake.ok) return rejectFile(intake.message);
     const isVideoInput = intake.kind === 'video';
+    if (isVideoInput && !input.single) onEvent({ type: 'titles', titles: REEL_STEP_TITLES });
     // Video uploads default to crisp Studio Light (spec 24 R5.2) unless the creator picked another look.
     const styleId = input.styleId ?? (isVideoInput ? 'studio-light' : deps.styleId);
 
@@ -281,6 +295,11 @@ export async function runPipeline(
       rejectFile("I couldn't hear anything in that file.");
     }
 
+    // The speech meter reads the PCM before transcription: a transcriber may take the buffer
+    // (the Whisper worker transfers it), leaving an empty array behind (spec 28 R1).
+    const measured =
+      isVideoInput && !input.single && cleanupOn ? speechMap(audio.pcm16k, 16_000) : null;
+
     // Transcribe (R2).
     const t: TranscribeOutput = input.words
       ? { words: input.words, ranOn: 'device', timingQuality: 'word' }
@@ -299,32 +318,71 @@ export async function runPipeline(
         transcriptSummary(t.words.length, audio.durationMs),
     });
 
-    // Talking-head video (spec 25): jump cuts on the pauses and fillers, then a template reel.
+    // Talking-head video (spec 25): the automatic edit (spec 28), then a template reel.
     if (isVideoInput && !input.single) {
       step = 'clean';
-      onEvent({ type: 'step', step, state: 'active' });
+      onEvent({ type: 'step', step, state: 'active', detail: 'Measuring your speech' });
       const probe = deps.probeVideo ? await deps.probeVideo(input.file).catch(() => null) : null;
       checkAbort();
       const sourceMs = Math.max(1, probe?.durationMs ?? audio.durationMs);
-      const reelEdl = cleanupOn
-        ? buildEdl(t.words, audio.durationMs, REEL_EDL)
-        : { cuts: [], fillersRemoved: 0, pausesShortened: 0, skipped: undefined };
-      const videoCuts: VideoCut[] = reelEdl.cuts
+      // Spec 28: pauses are cut where the audio is silent (not where Whisper's words end),
+      // retakes are found by the rules and double-checked by the cloud editor.
+      const map = measured;
+      const spoken = spokenWords(t.words, map);
+      let retakes = cleanupOn ? findRetakes(spoken) : [];
+      const firstPass = cleanupOn
+        ? planAutoCuts({ words: t.words, durationMs: audio.durationMs, speech: map, retakes })
+        : null;
+      onEvent({
+        type: 'step',
+        step,
+        state: 'done',
+        detail: !cleanupOn ? 'Cleanup is off' : pauseSummary(firstPass!.stats),
+      });
+
+      step = 'moments';
+      onEvent({
+        type: 'step',
+        step,
+        state: 'active',
+        detail: 'Looking for repeated takes',
+        ...(cleanupOn && deps.reviewEdit ? { route: 'cloud' as const } : {}),
+      });
+      let reviewed = false;
+      if (cleanupOn && deps.reviewEdit) {
+        const phrases = phrasesOf(spoken);
+        const review = await deps
+          .reviewEdit({ phrases: reviewPhrases(spoken, phrases, retakes) })
+          .catch(() => null);
+        checkAbort();
+        if (review) {
+          retakes = applyReview(spoken, phrases, retakes, review);
+          reviewed = true;
+        }
+      }
+      const auto = cleanupOn
+        ? planAutoCuts({ words: t.words, durationMs: audio.durationMs, speech: map, retakes })
+        : null;
+      const videoCuts: VideoCut[] = (auto?.cuts ?? [])
         .map((c) => ({
+          ...c,
           startMs: Math.round(c.startMs),
           endMs: Math.round(Math.min(c.endMs, sourceMs)),
         }))
         .filter((c) => c.endMs > c.startMs)
         .map((c, i) => ({
           id: `cut-${i + 1}`,
-          ...c,
-          kind: 'silence' as const,
-          reason: 'Pause or filler',
+          startMs: c.startMs,
+          endMs: c.endMs,
+          kind: c.kind,
+          reason: c.reason.slice(0, 160),
           enabled: true,
         }));
       const kept = keptSourceSegments(sourceMs, videoCuts);
       const reelMs = Math.max(1, cleanedDurationFromSegments(kept));
-      const reelWords = retimeWords(t.words, videoCuts);
+      // Source-clock words with tightened timings: the editor re-times them when cuts change.
+      const sourceWords = auto?.words ?? t.words;
+      const reelWords = retimeWords(sourceWords, videoCuts);
       const reelPcm =
         videoCuts.length > 0
           ? await deps.renderCleaned(audio.pcm24k, OUTPUT_SAMPLE_RATE, videoCuts)
@@ -337,13 +395,17 @@ export async function runPipeline(
         state: 'done',
         detail: !cleanupOn
           ? 'Cleanup is off'
-          : cleanupSummary(reelEdl.fillersRemoved, reelEdl.pausesShortened),
+          : retakeSummary(auto!.stats, reviewed, audio.durationMs, reelMs),
       });
-      onEvent({ type: 'step', step: 'moments', state: 'skipped', detail: 'Reels skip this' });
-      onEvent({ type: 'step', step: 'suggest', state: 'skipped', detail: 'Reels skip this' });
 
-      step = 'plan';
-      onEvent({ type: 'step', step, state: 'active', detail: 'Directing your reel' });
+      step = 'suggest';
+      onEvent({
+        type: 'step',
+        step,
+        state: 'active',
+        detail: 'Writing the story',
+        ...(deps.directReel ? { route: 'cloud' as const } : {}),
+      });
       const look: ReelLook = input.reelLook ?? 'mono';
       const words = reelWords.map((w) => ({ text: w.text, startMs: w.startMs, endMs: w.endMs }));
       // The director sees the footage too (spec 27 R2.1): keyframes moved onto the reel clock
@@ -358,6 +420,14 @@ export async function runPipeline(
       checkAbort();
       let reel = directed?.plan ?? autoReelPlan(words, reelMs, look);
       const source = directed?.source ?? 'auto';
+      onEvent({
+        type: 'step',
+        step,
+        state: 'done',
+        detail: `${reel.scenes.length} scenes${source === 'cloud' ? '' : ' · free director'}`,
+      });
+      step = 'plan';
+      onEvent({ type: 'step', step, state: 'active', detail: 'Getting the visuals ready' });
       // The pictures the plan asks for (spec 26). A failure keeps the plan: every media
       // template has a designed fallback.
       let reelAssets: ImageAsset[] = [];
@@ -432,10 +502,9 @@ export async function runPipeline(
             originalSrc,
             originalDurationMs: audio.durationMs,
             cleanup: {
-              fillersRemoved: reelEdl.fillersRemoved,
-              pausesShortened: reelEdl.pausesShortened,
+              fillersRemoved: auto?.stats.fillers ?? 0,
+              pausesShortened: auto?.stats.pauses ?? 0,
               enabled: videoCuts.length > 0,
-              ...(reelEdl.skipped ? { skipped: reelEdl.skipped } : {}),
             },
           },
           video: {
@@ -450,7 +519,7 @@ export async function runPipeline(
           reel,
           ...(reelAssets.length ? { assets: reelAssets } : {}),
           transcript: transcript(reelWords, videoCuts.length > 0),
-          originalTranscript: transcript(t.words, false),
+          originalTranscript: transcript(sourceWords, false),
           slots: [],
           versions: [],
           // The reel draws its own captions (spec 25); the slot captions stay off.
@@ -467,8 +536,7 @@ export async function runPipeline(
           type: 'step',
           step,
           state: 'done',
-          detail: `${reel.scenes.length} scenes${source === 'cloud' ? '' : ' · free director'}`,
-          ...(source === 'cloud' ? { route: 'cloud' as const } : {}),
+          detail: visualsSummary(reelAssets.length, Boolean(reel.music?.src)),
         });
         onEvent({ type: 'done', projectId: id });
         return { projectId: id };
@@ -750,4 +818,38 @@ export async function runPipeline(
     onEvent({ type: 'error', step: e.step, message: e.message });
     throw e;
   }
+}
+
+/** What each processing step does for a talking-head reel (spec 28 R4). */
+export const REEL_STEP_TITLES = {
+  clean: 'Cutting dead air',
+  moments: 'Removing retakes',
+  suggest: 'Directing the reel',
+  plan: 'Adding visuals and music',
+} as const;
+
+/** "7 pauses · 30.0 s of dead air cut" (spec 28 R4). */
+function pauseSummary(st: AutoCutPlan['stats']): string {
+  if (st.pauseMs < 100) return 'No dead air';
+  const n = st.pauses;
+  return `${n} pause${n === 1 ? '' : 's'} · ${(st.pauseMs / 1000).toFixed(1)} s of dead air cut`;
+}
+
+/** "3 retakes cut · 89.6 s → 36.7 s" (spec 28 R4). */
+function retakeSummary(
+  st: AutoCutPlan['stats'],
+  reviewed: boolean,
+  sourceMs: number,
+  finalMs: number,
+): string {
+  const n = st.retakes;
+  const takes = n === 0 ? 'No retakes' : `${n} retake${n === 1 ? '' : 's'} cut`;
+  const span = `${(sourceMs / 1000).toFixed(1)} s → ${(finalMs / 1000).toFixed(1)} s`;
+  return `${takes}${reviewed ? ' · checked' : ''} · ${span}`;
+}
+
+function visualsSummary(images: number, music: boolean): string {
+  const parts = [images > 0 ? `${images} visual${images === 1 ? '' : 's'}` : 'Graphics ready'];
+  if (music) parts.push('music composed');
+  return parts.join(' · ');
 }

@@ -742,3 +742,28 @@ Template:
   - Screenshots still answer 501 on App Hosting.
   - There is no stock key (photos come from Wikimedia only).
   - Clips with no speech are refused ("I couldn't hear anything").
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) + Kiro CLI (commits only) · spec 28 automatic edit
+- **Founder ask:** the reel processing said it "skips moments", and a raw talking-head clip (89.7 s, two repeated takes, long dead pauses) exported at 62.4 s with both retakes and most of the dead air still in. "Make the automatic video editing bullet proof."
+- **Root causes found:**
+  - Pauses came from Whisper word gaps only. Whisper stretches words across the silence after them ("lifting" ran 43.7–48.5 s), so long pauses were invisible.
+  - Nothing detected repeated takes, false starts or asides.
+  - Pre-roll noise and the reach for the stop button were kept.
+  - "Reels skip this" on the moments step read as if the edit was skipped.
+  - In the browser the Whisper worker takes ownership of the PCM buffer, so a speech meter run after it saw an empty buffer. Found on the first real-app run (47.4 s output): the fallback hid it.
+- **Built (spec 28):**
+  - `lib/audio/speech.ts`: a speech map from the audio (10 ms RMS, adaptive threshold, reliability check) and word tightening onto it.
+  - `lib/audio/retakes.ts`: repeated takes (last kept), false starts, restarts, stumbles and asides. List lines, contrast lines and refrains are kept (`isRetakePair`).
+  - `lib/audio/autocut.ts`: the edit plan for head/tail, silences > 380 ms, retakes and fillers, never cutting a kept word. Each cut carries its kind and reason.
+  - `packages/ai/src/reel/edit.ts`: an optional cloud review (`reel.edit`, `gemini-3.8-flash`, inside the reel's 3 credits) with limits in code (≤ 30 % added, no keeping word-for-word repeats).
+  - Pipeline: the meter runs before transcription and the worker gets a copy. Reel steps are named for what they do ("Cutting dead air · 7 pauses · 30.0 s of dead air cut", "Removing retakes · 3 retakes cut · checked · 89.6 s → 36.7 s").
+- **Verified:**
+  - Founder's clip through the real app (local dev server on the lab profile, headless Chrome, e2e user): upload → editor 284 s, export 117 s, 36.8 s long, −14.0 LUFS. Re-transcribed with whisper.cpp it is word-perfect, with no leftover take and no clipped word. No silence over 0.35 s at −40 dB.
+  - Over-cut check (offline, whisper.cpp word timings): two already-edited reference clips lost 0.3–0.6 s of breaths and no words. A clean scripted clip first lost its contrast line ("You don't have a … problem. You have a follow-through problem.") as a "retake". A refrain shared by an intro and an outro also matched. Both are fixed with `isRetakePair` (negation plus a swap on both sides = contrast; swaps need 75 %), with regression tests. The founder's clip is unchanged at 36.7 s.
+  - Typecheck and lint green. Tests: web audio/pipeline/processing/reel/renders 307, ai reel 13. One run of the web suites had a single failure I did not capture. Three reruns were 307/307, so it is likely a timing-sensitive render test under load.
+- **Lab spend (lower bound):** a handful of `reel.edit` lab calls on lite, balanced and `gemini-4-neon` (cents), plus three real-app reel runs (director, images, music), about $0.30–0.50.
+- **Gaps:**
+  - Semantic retakes worded very differently rely on the cloud review, which answered "no extra cuts" on this clip.
+  - The voiceover (non-reel) path still uses the older word-gap cleanup.
+  - The Storage rule for 500 MB exports is deployed to the lab project only.
+  - Commits are local, not pushed.

@@ -1,6 +1,6 @@
 import { detectLocal, directVideo, planVideo } from '@motionpop/ai';
 import type { CreditsClient } from '../credits/client';
-import { directReelPaid, resolveReelMedia, resolveReelMusic } from '../reel/media';
+import { directReelPaid, resolveReelMedia, resolveReelMusic, reviewReelCuts } from '../reel/media';
 import { requestPlanAllowance } from '../ai/plan-allowance';
 import { getRouter } from '../ai/router-client';
 import { appAudioStore } from '../audio/app-audio-store';
@@ -34,7 +34,8 @@ export function browserPipelineDeps(opts: { credits?: CreditsClient | null } = {
   return {
     decode: decodeForPipeline,
     transcribe: async (pcm16k, durationMs, onProgress) => {
-      const r = await transcribeOnDevice(pcm16k, durationMs, {
+      // A copy: the worker takes ownership of the buffer it is sent.
+      const r = await transcribeOnDevice(pcm16k.slice(), durationMs, {
         onProgress: (p) => onProgress({ stage: p.stage, percent: p.percent }),
       });
       return {
@@ -68,6 +69,7 @@ export function browserPipelineDeps(opts: { credits?: CreditsClient | null } = {
         model: 'gemini-3.8-flash',
       }),
     directReel: (params) => directReelPaid({ ...params, refId: 'reel' }, { credits }),
+    reviewEdit: ({ phrases }) => reviewReelCuts(phrases, { credits }),
     resolveReelMedia: ({ plan, look, projectId, onProgress }) =>
       resolveReelMedia(plan, look, projectId, { credits }, onProgress),
     resolveReelMusic: ({ plan, durationMs, projectId }) =>

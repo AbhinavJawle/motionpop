@@ -2,8 +2,10 @@ import {
   ImageSubjectSchema,
   directReel,
   generateImageWithFirebase,
+  reviewReelEdit,
   type UsageEvent,
 } from '@motionpop/ai';
+import type { EditReview } from '@/lib/audio/retakes';
 import {
   APP_CONFIG_DEFAULTS,
   costOf,
@@ -277,6 +279,21 @@ export async function directReelPaid(
   const r = await directReel(router, withFrames);
   if (r.source !== 'cloud') await deps.credits.refund(spent.txId).catch(() => {});
   return r;
+}
+
+/**
+ * The cloud editor's check of the automatic retake cuts (spec 28 R3). Part of a directed reel:
+ * it runs for signed-in creators with credits and is not charged on its own. Null when it can't
+ * run; the rule-based edit then stands.
+ */
+export async function reviewReelCuts(
+  phrases: [number, string, boolean][],
+  deps: { credits: CreditsClient | null; config?: Partial<ReelCfg> },
+): Promise<EditReview | null> {
+  const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
+  if (!deps.credits || cfg.killSwitch || phrases.length < 2) return null;
+  const router = await getRouter().catch(() => null);
+  return reviewReelEdit(router, phrases);
 }
 
 /**
