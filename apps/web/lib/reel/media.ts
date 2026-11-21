@@ -20,7 +20,8 @@ import {
 import { emitAIUsage, getRouter } from '@/lib/ai/router-client';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
 import { spendWithUi } from '@/lib/credits/spend-with-ui';
-import { getAILogic } from '@/lib/firebase/client';
+import { getAILogic, getAuthClient } from '@/lib/firebase/client';
+import { apiHeaders } from '@/lib/users/bootstrap-client';
 import { getImage, putImage } from '@/lib/images/image-store';
 import { processImage, sha256Hex } from '@/lib/images/process';
 import { trimPaper } from '@/lib/images/trim';
@@ -251,11 +252,18 @@ export async function resolveReelMedia(
  * refused) the free director runs.
  */
 export async function directReelPaid(
-  params: { look: ReelLook; words: readonly ReelWord[]; durationMs: number; refId: string },
+  params: {
+    look: ReelLook;
+    words: readonly ReelWord[];
+    durationMs: number;
+    refId: string;
+    frames?: readonly { atMs: number; base64: string }[];
+  },
   deps: { credits: CreditsClient | null; config?: Partial<ReelCfg>; free?: boolean },
 ): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }> {
   const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
   const base = { look: params.look, words: params.words, durationMs: params.durationMs };
+  const withFrames = { ...base, ...(params.frames?.length ? { frames: params.frames } : {}) };
   if (deps.free || !deps.credits || cfg.killSwitch || params.words.length < 4)
     return directReel(null, base);
   const router = await getRouter().catch(() => null);
@@ -266,7 +274,48 @@ export async function directReelPaid(
     cfg,
   );
   if (!spent?.ok) return directReel(null, base);
-  const r = await directReel(router, base);
+  const r = await directReel(router, withFrames);
   if (r.source !== 'cloud') await deps.credits.refund(spent.txId).catch(() => {});
   return r;
+}
+
+/**
+ * The reel's soundtrack (spec 27 R3.2): asks our server to generate music from the director's
+ * brief, looped to the reel's length, and stores it as the project's music file. Signed-in only;
+ * any failure leaves the plan without music (the reel still has its sound effects).
+ */
+export async function resolveReelMusic(
+  plan: ReelPlan,
+  durationMs: number,
+  projectId: string,
+  deps: {
+    audioStore: { put(blob: Blob, place: { projectId: string; kind: 'music' }): Promise<string> };
+    fetchFn?: typeof fetch;
+  },
+): Promise<ReelPlan> {
+  const brief = plan.music?.brief;
+  if (!brief || plan.music?.src) return plan;
+  try {
+    const auth = await getAuthClient();
+    const user = auth.currentUser;
+    if (!user) return plan;
+    const res = await (deps.fetchFn ?? fetch)('/api/reel/music', {
+      method: 'POST',
+      headers: {
+        ...(await apiHeaders(() => user.getIdToken())),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ brief, durationMs: Math.max(1000, Math.round(durationMs)) }),
+    });
+    const blob = await blobFrom(res);
+    if (!blob) return plan;
+    const src = await deps.audioStore.put(new Blob([blob], { type: 'audio/wav' }), {
+      projectId,
+      kind: 'music',
+    });
+    return { ...plan, music: { brief, src } };
+  } catch (e) {
+    console.warn('Reel music failed', e);
+    return plan;
+  }
 }

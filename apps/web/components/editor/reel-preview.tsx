@@ -1,13 +1,22 @@
 'use client';
 
 import {
+  cutsFromSegments,
+  decodeWavStereo16,
+  encodeWavStereo16,
+  mixReelMusic,
   mountReel,
   reelBed,
   REEL_STAGE_W,
   type ReelHandle,
   type ReelImage,
 } from '@motionpop/motion/reel';
-import { SFX_SAMPLE_RATE, encodeWav16 } from '@motionpop/motion/sfx';
+import {
+  SFX_SAMPLE_RATE,
+  decodeWav16,
+  encodeWav16,
+  voiceLevelDb as measureVoiceLevel,
+} from '@motionpop/motion/sfx';
 import {
   cleanedToSourceMs,
   keptSourceSegments,
@@ -81,19 +90,101 @@ function useReelImages(
   return state && state.ids === ids ? state.images : null;
 }
 
+/** Starts the sound tracks at `sec` (editor clock). */
+function playTracks(els: readonly HTMLAudioElement[], sec: number): void {
+  for (const a of els) {
+    a.currentTime = sec;
+    void a.play().catch(() => undefined);
+  }
+}
+
+function pauseTracks(els: readonly HTMLAudioElement[], release = false): void {
+  for (const a of els) {
+    a.pause();
+    if (release) a.removeAttribute('src');
+  }
+}
+
+/** Keeps the tracks on the editor clock: always when paused, past the drift limit when playing. */
+function syncTracks(els: readonly HTMLAudioElement[], sec: number, playing: boolean): void {
+  for (const a of els)
+    if (a.readyState >= 1 && (!playing || Math.abs(a.currentTime - sec) > VIDEO_DRIFT_SEC))
+      a.currentTime = sec;
+}
+
+/**
+ * The voice's measured level (dBFS), the same measurement the export makes, so effects and
+ * music sit at the same distance under the voice in the preview and in the file.
+ */
+function useVoiceLevel(
+  src: string | undefined,
+  words: readonly { startMs: number; endMs: number }[] | undefined,
+): number | null {
+  const [level, setLevel] = useState<number | null>(null);
+  useEffect(() => {
+    if (!src || !words) return;
+    let cancelled = false;
+    void appAudioStore()
+      .get(src)
+      .then(async (blob) => {
+        if (!blob || cancelled) return;
+        const pcm = decodeWav16(new Uint8Array(await blob.arrayBuffer()));
+        if (!cancelled) setLevel(pcm ? measureVoiceLevel(pcm.samples, pcm.sampleRate, words) : -20);
+      })
+      .catch(() => {
+        if (!cancelled) setLevel(-20);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [src, words]);
+  return level;
+}
+
+/** The reel's generated music (spec 27 R3.2), levelled and ducked like the export does it. */
+function useReelMusicUrl(
+  src: string | undefined,
+  words: readonly { startMs: number; endMs: number }[] | undefined,
+  voiceLevel: number | null,
+): string | null {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!src || !words || voiceLevel === null) return;
+    let cancelled = false;
+    let made: string | null = null;
+    void appAudioStore()
+      .get(src)
+      .then(async (blob) => {
+        if (!blob || cancelled) return;
+        const pcm = decodeWavStereo16(new Uint8Array(await blob.arrayBuffer()));
+        if (!pcm || cancelled) return;
+        const mixed = mixReelMusic(pcm, { voiceLevelDb: voiceLevel, words });
+        made = URL.createObjectURL(new Blob([encodeWavStereo16(mixed)], { type: 'audio/wav' }));
+        setUrl(made);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+      if (made) URL.revokeObjectURL(made);
+    };
+  }, [src, words, voiceLevel]);
+  return url;
+}
+
 /** The reel's sound design as a WAV object URL (spec 26 R4.2): the same bytes the export mixes. */
 function useReelBedUrl(
   reel: ReelPlan | undefined,
   words: readonly { startMs: number; endMs: number }[] | undefined,
   durationMs: number,
+  voiceLevel: number | null,
 ): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    if (!reel || !words || durationMs <= 0) return;
+    if (!reel || !words || durationMs <= 0 || voiceLevel === null) return;
     let made: string | null = null;
     // Off the critical path: the picture comes first, the sound a moment later.
     const t = setTimeout(() => {
-      const samples = reelBed(reel, durationMs, { voiceLevelDb: -20, words });
+      const samples = reelBed(reel, durationMs, { voiceLevelDb: voiceLevel, words });
       made = URL.createObjectURL(
         new Blob([encodeWav16(samples, SFX_SAMPLE_RATE)], { type: 'audio/wav' }),
       );
@@ -103,7 +194,7 @@ function useReelBedUrl(
       clearTimeout(t);
       if (made) URL.revokeObjectURL(made);
     };
-  }, [reel, words, durationMs]);
+  }, [reel, words, durationMs, voiceLevel]);
   return url;
 }
 
@@ -122,8 +213,12 @@ export function ReelPreview() {
   const assets = useEditor((s) => s.project?.assets);
   const playing = useEditor((s) => s.playing);
   const images = useReelImages(reel, assets);
-  const bedUrl = useReelBedUrl(reel, words, durationMs);
-  const bedRef = useRef<HTMLAudioElement | null>(null);
+  const voiceSrc = useEditor((s) => s.project?.voiceover.src);
+  const voiceLevel = useVoiceLevel(voiceSrc, words);
+  const bedUrl = useReelBedUrl(reel, words, durationMs, voiceLevel);
+  const musicUrl = useReelMusicUrl(reel?.music?.src, words, voiceLevel);
+  // The sound tracks under the voice (effects bed, music), all following the editor clock.
+  const tracksRef = useRef<HTMLAudioElement[]>([]);
   const [scale, setScale] = useState(0.3);
   const [loaded, setLoaded] = useState<{ src: string; url: string } | null>(null);
   const handleRef = useRef<ReelHandle | null>(null);
@@ -187,6 +282,10 @@ export function ReelPreview() {
           durationMs,
           video: { w: video.width, h: video.height },
           images,
+          // Jump cuts on the reel clock: the framing alternates on them (spec 27 R1.2).
+          cuts: cutsFromSegments(
+            segments.map((k) => ({ srcStartMs: k.startMs, srcEndMs: k.endMs })),
+          ),
         },
         [v],
       );
@@ -205,20 +304,24 @@ export function ReelPreview() {
       v.load();
       host.replaceChildren();
     };
-  }, [reel, video, url, words, durationMs, images]);
+  }, [reel, video, url, words, durationMs, images, segments]);
 
-  // The sound bed follows the editor clock like the video does.
+  // The sound tracks follow the editor clock like the video does.
   useEffect(() => {
-    if (!bedUrl) return;
-    const a = new Audio(bedUrl);
-    a.preload = 'auto';
-    bedRef.current = a;
+    const els = [bedUrl, musicUrl].flatMap((u) => {
+      if (!u) return [];
+      const a = new Audio(u);
+      a.preload = 'auto';
+      return [a];
+    });
+    tracksRef.current = els;
+    if (editorStore.getState().playing)
+      playTracks(els, editorStore.getState().playheadMs / 1000);
     return () => {
-      a.pause();
-      a.removeAttribute('src');
-      if (bedRef.current === a) bedRef.current = null;
+      pauseTracks(els, true);
+      if (tracksRef.current === els) tracksRef.current = [];
     };
-  }, [bedUrl]);
+  }, [bedUrl, musicUrl]);
 
   // Every clock tick: draw the reel and keep the video on the kept-segment time.
   useEffect(() => {
@@ -229,13 +332,7 @@ export function ReelPreview() {
       const target = cleanedToSourceMs(ms, segments) / 1000;
       const isPlaying = editorStore.getState().playing;
       if (!isPlaying || Math.abs(v.currentTime - target) > VIDEO_DRIFT_SEC) v.currentTime = target;
-      const a = bedRef.current;
-      if (
-        a &&
-        a.readyState >= 1 &&
-        (!isPlaying || Math.abs(a.currentTime - ms / 1000) > VIDEO_DRIFT_SEC)
-      )
-        a.currentTime = ms / 1000;
+      syncTracks(tracksRef.current, ms / 1000, isPlaying);
     };
     apply(editorStore.getState().playheadMs);
     return subscribePreviewSeek(apply);
@@ -244,18 +341,14 @@ export function ReelPreview() {
   useEffect(() => {
     const v = videoElRef.current;
     if (!v) return;
-    const a = bedRef.current;
     if (playing) {
       void v.play().catch(() => undefined);
-      if (a) {
-        a.currentTime = editorStore.getState().playheadMs / 1000;
-        void a.play().catch(() => undefined);
-      }
+      playTracks(tracksRef.current, editorStore.getState().playheadMs / 1000);
     } else {
       v.pause();
-      a?.pause();
+      pauseTracks(tracksRef.current);
     }
-  }, [playing, url, bedUrl]);
+  }, [playing, url, bedUrl, musicUrl]);
 
   return (
     <div ref={frameRef} className="absolute inset-0 overflow-hidden bg-black">

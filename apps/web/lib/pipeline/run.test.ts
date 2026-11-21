@@ -969,6 +969,58 @@ describe('runPipeline: talking-head reels (spec 25)', () => {
     });
   });
 
+  it('shows the director the footage and scores the reel (spec 27)', async () => {
+    const h = makeHarness();
+    h.deps.probeVideo = async () => ({
+      width: 1920,
+      height: 1080,
+      durationMs: 4000,
+      format: '16:9' as const,
+      frames: [{ atMs: 500, base64: 'x'.repeat(40) }],
+    });
+    const seen: { atMs: number }[][] = [];
+    h.deps.directReel = async (i) => {
+      seen.push([...(i.frames ?? [])]);
+      return {
+        plan: {
+          v: 1 as const,
+          look: i.look,
+          focus: { x: 0.5, y: 0.32 },
+          music: { brief: 'Warm lo-fi, soft piano, 90 bpm' },
+          captions: true,
+          scenes: [
+            {
+              id: 'r1',
+              startMs: 0,
+              endMs: i.durationMs,
+              layout: 'split' as const,
+              content: { template: 'headline' as const, title: 'Hi' },
+            },
+          ],
+        },
+        source: 'cloud' as const,
+      };
+    };
+    const resolveReelMusic = vi.fn(async ({ plan }: { plan: ReelPlan }) => ({
+      ...plan,
+      music: { brief: plan.music!.brief, src: 'idb:music-1' },
+    }));
+    h.deps.resolveReelMusic = resolveReelMusic;
+    await runPipeline(
+      makeInput({ file: new Blob(['fake mp4'], { type: 'video/mp4' }), name: 'clip.mp4' }),
+      h.deps,
+      h.onEvent,
+    );
+    expect(seen[0]?.[0]?.atMs).toBeGreaterThanOrEqual(0);
+    expect(resolveReelMusic).toHaveBeenCalledOnce();
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    expect(loaded.project.reel?.music).toEqual({
+      brief: 'Warm lo-fi, soft piano, 90 bpm',
+      src: 'idb:music-1',
+    });
+  });
+
   it('honours an explicit styleId override on a video upload', async () => {
     const h = makeHarness();
     await runPipeline(

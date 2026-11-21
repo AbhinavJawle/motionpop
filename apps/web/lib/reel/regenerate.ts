@@ -1,7 +1,8 @@
 import type { CreditsClient } from '@/lib/credits/client';
 import { setReel } from '@/lib/commands';
 import { editorStore } from '@/lib/stores/editor';
-import { directReelPaid, resolveReelMedia } from './media';
+import { appAudioStore } from '@/lib/audio/app-audio-store';
+import { directReelPaid, resolveReelMedia, resolveReelMusic } from './media';
 
 /**
  * Directs the open project's reel again (spec 25 R4.1, spec 26 R5.1): the cloud director when it
@@ -27,7 +28,22 @@ export async function regenerateReel(
     credits,
     existing: project.assets ?? [],
   }).catch(() => ({ plan: r.plan, assets: [] }));
-  const plan = { ...media.plan, focus: project.reel.focus, captions: project.reel.captions };
+  // The footage did not change: keep what the first pass saw (face keys, footage kind). A new
+  // music brief gets new music; otherwise the old track stays.
+  const prev = project.reel;
+  const sameBrief = !r.plan.music || r.plan.music.brief === prev.music?.brief;
+  const scored = sameBrief
+    ? r.plan
+    : await resolveReelMusic(media.plan, project.durationMs, project.id, {
+        audioStore: appAudioStore(),
+      });
+  const plan = {
+    ...media.plan,
+    focus: prev.focus,
+    ...(prev.footage ? { footage: prev.footage } : {}),
+    ...(sameBrief ? (prev.music ? { music: prev.music } : {}) : scored.music ? { music: scored.music } : {}),
+    captions: prev.captions,
+  };
   const { exec } = editorStore.getState();
   exec(setReel(plan, 'Re-direct the reel', media.assets));
   return r.source;

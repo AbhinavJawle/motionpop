@@ -115,5 +115,50 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
     async compositeVideo(args) {
       await run(ffmpeg, buildVideoCompositeArgs(args), { timeout: timeout * 4 });
     },
+    async normalizeLoudness({ src, dest, lufs, truePeakDb }) {
+      const target = `I=${lufs}:TP=${truePeakDb}:LRA=11`;
+      const { stderr } = await run(
+        ffmpeg,
+        ['-hide_banner', '-nostats', '-i', src, '-map', '0:a:0', '-af', `loudnorm=${target}:print_format=json`, '-f', 'null', '-'],
+        { timeout: timeout * 2, maxBuffer: 1 << 24 },
+      );
+      const m = parseLoudnorm(stderr);
+      // Silence (or an unreadable measurement) keeps the audio as it is.
+      if (!m) throw new Error('loudness could not be measured');
+      const filter = `loudnorm=${target}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true,aresample=48000`;
+      await run(
+        ffmpeg,
+        ['-y', '-hide_banner', '-i', src, '-map', '0:v:0?', '-map', '0:a:0', '-c:v', 'copy', '-af', filter, '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', dest],
+        { timeout: timeout * 2 },
+      );
+    },
   };
+}
+
+export interface LoudnormMeasure {
+  input_i: string;
+  input_tp: string;
+  input_lra: string;
+  input_thresh: string;
+  target_offset: string;
+}
+
+/** The first-pass `loudnorm` JSON from ffmpeg's log, or null when it is missing or silent. */
+export function parseLoudnorm(log: string): LoudnormMeasure | null {
+  const start = log.lastIndexOf('{');
+  const end = log.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try {
+    const j = JSON.parse(log.slice(start, end + 1)) as Record<string, unknown>;
+    const keys = ['input_i', 'input_tp', 'input_lra', 'input_thresh', 'target_offset'] as const;
+    const out: Record<string, string> = {};
+    for (const k of keys) {
+      const v = Number(j[k]);
+      if (!Number.isFinite(v)) return null;
+      out[k] = String(v);
+    }
+    return out as unknown as LoudnormMeasure;
+  } catch {
+    return null;
+  }
 }

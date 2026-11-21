@@ -4,6 +4,7 @@
 // onto the strict `ReelPlan`, repairing or dropping what does not fit, so one odd scene never
 // sinks the plan.
 import {
+  APP_CONFIG_DEFAULTS,
   REEL_ICONS,
   ReelPlanSchema,
   ReelSceneSchema,
@@ -29,6 +30,11 @@ export const ReelDirectInputSchema = z.object({
     .array(z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative(), z.string()]))
     .min(1)
     .max(2500),
+  /** Up to 6 JPEG keyframes of the footage, `atMs` on the reel clock (spec 27 R2.1). */
+  frames: z
+    .array(z.object({ atMs: z.number().int().nonnegative(), base64: z.string().min(16) }))
+    .max(6)
+    .default([]),
 });
 export type ReelDirectInput = z.infer<typeof ReelDirectInputSchema>;
 
@@ -178,8 +184,25 @@ const DirectedSceneSchema = z.object({
   bg: z.enum(['light', 'cream', 'dark']).optional(),
   graphic: GraphicSchema,
 });
+const FootageSchema = z.object({
+  kind: z.enum(['talking-head', 'screen', 'scene']).catch('talking-head'),
+  /** Face centre per keyframe, 0–1000 of the frame's width / height. */
+  faces: z
+    .array(
+      z.object({
+        frame: z.number().int().nonnegative(),
+        x: z.number().min(0).max(1000),
+        y: z.number().min(0).max(1000),
+      }),
+    )
+    .catch([])
+    .default([]),
+});
 export const ReelDirectOutputSchema = z.object({
   story: z.object({ topic: z.string(), arc: z.array(z.string()), motif: z.string() }).optional(),
+  footage: FootageSchema.optional(),
+  /** Music brief for the reel's soundtrack: mood, genre, instruments, tempo. */
+  music: z.string().optional(),
   hook: z.string().optional(),
   brands: z.array(z.object({ name: z.string(), domain: str })).default([]),
   scenes: z.array(DirectedSceneSchema).min(1).max(80),
@@ -316,6 +339,14 @@ export function reelDirectJsonSchema(): Record<string, unknown> {
   return obj(
     {
       story: obj({ topic: s, arc: arr(s), motif: s }, ['topic', 'arc', 'motif']),
+      footage: obj(
+        {
+          kind: { type: 'string', enum: ['talking-head', 'screen', 'scene'] },
+          faces: arr(obj({ frame: i, x: i, y: i }, ['frame', 'x', 'y'])),
+        },
+        ['kind', 'faces'],
+      ),
+      music: s,
       hook: s,
       brands: arr(obj({ name: s, domain: s }, ['name'])),
       scenes: arr(
@@ -334,7 +365,7 @@ export function reelDirectJsonSchema(): Record<string, unknown> {
         ),
       ),
     },
-    ['story', 'hook', 'brands', 'scenes'],
+    ['story', 'footage', 'music', 'hook', 'brands', 'scenes'],
   );
 }
 
@@ -344,9 +375,14 @@ export function reelTemplateDirectTask(): TaskDef<ReelDirectInput, ReelDirectOut
     input: ReelDirectInputSchema,
     output: ReelDirectOutputSchema as unknown as z.ZodType<ReelDirectOutput>,
     mode: () => 'ONLY_IN_CLOUD',
-    model: () => 'gemini-3.8-flash',
+    // The strongest model (spec 27 R4.1): it writes the story and reads the keyframes.
+    model: (cfg) => cfg.modelStrong || APP_CONFIG_DEFAULTS.modelStrong,
     system: REEL_DIRECT_SYSTEM_V3,
-    prompt: (i) => reelDirectPromptV3(i),
+    prompt: (i) => reelDirectPromptV3({ ...i, frameTimesMs: i.frames.map((f) => f.atMs) }),
+    mediaList: (i) =>
+      i.frames.length > 0
+        ? i.frames.map((f) => ({ mimeType: 'image/jpeg' as const, base64: f.base64 }))
+        : undefined,
     jsonSchema: reelDirectJsonSchema,
     cloudCost: () => 3,
     cloudFallback: false,
@@ -689,6 +725,8 @@ export function toReelPlan(
   durationMs: number,
   look: ReelLook,
   by: string,
+  /** Reel-clock times of the keyframes the director saw (face keys are placed on them). */
+  frameTimesMs: readonly number[] = [],
 ): ReelPlan {
   const out = ReelDirectOutputSchema.parse(raw);
   const n = words.length;
@@ -749,14 +787,48 @@ export function toReelPlan(
   });
   if (scenes.length === 0) throw new Error('reel.direct: no usable scenes');
   const hook = cut(out.hook, 48);
+  const footage = footageFor(out.footage, frameTimesMs);
+  const music = cut(out.music, 300);
   return ReelPlanSchema.parse({
     v: 1,
     look,
+    ...(footage ? { footage, focus: medianFocus(footage.focus) } : {}),
+    ...(music && music.length >= 3 ? { music: { brief: music } } : {}),
     captions: true,
     ...(hook && look === 'mono' ? { hook } : {}),
     scenes: tileReelScenes(scenes, durationMs),
     by,
   });
+}
+
+/** Face keys on the reel clock from the director's per-keyframe answer (spec 27 R2.1). */
+function footageFor(
+  f: z.infer<typeof FootageSchema> | undefined,
+  frameTimesMs: readonly number[],
+): ReelPlan['footage'] {
+  if (!f) return undefined;
+  const byTime = new Map<number, { atMs: number; x: number; y: number }>();
+  for (const face of f.faces) {
+    const atMs = frameTimesMs[face.frame];
+    if (atMs === undefined) continue;
+    byTime.set(atMs, {
+      atMs: Math.round(atMs),
+      x: Math.min(1, Math.max(0, face.x / 1000)),
+      y: Math.min(1, Math.max(0, face.y / 1000)),
+    });
+  }
+  const focus = [...byTime.values()].sort((a, b) => a.atMs - b.atMs);
+  // No face anywhere means there is no talking head to crop to.
+  const kind = f.kind === 'talking-head' && focus.length === 0 && frameTimesMs.length > 0
+    ? 'scene'
+    : f.kind;
+  return { kind, focus };
+}
+
+function medianFocus(keys: readonly { x: number; y: number }[]): { x: number; y: number } {
+  if (keys.length === 0) return { x: 0.5, y: 0.32 };
+  const mid = (v: number[]) => v.sort((a, b) => a - b)[Math.floor(v.length / 2)]!;
+  return { x: mid(keys.map((k) => k.x)), y: mid(keys.map((k) => k.y)) };
 }
 
 /**
@@ -765,9 +837,17 @@ export function toReelPlan(
  */
 export async function directReel(
   router: Router | null,
-  params: { look: ReelLook; words: readonly ReelWord[]; durationMs: number; model?: string },
+  params: {
+    look: ReelLook;
+    words: readonly ReelWord[];
+    durationMs: number;
+    model?: string;
+    /** Keyframes of the footage on the reel clock (spec 27 R2.1). */
+    frames?: readonly { atMs: number; base64: string }[];
+  },
 ): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }> {
   const { look, words, durationMs } = params;
+  const frames = (params.frames ?? []).slice(0, 6);
   if (!router || words.length < 4)
     return { plan: autoReelPlan(words, durationMs, look), source: 'auto' };
   try {
@@ -775,12 +855,23 @@ export async function directReel(
       look,
       durationMs,
       words: words.slice(0, 2500).map((w, i) => [i, w.startMs, w.text] as [number, number, string]),
+      frames: frames.map((f) => ({ atMs: Math.max(0, Math.round(f.atMs)), base64: f.base64 })),
     };
     const res = await router.run(reelTemplateDirectTask(), input, {
       mode: 'ONLY_IN_CLOUD',
       ...(params.model ? { model: params.model } : {}),
     });
-    return { plan: toReelPlan(res.output, words, durationMs, look, res.model), source: 'cloud' };
+    return {
+      plan: toReelPlan(
+        res.output,
+        words,
+        durationMs,
+        look,
+        res.model,
+        input.frames.map((f) => f.atMs),
+      ),
+      source: 'cloud',
+    };
   } catch (e) {
     return {
       plan: autoReelPlan(words, durationMs, look),

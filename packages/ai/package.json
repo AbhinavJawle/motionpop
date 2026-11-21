@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./firebase": "./src/providers/firebase.ts"
+    "./firebase": "./src/providers/firebase.ts",
+    "./music": "./src/providers/music.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",

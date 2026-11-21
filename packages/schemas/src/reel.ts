@@ -251,6 +251,33 @@ export const ReelPlanSchema = z.object({
   focus: z
     .object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1) })
     .default({ x: 0.5, y: 0.32 }),
+  /**
+   * What the footage is (spec 27 R2): a talking head is cropped to the face over time; screen
+   * recordings and scenes without a face are shown whole. Face keys are on the reel timeline.
+   */
+  footage: z
+    .object({
+      kind: z.enum(['talking-head', 'screen', 'scene']).default('talking-head'),
+      focus: z
+        .array(
+          z.object({
+            atMs: z.number().int().nonnegative(),
+            x: z.number().min(0).max(1),
+            y: z.number().min(0).max(1),
+          }),
+        )
+        .max(24)
+        .default([]),
+    })
+    .optional(),
+  /** The reel's music (spec 27 R3): the director's brief and, once generated, the stored file. */
+  music: z
+    .object({
+      brief: z.string().trim().min(3).max(300),
+      /** Audio store ref of the generated, looped music (absent: the synthesised bed plays). */
+      src: z.string().min(1).max(500).optional(),
+    })
+    .optional(),
   captions: z.boolean().default(true),
   /** The hook title shown over the first scene (mono: dark band at the seam). */
   hook: short(48).optional(),

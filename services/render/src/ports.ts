@@ -144,6 +144,11 @@ export interface Ffmpeg {
   frame(args: { video: string; atMs: number; destJpg: string; longSide: number }): Promise<void>;
   /** Cut/zoom source video, composite transparent graphics overlay, and mux audio into MP4 (spec 18). */
   compositeVideo?(args: VideoCompositeArgs): Promise<void>;
+  /**
+   * Re-encodes the audio of an MP4 to a loudness target (two-pass EBU R128, linear gain), copying
+   * the video stream (spec 27 R3.3). Writes `dest`; the caller swaps it in.
+   */
+  normalizeLoudness?(args: { src: string; dest: string; lufs: number; truePeakDb: number }): Promise<void>;
 }
 
 export type CompileAssets = Parameters<typeof compileProject>[1];

@@ -11,7 +11,12 @@ import {
   voiceLevelDb,
   type BedMusic,
 } from '@motionpop/motion/sfx';
-import { reelBed } from '@motionpop/motion/reel';
+import {
+  decodeWavStereo16,
+  encodeWavStereo16,
+  mixReelMusic,
+  reelBed,
+} from '@motionpop/motion/reel';
 import { audioOf, type EditorProject } from '@motionpop/schemas';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -65,4 +70,28 @@ export async function prepareReelBed(
   });
   await writeFile(join(compDir, BED_ASSET), encodeWav16(samples, SFX_SAMPLE_RATE));
   return BED_ASSET;
+}
+
+export const MUSIC_ASSET = 'assets/music.wav';
+
+/**
+ * The reel's generated music (spec 27 R3.2), levelled and ducked under the re-encoded voice with
+ * the same `mixReelMusic` the editor preview uses. `musicFile` is the downloaded stored music.
+ */
+export async function prepareReelMusic(
+  project: EditorProject,
+  compDir: string,
+  musicFile: string,
+): Promise<string | null> {
+  const music = decodeWavStereo16(await readFile(musicFile));
+  if (!music) throw new Error('the stored music is not a 16-bit WAV');
+  const voice = decodeWav16(await readFile(join(compDir, 'assets', 'voice.wav')));
+  if (!voice) throw new Error('the re-encoded voice is not a 16-bit WAV');
+  const words = project.transcript.words;
+  const mixed = mixReelMusic(music, {
+    voiceLevelDb: voiceLevelDb(voice.samples, voice.sampleRate, words),
+    words,
+  });
+  await writeFile(join(compDir, MUSIC_ASSET), encodeWavStereo16(mixed));
+  return MUSIC_ASSET;
 }

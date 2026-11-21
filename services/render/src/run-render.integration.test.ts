@@ -217,12 +217,12 @@ describe.skipIf(!mustRun && missing.length > 0)(
           pcm.stdout.byteOffset,
           Math.floor(pcm.stdout.byteLength / 4),
         );
-        // The lavfi sine is 0.125 at full scale and the beep is made at volume 0.5, so the level
-        // should come through unchanged (0.0625). The onset is the first sample at half the peak.
+        // The beep is made at 0.0625; the export loudness pass (spec 27 R3.3) lifts it towards
+        // −14 LUFS but never past the −1 dBTP ceiling. The onset is the first sample at half the peak.
         let peak = 0;
         for (const s of samples) peak = Math.max(peak, Math.abs(s));
-        expect(peak, 'the voice level is kept').toBeGreaterThan(0.05);
-        expect(peak).toBeLessThan(0.08);
+        expect(peak, 'the voice is audible').toBeGreaterThan(0.05);
+        expect(peak, 'under the true-peak ceiling').toBeLessThanOrEqual(0.9);
         const first = samples.findIndex((s) => Math.abs(s) > peak / 2);
         const onsetMs = (first / 48000) * 1000;
         expect(Math.abs(onsetMs - BEEP_AT_MS)).toBeLessThanOrEqual(frameToMs(1));

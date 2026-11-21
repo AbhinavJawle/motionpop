@@ -255,6 +255,70 @@ describe('toReelPlan', () => {
   });
 });
 
+describe('toReelPlan footage and music (spec 27)', () => {
+  const ws = words();
+  const dur = ws.at(-1)!.endMs + 300;
+  const base: ReelDirectOutput = {
+    scenes: [
+      { fromWord: 0, toWord: 6, layout: 'split', graphic: { template: 'headline', title: 'Hi' } },
+    ],
+  };
+
+  it('places face keys on the keyframe times and keeps the median as the focus', () => {
+    const plan = toReelPlan(
+      {
+        ...base,
+        footage: {
+          kind: 'talking-head',
+          faces: [
+            { frame: 0, x: 790, y: 340 },
+            { frame: 2, x: 810, y: 360 },
+            { frame: 9, x: 100, y: 100 },
+          ],
+        },
+        music: 'Warm lo-fi, soft piano, brushed drums, 90 bpm',
+      },
+      ws,
+      dur,
+      'mono',
+      'm',
+      [1500, 7900, 14300],
+    );
+    expect(plan.footage).toEqual({
+      kind: 'talking-head',
+      focus: [
+        { atMs: 1500, x: 0.79, y: 0.34 },
+        { atMs: 14300, x: 0.81, y: 0.36 },
+      ],
+    });
+    expect(plan.focus.x).toBeCloseTo(0.81, 5);
+    expect(plan.music).toEqual({ brief: 'Warm lo-fi, soft piano, brushed drums, 90 bpm' });
+  });
+
+  it('a "talking head" with no face anywhere is shown whole', () => {
+    const plan = toReelPlan(
+      { ...base, footage: { kind: 'talking-head', faces: [] } },
+      ws,
+      dur,
+      'mono',
+      'm',
+      [1000, 2000],
+    );
+    expect(plan.footage?.kind).toBe('scene');
+  });
+
+  it('an unknown footage kind falls back to a talking head', () => {
+    const plan = toReelPlan(
+      { ...base, footage: { kind: 'vlog' as 'scene', faces: [] } },
+      ws,
+      dur,
+      'mono',
+      'm',
+    );
+    expect(plan.footage?.kind).toBe('talking-head');
+  });
+});
+
 describe('directReel', () => {
   it('falls back to the free plan without a router', async () => {
     const ws = words();

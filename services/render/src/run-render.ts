@@ -10,7 +10,7 @@ import {
 } from '@motionpop/motion/compiler';
 import type { ImageRef } from '@motionpop/motion';
 import { compileReel } from '@motionpop/motion/reel';
-import { mediaHashOf, mediaStoragePath, reelMediaOf } from '@motionpop/schemas';
+import { mediaHashOf, mediaStoragePath, musicPathFor, reelMediaOf } from '@motionpop/schemas';
 import {
   EditorProjectSchema,
   isSafeId,
@@ -24,9 +24,9 @@ import {
   type RenderErrorCode,
   type RenderPaths,
 } from '@motionpop/schemas';
-import { copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { prepareBed, prepareReelBed } from './bed';
+import { prepareBed, prepareReelBed, prepareReelMusic } from './bed';
 import { loadReelAssets, motionDistDir } from './compile-assets';
 import { contentDisposition } from './headers';
 import { expectedSize, outputIssues } from './output';
@@ -142,6 +142,21 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       else if (doc.music) bedSrc = await prepareBed(project, compDir);
     } catch (e) {
       log.error({ event: 'bed-failed', renderId, error: errorText(e) });
+    }
+    // The reel's generated music (spec 27 R3.2), from the owner's project audio folder only.
+    let musicSrc: string | null = null;
+    const musicRef = project.reel && project.video ? project.reel.music?.src : undefined;
+    if (musicRef) {
+      const path = musicRef.startsWith('storage:') ? musicRef.slice('storage:'.length) : musicRef;
+      if (musicPathFor(doc.ownerId, doc.projectId).test(path)) {
+        try {
+          const dest = join(deps.workDir, 'music-source.wav');
+          await blobs.download(path, dest);
+          musicSrc = await prepareReelMusic(project, compDir, dest);
+        } catch (e) {
+          log.error({ event: 'music-failed', renderId, error: errorText(e) });
+        }
+      } else log.error({ event: 'music-path-refused', renderId });
     }
 
     // 2c. Pictures (spec 07 R4): each one the slots use, from the owner's media folder only. A
@@ -280,6 +295,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
             out: { w: dims.width, h: dims.height },
             images: reelImages,
             ...(bedSrc ? { sfxSrc: bedSrc } : {}),
+            ...(musicSrc ? { musicSrc } : {}),
           },
           deps.reelAssets ?? (await loadReelAssets()),
         );
@@ -378,6 +394,17 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
           bgColor: styleFor(project).colors.bg,
         }),
       );
+    }
+    // 4c. Loudness (spec 27 R3.3): social platforms play at about −14 LUFS. A failure keeps the
+    // mix as rendered (it is still a good file).
+    if (ffmpeg.normalizeLoudness) {
+      const levelled = join(deps.workDir, 'video-levelled.mp4');
+      try {
+        await ffmpeg.normalizeLoudness({ src: out, dest: levelled, lufs: -14, truePeakDb: -1 });
+        await rename(levelled, out);
+      } catch (e) {
+        log.error({ event: 'loudness-failed', renderId, error: errorText(e) });
+      }
     }
     producerMs = clock.now() - t0;
     const total = result.perf?.['totalElapsedMs'];

@@ -17,6 +17,7 @@ import {
   EditorProjectSchema,
   cleanedDurationFromSegments,
   keptSourceSegments,
+  sourceToCleanedMs,
   reelMediaOf,
   type EditorProject,
   type ImageAsset,
@@ -142,7 +143,18 @@ export interface PipelineDeps {
     look: ReelLook;
     words: readonly ReelWord[];
     durationMs: number;
+    /** Keyframes of the footage on the reel clock (spec 27 R2.1). */
+    frames?: readonly { atMs: number; base64: string }[];
   }): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }>;
+  /**
+   * Generates and stores the reel's music from the director's brief (spec 27 R3.2). Optional;
+   * without it (or on failure) the reel plays with its sound effects only.
+   */
+  resolveReelMusic?(params: {
+    plan: ReelPlan;
+    durationMs: number;
+    projectId: string;
+  }): Promise<ReelPlan>;
   /**
    * Fetches the pictures a reel plan asks for (spec 26: logos, illustrations, photos, site
    * screenshots) and stores them as project assets. Optional; without it the templates draw
@@ -334,8 +346,14 @@ export async function runPipeline(
       onEvent({ type: 'step', step, state: 'active', detail: 'Directing your reel' });
       const look: ReelLook = input.reelLook ?? 'mono';
       const words = reelWords.map((w) => ({ text: w.text, startMs: w.startMs, endMs: w.endMs }));
+      // The director sees the footage too (spec 27 R2.1): keyframes moved onto the reel clock
+      // (a frame inside a removed pause is dropped).
+      const frames = (probe?.frames ?? []).flatMap((f) => {
+        const atMs = sourceToCleanedMs(f.atMs, kept);
+        return atMs === null ? [] : [{ atMs: Math.round(atMs), base64: f.base64 }];
+      });
       const directed = await (deps.directReel
-        ? deps.directReel({ look, words, durationMs: reelMs }).catch(() => null)
+        ? deps.directReel({ look, words, durationMs: reelMs, frames }).catch(() => null)
         : Promise.resolve(null));
       checkAbort();
       let reel = directed?.plan ?? autoReelPlan(words, reelMs, look);
@@ -364,6 +382,15 @@ export async function runPipeline(
           reel = media.plan;
           reelAssets = media.assets;
         }
+      }
+      // The soundtrack (spec 27 R3.2), composed from the director's brief.
+      if (deps.resolveReelMusic && reel.music && !reel.music.src) {
+        onEvent({ type: 'step', step, state: 'active', detail: 'Composing your music' });
+        const scored = await deps
+          .resolveReelMusic({ plan: reel, durationMs: reelMs, projectId: id })
+          .catch(() => null);
+        checkAbort();
+        if (scored) reel = scored;
       }
 
       checkAbort();

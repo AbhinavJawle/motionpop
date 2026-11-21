@@ -96,16 +96,38 @@ RULES
 8. icon values must come from: ${REEL_ICONS.join(', ')}.
 9. tag (optional, mono only): a 1–3 word label pinned on top of a graphic panel ("FRAME BY FRAME").
 
+THE FOOTAGE (when keyframes are attached)
+- footage.kind: "talking-head" (a person speaking to camera fills much of the frame), "screen"
+  (a screen recording, slides or an app), or "scene" (B-roll, wide shots, no clear speaker).
+- footage.faces: for every keyframe showing the speaker's face, the face centre as integers 0–1000
+  of the keyframe's width (x) and height (y), with the keyframe's number (frame). Omit keyframes
+  with no visible face. Be precise: the vertical crop is framed on these points.
+- For "screen" or "scene" footage, lean on full and card layouts and real pictures; speaker-only
+  scenes show the footage whole.
+
+MUSIC
+- music: a one-line brief for an instrumental soundtrack that fits the topic and energy: mood,
+  genre, 2–3 instruments, tempo in bpm (e.g. "Confident minimal tech house, soft synth plucks,
+  tight hats, warm sub bass, 118 bpm"). No artist, song or brand names, no vocals.
+
 Return JSON only, matching the schema.`;
 
 export function reelDirectPromptV3(i: {
   look: ReelLook;
   durationMs: number;
   words: readonly (readonly [number, number, string])[];
+  frameTimesMs?: readonly number[];
 }): string {
   const lines = i.words.map(([idx, ms, text]) => `${idx}@${(ms / 1000).toFixed(2)} ${text}`);
+  const frames = i.frameTimesMs ?? [];
+  const seen = frames.length
+    ? `\nKeyframes attached: ${frames.length} images, in order, taken at ${frames
+        .map((ms, k) => `#${k} ${(ms / 1000).toFixed(1)} s`)
+        .join(', ')}.`
+    : '\nNo keyframes attached: assume a talking head centred in the frame (faces: []).';
   return `Look: ${i.look} (default layout: ${i.look === 'mono' ? 'split' : 'card'}).
-Duration: ${(i.durationMs / 1000).toFixed(1)} s. Words: ${i.words.length} (index@seconds word):
+Duration: ${(i.durationMs / 1000).toFixed(1)} s.${seen}
+Words: ${i.words.length} (index@seconds word):
 ${lines.join('\n')}
 
 Write the story, then plan the reel.`;

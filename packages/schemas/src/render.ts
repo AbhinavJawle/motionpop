@@ -72,6 +72,13 @@ export function voicePathFor(uid: string, projectId: string): RegExp {
   );
 }
 
+/** The only Storage paths a reel's generated music may have (spec 27 R3.2). */
+export function musicPathFor(uid: string, projectId: string): RegExp {
+  return new RegExp(
+    `^users/${escapeRegExp(uid)}/audio/${escapeRegExp(projectId)}/music-[0-9a-f]{16}\\.wav$`,
+  );
+}
+
 /** The only Storage paths a caller's source video upload may have (spec 19 R5.1). */
 export function videoPathFor(uid: string, projectId: string): RegExp {
   return new RegExp(

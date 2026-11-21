@@ -13,3 +13,12 @@ export { STAGE_W as REEL_STAGE_W, STAGE_H as REEL_STAGE_H } from './looks';
 export { reelSfx, reelBed, type ReelBedOptions } from './sound';
 export { logoSlugs, splitLogoQuery, illustrationPrompt } from './media-query';
 export type { ReelImage } from './parts';
+export { cutsFromSegments, focusAt, punchChanges, punchLevelAt, transKind } from './motion';
+export {
+  decodeWavStereo16,
+  encodeWavStereo16,
+  loopReelMusic,
+  mixReelMusic,
+  REEL_MUSIC_RMS_DB,
+  type StereoPcm,
+} from './music';

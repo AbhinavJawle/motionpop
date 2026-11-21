@@ -350,6 +350,8 @@ function imageFrame(p: Of<'image'>, ctx: TplCtx, pic: ReelImage): Tpl {
         // (trimPaper, media recipe v2), so the panel's colour and grid show through.
         { background: 'transparent' }
       : {
+          // Drawings are stored with transparent paper: on a dark panel they get their paper back.
+          ...(p.media.kind === 'illustration' ? { background: '#FBFAF7' } : {}),
           borderRadius: ctx.look.upper ? 18 : 26,
           boxShadow: ctx.pal.dark ? '0 30px 80px rgba(0,0,0,0.55)' : '0 26px 60px rgba(0,0,0,0.16)',
           border: ctx.look.upper && !ctx.pal.dark ? `1.5px solid ${ctx.pal.line}` : 'none',
@@ -406,7 +408,8 @@ function imageBleed(p: Of<'image'>, ctx: TplCtx, pic: ReelImage): Tpl {
     width: W,
     height: H,
     overflow: 'hidden',
-    background: ctx.pal.bg,
+    // Drawings keep their paper behind them (their own paper is transparent).
+    background: p.media.kind === 'illustration' && ctx.pal.dark ? '#FBFAF7' : ctx.pal.bg,
   });
   const k = Math.max(W / pic.w, H / pic.h);
   const img = imgEl(pic, {

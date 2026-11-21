@@ -2,12 +2,21 @@
 // `seek(ms)`. The same code runs in the editor preview (native <video>, real-time) and inside the
 // HyperFrames composition for export (frame-exact), so the preview is the export.
 import type { ReelMedia, ReelPlan, ReelScene, ReelWord } from '@motionpop/schemas';
-import { clamp, easeOutCubic, lerp, prog, revealAt } from './anim';
+import { clamp, easeInOutCubic, easeOutCubic, lerp, prog, revealAt } from './anim';
 import { chunkAt, chunkCaptions, type CaptionChunk } from './captions';
 import { css, h } from './dom';
 import { graphicArea, LOOKS, STAGE_H, STAGE_W, type LookTokens, type Palette } from './looks';
 import type { ReelImage } from './parts';
-import { carryOrigins } from './carry';
+import { carriedInPlace, carryOrigins } from './carry';
+import {
+  focusAt,
+  framingChanges,
+  punchLevelAt,
+  sentenceStarts,
+  transKind,
+  transLength,
+  type TransKind,
+} from './motion';
 import { buildTemplate, tagEl, type Tpl } from './templates';
 
 export interface ReelData {
@@ -19,6 +28,8 @@ export interface ReelData {
   video: { w: number; h: number };
   /** Pictures by `project.assets` id (spec 26): composition-relative or blob URLs. */
   images?: Record<string, ReelImage>;
+  /** Reel-time jump cuts in the speaker video (spec 27 R1.2): the framing alternates on them. */
+  cuts?: readonly number[];
 }
 
 export interface ReelHandle {
@@ -30,6 +41,9 @@ export interface ReelHandle {
 interface SceneView {
   scene: ReelScene;
   host: HTMLElement;
+  /** The scene's own background (graphic layouts), faded separately during a hand-over. */
+  bg?: HTMLElement;
+  cam: HTMLElement;
   tpl: Tpl;
   pal: Palette;
   tag?: HTMLElement;
@@ -218,8 +232,18 @@ export function mountReel(
         height: layout === 'split' ? STAGE_H / 2 : STAGE_H,
         overflow: 'hidden',
         visibility: 'hidden',
-        ...(isOverlay ? {} : gridCss(pal)),
       });
+      const bg = isOverlay
+        ? undefined
+        : h('div', {
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: STAGE_W,
+            height: '100%',
+            ...gridCss(pal),
+          });
+      if (bg) sceneHost.append(bg);
       const area = graphicArea(look, layout);
       const cam = h('div', {
         position: 'absolute',
@@ -259,7 +283,15 @@ export function mountReel(
         sceneHost.append(tagWrap);
       }
       (isOverlay ? over : panel).append(sceneHost);
-      views.push({ scene: s0, host: sceneHost, tpl, pal, ...(tag ? { tag } : {}) });
+      views.push({
+        scene: s0,
+        host: sceneHost,
+        cam,
+        tpl,
+        pal,
+        ...(bg ? { bg } : {}),
+        ...(tag ? { tag } : {}),
+      });
     }
     // Measure with everything laid out but invisible.
     for (const v of views) {
@@ -298,33 +330,63 @@ export function mountReel(
     }
   };
 
-  const placeVideo = (box: Box | null, s: ReelScene, t: number) => {
+  // Jump cuts flip the framing between two zoom levels (spec 27 R1.2).
+  const punches = framingChanges(data.cuts ?? [], sentenceStarts(data.words));
+  // Footage without a face is shown whole; a talking head follows its face keys (spec 27 R2.2).
+  const footage = plan.footage;
+  const contain = footage?.kind === 'screen' || footage?.kind === 'scene';
+  const focusKeys = footage?.focus ?? [];
+
+  const placeVideo = (box: Box | null, s: ReelScene, t: number, opacity = 1) => {
     // Opacity, not visibility: HyperFrames sets the clip's own visibility each frame.
-    if (!box) {
+    if (!box || opacity <= 0.001) {
       vwrap.style.opacity = '0';
       return;
     }
-    vwrap.style.opacity = '1';
+    vwrap.style.opacity = opacity >= 0.999 ? '1' : opacity.toFixed(3);
     css(vwrap, {
       left: box.x,
       top: box.y,
       width: box.w,
       height: box.h,
       borderRadius: box.radius ? `${box.radius}px ${box.radius}px 0 0` : '0',
+      background: contain ? '#0B0B0C' : '#111',
     });
     // Slow push-in across the scene keeps a static camera alive.
     const span = Math.max(1, s.endMs - s.startMs);
     const push = s.layout === 'speaker' ? 0.06 : 0.025;
-    const z = box.zoom * (1 + push * easeOutCubic(clamp((t - s.startMs) / span)));
+    const punch = punchLevelAt(punches, t) ? (s.layout === 'speaker' ? 1.09 : 1.05) : 1;
+    const z = box.zoom * punch * (1 + push * easeOutCubic(clamp((t - s.startMs) / span)));
     const vw = data.video.w || 720;
     const vh = data.video.h || 1280;
-    const scale = Math.max(box.w / vw, box.h / vh) * z;
-    const dw = vw * scale;
-    const dh = vh * scale;
-    const fx = plan.focus.x;
-    const fy = plan.focus.y;
-    const left = clamp(box.w / 2 - fx * dw, box.w - dw, 0);
-    const top = clamp(box.h * box.ay - fy * dh, box.h - dh, 0);
+    let dw: number;
+    let dh: number;
+    let left: number;
+    let top: number;
+    if (contain) {
+      // Whole frame, centred a little above the middle, gently pushed in.
+      const scale = Math.min(box.w / vw, box.h / vh) * (1 + (z - box.zoom * punch) * 0.5);
+      dw = vw * scale;
+      dh = vh * scale;
+      left = (box.w - dw) / 2;
+      top = (box.h - dh) * (s.layout === 'speaker' ? 0.44 : 0.5);
+    } else {
+      const f = focusAt(focusKeys, t, plan.focus);
+      // Zoom in far enough that the face can sit where the box wants it (a speaker off to one
+      // side of a wide shot), never more than 2.4× the plain cover crop.
+      const cover = Math.max(box.w / vw, box.h / vh);
+      const needW = (box.w / 2) / Math.max(0.05, Math.min(f.x, 1 - f.x));
+      const needH = Math.max(
+        (box.h * box.ay) / Math.max(0.05, f.y),
+        (box.h * (1 - box.ay)) / Math.max(0.05, 1 - f.y),
+      );
+      const fill = Math.min(2.4, Math.max(1, needW / (vw * cover), needH / (vh * cover)));
+      const scale = cover * fill * z;
+      dw = vw * scale;
+      dh = vh * scale;
+      left = clamp(box.w / 2 - f.x * dw, box.w - dw, 0);
+      top = clamp(box.h * box.ay - f.y * dh, box.h - dh, 0);
+    }
     for (const v of videos)
       css(v, {
         width: `${dw.toFixed(1)}px`,
@@ -334,11 +396,27 @@ export function mountReel(
       });
   };
 
-  const placeCaption = (s: ReelScene, pal: Palette, t: number) => {
+  /** The hand-over in progress at `t` (spec 27 R1.1), if any. */
+  const handoverAt = (
+    idx: number,
+    t: number,
+  ): { prev: number; kind: TransKind; p: number } | null => {
+    if (idx <= 0) return null;
+    const s = scenes[idx]!;
+    const kind = transKind(scenes[idx - 1]!, s, carriedInPlace(scenes, idx));
+    const len = transLength(kind);
+    if (len <= 0) return null;
+    const p = (t - s.startMs) / len;
+    return p >= 0 && p < 1 ? { prev: idx - 1, kind, p } : null;
+  };
+
+  const placeCaption = (s: ReelScene, pal: Palette, t: number, settling = false) => {
     const i = chunkAt(chunks, t);
     // Captions step aside for the CTA card (both looks) and for cream punchlines.
     const hide =
       i < 0 ||
+      // While the layout is changing the caption waits for its new place.
+      settling ||
       s.content.template === 'cta' ||
       (look.id === 'cream' && s.content.template === 'punch');
     if (hide) {
@@ -405,23 +483,81 @@ export function mountReel(
     if (!built) return;
     const idx = sceneIndexAt(t);
     const s = scenes[idx]!;
+    const ho = handoverAt(idx, t);
     views.forEach((v, i) => {
-      const on = i === idx;
+      const incoming = i === idx;
+      const outgoing = !!ho && i === ho.prev;
+      const on = incoming || outgoing;
       // display, not visibility: revealed children set their own visibility.
       v.host.style.display = on ? 'block' : 'none';
       v.host.style.visibility = 'visible';
       if (!on) return;
+      const sc = scenes[i]!;
       // The hook is already on screen at frame 0 (the thumbnail and the first swipe-stop).
-      const lt = idx === 0 ? t + HOOK_LEAD_MS : t;
+      const lt = i === 0 ? t + HOOK_LEAD_MS : t;
       v.tpl.seek(lt);
-      const o = originOf(s);
+      const o = originOf(sc);
       if (v.tag) revealAt(v.tag, lt, o + 40, 320, 0, 8);
-      // Gentle camera drift on graphic panels.
-      if (s.layout !== 'speaker') {
-        const cam = v.host.firstElementChild as HTMLElement;
-        const span = Math.max(1, s.endMs - o);
-        const z = lerp(1, 1.018, clamp((t - o) / span));
-        cam.style.transform = `scale(${z.toFixed(4)})`;
+      // Gentle camera drift on graphic panels, composed with the hand-over motion.
+      let scale = 1;
+      if (sc.layout !== 'speaker') {
+        const span = Math.max(1, sc.endMs - o);
+        scale = lerp(1, 1.018, clamp((t - o) / span));
+      }
+      let ty = 0;
+      let op = 1;
+      let blur = 0;
+      let hostOp = 1;
+      let bgOp = 1;
+      let z = 0;
+      if (ho && outgoing) {
+        // Leaves with an ease-in, still half there while the new graphic starts to land.
+        const e = clamp(ho.p * 1.5) ** 2;
+        if (ho.kind === 'push') {
+          // One direction of travel: the old graphic accelerates up and out of the panel
+          // (fading only at the end), the new one rises into its place.
+          const ep = clamp(ho.p * 1.25) ** 2;
+          ty = -300 * ep;
+          op = 1 - clamp((ep - 0.45) / 0.55);
+          blur = 5 * ep;
+          // It flies over the new scene: drawn on top, its own background gone at once.
+          z = 2;
+          bgOp = 1 - clamp(ho.p * 4);
+        } else if (ho.kind === 'morph') {
+          if (sc.layout === 'speaker') op = 1 - clamp(ho.p * 2.4);
+          else {
+            ty = -110 * e;
+            op = 1 - 0.7 * e;
+          }
+        } else if (ho.kind === 'reveal') {
+          op = 1 - e;
+          scale *= 1 + 0.05 * e;
+        } else if (ho.kind === 'overlay') {
+          op = 1 - clamp(ho.p * 2.4);
+        }
+      } else if (ho && incoming) {
+        const e = easeOutCubic(ho.p);
+        if (ho.kind === 'push') {
+          ty = 150 * (1 - e);
+        } else if (ho.kind === 'reveal') {
+          // Zoom-through: the full frame is there almost at once and settles out of a blur.
+          hostOp = clamp(ho.p * 2.6);
+          scale *= 1.1 - 0.1 * e;
+          blur = 10 * (1 - e);
+        }
+      }
+      v.host.style.opacity = hostOp >= 0.999 ? '' : hostOp.toFixed(3);
+      v.host.style.zIndex = z ? String(z) : '';
+      if (v.bg) v.bg.style.opacity = bgOp >= 0.999 ? '' : bgOp.toFixed(3);
+      v.cam.style.transform =
+        ty || scale !== 1
+          ? `translate3d(0, ${ty.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`
+          : '';
+      v.cam.style.opacity = op >= 0.999 ? '' : Math.max(0, op).toFixed(3);
+      v.cam.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : 'none';
+      if (v.tag) {
+        // The old scene label gives way to the new one at once.
+        if (outgoing && ho) v.tag.style.opacity = (1 - clamp(ho.p * 4)).toFixed(3);
       }
     });
     // Background behind everything: the scene palette for card/full, black for speaker/split.
@@ -432,19 +568,38 @@ export function mountReel(
         ? gridCss(pal)
         : { background: '#000', backgroundImage: 'none' },
     );
-    placeVideo(boxFor(s), s, t);
+    // The speaker's box: morphs between layouts, fades under/over full-frame graphics.
+    let box = boxFor(s);
+    let vOp = 1;
+    if (ho) {
+      const pb = boxFor(scenes[ho.prev]!);
+      if (ho.kind === 'morph' && pb && box) box = lerpBox(pb, box, easeInOutCubic(ho.p));
+      else if (ho.kind === 'reveal') {
+        const q = clamp(ho.p * 2.6);
+        if (pb && !box) {
+          box = pb;
+          vOp = 1 - q;
+        } else if (!pb && box) vOp = q;
+      }
+    }
+    placeVideo(box, s, t, vOp);
     if (hookEl) {
       const first = scenes[0]!;
       const end = Math.min(first.endMs, 3600);
       const on = t < end && first.layout !== 'full';
       hookEl.style.visibility = on ? 'visible' : 'hidden';
       if (on) {
-        const box = boxFor(first);
-        const bottom = box ? box.y - 12 : STAGE_H / 2 - 12;
+        const fb = boxFor(first);
+        const bottom = fb ? fb.y - 12 : STAGE_H / 2 - 12;
         hookEl.style.top = `${bottom - hookEl.offsetHeight}px`;
       }
     }
-    placeCaption(s, pal, t);
+    placeCaption(
+      s,
+      pal,
+      t,
+      !!ho && ((ho.kind === 'morph' && ho.p < 0.7) || (ho.kind === 'reveal' && ho.p < 0.4)),
+    );
   };
 
   const ready = (async () => {
@@ -473,6 +628,18 @@ export function mountReel(
       for (const el of [bgLayer, panel, over, capLayer]) el.remove();
       if (!existing) vwrap.remove();
     },
+  };
+}
+
+function lerpBox(a: Box, b: Box, e: number): Box {
+  return {
+    x: lerp(a.x, b.x, e),
+    y: lerp(a.y, b.y, e),
+    w: lerp(a.w, b.w, e),
+    h: lerp(a.h, b.h, e),
+    radius: lerp(a.radius, b.radius, e),
+    ay: lerp(a.ay, b.ay, e),
+    zoom: lerp(a.zoom, b.zoom, e),
   };
 }
 

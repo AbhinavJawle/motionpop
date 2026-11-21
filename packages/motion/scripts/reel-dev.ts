@@ -2,19 +2,25 @@
 // with @hyperframes/producer or takes quick stills (a contact sheet) in headless Chrome.
 //
 //   npx tsx scripts/reel-dev.ts render <video> <words.json> <plan.json> <out.mp4> [--quality draft|standard|high]
-//   npx tsx scripts/reel-dev.ts sheet  <video> <words.json> <plan.json> <out.jpg> [--every 1000]
+//   npx tsx scripts/reel-dev.ts sheet  <video> <words.json> <plan.json> <out.jpg> [--every 1000] [--from ms] [--to ms]
 //   both take [--images images.json] ({ assetId: { file, w, h } }, from reel-media-lab.ts)
-//   and [--sfx bed.wav]
+//   and [--sfx bed.wav | --sound [--music id]] and [--cuts project.json] (the app's jump cuts)
 //
 // words.json: [{ text, startMs, endMs }]. plan.json: a ReelPlan.
 import { execFileSync } from 'node:child_process';
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { ReelPlanSchema, ReelWordSchema, tileReelScenes } from '@motionpop/schemas';
+import {
+  ReelPlanSchema,
+  ReelWordSchema,
+  keptSourceSegments,
+  tileReelScenes,
+} from '@motionpop/schemas';
 import { z } from 'zod';
 import { compileReel } from '../src/reel/compile.ts';
 import { reelBed, reelSfx } from '../src/reel/sound.ts';
+import { decodeWavStereo16, encodeWavStereo16, mixReelMusic } from '../src/reel/music.ts';
 import { SFX_SAMPLE_RATE, encodeWav16, voiceLevelDb } from '../src/sfx/index.ts';
 
 const [cmd, videoArg, wordsArg, planArg, outArg, ...rest] = process.argv.slice(2);
@@ -55,7 +61,23 @@ const probe = JSON.parse(
 ) as { streams: { width: number; height: number }[]; format: { duration: string } };
 const vw = probe.streams[0]!.width;
 const vh = probe.streams[0]!.height;
-const durationMs = Math.floor(Number(probe.format.duration) * 1000);
+const sourceMs = Math.floor(Number(probe.format.duration) * 1000);
+// --cuts project.json: the jump cuts the app made (its `video.cuts`), so the reel plays the kept
+// segments exactly like the export (pass the project's re-timed words as <words.json>).
+const cutsArg = flag('cuts', '');
+const segments = cutsArg
+  ? keptSourceSegments(
+      sourceMs,
+      (
+        JSON.parse(readFileSync(cutsArg, 'utf8')) as {
+          video: { cuts: { startMs: number; endMs: number; enabled: boolean }[] };
+        }
+      ).video.cuts,
+    ).map((k) => ({ srcStartMs: k.startMs, srcEndMs: k.endMs }))
+  : undefined;
+const durationMs = segments
+  ? segments.reduce((a, k) => a + (k.srcEndMs - k.srcStartMs), 0)
+  : sourceMs;
 
 const words = z.array(ReelWordSchema).parse(JSON.parse(readFileSync(wordsArg, 'utf8')));
 const rawPlan = ReelPlanSchema.parse(JSON.parse(readFileSync(planArg, 'utf8')));
@@ -76,6 +98,26 @@ if (imagesArg) {
     copyFileSync(m.file, join(dir, rel));
     images[id] = { src: rel, w: m.w, h: m.h };
   }
+}
+// --musicwav file.wav: a generated soundtrack (packages/ai reel-music-lab.ts), levelled and
+// ducked under the video's voice like the export does it.
+const musicWav = flag('musicwav', '');
+let musicSrc = '';
+if (musicWav) {
+  const pcm = execFileSync(
+    'ffmpeg',
+    ['-v', 'error', '-i', videoArg, '-ac', '1', '-ar', String(SFX_SAMPLE_RATE), '-f', 'f32le', '-'],
+    { maxBuffer: 1 << 30 },
+  );
+  const voice = new Float32Array(pcm.buffer, pcm.byteOffset, pcm.byteLength / 4);
+  const music = decodeWavStereo16(readFileSync(musicWav));
+  if (!music) throw new Error('--musicwav is not a 16-bit WAV');
+  const mixed = mixReelMusic(music, {
+    voiceLevelDb: voiceLevelDb(voice, SFX_SAMPLE_RATE, words),
+    words,
+  });
+  writeFileSync(join(dir, 'music.wav'), encodeWavStereo16(mixed));
+  musicSrc = 'music.wav';
 }
 let sfxArg = flag('sfx', '');
 if (sfxArg) copyFileSync(sfxArg, join(dir, 'bed.wav'));
@@ -104,9 +146,11 @@ const html = compileReel(
     durationMs,
     videoSrc: 'speaker.mp4',
     video: { w: vw, h: vh },
+    ...(segments ? { segments } : {}),
     out: cmd === 'sheet' ? { w: 720, h: 1280 } : { w: 1080, h: 1920 },
     ...(imagesArg ? { images } : {}),
     ...(sfxArg ? { sfxSrc: 'bed.wav' } : {}),
+    ...(musicSrc ? { musicSrc } : {}),
   },
   assets,
 );
@@ -138,7 +182,9 @@ if (cmd === 'render') {
   const shots = join(dir, 'shots');
   mkdirSync(shots);
   const times: number[] = [];
-  for (let t = 400; t < durationMs; t += every) times.push(t);
+  const from = Number(flag('from', '400'));
+  const to = Math.min(durationMs, Number(flag('to', String(durationMs))));
+  for (let t = from; t < to; t += every) times.push(t);
   for (const [i, t] of times.entries()) {
     // A string, not a function: tsx would inject helpers the page doesn't have.
     await page.evaluate(`(async () => {

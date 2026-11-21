@@ -1,6 +1,7 @@
 // Reel engine (spec 25): compiles a reel into one self-contained HyperFrames composition. The
 // speaker video is a timed <video> clip per kept segment (its own audio); our runtime frames it
 // and draws the scenes and captions from `hf-seek`.
+import { cutsFromSegments } from './motion';
 import type { ReelPlan, ReelWord } from '@motionpop/schemas';
 import { ReelPlanSchema } from '@motionpop/schemas';
 import type { ReelData } from './mount';
@@ -33,6 +34,8 @@ export interface ReelCompileInput {
   out?: { w: number; h: number };
   /** Optional sound bed / SFX track (relative path), mixed under the voice. */
   sfxSrc?: string;
+  /** The reel's levelled, ducked music (stereo WAV), relative to the composition (spec 27). */
+  musicSrc?: string;
   /** Pictures by asset id, with composition-relative `src` (spec 26). */
   images?: ReelData['images'];
 }
@@ -91,10 +94,15 @@ export function compileReel(input: ReelCompileInput, assets: ReelCompileAssets):
     durationMs,
     video: input.video,
     ...(input.images ? { images: input.images } : {}),
+    cuts: cutsFromSegments(segments),
   };
-  const sfx = input.sfxSrc
-    ? `\n    <audio id="sfx" class="clip" data-start="0" data-duration="${sec(durationMs)}" data-track-index="2" data-volume="1" src="${attr(input.sfxSrc)}"></audio>`
-    : '';
+  const sfx =
+    (input.sfxSrc
+      ? `\n    <audio id="sfx" class="clip" data-start="0" data-duration="${sec(durationMs)}" data-track-index="2" data-volume="1" src="${attr(input.sfxSrc)}"></audio>`
+      : '') +
+    (input.musicSrc
+      ? `\n    <audio id="music" class="clip" data-start="0" data-duration="${sec(durationMs)}" data-track-index="3" data-volume="1" src="${attr(input.musicSrc)}"></audio>`
+      : '');
   return `<!doctype html>
 <html>
 <head>
