@@ -13,7 +13,7 @@ import {
 } from '@/lib/commands';
 import { cn } from '@/lib/cn';
 import { subscribePreviewSeek } from '@/lib/editor/preview-bridge';
-import { editorStore, useEditor } from '@/lib/stores/editor';
+import { editorStore, selectSlots, useEditor } from '@/lib/stores/editor';
 import { respliceProjectAudio } from '@/lib/video/resplice-audio';
 
 const fmtSec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
@@ -34,7 +34,7 @@ const QUICK_STAGE_CYCLE: readonly VideoStageMode[] = [
  */
 export function VideoCutsBar() {
   const video = useEditor((s) => s.project?.video ?? null);
-  const slots = useEditor((s) => s.project?.slots ?? []);
+  const slots = useEditor(selectSlots);
   const durationMs = useEditor((s) => s.project?.durationMs ?? 0);
   const playheadMs = useEditor((s) => s.playheadMs);
   const exec = useEditor((s) => s.exec);

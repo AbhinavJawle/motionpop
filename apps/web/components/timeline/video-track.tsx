@@ -2,6 +2,7 @@
 
 import {
   keptSourceSegments,
+  type MediaClip,
   type VideoStageMode,
   type VideoStageSegment,
 } from '@motionpop/schemas';
@@ -10,9 +11,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
 import { cn } from '@/lib/cn';
 import { removeVideoPunchIn, setSlotVideoStage } from '@/lib/commands';
-import { useEditor } from '@/lib/stores/editor';
+import { selectSlots, useEditor } from '@/lib/stores/editor';
 import { msToX } from '@/lib/timeline/geometry';
 import { useTimeline } from './timeline-context';
+
+const EMPTY_MEDIA_BIN: readonly MediaClip[] = [];
 
 const STAGE_OPTIONS: readonly { mode: VideoStageMode; label: string; short: string }[] = [
   { mode: 'full', label: 'Full speaker', short: 'Full' },
@@ -125,8 +128,8 @@ async function extractFilmstrip(src: string, count = 12): Promise<string[]> {
 export function VideoTrack() {
   const { clock, view, durationMs } = useTimeline();
   const video = useEditor((s) => s.project?.video ?? null);
-  const slots = useEditor((s) => s.project?.slots ?? []);
-  const mediaBin = useEditor((s) => s.project?.mediaBin ?? []);
+  const slots = useEditor(selectSlots);
+  const mediaBin = useEditor((s) => s.project?.mediaBin ?? EMPTY_MEDIA_BIN);
   const selectedId = useEditor((s) => s.selectedSlotId);
   const select = useEditor((s) => s.select);
   const exec = useEditor((s) => s.exec);
