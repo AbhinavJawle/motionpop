@@ -2277,3 +2277,29 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - `?? packages/motion/scripts/film-lab/tts.ts`
   - `?? packages/motion/scripts/film-lab/words.ts`
 <!-- /kiro-session:sess_272d5343-acc4-406e-9a0b-b2a701818a85 -->
+
+<!-- kiro-session:sess_b575b060-f2e9-4455-ad8e-6e5a61e8b0c9 -->
+### 2026-11-21 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-21T15:13:37.353Z · last stop: 2026-11-21T15:13:55.359Z · session: sess_b575b060-f2e9-4455-ad8e-6e5a61e8b0c9
+- commits since start: 
+  - 058396a feat(25-template-reel-engine): tasks 1-4 template reel engine, looks, compiler, dev tool
+- uncommitted changes: 
+  - `M packages/motion/scripts/film-lab/gemini.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_b575b060-f2e9-4455-ad8e-6e5a61e8b0c9 -->
