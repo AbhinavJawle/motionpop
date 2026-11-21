@@ -314,7 +314,8 @@ function kenBurns(img: HTMLElement, tt: number, ctx: TplCtx, from = 1.1, to = 1.
 }
 
 function imageFrame(p: Of<'image'>, ctx: TplCtx, pic: ReelImage): Tpl {
-  const col = column(ctx, ctx.look.upper ? 20 : 18);
+  const gap = ctx.look.upper ? 20 : 18;
+  const col = column(ctx, gap);
   // Top slot: kicker/title, or the first word when there are two or more. Bottom: the rest.
   const ws = p.words.slice(0, p.title ? 1 : 2);
   const topText = p.title ?? (ws.length >= 2 ? ws.shift()!.text : undefined);
@@ -323,7 +324,9 @@ function imageFrame(p: Of<'image'>, ctx: TplCtx, pic: ReelImage): Tpl {
   const kick = p.kicker ? kickerEl(ctx, p.kicker) : null;
   const top = topText ? displayText(ctx, topText, 60, false) : null;
   const bottoms = ws.map((w) => ({ el: displayText(ctx, w.text, 60, false), at: w.at }));
-  const textH = (kick ? 40 : 0) + (top ? 74 : 0) + bottoms.length * 72;
+  // Text heights plus the column gaps between every element (the card included).
+  const parts = (kick ? 1 : 0) + (top ? 1 : 0) + bottoms.length;
+  const textH = (kick ? 40 : 0) + (top ? 74 : 0) + bottoms.length * 72 + parts * gap;
   // Room for the seam tag above (mono) and breathing space below.
   const availH = ctx.area.h - (ctx.look.upper ? 170 : 120) - textH;
   const float = p.media.kind === 'illustration' && !ctx.pal.dark;
@@ -343,10 +346,9 @@ function imageFrame(p: Of<'image'>, ctx: TplCtx, pic: ReelImage): Tpl {
     overflow: 'hidden',
     flex: 'none',
     ...(float
-      ? // Illustrations drawn on plain paper float on the panel: the card is the panel colour and
-        // the picture multiplies onto it (the blend has to happen inside the card, since the
-        // panel's own transform isolates anything outside it).
-        { background: ctx.pal.bg }
+      ? // Illustrations float on the panel: their paper is made transparent when they are stored
+        // (trimPaper, media recipe v2), so the panel's colour and grid show through.
+        { background: 'transparent' }
       : {
           borderRadius: ctx.look.upper ? 18 : 26,
           boxShadow: ctx.pal.dark ? '0 30px 80px rgba(0,0,0,0.55)' : '0 26px 60px rgba(0,0,0,0.16)',
@@ -361,7 +363,6 @@ function imageFrame(p: Of<'image'>, ctx: TplCtx, pic: ReelImage): Tpl {
     width: `${(pic.w * k).toFixed(1)}px`,
     height: `${(pic.h * k).toFixed(1)}px`,
     transformOrigin: '50% 50%',
-    ...(float ? { mixBlendMode: 'multiply' } : {}),
   });
   card.append(img);
   if (kick) col.append(kick);
@@ -462,16 +463,27 @@ function imageBleed(p: Of<'image'>, ctx: TplCtx, pic: ReelImage): Tpl {
           left: 0,
           top: ctx.layout === 'split' ? 80 : 120,
           width: W,
-          textAlign: 'center',
-          fontFamily: ctx.look.sans,
-          fontWeight: 700,
-          fontSize: 22,
-          letterSpacing: '0.16em',
-          textTransform: 'uppercase',
-          color: 'rgba(255,255,255,0.92)',
-          textShadow: '0 2px 14px rgba(0,0,0,0.5)',
+          display: 'flex',
+          justifyContent: 'center',
         },
-        [kickText],
+        [
+          // A dark chip: readable over a bright sky as well as a dark street.
+          h(
+            'div',
+            {
+              fontFamily: ctx.look.sans,
+              fontWeight: 700,
+              fontSize: 20,
+              letterSpacing: '0.16em',
+              textTransform: 'uppercase',
+              color: '#FFFFFF',
+              background: 'rgba(10,10,12,0.72)',
+              padding: '9px 16px 8px',
+              borderRadius: ctx.look.upper ? 4 : 999,
+            },
+            [kickText],
+          ),
+        ],
       )
     : null;
   root.append(img, scrim, stackEl);

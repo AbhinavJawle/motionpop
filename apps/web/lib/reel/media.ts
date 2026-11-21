@@ -23,6 +23,7 @@ import { spendWithUi } from '@/lib/credits/spend-with-ui';
 import { getAILogic } from '@/lib/firebase/client';
 import { getImage, putImage } from '@/lib/images/image-store';
 import { processImage, sha256Hex } from '@/lib/images/process';
+import { trimPaper } from '@/lib/images/trim';
 
 /**
  * Reel media (spec 26): fetches every picture a reel plan asks for and stores it like any other
@@ -49,7 +50,7 @@ export interface ReelMediaDeps {
 }
 
 /** Media recipe version: part of the asset hash, so a recipe change never reuses old pictures. */
-const REEL_MEDIA_VERSION = 1;
+const REEL_MEDIA_VERSION = 2;
 
 /** The image model recipe for a reel illustration in the look's style (≤ 400 chars). */
 export function reelIllustrationRecipe(look: ReelLook): string {
@@ -226,10 +227,8 @@ export async function resolveReelMedia(
         latencyMs: Math.round(performance.now() - t0),
         ok: true,
       });
-      return {
-        blob: new Blob([r.bytes.slice().buffer], { type: r.mimeType }),
-        source: 'generated',
-      };
+      const raw = new Blob([r.bytes.slice().buffer], { type: r.mimeType });
+      return { blob: await trimPaper(raw).catch(() => raw), source: 'generated' };
     } catch (e) {
       report({
         task: 'image.generate',

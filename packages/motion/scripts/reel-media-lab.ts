@@ -182,9 +182,40 @@ for (const [key, m] of requests) {
     console.log(`✗ ${key}`);
     continue;
   }
+  // Illustrations come back with wide blank paper around the subject: trim it like the product
+  // does (apps/web lib/images/trim.ts), keeping a small even margin.
+  let used = file;
+  if (m.kind === 'illustration') {
+    const { data, info } = await sharp(buf).trim({ threshold: 18 }).toBuffer({ resolveWithObject: true });
+    const corner = await sharp(buf).extract({ left: 0, top: 0, width: 1, height: 1 }).raw().toBuffer();
+    const pad = Math.round(Math.max(info.width, info.height) * 0.06);
+    buf = await sharp(data)
+      .extend({ top: pad, bottom: pad, left: pad, right: pad, background: { r: corner[0]!, g: corner[1]!, b: corner[2]! } })
+      // Paper to pure white, like the product's whitenPaper.
+      .linear([255 / Math.max(1, corner[0]!), 255 / Math.max(1, corner[1]!), 255 / Math.max(1, corner[2]!)], [0, 0, 0])
+      .png()
+      .toBuffer();
+    // Paper to transparency, like the product's paperToAlpha.
+    const raw = await sharp(buf).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    const px = raw.data;
+    for (let j = 0; j < px.length; j += 4) {
+      const a = Math.max(255 - px[j]!, 255 - px[j + 1]!, 255 - px[j + 2]!) / 255;
+      if (a <= 0) {
+        px[j + 3] = 0;
+        continue;
+      }
+      for (let c = 0; c < 3; c++) px[j + c] = Math.round(255 - (255 - px[j + c]!) / a);
+      px[j + 3] = Math.round(a * px[j + 3]!);
+    }
+    buf = await sharp(px, { raw: { width: raw.info.width, height: raw.info.height, channels: 4 } })
+      .png()
+      .toBuffer();
+    used = join(imgDir, `${id}-t.png`);
+    writeFileSync(used, buf);
+  }
   const meta = await sharp(buf).metadata();
   assets[key] = id;
-  images[id] = { file, w: meta.width ?? 512, h: meta.height ?? 512 };
+  images[id] = { file: used, w: meta.width ?? 512, h: meta.height ?? 512 };
   console.log(`✓ ${key} → ${id} ${meta.width}x${meta.height} (${Date.now() - t0} ms)`);
 }
 writeFileSync(join(out, 'plan.json'), JSON.stringify(setReelMediaAssets(plan, assets), null, 1));

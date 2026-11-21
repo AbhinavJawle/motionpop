@@ -661,3 +661,40 @@ Template:
 - **Known gaps against the references:**
   - The references also cut to real screenshots, website captures and dark full-bleed UI. Our templates draw mockups but do not yet place user screenshots or B-roll.
   - The free director's wording is rule-based, so it mirrors the speech but is generic.
+
+## 2026-11-21 · Claude Code (`claude-opus-5-5`) + Kiro CLI (commits only) · spec 26 reel visuals and story
+- **Founder ask:** paid cloud/AI testing allowed; take reels from "3/10" to professional. Biggest levers named: animation that tells the story, and real external visuals (a named product shows its real logo).
+- **Built (spec 26, commit f084446 + this close-out commit):**
+  - **Director v3** (`packages/ai/src/reel/`): a story pass (topic, arc, motif) before scenes, a strict per-template schema (anyOf, one object per template), brands with domains, `carry` so one motif builds across scenes, and faster pacing (about one new thing every 2 s).
+  - **Real media:**
+    - New templates (logo, logos, image frame/bleed, website), plus logos inside list, stack, compare and flow items.
+    - Logos are resolved at runtime from the speaker's words (open icon set, then favicon) through `/api/reel/logo`; nothing brand-related is bundled.
+    - Illustrations come from the image model in the look's style (image credits, refunded on failure). Their paper is trimmed and made transparent (`apps/web/lib/images/trim.ts`).
+    - Photos come from stock.
+    - Site screenshots come from our own headless Chrome with SSRF guards (local/offline only for now).
+  - **Sound:** `reelSfx` places a whoosh/tick/pop/rise/impact on scene changes, with optional ducked music, in both the preview and the export.
+  - **Credits:** a directed reel costs 3 credits and is refunded when the free plan is used.
+- **Paid lab runs (gcloud, lab project):**
+  - Director: 5 runs on 3 transcripts (gemini-3.8-flash and gemini-4-neon), $0.016–$0.032 each.
+  - Image model: about 16 calls, some 429s.
+  - Lower-bound spend: about $0.75 (the ledger undercounts image calls).
+- **Bugs found from contact sheets and fixed:**
+  - Bleed text collided with the captions.
+  - A full-title accent turned the title grey.
+  - Captions sat over the CTA.
+  - Carry broke when other scenes came in between.
+  - The model escaped "+" as "%2B".
+  - Compare labels were cut to "What you" (now limited in the schema and prompt, with leading filler dropped).
+  - Illustrations drew tiny (about 40% blank paper) with a grey paper box.
+  - The image kicker overlapped the scene tag (column gaps were not budgeted).
+  - The bleed kicker had low contrast on bright skies (now a dark chip).
+- **Verified:**
+  - Typecheck, lint and the affected tests are green, including new fast-check properties for paper trim and colour-to-alpha.
+  - th1 was re-directed with gemini-4-neon (15 scenes, motif carried) and rendered with media and sound: 1080×1920, 39.9 s, −17.5 LUFS. MP4 frames match the sheet.
+- **Not done / gaps:**
+  - No UI end-to-end run of the paid path in the browser.
+  - Screenshots on App Hosting answer 501 (the browser mock is drawn instead); the upgrade path is a Cloud Run endpoint.
+  - No stock key, so photos come from Wikimedia only.
+  - Loudness is not yet normalised to −14 LUFS.
+  - The reel cost is not shown on Start before processing.
+  - Trademark note for the demo: real logos appear only when the user's own speech names a brand, but the demo video should use a script that names no third-party brands.

@@ -60,7 +60,8 @@ TEMPLATES (word = index of the word where that item is spoken; it appears exactl
 - list {title, kicker?, items[{word, text, icon?, brand?}] 2–5}: icon (or logo) list building.
 - stack {label, items[{word, text, brand?}] 2–5}: names/options stacked; earlier ones grey out.
 - checklist {kicker?, items[{word, text, value?}] 2–5}: properties ticked off (value = short spec).
-- compare {left, right, winner, leftIcon?, rightIcon?, leftBrand?, rightBrand?, items[{word,text}] 0–3}.
+- compare {left, right, winner, leftIcon?, rightIcon?, leftBrand?, rightBrand?, items[{word,text}] 0–3}:
+  left/right are card labels of 1–2 words, ≤ 14 characters ("Starting", "Finishing").
 - statement {icon?, strike?, items[{word, text}] 1–4}: short claims; strike for "no X"/"without X".
 - counter {value, label, prefix?, suffix?, decimals?, kicker?, icon?}: only numbers actually said.
 - progress {title, icon?, sub?, task?, doneTitle?}: a bar filling (installing, building, finishing).
