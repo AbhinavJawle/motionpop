@@ -3,10 +3,11 @@ import rough from 'roughjs';
 import { safeArea } from '../core/safe-area';
 import { buildDecor, seedOf } from '../engine/decor';
 import { buildSurface, mix, paperOf, tornPolygon } from '../engine/materials';
-import type { Format } from '../contract';
+import type { Format, ImageRef } from '../contract';
 import { customHelpers } from '../components/custom/helpers';
 import { KIT_ICONS, KIT_ICON_NAMES } from './icons.generated';
 import { createMap, type KitMap, type Where } from './map';
+import { createReelKit } from './reel-kit';
 import { createTimeline, KIT_EASES, splitWords, type Target, type Timeline } from './timeline';
 
 export type SeamName = 'push' | 'lift' | 'cover' | 'zoom' | 'match' | 'whip' | 'hold';
@@ -46,7 +47,7 @@ export interface KitContext {
     negative: string;
     chart: readonly string[];
   };
-  fonts: { display: string; body: string };
+  fonts: { display: string; body: string; mono?: string };
   words: readonly KitWord[];
   radius: number;
   stroke: number;
@@ -54,6 +55,8 @@ export interface KitContext {
   card?: readonly MaterialId[];
   /** Film-level shared drawings by id: SVG markup. */
   props?: Readonly<Record<string, string>>;
+  /** Pre-inlined project images/cutouts by asset id (`mp.image`, spec 23). */
+  images?: Readonly<Record<string, ImageRef>>;
   /** Film beats: how long this beat stays on after its slot ends. */
   tailMs?: number;
   /** Film beats: how long the previous beat is still on screen at this beat's start. */
@@ -671,8 +674,29 @@ export function filmKit(root: HTMLElement, ctx: KitContext) {
     if (ms !== null && Number.isFinite(ms)) cues.push({ kind, atMs: Math.max(0, Math.round(ms)) });
   };
 
+  const reelKit = createReelKit({
+    doc,
+    W,
+    H,
+    u,
+    colors: { ...ctx.colors, paper: paperOf(ctx.colors) },
+    fonts: {
+      display: ctx.fonts.display,
+      body: ctx.fonts.body,
+      mono: ctx.fonts.mono ?? 'ui-monospace, monospace',
+    },
+    ...(ctx.images ? { images: ctx.images } : {}),
+    px,
+    getHome: () => home,
+    setHome: (el) => {
+      home = el;
+    },
+    warn: ctx.warn,
+  });
+
   const kit = {
     ...base,
+    ...reelKit,
     W,
     H,
     u,

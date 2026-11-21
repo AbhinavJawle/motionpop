@@ -1,5 +1,5 @@
 import type { CriticVerdict, FilmBeatParams } from '@motionpop/ai';
-import { captionSafeBandForStage, criticText, type CriticSummary } from '@motionpop/motion';
+import { captionSafeBandForStage, criticText, type CriticSummary, type ImageRef } from '@motionpop/motion';
 import { compileProject, type CompileAssets, type CompileInput } from '@motionpop/motion/compiler';
 import { FORMATS, type FilmWord, type Format, type TimedBeat } from '@motionpop/schemas';
 
@@ -24,6 +24,10 @@ export interface SandboxCriticInput {
   hasVideo?: boolean;
   /** True when the beat is transparent over live video (`videoStage !== 'cutaway'`). */
   transparent?: boolean;
+  /** Pre-inlined AI cutout / photo assets referenced via `mp.image(assetId)`. */
+  images?: Record<string, ImageRef>;
+  /** Optional sink that receives the real executed beat HTML snapshot at `keyMomentMs` (spec 23 R8). */
+  onSnapshot?: (beatId: string, executedHtml: string) => void;
   doc?: Document;
   timeoutMs?: number;
 }
@@ -33,6 +37,7 @@ interface CriticMessage {
   summary: CriticSummary | null;
   sounds: { kind: string; atMs: number }[];
   warnings: string[];
+  snapshotHtml?: string | null;
   failed?: string;
 }
 
@@ -74,7 +79,8 @@ function bootstrap(token: string, slotId: string, opts: object): string {
     mp.ready.then(function(){
       try{
         var summary=mp.inspect(${JSON.stringify(slotId)},${JSON.stringify(opts)});
-        var m={mpCritic:token,summary:summary,sounds:(mp.sounds()[${JSON.stringify(slotId)}]||[]),warnings:mp.warnings.map(function(w){return w.message;})};
+        var snap=typeof mp.snapshot==='function'?mp.snapshot(${JSON.stringify(slotId)}):null;
+        var m={mpCritic:token,summary:summary,snapshotHtml:snap,sounds:(mp.sounds()[${JSON.stringify(slotId)}]||[]),warnings:mp.warnings.map(function(w){return w.message;})};
         ${send};
       }catch(e){fail(e);}
     },fail);
@@ -96,6 +102,7 @@ export async function inspectInSandbox(i: SandboxCriticInput): Promise<CriticVer
       mode: 'preview',
       film: true,
       ...(i.hasVideo ? { hasVideo: true, background: 'transparent' as const } : {}),
+      ...(i.images && Object.keys(i.images).length ? { images: i.images } : {}),
       slots: [
         {
           id: i.beat.id,
@@ -123,6 +130,7 @@ export async function inspectInSandbox(i: SandboxCriticInput): Promise<CriticVer
     allowNumbers: [...i.allowNumbers],
     ...(i.transparent ? { transparent: true } : {}),
     ...(captionBand ? { captionBand } : {}),
+    ...(i.beat.videoStage ? { videoStage: i.beat.videoStage } : {}),
   };
   const frame = doc.createElement('iframe');
   // Scripts only: no same-origin, so the generated code can't reach the app, its storage or its
@@ -149,7 +157,10 @@ export async function inspectInSandbox(i: SandboxCriticInput): Promise<CriticVer
       if (!m || m.mpCritic !== token) return;
       finish(() => {
         if (m.failed) reject(new Error(m.failed));
-        else resolve(verdictOf(m.summary ?? null, m.warnings ?? [], m.sounds ?? []));
+        else {
+          if (m.snapshotHtml && i.onSnapshot) i.onSnapshot(i.beat.id, m.snapshotHtml);
+          resolve(verdictOf(m.summary ?? null, m.warnings ?? [], m.sounds ?? []));
+        }
       });
     };
     const timer = view.setTimeout(

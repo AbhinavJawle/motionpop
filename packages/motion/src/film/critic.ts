@@ -26,7 +26,9 @@ export type CriticRule =
   | 'small-picture'
   | 'picture-off-frame'
   | 'made-up-number'
-  | 'caption-collision';
+  | 'caption-collision'
+  | 'face-collision'
+  | 'banned-pattern';
 
 export interface CriticReport {
   rule: CriticRule;
@@ -69,6 +71,8 @@ export interface CriticOptions {
   transparent?: boolean;
   /** Reserved vertical pixel band `[top, bottom]` where live captions sit; graphic text must stay clear of it. */
   captionBand?: { top: number; bottom: number };
+  /** Coupled video stage mode (`split-top-stage`, `top-card`, `clean`, etc., spec 23). */
+  videoStage?: string;
 }
 
 export interface CriticSummary {
@@ -425,6 +429,39 @@ export function inspectBeat(
         );
       }
     }
+    if (o.videoStage === 'top-card' && o.height > o.width) {
+      const faceTop = o.height * 0.31;
+      const faceBot = o.height * 0.76;
+      if (t.rect.bottom > faceTop && t.rect.top < faceBot) {
+        add(
+          'face-collision',
+          'fix',
+          hold,
+          `${name} intrudes into the speaker face zone on a top-card beat (top 31%..76%): keep all cards and text strictly inside top 6%..29%`,
+        );
+      }
+    }
+  }
+  // Reject full-frame rectangular viewport borders on transparent video beats (spec 23 R8.2).
+  if (o.transparent) {
+    for (const el of Array.from(host.querySelectorAll('div, svg rect'))) {
+      if (shown(el) < 0.2) continue;
+      const r = local(el.getBoundingClientRect());
+      if (r.width >= o.width * 0.88 && r.height >= o.height * 0.88) {
+        const cs = view.getComputedStyle(el);
+        const bw = parseFloat(cs.borderTopWidth || '0') + parseFloat(cs.borderLeftWidth || '0');
+        const sw = el.tagName.toLowerCase() === 'rect' ? parseFloat(el.getAttribute('stroke-width') || '0') : 0;
+        if (bw >= 1.5 || sw >= 1.5) {
+          add(
+            'banned-pattern',
+            'fix',
+            hold,
+            'remove the full-frame rectangular border around the viewport; never frame live speaker video with a thin outline box',
+          );
+          break;
+        }
+      }
+    }
   }
   for (let i = 0; i < texts.length; i++) {
     for (let j = i + 1; j < texts.length; j++) {
@@ -452,7 +489,7 @@ export function inspectBeat(
       hold,
       `${words} words are on screen at once: keep one hero line and one quiet label, and let the picture say the rest`,
     );
-  if (o.wantsPicture && shapes < 3 && !hasMap)
+  if (o.wantsPicture && o.videoStage !== 'clean' && shapes < 3 && !hasMap)
     add(
       'no-picture',
       'fix',
@@ -503,7 +540,7 @@ export function inspectBeat(
       );
     }
   }
-  if (!sheetOrMap && (texts.length || pictures.length)) {
+  if (!sheetOrMap && o.videoStage !== 'clean' && (texts.length || pictures.length)) {
     const all = [...texts.map((t) => t.rect), ...pictures.map((p) => p.rect)].filter(inFrame);
     if (all.length) {
       const u = union(all);

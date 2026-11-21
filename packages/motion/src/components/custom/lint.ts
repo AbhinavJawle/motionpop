@@ -16,10 +16,10 @@ const SCRIPT_RULES: ReadonlyArray<[RegExp, string]> = [
   [/\bimport\s*\(|\bimport\s+[\w{*]|\brequire\s*\(/, 'imports code'],
   [/\b(eval|Function)\b/, 'evaluates strings as code'],
   [/\b(localStorage|sessionStorage|indexedDB|caches|document\.cookie)\b/, 'uses storage'],
-  [/\b(window|globalThis|document|navigator)\b/, 'reaches outside its root'],
-  // These are also everyday option and CSS names (`{ parent: card }`, `{ top: "12%" }`), so only
-  // a bare use counts: not a property (`x.top`) and not an object key (`top:`).
-  [/(?<![.\w$])(self|parent|top|frames|opener|location)\b(?!\s*:)/, 'reaches outside its root'],
+  [/\b(globalThis|document|navigator)\b/, 'reaches outside its root'],
+  // These are also everyday option/kit/CSS names (`mp.window(...)`, `{ parent: card }`, `{ top: "12%" }`), so only
+  // a bare use counts: not a property (`x.top`, `mp.window`) and not an object key (`top:`).
+  [/(?<![.\w$])(window|self|parent|top|frames|opener|location)\b(?!\s*:)/, 'reaches outside its root'],
   [/\b(ownerDocument|defaultView|constructor|__proto__|prototype)\b/, 'reaches outside its root'],
   [/\b(gsap|TweenMax|TimelineMax)\b/i, 'uses GSAP (not allowed)'],
   [/\b(addEventListener|onclick|onload)\b/, 'listens to events; draw in seek(t)'],

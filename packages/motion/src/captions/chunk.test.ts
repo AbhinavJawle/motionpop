@@ -60,4 +60,17 @@ describe('chunkCaptions', () => {
       }),
     );
   });
+
+  it('chunks editorial preset to crisp 1-2 word rhythmic groups and supports studio/minimal-pill (spec 23)', () => {
+    expect(groupLimit('9:16', 'editorial')).toBe(2);
+    expect(groupLimit('16:9', 'editorial')).toBe(2);
+    expect(groupLimit('9:16', 'studio')).toBe(3);
+    expect(groupLimit('9:16', 'minimal-pill')).toBe(3);
+    const g = chunkCaptions(words('You can build an agency reel in forty seconds'), {
+      format: '9:16',
+      presetId: 'editorial',
+    });
+    expect(g.every((x) => x.words.length <= 2)).toBe(true);
+    expect(g.length).toBeGreaterThanOrEqual(4);
+  });
 });

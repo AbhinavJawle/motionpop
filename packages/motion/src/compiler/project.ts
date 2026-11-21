@@ -122,12 +122,28 @@ export function assetsInUse(
 ): NonNullable<EditorProject['assets']> {
   const ids = new Set<string>();
   for (const s of project.slots) {
-    const images = (withAssetIds(s, project.assets).params as { images?: unknown }).images;
-    if (Array.isArray(images))
-      for (const i of images) {
+    const params = withAssetIds(s, project.assets).params as {
+      images?: unknown;
+      imageAssetIds?: unknown;
+      script?: unknown;
+    };
+    if (Array.isArray(params.images)) {
+      for (const i of params.images) {
         const id = (i as { assetId?: unknown } | null)?.assetId;
         if (typeof id === 'string') ids.add(id);
       }
+    }
+    if (Array.isArray(params.imageAssetIds)) {
+      for (const id of params.imageAssetIds) {
+        if (typeof id === 'string') ids.add(id);
+      }
+    }
+    // Also detect `mp.image("assetId")` calls inside custom film beat scripts.
+    if (typeof params.script === 'string' && params.script.includes('mp.image')) {
+      for (const m of params.script.matchAll(/mp\.image\(\s*["']([^"']+)["']/g)) {
+        if (m[1]) ids.add(m[1]);
+      }
+    }
   }
   return (project.assets ?? []).filter((a) => a.status === 'ready' && a.src && ids.has(a.id));
 }

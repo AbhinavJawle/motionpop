@@ -556,4 +556,34 @@ describe('multi-clip Media Bin & dual-layer choreography (spec 20)', () => {
     expect(issues.some((x) => x.includes('unknown clipId'))).toBe(true);
     expect(issues.some((x) => x.includes('without a clipId'))).toBe(true);
   });
+
+  it('supports editorial split-top-stage (topRadiusOnly), top-card, and clean stages (spec 23)', () => {
+    const stages = stagesFromTimedBeats([
+      { id: 'b1', startMs: 0, endMs: 3000, videoStage: 'split-top-stage', focusX: 0.5, focusY: 0.35 },
+      { id: 'b2', startMs: 3000, endMs: 6000, videoStage: 'top-card', focusX: 0.5, focusY: 0.35 },
+      { id: 'b3', startMs: 6000, endMs: 9000, videoStage: 'clean', focusX: 0.5, focusY: 0.35 },
+    ]);
+    // 9:16 vertical split-top-stage places arched speaker in bottom 45%
+    const splitRect = videoStageRectAt(1200, stages, [], 1080, 1920);
+    expect(splitRect.mode).toBe('split-top-stage');
+    expect(splitRect.x).toBe(0);
+    expect(splitRect.w).toBeCloseTo(1080, 0);
+    expect(splitRect.y).toBeCloseTo(1920 * 0.55, 0);
+    expect(splitRect.h).toBeCloseTo(1920 * 0.45, 0);
+    expect(splitRect.radius).toBeGreaterThan(50);
+    expect(splitRect.topRadiusOnly).toBe(true);
+
+    // top-card keeps full-bleed speaker unobstructed
+    const topCardRect = videoStageRectAt(4500, stages, [], 1080, 1920);
+    expect(topCardRect.mode).toBe('top-card');
+    expect(topCardRect.w).toBeCloseTo(1080, 0);
+    expect(topCardRect.h).toBeCloseTo(1920, 0);
+    expect(topCardRect.radius).toBe(0);
+
+    // clean breathing beat keeps full-bleed speaker with smooth punch-in scale
+    const cleanRect = videoStageRectAt(7500, stages, [], 1080, 1920);
+    expect(cleanRect.mode).toBe('clean');
+    expect(cleanRect.w).toBeCloseTo(1080, 0);
+    expect(cleanRect.opacity).toBe(1);
+  });
 });

@@ -3,6 +3,7 @@ import {
   FILM_LAYOUT_RULES,
   FILM_MOTION_RULES,
   FILM_PICTURE_RULES,
+  REEL_CRAFT_RULES,
 } from './film-craft.v1';
 
 /**
@@ -63,6 +64,8 @@ DRAWING
 - On-screen copy is the storyboard's text, exactly. You may add place names on a map. No other words: no datelines, sources, captions, stamps, tags or report headers. No number that is not in the storyboard's text or the spoken words (a reviewer checks every figure on screen against the narration).
 - Keep text inside mp.safe. For 9:16 stack the picture above the text.
 
+${REEL_CRAFT_RULES}
+
 ${FILM_BANNED}`;
 }
 
@@ -82,6 +85,8 @@ export interface FilmBuildPromptInput {
     /** The hero's word, as text, and its time in the beat. */
     landsOn: string;
     keyMomentMs: number;
+    /** Pre-inlined AI cutout / photo asset available for `mp.image(id)` in this beat (spec 23). */
+    imageAsset?: { id: string; subject: string; keyed: boolean };
   };
   words: { text: string; startMs: number }[];
   durationMs: number;
@@ -141,6 +146,11 @@ export function filmBeatV1(i: FilmBuildPromptInput): string {
   const lines = [
     `YOUR BEAT: ${i.beat.index + 1} of ${i.beat.count}, led by ${i.beat.lead}${i.beat.archetype ? ` (archetype: ${i.beat.archetype})` : ''}.`,
     ...(i.beat.stageGuide ? [i.beat.stageGuide] : []),
+    ...(i.beat.imageAsset
+      ? [
+          `ATTACHED VISUAL ASSET: Call mp.image("${i.beat.imageAsset.id}", { x, y, w, h, shadow: true }) to display "${i.beat.imageAsset.subject}" (${i.beat.imageAsset.keyed ? 'transparent studio cutout' : 'editorial image'}) as your hero visual!`,
+        ]
+      : []),
     `Picture: ${i.beat.idea}`,
     `On-screen text, exactly: ${i.beat.text.length ? i.beat.text.map((t) => `"${t}"`).join(' / ') : '(none)'}`,
     `Staging: ${i.beat.staging}`,

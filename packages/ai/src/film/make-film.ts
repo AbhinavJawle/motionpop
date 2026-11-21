@@ -124,6 +124,17 @@ export interface FilmDeps {
   concurrency?: number;
   /** Stops before the next model call when it returns true. */
   cancelled?: () => boolean;
+  /**
+   * Optional media resolver invoked once right after the storyboard is written (spec 23 Pillar 6):
+   * resolves Director `brollQuery` stock clips and `imageSubject` AI cutouts in parallel so beat
+   * builders can bind real B-roll clips and call `mp.image(assetId)`.
+   */
+  resolveBeatMedia?: (
+    board: Storyboard,
+  ) => Promise<{
+    board: Storyboard;
+    beatImages?: Readonly<Record<string, { id: string; subject: string; keyed: boolean }>>;
+  }>;
   /** A storyboard to build from (a re-run after an edit): skips the Director. */
   storyboard?: Storyboard;
 }
@@ -164,6 +175,7 @@ export function buildInputFor(
   opts?: {
     beatExample?: FilmDeps['example'];
     stageGuide?: string;
+    imageAsset?: { id: string; subject: string; keyed: boolean };
   },
 ): FilmBuildInput {
   const beat = timed[i] as TimedBeat;
@@ -179,6 +191,7 @@ export function buildInputFor(
       ...(beat.archetype ? { archetype: beat.archetype } : {}),
       ...(beat.videoStage ? { videoStage: beat.videoStage } : {}),
       ...(opts?.stageGuide ? { stageGuide: opts.stageGuide } : {}),
+      ...(opts?.imageAsset ? { imageAsset: opts.imageAsset } : {}),
       idea: beat.idea,
       text: beat.text,
       staging: beat.staging,
@@ -272,8 +285,12 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
     beats: board.beats.map((b, i) => {
       const id = `b${i + 1}`;
       if (!b.videoStage || !isMediaStageMode(b.videoStage)) return { ...b, id };
+      // Keep media stage intact when `brollQuery` is present so `resolveBeatMedia` can supply its clip.
       const clip = (b.clipId ? bin.find((c) => c.id === b.clipId) : undefined) ?? pickClipForStage(b.videoStage);
-      if (!clip) return { ...b, id, videoStage: 'full' as const };
+      if (!clip) {
+        if (b.brollQuery && deps.resolveBeatMedia) return { ...b, id };
+        return { ...b, id, videoStage: 'split-top-stage' as const };
+      }
       const m = clip.moments?.[0];
       return {
         ...b,
@@ -289,6 +306,26 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
       };
     }),
   };
+
+  let beatImages: Readonly<Record<string, { id: string; subject: string; keyed: boolean }>> = {};
+  if (deps.resolveBeatMedia) {
+    try {
+      const resolved = await deps.resolveBeatMedia(board);
+      board = resolved.board;
+      beatImages = resolved.beatImages ?? {};
+    } catch {
+      // Never block film generation if external stock/cutout lookup fails.
+    }
+    // Any media stage still missing a clipId after stock resolution falls back cleanly.
+    board = {
+      ...board,
+      beats: board.beats.map((b) =>
+        b.videoStage && isMediaStageMode(b.videoStage) && !b.clipId
+          ? { ...b, videoStage: 'split-top-stage' as const }
+          : b,
+      ),
+    };
+  }
   const timed = timeBeats(board, input.words, input.durationMs);
   stop();
 
@@ -315,8 +352,8 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
     }
   })();
 
-  const beats = await pool(timed, deps.concurrency ?? 4, async (_beat, i) => {
-    const built = await buildOne(board, timed, i, input, deps, propsJob);
+  const beats = await pool(timed, deps.concurrency ?? 4, async (beat, i) => {
+    const built = await buildOne(board, timed, i, input, deps, propsJob, beatImages[beat.id]);
     deps.onBeatReady?.(built, i, board, timed);
     return built;
   });
@@ -364,6 +401,7 @@ async function buildOne(
   input: FilmInput,
   deps: FilmDeps,
   propsJob: Promise<Record<string, string>>,
+  imageAsset?: { id: string; subject: string; keyed: boolean },
 ): Promise<FilmBeatResult> {
   const beat = timed[i] as TimedBeat;
   const task = filmBuildTask(deps.lint, deps.kitDoc);
@@ -391,6 +429,7 @@ async function buildOne(
   const base = buildInputFor(board, timed, i, input, deps.example, {
     ...(beatExample ? { beatExample } : {}),
     ...(stageGuide ? { stageGuide } : {}),
+    ...(imageAsset ? { imageAsset } : {}),
   });
   const buildOpts = deps.buildModel ? { model: deps.buildModel } : undefined;
   const note = (state: 'building' | 'checking' | 'repairing' | 'ready' | 'failed') =>

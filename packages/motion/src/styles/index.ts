@@ -5,7 +5,9 @@ import fieldNotesJson from './field-notes.json' with { type: 'json' };
 import paperCollageJson from './paper-collage.json' with { type: 'json' };
 import newsprintJson from './newsprint.json' with { type: 'json' };
 import creatorDarkJson from './creator-dark.json' with { type: 'json' };
+import editorialCreamJson from './editorial-cream.json' with { type: 'json' };
 import keynoteCleanJson from './keynote-clean.json' with { type: 'json' };
+import studioLightJson from './studio-light.json' with { type: 'json' };
 import testInvertedJson from './test-inverted.json' with { type: 'json' };
 
 /** Parses a pack and checks that every font family it names is bundled (spec 03, review F3). */
@@ -57,14 +59,22 @@ export const paperCollage: Look = parseLook(paperCollageJson);
  */
 export const newsprint: Look = parseLook(newsprintJson);
 
+/** Editorial Cream: warm cream ground, serif+sans contrast, arched bottom speaker split (spec 23 default). */
+export const editorialCream: Look = parseLook(editorialCreamJson);
+
+/** Studio Light: crisp light studio canvas with elevated UI cards and seam captions (spec 23). */
+export const studioLight: Look = parseLook(studioLightJson);
+
 /** Creator Dark: obsidian studio glass, electric ember/violet accents, built for modern Reels (spec 21). */
 export const creatorDark: Look = parseLook(creatorDarkJson);
 
 /** Keynote Clean: crisp midnight-slate product showcase look with sky-cyan accents (spec 21). */
 export const keynoteClean: Look = parseLook(keynoteCleanJson);
 
-/** Polished looks (spec 07 R3.4 + spec 21 modern Reel looks). */
+/** Polished looks (spec 07 R3.4 + spec 21/23 modern Reel looks). */
 export const looks: Readonly<Record<string, Look>> = {
+  [editorialCream.id]: editorialCream,
+  [studioLight.id]: studioLight,
   [creatorDark.id]: creatorDark,
   [keynoteClean.id]: keynoteClean,
   [newsprint.id]: newsprint,

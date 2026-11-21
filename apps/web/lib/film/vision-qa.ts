@@ -4,7 +4,8 @@ import {
   type Router,
   type VisionFlaggedBeat,
 } from '@motionpop/ai';
-import { FORMATS, type Format, type StylePack } from '@motionpop/schemas';
+import { captionSafeBandForStage } from '@motionpop/motion';
+import { FORMATS, stageBoxForMode, type Format, type StylePack } from '@motionpop/schemas';
 
 const QA_TIMEOUT_MS = 18_000;
 
@@ -17,9 +18,12 @@ function escapeXml(s: string): string {
 }
 
 /**
- * Renders one beat tile as an SVG `<foreignObject>` image onto a browser canvas cell.
- * Uses pure inline markup + look CSS variables — never touches cross-origin assets so the
- * canvas is never tainted and `toDataURL('image/jpeg')` always succeeds.
+ * Renders one beat tile onto a browser canvas cell (spec 23 R8.1):
+ * 1. Paints the look canvas and composites the actual speaker keyframe in its true `stageBoxForMode`
+ *    rectangle (including arched `split-top-stage` bottom framing!).
+ * 2. Draws the REAL executed beat HTML snapshot at `keyMomentMs` (captured after `script` + `mp.*`
+ *    kit ran inside `sandbox-critic`), falling back to raw `html + css` only if unavailable.
+ * 3. Overlays the reserved live caption rail so Gemini Vision QA catches face & caption collisions.
  */
 async function drawBeatTile(
   ctx: CanvasRenderingContext2D,
@@ -29,23 +33,46 @@ async function drawBeatTile(
   h: number,
   beat: FilmBeatResult,
   style: StylePack,
+  format: Format,
   frameW: number,
   frameH: number,
   bgFrameBase64?: string,
+  executedHtml?: string,
 ): Promise<void> {
   ctx.save();
   ctx.beginPath();
   ctx.rect(x, y, w, h);
   ctx.clip();
 
-  // 1. Background: look bg color + optional sampled A-roll video frame behind transparent beats.
+  // 1. Look canvas + speaker keyframe placed in its true choreography box.
   ctx.fillStyle = style.colors.bg;
   ctx.fillRect(x, y, w, h);
-  if (bgFrameBase64 && beat.beat.videoStage !== 'cutaway') {
+  const stageMode = beat.beat.videoStage ?? 'full';
+  const stageBox = stageBoxForMode(stageMode, frameW, frameH);
+  if (bgFrameBase64 && stageBox.opacity > 0.05) {
     await new Promise<void>((resolve) => {
       const img = new Image();
       img.onload = () => {
-        ctx.drawImage(img, x, y, w, h);
+        const sx = x + stageBox.x * w;
+        const sy = y + stageBox.y * h;
+        const sw = stageBox.w * w;
+        const sh = stageBox.h * h;
+        ctx.save();
+        ctx.beginPath();
+        const r = Math.min(sw, sh) * stageBox.radiusFrac;
+        if (r > 1) {
+          const br = stageBox.topRadiusOnly ? 0 : r;
+          ctx.roundRect(sx, sy, sw, sh, [r, r, br, br]);
+        } else {
+          ctx.rect(sx, sy, sw, sh);
+        }
+        ctx.clip();
+        ctx.drawImage(img, sx, sy, sw, sh);
+        if (stageBox.dim > 0.02) {
+          ctx.fillStyle = `rgba(0,0,0,${stageBox.dim.toFixed(2)})`;
+          ctx.fillRect(sx, sy, sw, sh);
+        }
+        ctx.restore();
         resolve();
       };
       img.onerror = () => resolve();
@@ -53,7 +80,7 @@ async function drawBeatTile(
     });
   }
 
-  // 2. Render the beat's HTML + CSS inside an SVG foreignObject scaled to the tile.
+  // 2. Render executed beat DOM snapshot (with all `mp.*` kit elements) or static fallback.
   if (beat.params) {
     const u = Math.min(frameW, frameH) / 100;
     const vars = [
@@ -67,17 +94,15 @@ async function drawBeatTile(
       `--positive:${style.colors.positive}`,
       `--negative:${style.colors.negative}`,
       `--paper:${style.colors.bg}`,
-      `--display:system-ui,-apple-system,sans-serif`,
+      `--display:Georgia,serif`,
       `--body:system-ui,-apple-system,sans-serif`,
       `--mono:ui-monospace,monospace`,
     ].join(';');
-    // Sanitize basic void tags for valid XHTML inside foreignObject.
-    const xhtml = beat.params.html
-      .replace(/<(br|hr|img|input)([^>]*?)(?<!\/)>/gi, '<$1$2/>');
+    const rawMarkup = executedHtml ?? `<style>${escapeXml(beat.params.css)}</style>${beat.params.html}`;
+    const xhtml = rawMarkup.replace(/<(br|hr|img|input)([^>]*?)(?<!\/)>/gi, '<$1$2/>');
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${frameW}" height="${frameH}">
       <foreignObject width="100%" height="100%">
         <div xmlns="http://www.w3.org/1999/xhtml" style="position:relative;width:${frameW}px;height:${frameH}px;overflow:hidden;${vars}">
-          <style>${escapeXml(beat.params.css)}</style>
           ${xhtml}
         </div>
       </foreignObject>
@@ -92,6 +117,18 @@ async function drawBeatTile(
       img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
     });
   }
+
+  // 2b. Overlay faint caption rail guide so Vision QA catches caption collisions directly.
+  const capBand = captionSafeBandForStage(format, frameW, frameH, stageMode);
+  const capY = y + (capBand.top / frameH) * h;
+  const capH = Math.max(12, ((capBand.bottom - capBand.top) / frameH) * h);
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(x + w * 0.14, capY, w * 0.72, capH);
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.font = 'bold 11px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('LIVE CAPTIONS', x + w / 2, capY + capH * 0.65);
+  ctx.textAlign = 'left';
 
   // 3. Crisp beat ID + stage badge in top-left corner so Gemini 4 Neon maps tiles with 100% accuracy.
   const label = `${beat.beat.id} · ${beat.beat.videoStage ?? 'full'}`;
@@ -118,6 +155,7 @@ export async function runVisionQaPass(args: {
   format: Format;
   style: StylePack;
   frames?: readonly { timeMs: number; base64: string }[];
+  executedSnapshots?: Readonly<Record<string, string>>;
   model?: string;
 }): Promise<VisionFlaggedBeat[]> {
   if (typeof document === 'undefined') return [];
@@ -156,9 +194,11 @@ export async function runVisionQaPass(args: {
       tileH,
       beat,
       args.style,
+      args.format,
       dims.width,
       dims.height,
       nearestFrame,
+      args.executedSnapshots?.[beat.beat.id],
     );
   }
 

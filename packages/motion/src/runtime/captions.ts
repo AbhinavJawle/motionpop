@@ -13,6 +13,10 @@ export interface CaptionsConfig {
   accent: string;
   /** CSS font stack (the look's body family). */
   font: string;
+  /** Optional editorial serif/display font stack for `editorial` preset italic accents (spec 23). */
+  displayFont?: string;
+  /** Look canvas background colour (hex) so `editorial` captions adapt dark/light ink on split/cutaway seams. */
+  bgColor?: string;
   /** Optional video choreography stage windows for dynamic vertical dodging (spec 21 R2). */
   stageWindows?: readonly { startMs: number; endMs: number; mode: string }[];
 }
@@ -92,7 +96,9 @@ export function captionLayout(frame: CaptionFrame, presetId: CaptionPresetId) {
     Math.round((frame.format === '16:9' ? 1600 : 900) * scale),
     Math.round(frame.width * 0.88),
   );
-  const base = Math.round(ref * (presetId === 'pop' ? 0.07 : 0.055));
+  const base = Math.round(
+    ref * (presetId === 'editorial' ? 0.082 : presetId === 'pop' ? 0.07 : presetId === 'studio' ? 0.056 : 0.052),
+  );
   const min = Math.round(ref * 0.04);
   return { bottom, maxWidth, base, min, scale };
 }
@@ -107,10 +113,15 @@ export function captionBottomForMode(
 ): number {
   const vertical = frame.format === '9:16';
   if (!vertical) {
-    if (mode === 'split-top-broll' || mode === 'screen-showcase') return Math.round(frame.height * 0.06);
+    if (mode === 'split-top-broll' || mode === 'screen-showcase' || mode === 'split-top-stage') {
+      return Math.round(frame.height * 0.06);
+    }
     return baseBottom;
   }
   switch (mode) {
+    case 'split-top-stage':
+      // Sits cleanly right above the arched bottom speaker (y: 55%..100%) on the open seam.
+      return Math.round(frame.height * 0.465);
     case 'split-top-broll':
       // Sits cleanly along the crisp center seam between top B-roll and bottom speaker.
       return Math.round(frame.height * 0.44);
@@ -132,6 +143,9 @@ export function captionBottomForMode(
       return Math.round(frame.height * 0.2);
     case 'media-card-pop':
       return Math.round(frame.height * 0.19);
+    case 'top-card':
+    case 'clean':
+      return Math.round(frame.height * 0.15);
     case 'full':
     default:
       return Math.round(frame.height * 0.18);
@@ -187,7 +201,15 @@ export function mountCaptions(
   const pill = pillColours(cfg.accent);
   const emphasis = emphasisColour(cfg.accent);
   const rise = 6 * scale;
+  const isLightLook = cfg.bgColor ? luminance(cfg.bgColor) > 0.55 : false;
+  const serifFont = cfg.displayFont ?? cfg.font;
   host.textContent = '';
+
+  const stageModeAt = (tMs: number): string => {
+    if (!cfg.stageWindows?.length) return 'full';
+    const hit = cfg.stageWindows.find((s) => tMs >= s.startMs && tMs < s.endMs);
+    return hit?.mode ?? 'full';
+  };
 
   const built: Built[] = cfg.groups.map((group) => {
     const root = doc.createElement('div');
@@ -195,9 +217,25 @@ export function mountCaptions(
     root.style.cssText = `position:absolute;left:0;right:0;bottom:${bottom}px;display:flex;justify-content:center;visibility:hidden;opacity:0;`;
     const line = doc.createElement('div');
     line.setAttribute('data-text', '');
-    const weight = cfg.presetId === 'pop' ? 800 : 600;
-    let lineCss = `font:${weight} ${base}px/1.2 ${cfg.font};color:#fff;text-align:center;white-space:nowrap;letter-spacing:${cfg.presetId === 'pop' ? '-0.015em' : '0'};`;
-    if (cfg.presetId === 'pop') {
+    const weight =
+      cfg.presetId === 'editorial' || cfg.presetId === 'pop'
+        ? 800
+        : cfg.presetId === 'studio'
+          ? 700
+          : 600;
+    let lineCss = `font:${weight} ${base}px/1.16 ${cfg.font};color:#fff;text-align:center;white-space:nowrap;letter-spacing:${cfg.presetId === 'editorial' ? '-0.025em' : cfg.presetId === 'pop' ? '-0.015em' : '-0.01em'};`;
+    if (cfg.presetId === 'editorial') {
+      // Crisp frameless editorial type (Ref 2): no bulky box; dynamically adapts ink per stage.
+      lineCss += 'background:transparent;padding:.06em .24em;';
+    } else if (cfg.presetId === 'studio') {
+      // Crisp white type with clean dark outline/shadow on video; docks into black seam bar on split stages (Ref 1/4).
+      lineCss +=
+        'background:transparent;padding:.14em .42em;text-shadow:0 2px 10px rgba(0,0,0,.92),0 0 3px rgba(0,0,0,.98),0 4px 20px rgba(0,0,0,.55);';
+    } else if (cfg.presetId === 'minimal-pill') {
+      // Compact refined dark pill (Ref 3) with zero loud highlight box.
+      lineCss +=
+        'background:rgba(10,10,16,.84);border:1px solid rgba(255,255,255,.10);border-radius:.42em;padding:.16em .46em;box-shadow:0 6px 20px rgba(0,0,0,.38);';
+    } else if (cfg.presetId === 'pop') {
       lineCss +=
         'background:rgba(8,8,12,.72);border-radius:.35em;padding:.18em .42em;box-shadow:0 8px 28px rgba(0,0,0,.45);';
     } else if (cfg.presetId === 'clean') {
@@ -211,7 +249,7 @@ export function mountCaptions(
     const words = group.words.map((w, i) => {
       const span = doc.createElement('span');
       span.textContent = w.text;
-      span.style.cssText = 'display:inline-block;border-radius:.22em;padding:0 .14em;';
+      span.style.cssText = 'display:inline-block;border-radius:.22em;padding:0 .1em;';
       if ((w.emphasis || NUMERIC_POWER.test(w.text)) && cfg.presetId !== 'boxed') {
         span.setAttribute('data-emphasis', '');
       }
@@ -241,16 +279,75 @@ export function mountCaptions(
     b.root.style.opacity = '0';
   };
 
-  function styleWords(b: Built, tMs: number) {
+  function styleWords(b: Built, tMs: number, mode: string) {
     let current = -1;
     b.group.words.forEach((w, i) => {
       if (w.startMs <= tMs) current = i;
     });
+    const line = b.root.firstElementChild as HTMLElement | null;
+    const isSplit =
+      frame.format === '9:16' &&
+      (mode === 'split-top-stage' || mode === 'split-left' || mode === 'split-right');
+    const onLightCanvas =
+      isLightLook &&
+      (mode === 'split-top-stage' ||
+        mode === 'split-left' ||
+        mode === 'split-right' ||
+        mode === 'cutaway' ||
+        mode === 'pip');
+
+    if (line && cfg.presetId === 'studio') {
+      if (isSplit) {
+        line.style.width = '100%';
+        line.style.maxWidth = '100%';
+        line.style.borderRadius = '0';
+        line.style.background = '#0A0A0E';
+        line.style.padding = `${Math.round(10 * scale)}px ${Math.round(24 * scale)}px`;
+        line.style.textShadow = 'none';
+      } else {
+        line.style.width = 'auto';
+        line.style.maxWidth = `${maxWidth}px`;
+        line.style.borderRadius = '0';
+        line.style.background = 'transparent';
+        line.style.padding = '.14em .42em';
+        line.style.textShadow =
+          '0 2px 10px rgba(0,0,0,.92),0 0 3px rgba(0,0,0,.98),0 4px 20px rgba(0,0,0,.55)';
+      }
+    } else if (line && cfg.presetId === 'editorial') {
+      line.style.textShadow = onLightCanvas
+        ? 'none'
+        : '0 3px 18px rgba(0,0,0,.78),0 1px 4px rgba(0,0,0,.92)';
+    }
+
     b.words.forEach((span, i) => {
       const w = b.group.words[i]!;
       const isCur = i === current;
       const isHighlight = Boolean(w.emphasis) || NUMERIC_POWER.test(w.text);
-      if (cfg.presetId === 'pop') {
+      if (cfg.presetId === 'editorial') {
+        const p = isCur ? outCubic((tMs - w.startMs) / POP_MS) : 0;
+        const useSerif = isHighlight && serifFont !== cfg.font;
+        span.style.fontFamily = useSerif ? serifFont : cfg.font;
+        span.style.fontStyle = useSerif ? 'italic' : 'normal';
+        span.style.fontWeight = useSerif ? '700' : '800';
+        span.style.background = 'transparent';
+        span.style.color = onLightCanvas
+          ? isHighlight
+            ? cfg.accent
+            : '#171614'
+          : isHighlight
+            ? emphasis
+            : '#FFFFFF';
+        span.style.opacity = isCur || i <= current ? '1' : '0.82';
+        span.style.transform = isCur ? `scale(${(1 + 0.05 * p).toFixed(4)})` : 'none';
+      } else if (cfg.presetId === 'studio') {
+        span.style.background = 'transparent';
+        span.style.color = isCur ? '#FFFFFF' : isHighlight ? emphasis : 'rgba(255,255,255,.94)';
+        span.style.transform = 'none';
+      } else if (cfg.presetId === 'minimal-pill') {
+        span.style.background = 'transparent';
+        span.style.color = isCur ? '#FFFFFF' : isHighlight ? emphasis : 'rgba(255,255,255,.78)';
+        span.style.transform = 'none';
+      } else if (cfg.presetId === 'pop') {
         const p = isCur ? outCubic((tMs - w.startMs) / POP_MS) : 0;
         span.style.background = isCur ? pill.bg : 'transparent';
         span.style.color = isCur ? pill.ink : isHighlight ? emphasis : '#fff';
@@ -282,6 +379,7 @@ export function mountCaptions(
       if (idx < 0) return;
       const b = built[idx]!;
       const g = b.group;
+      const mode = stageModeAt(tMs);
       const enter = outCubic((tMs - g.openMs) / ENTER_MS);
       const exit = g.closeMs - tMs < EXIT_MS ? (g.closeMs - tMs) / EXIT_MS : 1;
       const dynamicBottom = captionBottomForStage(bottom, frame, tMs, cfg.stageWindows);
@@ -289,7 +387,7 @@ export function mountCaptions(
       b.root.style.visibility = 'visible';
       b.root.style.opacity = (enter * exit).toFixed(4);
       b.root.style.transform = `translateY(${((1 - enter) * rise).toFixed(2)}px)`;
-      styleWords(b, tMs);
+      styleWords(b, tMs, mode);
     },
   };
 }

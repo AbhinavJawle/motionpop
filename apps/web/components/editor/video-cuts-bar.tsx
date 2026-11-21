@@ -19,9 +19,11 @@ import { respliceProjectAudio } from '@/lib/video/resplice-audio';
 const fmtSec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
 const QUICK_STAGE_CYCLE: readonly VideoStageMode[] = [
+  'split-top-stage',
+  'top-card',
+  'clean',
   'full',
   'split-left',
-  'split-right',
   'pip',
   'backdrop',
   'cutaway',

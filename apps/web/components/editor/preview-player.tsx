@@ -164,7 +164,8 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
         stageEl.style.top = `${(rect.y / dims.height) * 100}%`;
         stageEl.style.width = `${(rect.w / dims.width) * 100}%`;
         stageEl.style.height = `${(rect.h / dims.height) * 100}%`;
-        stageEl.style.borderRadius = `${Math.round((rect.radius / Math.min(dims.width, dims.height)) * 1000) / 10}%`;
+        const radPct = `${Math.round((rect.radius / Math.min(dims.width, dims.height)) * 1000) / 10}%`;
+        stageEl.style.borderRadius = rect.topRadiusOnly ? `${radPct} ${radPct} 0 0` : radPct;
         stageEl.style.opacity = String(rect.opacity);
         // Float speaker PiP cleanly above screen-showcase window; keep behind media-card-pop.
         stageEl.style.zIndex = rect.mode === 'screen-showcase' ? '3' : '1';

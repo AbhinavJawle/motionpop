@@ -4,6 +4,7 @@ import {
   FILM_MOTION_RULES,
   FILM_PICTURE_RULES,
   FILM_SEAMS,
+  REEL_CRAFT_RULES,
 } from './film-craft.v1';
 
 /**
@@ -27,21 +28,28 @@ BEATS
   - lead: "picture" (a drawing carries it), "map" (the map carries it), "number" (a figure made physical), or "type" (words carry it; at most two beats, usually the hook and the last line).
   - archetype: pick one of "kinetic-type", "hero-stat", "callout-hud", "data-chart", "diagram-flow", "comparison-split", "map-story". Never use the same archetype on two consecutive beats.
   - videoStage (when live speaker video is present): how the speaker footage dances with this beat —
-    - "full": full-bleed speaker + frameless floating typography/arrows
-    - "split-left": speaker glides left/top, graphic owns the open half
-    - "split-right": speaker glides right/bottom, graphic owns the open half
-    - "pip": speaker shrinks to a clean bottom-left bubble while the graphic owns the canvas
-    - "backdrop": speaker softly dims/blurs behind bold bright typography/visuals
-    - "cutaway": full-screen graphic beat
-    - When Media Bin clips are provided, ALSO weave them in on matching beats using:
-      - "split-top-broll": user B-roll plays in the upper/right panel while speaker stays visible alongside it
-      - "screen-showcase": user screen recording floats in a sleek 3D-tilted window with smooth auto-zoom to (clipFocusX, clipFocusY, clipZoom) and speaker in a PiP bubble
-      - "broll-full": full-bleed user B-roll J/L-cut over the voiceover with frameless kinetic typography
-      - "media-card-pop": user screenshot/photo pops in a floating showcase card alongside speaker with highlight callouts
-    - Whenever you choose one of the 4 media stages ("split-top-broll", "screen-showcase", "broll-full", "media-card-pop"), you MUST set "clipId" to an exact id from the Media Bin catalog, plus "clipStartMs", "clipFocusX", "clipFocusY", and "clipZoom" (using the clip's best matching moment). Never invent a clipId or use a media stage when no Media Bin clips exist.
-    - KEEP THE HUMAN ON SCREEN: Keep the speaker visible on at least 75% of beats ("full", "split-left", "split-right", "pip", "backdrop"). Beat 1 MUST open with the speaker visible ("full" or "split-left"). NEVER put two "cutaway" beats in a row, and use at most 1 "cutaway" per 4 beats — save "cutaway" strictly for one punchy comparison or visual payoff.
+    - "split-top-stage" (HERO DEFAULT FOR 9:16 EDITORIAL REELS): graphic owns the TOP 52% on a rich elevated studio/cream/luminous stage (mp.stage({ region: "top-half" })), speaker sits cleanly in the BOTTOM 45% with arched rounded top corners, captions sit cleanly on the seam between them. Zero overlap!
+    - "top-card": full-bleed speaker + 1–2 crisp elevated floating cards strictly in TOP 7%–28% above the speaker's head (odometer stat, KPI pair, progress meter, typing prompt, or citation card). Face stays 100% unobstructed.
+    - "clean": breathing / human connection beat — full-bleed speaker with smooth subtle punch-in zoom and ZERO heavy graphic clutter (either pure clean speaker or one minimal editorial mp.chapter("part 01", "title") stamp).
+    - "full": full-bleed speaker + minimal frameless kinetic typography or floating AI cutout prop cleanly above head or lower-third with dark scrim.
+    - "backdrop": speaker softly dims/blurs behind bold bright centered typography or 3D visual.
+    - "cutaway": full-screen rich motion graphic (macOS doc highlight, comparison proof, 3D globe, or chart) — MAX 1 per 4 beats, NEVER 2 in a row.
+    - "split-left", "split-right", "pip": alternative secondary framings (use sparingly; prefer "split-top-stage" and "top-card").
+    - When Media Bin clips are provided OR you set "brollQuery", use:
+      - "split-top-broll": B-roll video/photo plays in the upper panel while speaker stays visible below
+      - "screen-showcase": screen recording floats in a sleek 3D-tilted window with auto-zoom and speaker PiP
+      - "broll-full": full-bleed B-roll J/L-cut over voiceover with crisp typography
+      - "media-card-pop": screenshot/photo pops in a floating showcase card alongside speaker
+    - MEDIA & 3D SUPERPOWERS (budget 1–3 high-impact visual media beats per 60s reel):
+      - Set "brollQuery" (2–4 clean search words, e.g. "wind turbines desert", "person mirror warm light", "typing laptop studio") on 1–2 beats to auto-fetch real HD stock video/photo B-roll from Pexels / Wikimedia Commons!
+      - Set "imageSubject" (concrete physical object/subject, NO style/brand words, e.g. "ceramic coffee mug", "vintage brass mirror", "two miniature dinosaurs") + "imageKeyed": true on 1–2 beats to generate a real studio-lit cutout prop rendered via mp.image(assetId)!
+      - Builders ALSO have real 3D (mp.globe spinning 3D Earth, mp.card3d tilted 3D perspective showcases, mp.mesh3d 3D stacked coins / glowing chip cube / 3D bars) and authentic macOS windows (mp.window), rolling odometers (mp.odometer), countdown rings (mp.ring), and real data charts (mp.chart).
+    - TONE-AWARE PACING (set top-level "tone": "personal-story" | "tech-explainer" | "listicle" | "hot-take"):
+      - "personal-story" / motivational / emotional speech: allocate 35–45% "clean" breathing beats (pure human speaker + punch-in!), 25–30% "top-card" or "full" (editorial quote / floating AI cutout / chapter stamp), 25–30% "split-top-stage" or "broll-full" (warm editorial contrast or real stock B-roll). NEVER force sterile tech dashboards or fake UI boxes onto emotional human speech!
+      - "tech-explainer" / "listicle": allocate 45–55% "split-top-stage" (macOS windows, charts, glowing tiles, comparisons), 25% "top-card" (odometer KPI cards, benchmark meters, typing prompts), 15–20% "clean" / chapter stamps ("skill no #1"), and <=15% "cutaway".
+    - KEEP THE HUMAN ON SCREEN: Keep the speaker visible on at least 75% of beats. Beat 1 MUST open with the speaker visible ("split-top-stage", "top-card", or "clean"). NEVER put two "cutaway" beats in a row.
     - NEVER leave 3 consecutive beats in the same videoStage; vary the rhythm so the video flows.
-    - NEVER ask builders to draw frames, ovals, borders, or circles around the speaker or PiP (the video compositor already frames the speaker with rounded corners). NEVER direct crude stick-figure/bust silhouettes, empty dark wireframe boxes, or random floating grey circles over the speaker's face.
+    - NEVER ask builders to draw frames, ovals, borders, or circles around the speaker or PiP. NEVER direct stick-figure/bust silhouettes, fake camera viewfinder brackets, empty wireframe boxes, or floating grey circles over faces.
   - focusX, focusY (when live speaker video is present): normalized 0..1 focal point of the speaker's face seen in the keyframes (usually around 0.5, 0.35).
   - Beat 1 VIRAL HOOK: Make beat 1 immediately scroll-stopping — punchy 2-to-5 word hero copy that lands in the first 600 ms with bold kinetic energy (never a slow empty fade-in).
   - VOCAL STRESS: When stressed word indices are listed, prefer landing hero reveals ("landsOn") on those stressed words so visuals hit on the speaker's natural vocal punch.
@@ -73,7 +81,9 @@ ONE FILM, NOT SLIDES
 - Vary the scale: a wide beat, then a close one, then a number.
 
 WHAT THE BUILDERS CAN DRAW
-A real flat world map with a camera (zoom to any country, city or [lon, lat]; routes, pins, labels, dots at a place, a highlighted country). Torn paper cards with tape and tilt. Hand-drawn marks on text (highlighter, underline, circle, box, strike) and hand-drawn lines and arrows. Numbers that count up. Fields of dots (one per thing). About 140 outline icons (ship, container, truck, plane, factory, coins, banknote, users, globe, clock, calendar and so on). Text revealed word by word on the voice. Their own inline SVG drawings of simple things (a ship's side profile, a football pitch, a bar, a stack). They cannot use photos, video or 3D.
+Agency-grade Reel UI & 3D Kit: rich styled stages (cream/light/luminous radial glow), elevated glass & white cards, authentic macOS terminal/code/doc/prompt windows, rolling numeric odometers, circular countdown rings, benchmark progress bars, glowing app/concept tiles with animated signal pulses, real SVG scatter/line/bar charts with shaded target zones, rubber-stamp slams, diagonal red slashes, editorial italic-serif chapter stamps, spinning 3D orthographic Earth globe (mp.globe), CSS 3D perspective showcase rigs (mp.card3d), procedural 3D isometric coins/cubes/bars (mp.mesh3d), pre-inlined AI studio cutouts & stock photos (mp.image), real stock video B-roll (via brollQuery), plus flat world maps, torn paper cards, hand-drawn marks, and word-synced kinetic typography.
+
+${REEL_CRAFT_RULES}
 
 ${FILM_BANNED}`;
 
@@ -121,8 +131,8 @@ export function filmDirectPromptV1(i: FilmDirectPromptInput): string {
             : ''
         }`,
         hasMedia
-          ? 'Choreograph every beat with both an `archetype` and a `videoStage` ("full", "split-left", "split-right", "pip", "backdrop", "cutaway", plus "split-top-broll", "screen-showcase", "broll-full", "media-card-pop" with matching `clipId` + `clipStartMs`/`clipFocusX`/`clipFocusY`/`clipZoom` from the Media Bin below) plus `focusX`/`focusY` on the speaker face so speaker, B-roll/screen-recordings, and graphics dance seamlessly with zero gaps.'
-          : 'Choreograph every beat with both an `archetype` and a `videoStage` ("full", "split-left", "split-right", "pip", "backdrop", "cutaway") plus `focusX`/`focusY` on the speaker face so speaker and graphics dance seamlessly with zero gaps. Do NOT use media-bin stages because no Media Bin clips are attached.',
+          ? 'Choreograph every beat with both an `archetype` and a `videoStage` (prefer "split-top-stage", "top-card", "clean", plus "full", "backdrop", "cutaway", "split-left", "split-right", "pip", and Media Bin stages "split-top-broll", "screen-showcase", "broll-full", "media-card-pop" with matching `clipId` + `clipStartMs`/`clipFocusX`/`clipFocusY`/`clipZoom` from the Media Bin below) plus `focusX`/`focusY` on the speaker face and top-level `tone`.'
+          : 'Choreograph every beat with both an `archetype` and a `videoStage` (prefer "split-top-stage", "top-card", "clean", plus "full", "backdrop", "cutaway", "split-left", "split-right", "pip") plus `focusX`/`focusY` on the speaker face and top-level `tone`. You may also set `brollQuery` on 1–2 beats (paired with "split-top-broll" or "broll-full") and `imageSubject` + `imageKeyed: true` on 1–2 beats for AI studio cutouts.',
       ]
     : ['Mode: VOICEOVER FILM (full-canvas motion graphics). Set `archetype` on every beat and vary it every beat.'];
 

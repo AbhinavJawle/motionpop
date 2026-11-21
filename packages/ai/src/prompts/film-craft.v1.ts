@@ -27,6 +27,18 @@ export const FILM_MOTION_RULES = `MOTION
 
 export const FILM_BANNED = `BANNED: glow, neon, gradients as decoration, particles, a dark void with small things floating in it, everything centred, KPI tiles, three cards in a row, legends, corner labels and frame borders, bounce or elastic on text, text that keeps moving after it lands, fading the whole frame in or out, emoji, stock clip-art.`;
 
+/**
+ * Creator-Reel craft rules (spec 23 Pillar 3): replaces flat paper-documentary restrictions when
+ * building talking-head Reels so graphics achieve Ref 1/2/3 agency polish (elevated cards, luminous
+ * stages, macOS windows, editorial serif+sans contrast, 3D rigs, real images).
+ */
+export const REEL_CRAFT_RULES = `REEL DESIGN CRAFT (Editorial Cream / Studio Light / Luminous Tech)
+- Use the Reel UI & 3D Kit (mp.stage, mp.card, mp.window, mp.odometer, mp.ring, mp.meter, mp.tile, mp.flowDots, mp.chart, mp.stamp, mp.strike, mp.chapter, mp.image, mp.card3d, mp.globe, mp.mesh3d) instead of raw hand-drawn wireframe boxes.
+- Surface depth & lighting: ALWAYS open split-top-stage beats with mp.stage({ tone: "auto", region: "top-half" }) and cutaways with mp.stage({ tone: "auto", region: "full" }). Calibrated multi-layer drop shadows, crisp 1px borders, warm cream or luminous radial lighting, and glass cards are ENCOURAGED.
+- Editorial typography: pair var(--display) (Playfair Display / italic serif accents on key words) with bold tight-tracked var(--body) (Geist 800) and var(--mono) for code/data labels.
+- Instant readability: the primary card/visual MUST be visible within 140 ms (never start a beat with 1 second of blank screen).
+- STRICTLY BANNED ON REELS: wireframe stick-figure/user bust silhouettes (NEVER call mp.icon("user")), fake camera viewfinder corner brackets [ ], full-frame rectangular borders around the viewport, random floating grey circles over the speaker's face, fake oval/box outlines drawn in the PiP corner, giant empty dark rectangles, low-contrast grey text directly over live video.`;
+
 /** The seam vocabulary: how one beat hands the frame to the next. Both sides follow the same row. */
 export const FILM_SEAMS = `SEAMS (how a beat hands over to the next; both beats follow the same seam)
 - "push": cut on the move, the default. The outgoing beat's content accelerates off to the LEFT over its last 300 ms and is gone a third of the way; the incoming beat's first elements arrive from the RIGHT already moving and settle. Element by element, never the frame as one block.

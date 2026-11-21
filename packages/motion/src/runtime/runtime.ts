@@ -37,8 +37,12 @@ declare global {
           lead?: string;
           allowNumbers?: readonly string[];
           transparent?: boolean;
+          captionBand?: { top: number; bottom: number };
+          videoStage?: string;
         },
       ) => CriticSummary | null;
+      /** Captures the executed DOM markup of one slot at its keyMomentMs (for real Vision QA, spec 23). */
+      snapshot: (slotId: string) => string | null;
     };
   }
 }
@@ -80,6 +84,8 @@ if (project) {
           groups: project.captions.groups,
           accent: project.style.colors.accent,
           font: fontStack(project.style.fonts.body),
+          displayFont: fontStack(project.style.fonts.display),
+          bgColor: project.style.colors.bg,
           ...(project.captions.stageWindows ? { stageWindows: project.captions.stageWindows } : {}),
         },
         { width: project.width, height: project.height, format: project.format },
@@ -117,6 +123,8 @@ if (project) {
       lead?: string;
       allowNumbers?: readonly string[];
       transparent?: boolean;
+      captionBand?: { top: number; bottom: number };
+      videoStage?: string;
     } = {},
   ): CriticSummary | null => {
     const slot = project.slots.find((s) => s.id === slotId);
@@ -156,5 +164,47 @@ if (project) {
       seek(resumeMs);
     }
   };
-  window.__motionpop = { ...engine, seek, ready, inspect };
+  const snapshot = (slotId: string): string | null => {
+    const slot = project.slots.find((s) => s.id === slotId);
+    const host = document.getElementById(slotId);
+    if (!slot || !host) return null;
+    const before = host.getAttribute('style');
+    const hidden = host.getAttribute('data-hf-clip-hidden');
+    const resumeMs = lastMs;
+    host.removeAttribute('data-hf-clip-hidden');
+    host.style.setProperty('display', 'block', 'important');
+    host.style.setProperty('visibility', 'visible', 'important');
+    host.style.setProperty('opacity', '1', 'important');
+    const params = slot.params as { keyMomentMs?: unknown };
+    const key =
+      slot.keyMomentMs ?? (typeof params.keyMomentMs === 'number' ? params.keyMomentMs : 600);
+    try {
+      seek(slot.startMs + Math.round(key));
+      const clone = host.cloneNode(true) as HTMLElement;
+      const origCanvases = host.querySelectorAll('canvas');
+      const cloneCanvases = clone.querySelectorAll('canvas');
+      origCanvases.forEach((orig, idx) => {
+        const c = cloneCanvases[idx];
+        if (!c) return;
+        try {
+          const dataUrl = orig.toDataURL('image/png');
+          const img = document.createElement('img');
+          img.src = dataUrl;
+          img.setAttribute('style', orig.getAttribute('style') ?? '');
+          c.replaceWith(img);
+        } catch {
+          // Leave canvas untouched if tainted or unavailable.
+        }
+      });
+      return clone.innerHTML;
+    } catch {
+      return null;
+    } finally {
+      if (before === null) host.removeAttribute('style');
+      else host.setAttribute('style', before);
+      if (hidden !== null) host.setAttribute('data-hf-clip-hidden', hidden);
+      seek(resumeMs);
+    }
+  };
+  window.__motionpop = { ...engine, seek, ready, inspect, snapshot };
 }

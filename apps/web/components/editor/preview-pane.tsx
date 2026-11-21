@@ -65,8 +65,11 @@ function PenButton() {
   );
 }
 
-/** The three caption presets (spec 12 R5.3); the trigger reads "Captions · Pop". */
+/** Caption presets (spec 12 R5.3 + spec 23 R2): editorial, studio, minimal-pill, pop, clean, boxed. */
 const CAPTION_PRESETS: readonly DropdownOption<CaptionsSetting['presetId']>[] = [
+  { value: 'editorial', label: 'Captions · Editorial', hint: '1–2 word bold sans & italic serif' },
+  { value: 'studio', label: 'Captions · Studio', hint: 'Clean shadow + split seam bar' },
+  { value: 'minimal-pill', label: 'Captions · Minimal', hint: 'Compact dark pill' },
   { value: 'pop', label: 'Captions · Pop', hint: 'Bold, word on a pill' },
   { value: 'clean', label: 'Captions · Clean', hint: 'Underlined word' },
   { value: 'boxed', label: 'Captions · Boxed', hint: 'Dark box' },

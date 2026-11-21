@@ -253,10 +253,10 @@ export function wordsInRange(
   return first < 0 ? null : { wordStart: first, wordEnd: last };
 }
 
-/** Burned-in captions (spec 12 R3–R5). Optional on old projects; read with `DEFAULT_CAPTIONS`. */
+/** Burned-in captions (spec 12 R3–R5, spec 23 R2). Optional on old projects; read with `DEFAULT_CAPTIONS`. */
 export const CaptionsSettingSchema = z.object({
   enabled: z.boolean(),
-  presetId: z.enum(['pop', 'clean', 'boxed']),
+  presetId: z.enum(['editorial', 'studio', 'minimal-pill', 'pop', 'clean', 'boxed']),
 });
 export type CaptionsSetting = z.infer<typeof CaptionsSettingSchema>;
 export const DEFAULT_CAPTIONS: CaptionsSetting = { enabled: true, presetId: 'pop' };

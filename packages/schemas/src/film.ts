@@ -89,6 +89,18 @@ export const StoryBeatSchema = z.object({
     (v) => (typeof v === 'number' && Number.isFinite(v) && v >= 1 ? Math.min(2.4, v) : undefined),
     z.number().min(1).max(2.4).optional(),
   ),
+  /** Optional external stock B-roll search query (Pexels / Wikimedia Commons, spec 23 R6). */
+  brollQuery: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() && v.trim() !== 'none' ? v.trim().slice(0, 100) : undefined),
+    z.string().min(2).max(100).optional(),
+  ),
+  /** Optional AI-generated studio cutout or editorial visual subject (`mp.image`, spec 23 R6). */
+  imageSubject: z.preprocess(
+    (v) => (typeof v === 'string' && v.trim() && v.trim() !== 'none' ? v.trim().slice(0, 120) : undefined),
+    z.string().min(3).max(120).optional(),
+  ),
+  /** True when `imageSubject` should be chroma-keyed into a floating cutout (spec 23 R6). */
+  imageKeyed: z.boolean().optional(),
   /** The picture: what the viewer sees, concretely. */
   idea: z.string().min(8).max(500),
   /** On-screen copy, exact strings: the hero first, then a quiet label. */
@@ -112,8 +124,13 @@ export const StoryPropSchema = z.object({
 });
 export type StoryProp = z.infer<typeof StoryPropSchema>;
 
+export const REEL_TONES = ['personal-story', 'tech-explainer', 'listicle', 'hot-take'] as const;
+export type ReelTone = (typeof REEL_TONES)[number];
+
 export const StoryboardSchema = z.object({
   title: z.string().min(1).max(80),
+  /** Content tone used to calibrate visual density vs clean breathing beats (spec 23 R7). */
+  tone: z.enum(REEL_TONES).optional(),
   /** The one thing the viewer should leave with. */
   thesis: z.string().min(1).max(240),
   /** The world every beat lives in: ground, materials, the map if there is one. */

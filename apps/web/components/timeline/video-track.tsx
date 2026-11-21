@@ -18,18 +18,23 @@ import { useTimeline } from './timeline-context';
 const EMPTY_MEDIA_BIN: readonly MediaClip[] = [];
 
 const STAGE_OPTIONS: readonly { mode: VideoStageMode; label: string; short: string }[] = [
-  { mode: 'full', label: 'Full speaker', short: 'Full' },
-  { mode: 'split-left', label: 'Split top / left', short: 'Split' },
-  { mode: 'split-right', label: 'Split bottom / right', short: 'Split 2' },
+  { mode: 'split-top-stage', label: 'Editorial split', short: 'Split' },
+  { mode: 'top-card', label: 'Top floating card', short: 'Top Card' },
+  { mode: 'clean', label: 'Clean speaker', short: 'Clean' },
+  { mode: 'full', label: 'Full + overlay', short: 'Full' },
+  { mode: 'split-left', label: 'Speaker top / left', short: 'Split T' },
   { mode: 'pip', label: 'Speaker PiP', short: 'PiP' },
   { mode: 'backdrop', label: 'Dimmed backdrop', short: 'Backdrop' },
   { mode: 'cutaway', label: 'Full graphic cutaway', short: 'Cutaway' },
 ];
 
 const STAGE_LABEL: Record<VideoStageMode, string> = {
+  'split-top-stage': 'Split',
+  'top-card': 'Top Card',
+  clean: 'Clean',
   full: 'Full',
-  'split-left': 'Split',
-  'split-right': 'Split 2',
+  'split-left': 'Split T',
+  'split-right': 'Split B',
   pip: 'PiP',
   backdrop: 'Backdrop',
   cutaway: 'Cutaway',
@@ -40,6 +45,9 @@ const STAGE_LABEL: Record<VideoStageMode, string> = {
 };
 
 const STAGE_PILL_STYLE: Record<VideoStageMode, string> = {
+  'split-top-stage': 'border-ember/50 bg-ember/22 text-ember-ink',
+  'top-card': 'border-violet/45 bg-violet/25 text-violet-ink',
+  clean: 'border-mint/35 bg-mint/14 text-mint-ink',
   full: 'border-white/18 bg-black/55 text-text',
   'split-left': 'border-violet/45 bg-violet/25 text-violet-ink',
   'split-right': 'border-violet/45 bg-violet/25 text-violet-ink',

@@ -42,6 +42,7 @@ const ffHex = (hex: string | undefined): string => {
 /**
  * Generates a fast 1-frame looped rounded-rectangle alpha mask and merges it onto `[inLabel]`,
  * producing `[outLabel]` with crisp rounded corners (matching browser preview `borderRadius`).
+ * When `topOnly` is true, only the top two corners are arched (`split-top-stage`, spec 23).
  */
 function roundedCornerFilter(
   inLabel: string,
@@ -51,14 +52,18 @@ function roundedCornerFilter(
   radiusPx: number,
   fps: number,
   maskId: string,
+  topOnly = false,
 ): string {
   const r = Math.max(4, Math.min(Math.round(radiusPx), Math.floor(Math.min(bw, bh) / 2) - 1));
   const m = `rmask_${maskId}`;
   const fg = `rfg_${maskId}`;
+  const expr = topOnly
+    ? `if(lt(Y,${r})*gt(abs(W/2-X),W/2-${r}),if(lte(hypot(${r}-(W/2-abs(W/2-X)),${r}-Y),${r}),255,0),255)`
+    : `if(gt(abs(W/2-X),W/2-${r})*gt(abs(H/2-Y),H/2-${r}),if(lte(hypot(${r}-(W/2-abs(W/2-X)),${r}-(H/2-abs(H/2-Y))),${r}),255,0),255)`;
   return (
     `[${inLabel}]format=rgba[${fg}];` +
     `color=c=black:s=${bw}x${bh}:r=${fps}:d=0.05,format=gray,` +
-    `geq=lum='if(gt(abs(W/2-X),W/2-${r})*gt(abs(H/2-Y),H/2-${r}),if(lte(hypot(${r}-(W/2-abs(W/2-X)),${r}-(H/2-abs(H/2-Y))),${r}),255,0),255)',` +
+    `geq=lum='${expr}',` +
     `loop=-1:size=1:start=0[${m}];` +
     `[${fg}][${m}]alphamerge=shortest=1[${outLabel}]`
   );
@@ -239,7 +244,7 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
         stageFilter = `[${srcLabel}]boxblur=10:2,eq=brightness=-0.24:contrast=0.92[${lay}]`;
       } else if (s.mode === 'media-card-pop' && height > width) {
         stageFilter = `[${srcLabel}]boxblur=2:1,eq=brightness=-0.10[${lay}]`;
-      } else if (s.mode === 'full') {
+      } else if (s.mode === 'full' || s.mode === 'top-card' || s.mode === 'clean') {
         stageFilter = `[${srcLabel}]null[${lay}]`;
       } else {
         const cropX = `max(0\\,min(iw-${bw}\\,round(iw*${fx.toFixed(3)}-${bw}/2)))`;
@@ -250,7 +255,7 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
           `crop=${bw}:${bh}:${cropX}:${cropY}[${croppedLabel}]`;
         stageFilter =
           radiusPx >= 4
-            ? `${baseCrop};${roundedCornerFilter(croppedLabel, lay, bw, bh, radiusPx, fps, `a${stepIdx}`)}`
+            ? `${baseCrop};${roundedCornerFilter(croppedLabel, lay, bw, bh, radiusPx, fps, `a${stepIdx}`, Boolean(box.topRadiusOnly))}`
             : baseCrop;
       }
       filters.push(

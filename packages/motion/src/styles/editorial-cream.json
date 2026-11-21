@@ -1,0 +1,92 @@
+{
+  "id": "editorial-cream",
+  "name": "Editorial Cream",
+  "tagline": "Warm cream canvas, serif + sans contrast, arched speaker split.",
+  "tags": ["Reels", "Editorial", "Default"],
+  "description": "Warm off-white editorial cream canvas, Playfair Display serif paired with crisp Geist sans, terracotta-coral highlights, elevated macOS cards, and arched bottom speaker framing.",
+  "colors": {
+    "bg": "#EDE8DF",
+    "ink": "#171614",
+    "muted": "#6B655C",
+    "accent": "#DF6B41",
+    "accent2": "#2563EB",
+    "highlight": "#F59E0B",
+    "positive": "#16A34A",
+    "negative": "#DC2626",
+    "chart": ["#DF6B41", "#2563EB", "#16A34A"]
+  },
+  "fonts": {
+    "display": "Playfair Display",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "hand": "Caveat",
+    "displayWeight": 700
+  },
+  "texture": {
+    "grain": 0.015,
+    "paper": false,
+    "vignette": 0.04
+  },
+  "motion": {
+    "enterEase": "outExpo",
+    "moveEase": "inOutCubic",
+    "enterMs": 420,
+    "staggerMs": 45,
+    "holdMs": 850,
+    "camera": {
+      "pushIn": 1.05
+    }
+  },
+  "shape": {
+    "radius": 18,
+    "stroke": 2
+  },
+  "allowPlayful": false,
+  "energy": "lively",
+  "personality": {
+    "preset": "snappy",
+    "enter": {
+      "text": "mask",
+      "number": "count",
+      "image": "slam",
+      "shape": "draw"
+    },
+    "overshoot": 0.05,
+    "popMax": 0.08,
+    "exitRatio": 0.55,
+    "snapMargin": 12
+  },
+  "camera": {
+    "push": [1, 1.06],
+    "snap": 0.05,
+    "whip": true,
+    "parallax": 16
+  },
+  "surfaces": {
+    "card": ["plain", "shadow-soft"],
+    "photo": ["shadow-soft"],
+    "label": ["plain"],
+    "strip": ["plain"]
+  },
+  "marks": {
+    "emphasis": "highlighter",
+    "pointer": "arrow",
+    "divider": "rule",
+    "badge": "chip"
+  },
+  "juice": ["camera-snap", "camera-push", "accent-sweep", "decor-draw", "parallax-shift"],
+  "image": {
+    "recipe": "{subject}, crisp studio product photograph on warm cream background, soft natural daylight, editorial minimalism, sharp detail",
+    "treatment": ["key", "shadow-soft"]
+  },
+  "sound": {
+    "enter": "whoosh",
+    "mark": "pen",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["push"],
+  "map": {
+    "style": "paper"
+  }
+}

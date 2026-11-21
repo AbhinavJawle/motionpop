@@ -1,0 +1,91 @@
+{
+  "id": "studio-light",
+  "name": "Studio Light",
+  "tagline": "Crisp light canvas, elevated UI cards, seam-docked captions.",
+  "tags": ["Reels", "Tech", "Light"],
+  "description": "Clean off-white studio light canvas with pure white elevated cards, coral and emerald semantic badges, sharp data charts, and crisp high-contrast dark cards over live footage.",
+  "colors": {
+    "bg": "#F6F7FA",
+    "ink": "#111318",
+    "muted": "#526074",
+    "accent": "#FF5A5F",
+    "accent2": "#2563EB",
+    "highlight": "#F59E0B",
+    "positive": "#10B981",
+    "negative": "#EF4444",
+    "chart": ["#FF5A5F", "#2563EB", "#10B981"]
+  },
+  "fonts": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 700
+  },
+  "texture": {
+    "grain": 0.01,
+    "paper": false,
+    "vignette": 0.03
+  },
+  "motion": {
+    "enterEase": "outExpo",
+    "moveEase": "inOutCubic",
+    "enterMs": 420,
+    "staggerMs": 42,
+    "holdMs": 850,
+    "camera": {
+      "pushIn": 1.05
+    }
+  },
+  "shape": {
+    "radius": 16,
+    "stroke": 2
+  },
+  "allowPlayful": false,
+  "energy": "lively",
+  "personality": {
+    "preset": "snappy",
+    "enter": {
+      "text": "mask",
+      "number": "count",
+      "image": "slam",
+      "shape": "draw"
+    },
+    "overshoot": 0.05,
+    "popMax": 0.09,
+    "exitRatio": 0.55,
+    "snapMargin": 12
+  },
+  "camera": {
+    "push": [1, 1.06],
+    "snap": 0.05,
+    "whip": true,
+    "parallax": 16
+  },
+  "surfaces": {
+    "card": ["plain", "shadow-soft"],
+    "photo": ["shadow-soft"],
+    "label": ["plain"],
+    "strip": ["plain"]
+  },
+  "marks": {
+    "emphasis": "highlighter",
+    "pointer": "arrow",
+    "divider": "rule",
+    "badge": "chip"
+  },
+  "juice": ["camera-snap", "camera-push", "accent-sweep", "decor-draw", "parallax-shift"],
+  "image": {
+    "recipe": "{subject}, crisp modern editorial studio illustration, clean soft shadows, bright studio lighting",
+    "treatment": ["key", "shadow-soft"]
+  },
+  "sound": {
+    "enter": "whoosh",
+    "mark": "pen",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["push"],
+  "map": {
+    "style": "terrain"
+  }
+}

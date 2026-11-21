@@ -54,8 +54,11 @@ export type OverlayAnchor = z.infer<typeof OverlayAnchorSchema>;
 export const SlotPlacementSchema = z.enum(['cutaway', 'overlay']);
 export type SlotPlacement = z.infer<typeof SlotPlacementSchema>;
 
-/** Coupled choreography modes for how the speaker video dances with each beat (spec 19 + 20). */
+/** Coupled choreography modes for how the speaker video dances with each beat (spec 19 + 20 + 23). */
 export const VIDEO_STAGE_MODES = [
+  'split-top-stage',
+  'top-card',
+  'clean',
   'full',
   'split-left',
   'split-right',
@@ -298,6 +301,8 @@ export interface VideoStageRect {
   h: number;
   /** Corner radius in frame pixels (0 for full-bleed). */
   radius: number;
+  /** When true, only the top two corners are rounded (editorial arched bottom speaker frame, spec 23). */
+  topRadiusOnly?: boolean;
   /** Subtle drop shadow alpha (0..1) when framed in split/pip. */
   shadow: number;
   /** Inner video zoom scale (>= 1). */
@@ -329,6 +334,7 @@ interface NormalizedStageBox {
   w: number;
   h: number;
   radiusFrac: number;
+  topRadiusOnly?: boolean;
   shadow: number;
   blurPx: number;
   dim: number;
@@ -344,6 +350,36 @@ export function stageBoxForMode(
 ): NormalizedStageBox {
   const vertical = height > width;
   switch (mode) {
+    case 'split-top-stage':
+      // Editorial arched bottom speaker (Ref 2) & 50/50 top-stage split (Ref 1/3):
+      // visual owns top 52%, speaker sits cleanly in bottom 45% with arched top corners.
+      return vertical
+        ? {
+            x: 0,
+            y: 0.55,
+            w: 1,
+            h: 0.45,
+            radiusFrac: 0.072,
+            topRadiusOnly: true,
+            shadow: 0.24,
+            blurPx: 0,
+            dim: 0,
+            opacity: 1,
+          }
+        : {
+            x: 0.54,
+            y: 0.06,
+            w: 0.43,
+            h: 0.88,
+            radiusFrac: 0.026,
+            shadow: 0.36,
+            blurPx: 0,
+            dim: 0,
+            opacity: 1,
+          };
+    case 'top-card':
+    case 'clean':
+      return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 0, dim: 0, opacity: 1 };
     case 'split-left':
       return vertical
         ? { x: 0.05, y: 0.04, w: 0.9, h: 0.42, radiusFrac: 0.028, shadow: 0.42, blurPx: 0, dim: 0, opacity: 1 }
@@ -684,6 +720,7 @@ export function videoStageRectAt(
       w: lerp(prevBox.w, target.w, t),
       h: lerp(prevBox.h, target.h, t),
       radiusFrac: lerp(prevBox.radiusFrac, target.radiusFrac, t),
+      ...(target.topRadiusOnly || (t < 0.5 && prevBox.topRadiusOnly) ? { topRadiusOnly: true } : {}),
       shadow: lerp(prevBox.shadow, target.shadow, t),
       blurPx: lerp(prevBox.blurPx, target.blurPx, t),
       dim: lerp(prevBox.dim, target.dim, t),
@@ -705,6 +742,7 @@ export function videoStageRectAt(
     w: Math.round(box.w * width * 10) / 10,
     h: Math.round(box.h * height * 10) / 10,
     radius: Math.round(box.radiusFrac * shortSide * 10) / 10,
+    ...(box.topRadiusOnly ? { topRadiusOnly: true } : {}),
     shadow: Math.round(box.shadow * 1000) / 1000,
     scale: Math.round(finalScale * 1000) / 1000,
     focusX: finalFocusX,
@@ -716,11 +754,11 @@ export function videoStageRectAt(
 }
 
 const DEFAULT_STAGE_RHYTHM: readonly VideoStageMode[] = [
-  'full',
-  'split-left',
-  'backdrop',
-  'split-right',
-  'pip',
+  'split-top-stage',
+  'clean',
+  'top-card',
+  'split-top-stage',
+  'clean',
   'cutaway',
 ];
 

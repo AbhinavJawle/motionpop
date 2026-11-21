@@ -4,7 +4,7 @@ import type { Format } from '../contract';
  * Caption grouping (spec 12 R4, design §4.1). Pure and model-free, so the editor preview and the
  * render job compute the same groups from the same transcript (R4.4, R4.5).
  */
-export type CaptionPresetId = 'pop' | 'clean' | 'boxed';
+export type CaptionPresetId = 'editorial' | 'studio' | 'minimal-pill' | 'pop' | 'clean' | 'boxed';
 
 export interface CaptionSourceWord {
   text: string;
@@ -33,8 +33,9 @@ export interface ChunkOptions {
   stress?: readonly number[];
 }
 
-/** Words per group (R4.1): 3 in 9:16, 4 in 1:1, 5 in 16:9; the pop preset is 3 everywhere. */
+/** Words per group (R4.1 + spec 23 R2): 2 for editorial, 3 in 9:16/pop, 4 in 1:1, 5 in 16:9. */
 export function groupLimit(format: Format, presetId: CaptionPresetId): number {
+  if (presetId === 'editorial') return 2;
   if (presetId === 'pop' || format === '9:16') return 3;
   return format === '1:1' ? 4 : 5;
 }

@@ -48,6 +48,24 @@ Pictures
   mp.prop("ship", { w: "60%", parent })   a drawing shared by the whole film (only ids the brief lists). w is px, "%" of the frame width (of the parent's width when you give a parent), or "u". Returns the <svg>: position it with css on a wrapper, animate it like any element.
   mp.el(tag, attrs, text, parent)   creates an element (SVG tags work); or write inline <svg> in html and draw your own picture.
 
+Reel UI, Motion & 3D Kit (PREFER THESE on talking-head Reels — agency-grade, zero boilerplate)
+  mp.stage({ tone: "auto" | "cream" | "light" | "glow-violet" | "glow-emerald" | "dark-grid", region: "full" | "top-half" })   rich styled stage canvas (call FIRST on split-top-stage with region:"top-half" or on cutaways).
+  const c = mp.card({ x, y, w, h, variant: "auto" | "light-elevated" | "dark-glass" | "cream-soft" | "accent-glow" });   elevated rounded card; put content in c.body, animate c.el.
+  const win = mp.window({ kind: "terminal" | "code" | "doc" | "browser" | "prompt", title: "SKILL.md", badge: "2,700 words", theme: "dark" | "light", x, y, w, h });   authentic macOS window; put content in win.body, animate win.el.
+  const odo = mp.odometer(el, { from: 58, to: 1, suffix: "%", decimals: 0 });   tl.fn((p) => odo.set(p), { on: "1%", dur: 700, ease: "outQuart" });   smooth rolling numeric wheel.
+  const ring = mp.ring({ size: "12u", color: mp.colors.positive, parent });   tl.fn((p) => ring.set(p), { at: 200, dur: 900 });   animated circular progress ring.
+  const bar = mp.meter({ w: "100%", color: mp.colors.accent, marker: 0.88, markerLabel: "best 0.88", parent });   tl.fn((p) => bar.set(p), { at: 200, dur: 800 });   benchmark progress bar.
+  const t1 = mp.tile({ label: "Model", icon: "cpu", color: mp.colors.accent, size: "16u", x: "42%", y: "14%" });   glowing iOS-style app/concept tile.
+  const flow = mp.flowDots([x1, y1], [x2, y2], { count: 4, color: mp.colors.positive });   tl.fn((p) => flow.set(p), { at: 400, dur: 900 });   animated glowing signal pulses.
+  const ch = mp.chart({ type: "line" | "bar" | "scatter", title: "Growth", points: [{ label: "Q1", y: 20 }, { label: "Q4", y: 95, highlight: true }], targetZone: { fromX: 0, toX: 0.4, label: "200ms" }, x, y, w, h });   tl.fn((p) => ch.set(p), { at: 160, dur: 900 });
+  const st = mp.stamp("OLD WAY", { color: mp.colors.negative, angle: -9 });   bold angled rubber-stamp slam.
+  const sl = mp.strike(el, { color: mp.colors.negative });   tl.fn((p) => sl.set(p), { at: 500, dur: 320 });   bold diagonal red slash across an element.
+  const chap = mp.chapter("skill no #1", "find skills");   editorial italic-serif + bold-sans lower-third chapter stamp over full-bleed speaker.
+  const img = mp.image("assetId", { x, y, w, h, fit: "contain" | "cover", shadow: true });   pre-inlined AI cutout or stock photo (only use assetIds listed in your beat brief).
+  const c3 = mp.card3d({ x, y, w, h, rotateX: 6, rotateY: -10, variant: "dark-glass" });   tl.fn((p) => c3.setTilt(6 * (1 - p), -10 * (1 - p)), { at: 100, dur: 800 });   3D perspective showcase card.
+  const gl = mp.globe({ x: "16%", y: "8%", size: "68%", style: "editorial" | "night" | "satellite", lon: -20, lat: 25 });   tl.fn((p) => gl.set(-20 + p * 65, 25), { at: 0, dur: ctx.durationMs, ease: "linear" });   spinning 3D orthographic Earth.
+  const m3 = mp.mesh3d({ kind: "coins" | "cube" | "bars", count: 10, color: mp.colors.accent, x, y, w, h });   tl.fn((p) => m3.set(p), { at: 120, dur: 900 });   deterministic 3D isometric coins, chip cube, or 3D bars.
+
 Map (a real world map, flat, with a camera)
   const map = mp.map({ view: "world" });                    full frame, behind your html; { x, y, w, h } for a map in a box. map.el is its element. Views: "world", a country, city or region name, or [lon, lat]. Zoom guide: 1 world, 3 a continent, 6 a country, 12 a region, 25 a city or a canal.
   map.set("Egypt")  /  map.set([32.5, 30.5], 22)            the opening view (zoom 1 = the world across the frame).

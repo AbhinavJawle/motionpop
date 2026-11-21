@@ -157,6 +157,7 @@ export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
   const fontFamilies = Object.freeze({
     display: fontStack(fonts.display),
     body: fontStack(fonts.body),
+    mono: fontStack(fonts.mono),
   });
   const look = ctx.style as { surfaces?: { card?: readonly never[] } };
   const { kit, cues } = filmKit(stage, {
@@ -173,6 +174,7 @@ export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
     stroke: ctx.style.shape.stroke,
     ...(look.surfaces?.card ? { card: look.surfaces.card } : {}),
     ...(p.props ? { props: p.props } : {}),
+    ...(ctx.images ? { images: ctx.images } : {}),
     tailMs,
     headMs: p.film?.headMs ?? 0,
     warn: ctx.warn,

@@ -206,7 +206,9 @@ export async function runPipeline(
   try {
     // The project id comes first, so every write of this run can be filed under it (design §2.4).
     const id = deps.newId();
-    const styleId = input.styleId ?? deps.styleId;
+    const isVideoUpload = input.file.type.startsWith('video/');
+    // Video uploads default to Editorial Cream (spec 23) unless the creator picked another look.
+    const styleId = input.styleId ?? (isVideoUpload ? 'editorial-cream' : deps.styleId);
     const cleanupOn = input.cleanup ?? true;
 
     // Intake (R1).
@@ -479,7 +481,22 @@ export async function runPipeline(
         },
         originalTranscript: transcript(t.words, false),
         ...firstVersions(slots, now),
-        ...(input.single ? { captions: { ...DEFAULT_CAPTIONS, enabled: false } } : {}),
+        ...(input.single
+          ? { captions: { ...DEFAULT_CAPTIONS, enabled: false } }
+          : videoTrack
+            ? {
+                captions: { enabled: true, presetId: 'editorial' as const },
+                audio: {
+                  musicId: 'calm-pad' as const,
+                  musicGainDb: -22,
+                  ducking: true,
+                  duckDepthDb: 10,
+                  autoSfx: true,
+                  sfxGainDb: 0,
+                  sfxSeed: 0,
+                },
+              }
+            : {}),
         createdAt: now,
         updatedAt: now,
       });

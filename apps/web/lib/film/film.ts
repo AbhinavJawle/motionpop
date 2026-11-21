@@ -16,16 +16,19 @@ import {
   lintCustom,
   lintProp,
   videoStageZoneGuide,
+  type ImageRef,
 } from '@motionpop/motion';
 import {
   APP_CONFIG_DEFAULTS,
   FILM_MAX_MS,
   costOf,
   filmUnits,
+  isMediaStageMode,
   spokenNumbers,
   stagesFromTimedBeats,
   type AppConfig,
   type EditorProject,
+  type ImageAsset,
   type MediaClip,
   type ProjectFilm,
   type Slot,
@@ -46,6 +49,7 @@ import { draftedSlotForWords } from '@/lib/timeline/add-graphic';
 import { timelineIssues } from '@/lib/timeline/invariants';
 import { probeAndSampleVideo } from '@/lib/video/frames';
 import { indexUnindexedMediaClips } from '@/lib/video/media-bin';
+import { fetchStockMediaClip, generateReelImageAsset } from '@/lib/video/stock-media';
 import { inspectInSandbox } from './sandbox-critic';
 import { runVisionQaPass } from './vision-qa';
 
@@ -192,11 +196,13 @@ export function applyFilm(input: {
   film: ProjectFilm;
   videoStages?: VideoStageSegment[];
   mediaBin?: MediaClip[];
+  assets?: ImageAsset[];
 }): Command {
   let before:
     | (Pick<EditorProject, 'slots' | 'versions' | 'film'> & {
         videoStages?: VideoStageSegment[];
         mediaBin?: MediaClip[];
+        assets?: ImageAsset[];
       })
     | undefined;
   return {
@@ -212,6 +218,11 @@ export function applyFilm(input: {
         if (input.mediaBin) {
           d.mediaBin = structuredClone(input.mediaBin);
         }
+        if (input.assets?.length) {
+          const existing = d.assets ?? [];
+          const seen = new Set(existing.map((a) => a.id));
+          d.assets = [...existing, ...structuredClone(input.assets.filter((a) => !seen.has(a.id)))].slice(0, 60);
+        }
       });
       const issue = timelineIssues(next)[0];
       if (issue) throw new CommandRejected(issue);
@@ -221,6 +232,7 @@ export function applyFilm(input: {
         ...(p.film ? { film: p.film } : {}),
         ...(p.video?.stages ? { videoStages: p.video.stages } : {}),
         ...(p.mediaBin ? { mediaBin: p.mediaBin } : {}),
+        ...(p.assets ? { assets: p.assets } : {}),
       };
       return next;
     },
@@ -238,6 +250,8 @@ export function applyFilm(input: {
         }
         if (prev.mediaBin) d.mediaBin = prev.mediaBin as typeof d.mediaBin;
         else delete d.mediaBin;
+        if (prev.assets) d.assets = prev.assets as typeof d.assets;
+        else delete d.assets;
       });
     },
   };
@@ -345,6 +359,79 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
       moments: (c.moments ?? []).slice(0, 6),
     }));
 
+    const executedSnapshots: Record<string, string> = {};
+    const generatedAssets: ImageAsset[] = [];
+    const inlineImages: Record<string, ImageRef> = {};
+
+    const resolveBeatMedia: Parameters<typeof makeFilm>[1]['resolveBeatMedia'] =
+      typeof window !== 'undefined' && !deps.inspect && hasVideo
+        ? async (board) => {
+            const nextBeats = [...board.beats];
+            const beatImages: Record<string, { id: string; subject: string; keyed: boolean }> = {};
+
+            // 1. Auto-fetch up to 2 external stock B-roll clips/photos (Pexels + Wikimedia Commons).
+            const stockTargets = nextBeats
+              .map((b, idx) => ({ b, idx }))
+              .filter(({ b }) => Boolean(b.brollQuery) && !b.clipId)
+              .slice(0, 2);
+
+            await Promise.all(
+              stockTargets.map(async ({ b, idx }) => {
+                if (!b.brollQuery) return;
+                const clip = await fetchStockMediaClip(b.brollQuery, {
+                  format: project.format,
+                  preferVideo: true,
+                });
+                if (!clip) return;
+                indexedMediaBin = [...(indexedMediaBin ?? []), clip];
+                mediaBinUpdated = true;
+                const nextStage =
+                  b.videoStage && isMediaStageMode(b.videoStage)
+                    ? b.videoStage
+                    : clip.kind === 'broll'
+                      ? ('split-top-broll' as const)
+                      : ('media-card-pop' as const);
+                nextBeats[idx] = {
+                  ...b,
+                  videoStage: nextStage,
+                  clipId: clip.id,
+                  clipStartMs: 0,
+                  clipFocusX: 0.5,
+                  clipFocusY: 0.45,
+                  clipZoom: 1.06,
+                };
+              }),
+            );
+
+            // 2. Generate up to 2 studio-lit AI cutouts / editorial visuals sequentially (avoids 429).
+            const imageTargets = nextBeats
+              .filter((b) => Boolean(b.imageSubject) && !b.clipId)
+              .slice(0, 2);
+            for (const b of imageTargets) {
+              if (!b.imageSubject || deps.cancelled?.()) break;
+              const made = await generateReelImageAsset(b.imageSubject, style, {
+                keyed: b.imageKeyed !== false,
+                now,
+              });
+              if (!made) continue;
+              generatedAssets.push(made.asset);
+              inlineImages[made.asset.id] = {
+                src: made.dataUrl,
+                width: made.asset.width ?? 1024,
+                height: made.asset.height ?? 1024,
+                keyed: made.asset.keyed,
+              };
+              beatImages[b.id] = {
+                id: made.asset.id,
+                subject: made.asset.subject,
+                keyed: made.asset.keyed,
+              };
+            }
+
+            return { board: { ...board, beats: nextBeats }, beatImages };
+          }
+        : undefined;
+
     const inspect: FilmDeps['inspect'] =
       deps.inspect ??
       (assets
@@ -361,6 +448,10 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
               ...(hasVideo && (beat.videoStage ?? 'full') !== 'cutaway'
                 ? { transparent: true }
                 : {}),
+              ...(Object.keys(inlineImages).length ? { images: inlineImages } : {}),
+              onSnapshot: (beatId, html) => {
+                executedSnapshots[beatId] = html;
+              },
               ...(deps.doc ? { doc: deps.doc } : {}),
             })
         : undefined);
@@ -386,6 +477,7 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           example: kitExample(),
           exampleFor: (beat) => archetypeExample(beat.archetype, beat.lead),
           stageGuideFor: videoStageZoneGuide,
+          ...(resolveBeatMedia ? { resolveBeatMedia } : {}),
           ...(deps.model ? { model: deps.model } : {}),
           ...(inspect ? { inspect } : {}),
           ...(deps.onProgress ? { onProgress: deps.onProgress } : {}),
@@ -402,9 +494,8 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
         : { outcome: 'failed', reason: COULDNT_FILM };
     }
 
-    // Spec 22 R2.2: single-call Multimodal Vision Critic contact-sheet QA on real browser runs.
-    // Flags at most 2 clearly defective beats and surgically rebuilds only those beats; skips
-    // cleanly in headless tests or if vision QA returns pass.
+    // Spec 22 + 23 R8.1: single-call Multimodal Vision Critic over REAL executed frames composited
+    // with the speaker's true stage geometry + live caption rail.
     if (typeof window !== 'undefined' && !deps.inspect && !deps.cancelled?.()) {
       const flagged = await runVisionQaPass({
         router,
@@ -412,6 +503,7 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
         format: project.format,
         style,
         frames,
+        executedSnapshots,
       }).catch(() => []);
       if (flagged.length > 0 && !deps.cancelled?.()) {
         const patched = [...film.beats];
@@ -498,6 +590,7 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
         },
         ...(videoStages ? { videoStages } : {}),
         ...(mediaBinUpdated && indexedMediaBin ? { mediaBin: indexedMediaBin } : {}),
+        ...(generatedAssets.length ? { assets: generatedAssets } : {}),
       }),
     );
     if (!ok) {

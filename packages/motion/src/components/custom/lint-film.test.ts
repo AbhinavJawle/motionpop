@@ -15,8 +15,10 @@ describe('lintCustom: film additions (spec 07b)', () => {
     );
   });
 
-  it('accepts x.top and a property called parent', () => {
-    expect(lintCustom(scriptOf('const x = { top: 1 }; const y = x.top + x.parent;'))).toEqual([]);
+  it('accepts x.top, mp.window and a property called parent', () => {
+    expect(
+      lintCustom(scriptOf('const x = { top: 1 }; const y = x.top + x.parent; mp.window({ kind: "doc" });')),
+    ).toEqual([]);
   });
 
   it.each([
