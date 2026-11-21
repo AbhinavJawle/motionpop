@@ -7,4 +7,4 @@
 - [x] 5. Director: `reel.direct` task + `autoReelPlan` fallback (R3.1)
 - [x] 6. Editor: reel preview, look switch, regenerate (R4.1)
 - [x] 7. Export: render service compiles reels with the source video (R2.2, R4.1)
-- [ ] 8. Close-out: real upload → export check against the references
+- [x] 8. Close-out: real upload → export check against the references

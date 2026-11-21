@@ -630,3 +630,34 @@ Template:
 - **Bugs caught & fixed:**
   - Live video upload failed with `PipelineError: Couldn't save the project in this browser.` because `apps/web/lib/pipeline/run.ts` passed `musicId: 'none'` into `EditorProjectSchema.parse(...)`, while `MusicIdSchema` models "no music" by omitting `musicId`. Fixed by spreading `DEFAULT_AUDIO` without `musicId`, typing the candidate with `satisfies EditorProject` so TypeScript catches schema drift at compile time, and adding video-upload regression tests in `apps/web/lib/pipeline/run.test.ts`.
 - **Verified:** `pnpm --filter @motionpop/motion build:runtime`, `pnpm -r typecheck` (5/5 + e2e), `pnpm -r lint` (5/5), and full test suites across all 5 packages (`schemas` 365/365, `motion` 62/62 files, `ai` 100%, `render` 100%, `web` 138/138 files).
+
+## 2026-11-21 · Claude Code (`claude-opus-5-5`) + Kiro CLI (commits only) · spec 25 template reel engine
+- **Founder ask:** after spec 23/24 the exports still did not look like the two reference talking-head reels (a mono split-screen reel and a cream editorial reel). The ask was to overhaul whatever is needed so that a talking-head upload exports at that quality. Kiro CLI was used only to make the commits.
+- **Approach:** dropped AI-written per-beat code for reels. A reel is now chosen from hand-crafted, deterministic scene templates in two looks. One HyperFrames composition holds the speaker video as timed clips, so the preview and the export run the same `seek(ms)` code.
+- **Built (spec 25, commits 058396a, 4d9758e, ffb279d, 67f4b1f):**
+  - **Schema:** `ReelPlan` (`packages/schemas/src/reel.ts`) has 16 templates, 4 layouts, `tileReelScenes` and `restyleReelPlan`, and is stored as `project.reel`.
+  - **Engine** (`packages/motion/src/reel/`):
+    - Looks: `mono` and `cream`.
+    - Templates: headline, list, stack, checklist, compare, statement, counter, progress, terminal, chart, browser, flow, quote, punch, cta and none.
+    - Captions; `mountReel`; `compileReel`; `dist/reel-runtime.js`; bundled OFL fonts (Inter, Newsreader, Playfair Display Italic, Instrument Serif).
+  - **Director:**
+    - `reel.direct`: cloud, 3 credits; word indices are mapped to ms cues.
+    - `autoReelPlan`: free and deterministic. It turns scenes into headline, counter, list, compare, statement, checklist, stack, progress, punch and cta, and never cuts text mid-word.
+  - **Pipeline:** video uploads take the reel path. Pauses and fillers become jump cuts (tighter EDL), the words are re-timed, `directReel` runs, and the project is saved as 9:16 with no slots and a WAV voice. The old `video.direct` and stage choreography are not used for new uploads.
+  - **Editor:** `ReelPreview` (same engine over a muted native video synced to the clock), look/captions/Re-direct in the toolbar, and reel scenes on the timeline.
+  - **Export:** `runRender` compiles reels with the source video copied into the composition. There is no slot preflight and no FFmpeg composite. Reels always export in 9:16.
+- **Verified:**
+  - Typecheck, lint and tests are green for schemas, ai, motion, render and web. New tests cover the director mapping and fallback (including a fast-check property), the reel commands, the render job reel branch and the pipeline reel path.
+  - The real `runPipeline` (Node harness) plus `render-project --video` on a 40 s talking-head clip gave a 1080×1920 H.264/AAC MP4 in 57 s.
+  - In the real app (headless Chrome, local-only dev server, free director): upload → Whisper → editor reel preview → cream look → Export → download gave a 1080×1920 MP4 of 39.9 s, rendered in 75 s.
+  - Contact sheets were compared against both references.
+- **Bugs found on the way:**
+  - Reel projects without cuts used the MP4 as the voice, so the export returned 422 `voice-missing`. Fixed: the voice is always a WAV.
+  - Speaker overlays leaked into later scenes, so scene hosts now use `display`.
+  - The video showed through on `full` scenes, so the wrapper is hidden with `opacity`.
+  - A literal U+2028 in a regex broke esbuild.
+  - The local render failed with ENOSPC: the machine has about 2 GB free, and two-worker renders spool frames to disk. The test server used `HF_DE_PARALLEL_STREAM=true`; Cloud Run is unaffected.
+- **Not verified (needs the founder's OK, paid):** the cloud `reel.direct` director on a real transcript. Every check above used the free director or hand-written plans.
+- **Known gaps against the references:**
+  - The references also cut to real screenshots, website captures and dark full-bleed UI. Our templates draw mockups but do not yet place user screenshots or B-roll.
+  - The free director's wording is rule-based, so it mirrors the speech but is generic.
