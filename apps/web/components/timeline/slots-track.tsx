@@ -7,6 +7,7 @@ import { useStill } from '@/lib/motion/use-still';
 import { SlotCard } from './slot-card';
 import { useTimeline } from './timeline-context';
 import { startSlotDrag } from './slot-drag';
+import { ReelScenesTrack } from './reel-scenes-track';
 
 /** Magnetic settle onto a word boundary (spec 04 R6.1: 120–180 ms). */
 const SETTLE =
@@ -22,7 +23,9 @@ export function SlotsTrack() {
   const autoFilling = useEditor((s) => s.autoFilling);
   const generating = useEditor((s) => s.generating);
   const still = useStill();
+  const isReel = useEditor((s) => Boolean(s.project?.reel && s.project?.video));
 
+  if (isReel && slots.length === 0) return <ReelScenesTrack />;
   if (slots.length === 0) {
     return (
       <p className="absolute top-1/2 left-4 -translate-y-1/2 text-[11px] text-text-3">

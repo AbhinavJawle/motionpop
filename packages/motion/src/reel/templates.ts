@@ -376,7 +376,7 @@ function checklist(p: Of<'checklist'>, ctx: TplCtx): Tpl {
     col.append(scrub);
   }
   const table = h('div', {
-    width: 580,
+    width: ctx.look.upper ? 580 : 620,
     display: 'flex',
     flexDirection: 'column',
     ...(ctx.look.upper
@@ -384,7 +384,7 @@ function checklist(p: Of<'checklist'>, ctx: TplCtx): Tpl {
       : {
           background: ctx.pal.card,
           borderRadius: 26,
-          padding: '14px 30px',
+          padding: '18px 38px',
           boxShadow: ctx.pal.shadow,
         }),
   });
@@ -396,7 +396,7 @@ function checklist(p: Of<'checklist'>, ctx: TplCtx): Tpl {
         textAlign: 'left',
         fontFamily: ctx.look.sans,
         fontWeight: 700,
-        fontSize: 32,
+        fontSize: ctx.look.upper ? 32 : 42,
         textTransform: ctx.look.upper ? 'uppercase' : 'none',
         letterSpacing: ctx.look.upper ? '0' : '-0.02em',
         color: ctx.look.upper ? ctx.pal.ink : ctx.pal.cardInk,
@@ -408,20 +408,20 @@ function checklist(p: Of<'checklist'>, ctx: TplCtx): Tpl {
       {
         fontFamily: ctx.look.sans,
         fontWeight: 400,
-        fontSize: 31,
+        fontSize: ctx.look.upper ? 31 : 38,
         color: ctx.look.upper ? ctx.pal.ink : ctx.pal.muted,
         marginRight: 22,
         whiteSpace: 'nowrap',
       },
       [r.value ?? ''],
     );
-    const ck = check(34, ctx.look.upper ? ctx.pal.ink : ctx.pal.accent);
+    const ck = check(ctx.look.upper ? 34 : 44, ctx.look.upper ? ctx.pal.ink : ctx.pal.accent);
     const row = h(
       'div',
       {
         display: 'flex',
         alignItems: 'center',
-        height: 72,
+        height: ctx.look.upper ? 72 : 96,
         borderBottom:
           i < p.rows.length - 1 || ctx.look.upper ? `1.5px solid ${ctx.pal.line}` : 'none',
       },
@@ -725,8 +725,8 @@ function counter(p: Of<'counter'>, ctx: TplCtx): Tpl {
 function progress(p: Of<'progress'>, ctx: TplCtx): Tpl {
   const col = column(ctx, 0);
   const card = h('div', {
-    width: 600,
-    padding: '46px 46px 40px',
+    width: ctx.look.upper ? 600 : 630,
+    padding: ctx.look.upper ? '46px 46px 40px' : '56px 52px 48px',
     boxSizing: 'border-box',
     borderRadius: 26,
     background: ctx.look.upper ? (ctx.pal.dark ? '#16161A' : '#FFFFFF') : ctx.pal.card,
@@ -736,14 +736,19 @@ function progress(p: Of<'progress'>, ctx: TplCtx): Tpl {
     flexDirection: 'column',
     alignItems: 'center',
   });
-  const ic = icon(p.icon ?? 'download', 92, ctx.look.upper ? ctx.pal.ink : ctx.pal.accent, 1.7);
+  const ic = icon(
+    p.icon ?? 'download',
+    ctx.look.upper ? 92 : 112,
+    ctx.look.upper ? ctx.pal.ink : ctx.pal.accent,
+    1.7,
+  );
   const ink = ctx.look.upper ? ctx.pal.ink : ctx.pal.cardInk;
   const titleA = h(
     'div',
     {
       fontFamily: ctx.look.sans,
       fontWeight: 700,
-      fontSize: 40,
+      fontSize: ctx.look.upper ? 40 : 50,
       letterSpacing: '-0.025em',
       color: ink,
     },
@@ -758,7 +763,7 @@ function progress(p: Of<'progress'>, ctx: TplCtx): Tpl {
       top: 0,
       fontFamily: ctx.look.sans,
       fontWeight: 700,
-      fontSize: 40,
+      fontSize: ctx.look.upper ? 40 : 50,
       letterSpacing: '-0.025em',
       color: ink,
     },
@@ -774,7 +779,7 @@ function progress(p: Of<'progress'>, ctx: TplCtx): Tpl {
     {
       fontFamily: ctx.look.sans,
       fontWeight: 400,
-      fontSize: 20,
+      fontSize: ctx.look.upper ? 20 : 27,
       color: ctx.pal.muted,
       marginTop: 8,
     },
@@ -794,8 +799,8 @@ function progress(p: Of<'progress'>, ctx: TplCtx): Tpl {
     {
       position: 'relative',
       alignSelf: 'stretch',
-      height: 8,
-      borderRadius: 4,
+      height: ctx.look.upper ? 8 : 12,
+      borderRadius: 6,
       background: ctx.pal.dark ? '#2C2C31' : '#ECE8E1',
       marginTop: 38,
       overflow: 'hidden',
@@ -807,7 +812,7 @@ function progress(p: Of<'progress'>, ctx: TplCtx): Tpl {
     {
       fontFamily: ctx.look.sans,
       fontWeight: 600,
-      fontSize: 19,
+      fontSize: ctx.look.upper ? 19 : 25,
       color: ink,
       fontVariantNumeric: 'tabular-nums',
     },
@@ -821,7 +826,7 @@ function progress(p: Of<'progress'>, ctx: TplCtx): Tpl {
       justifyContent: 'space-between',
       marginTop: 14,
       fontFamily: ctx.look.sans,
-      fontSize: 19,
+      fontSize: ctx.look.upper ? 19 : 25,
       color: ctx.pal.muted,
     },
     [h('div', {}, [p.task ?? 'Working on it']), pct],
@@ -1545,16 +1550,29 @@ function punch(p: Of<'punch'>, ctx: TplCtx): Tpl {
           textShadow: shadow,
           whiteSpace: 'nowrap',
         }
-      : {
-          fontFamily: ctx.look.sans,
-          fontWeight: 800,
-          fontSize: 56,
-          color: '#FFFFFF',
-          letterSpacing: '-0.045em',
-          lineHeight: 1.0,
-          textShadow: shadow,
-          whiteSpace: 'nowrap',
-        },
+      : p.top
+        ? {
+            fontFamily: ctx.look.sans,
+            fontWeight: 800,
+            fontSize: 56,
+            color: '#FFFFFF',
+            letterSpacing: '-0.045em',
+            lineHeight: 1.0,
+            textShadow: shadow,
+            whiteSpace: 'nowrap',
+          }
+        : {
+            // A lone punchline reads as an editorial italic over the chest.
+            fontFamily: ctx.look.italic,
+            fontStyle: 'italic',
+            fontWeight: 700,
+            fontSize: 70,
+            color: '#FFFFFF',
+            letterSpacing: '-0.02em',
+            lineHeight: 0.98,
+            textShadow: shadow,
+            whiteSpace: 'nowrap',
+          },
     [p.text],
   );
   if (top) box.append(top);
@@ -1563,7 +1581,7 @@ function punch(p: Of<'punch'>, ctx: TplCtx): Tpl {
   return {
     el: box,
     mount() {
-      fit(main, 640, ctx.look.upper ? 78 : 56, 30, 1, 1);
+      fit(main, 640, ctx.look.upper ? 78 : p.top ? 56 : 70, 30, 1, 1);
     },
     seek(tt) {
       if (top) revealAt(top, tt, t0, 300, 10, 10);

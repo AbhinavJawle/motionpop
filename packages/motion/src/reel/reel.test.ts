@@ -16,13 +16,20 @@ describe('reel captions', () => {
     expect(c.map((x) => x.text)).toContain('THURSDAY');
   });
   it('cream: lowercases sentence starts but keeps I', () => {
-    const c = chunkCaptions([{ text: 'Today', startMs: 0, endMs: 200 }, { text: 'I', startMs: 900, endMs: 1000 }], 'cream');
+    const c = chunkCaptions(
+      [
+        { text: 'Today', startMs: 0, endMs: 200 },
+        { text: 'I', startMs: 900, endMs: 1000 },
+      ],
+      'cream',
+    );
     expect(c[0]!.text).toBe('today');
     expect(c[1]!.text).toBe('I');
   });
   it('chunks never overlap and chunkAt finds them', () => {
     const c = chunkCaptions(words, 'cream');
-    for (let i = 1; i < c.length; i++) expect(c[i]!.startMs).toBeGreaterThanOrEqual(c[i - 1]!.endMs);
+    for (let i = 1; i < c.length; i++)
+      expect(c[i]!.startMs).toBeGreaterThanOrEqual(c[i - 1]!.endMs);
     expect(chunkAt(c, c[2]!.startMs + 1)).toBe(2);
     expect(chunkAt(c, -5)).toBe(-1);
   });
@@ -75,7 +82,12 @@ describe('compileReel', () => {
       {
         reelRuntimeJs: '/*rt*/',
         hyperframesRuntimeJs: '/*hf*/',
-        fonts: { Inter: 'AA', Newsreader: 'AA', 'Playfair Display Italic': 'AA', 'Geist Mono': 'AA' },
+        fonts: {
+          Inter: 'AA',
+          Newsreader: 'AA',
+          'Playfair Display Italic': 'AA',
+          'Geist Mono': 'AA',
+        },
       },
     );
     expect(html.match(/<video /g)?.length).toBe(2);

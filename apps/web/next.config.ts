@@ -21,6 +21,7 @@ const config: NextConfig = {
   outputFileTracingRoot: join(import.meta.dirname, '..', '..'),
   outputFileTracingIncludes: {
     '/api/composition/assets': ['../../packages/motion/dist/**/*'],
+    '/api/composition/reel-fonts': ['../../packages/motion/dist/reel-fonts.json'],
   },
   reactStrictMode: true,
   // On App Hosting the web config arrives as FIREBASE_WEBAPP_CONFIG; inline it as NEXT_PUBLIC_*.

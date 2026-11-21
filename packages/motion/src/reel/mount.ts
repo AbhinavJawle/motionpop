@@ -214,7 +214,7 @@ export function mountReel(
         height: area.h,
         transformOrigin: '50% 50%',
       });
-      const tpl = buildTemplate(s.content, {
+      const tpl = buildTemplate(firstCueEarly(s), {
         look,
         pal,
         area,
@@ -387,8 +387,10 @@ export function mountReel(
       v.host.style.display = on ? 'block' : 'none';
       v.host.style.visibility = 'visible';
       if (!on) return;
-      v.tpl.seek(t);
-      if (v.tag) revealAt(v.tag, t, s.startMs + 40, 320, 0, 8);
+      // The hook is already on screen at frame 0 (the thumbnail and the first swipe-stop).
+      const lt = idx === 0 ? t + HOOK_LEAD_MS : t;
+      v.tpl.seek(lt);
+      if (v.tag) revealAt(v.tag, lt, s.startMs + 40, 320, 0, 8);
       // Gentle camera drift on graphic panels.
       if (s.layout !== 'speaker') {
         const cam = v.host.firstElementChild as HTMLElement;
@@ -442,6 +444,25 @@ export function mountReel(
     },
   };
 }
+
+/** A graphic never waits on an empty panel: its first cued item lands by scene start + 450 ms. */
+function firstCueEarly(s: ReelScene): ReelScene['content'] {
+  const c = s.content as Record<string, unknown>;
+  const latest = s.startMs + 450;
+  for (const key of ['items', 'words', 'rows', 'lines', 'steps']) {
+    const arr = c[key];
+    if (Array.isArray(arr) && arr.length > 0) {
+      const first = arr[0] as { at?: number };
+      if (typeof first.at === 'number' && first.at > latest) {
+        return { ...c, [key]: [{ ...first, at: latest }, ...arr.slice(1)] } as ReelScene['content'];
+      }
+    }
+  }
+  return s.content;
+}
+
+/** How far into its reveal the first scene starts. */
+const HOOK_LEAD_MS = 650;
 
 const KEEP = new Set([
   'template',

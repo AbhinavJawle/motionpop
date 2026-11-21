@@ -335,13 +335,15 @@ export async function runPipeline(
         const reuse = input.storedRef && !deps.audioStore.syncs?.() ? input.storedRef : null;
         const originalSrc = reuse ?? (await deps.audioStore.put(input.file, place));
         if (!reuse) written.push(originalSrc);
-        const src = reelPcm
-          ? await deps.audioStore.put(
-              new Blob([deps.encodeWav(reelPcm, OUTPUT_SAMPLE_RATE)], { type: 'audio/wav' }),
-              place,
-            )
-          : originalSrc;
-        if (src !== originalSrc) written.push(src);
+        // The voice is always its own WAV (the editor's clock and the export's voice upload),
+        // even without cuts: the original is a video file.
+        const src = await deps.audioStore.put(
+          new Blob([deps.encodeWav(reelPcm ?? audio.pcm24k, OUTPUT_SAMPLE_RATE)], {
+            type: 'audio/wav',
+          }),
+          place,
+        );
+        written.push(src);
         const now = deps.now();
         const transcript = (ws: Word[], cleaned: boolean): Transcript => ({
           words: ws,

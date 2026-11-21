@@ -51,6 +51,7 @@ function addGraphicHere(atMs: number) {
 
 /** Timeline header row (editor.png; "Transcript and timeline controls"): 48 px. */
 export function TimelineHeader() {
+  const isReel = useEditor((st) => Boolean(st.project?.reel && st.project?.video));
   const { clock, durationMs, widthPx, view } = useTimeline();
   const playing = useEditor((s) => s.playing);
   const setView = useEditor((s) => s.setView);
@@ -133,9 +134,11 @@ export function TimelineHeader() {
 
       <div className="ml-auto flex items-center">
         {/* Film mode (spec 07b; not in the designs): right of the transport, where there is room. */}
-        <span className="mr-5">
-          <FilmButton />
-        </span>
+        {!isReel && (
+          <span className="mr-5">
+            <FilmButton />
+          </span>
+        )}
         <Tooltip content="Timeline settings">
           <button
             type="button"

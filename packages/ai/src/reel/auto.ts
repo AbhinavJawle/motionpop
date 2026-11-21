@@ -253,6 +253,50 @@ function clauseLines(
   return out.slice(0, 3);
 }
 
+/** The run's key phrase cut on word boundaries to `max` characters (never mid-word). */
+const fitWords = (ws: readonly string[], maxWords: number, maxChars: number): string => {
+  for (let n = maxWords; n >= 1; n--) {
+    const t = keyWords(ws, n);
+    if (t && t.length <= maxChars) return t;
+  }
+  return '';
+};
+
+/** "not X but Y", "X instead of Y", "stop X, start Y": two sides, the second one wins. */
+function contrast(ws: readonly string[]): { left: string; right: string } | null {
+  const lower = ws.map((w) => clean(w).toLowerCase());
+  const neg = lower.findIndex((w) =>
+    /^(not|isn't|doesn't|don't|never|stop|instead|without|no)$/.test(w),
+  );
+  if (neg < 0) return null;
+  const pivot = lower.findIndex(
+    (w, i) => i > neg + 1 && /^(but|it's|instead|start|it|rather|just)$/.test(w),
+  );
+  if (pivot < 0) return null;
+  const left = fitWords(ws.slice(neg + 1, pivot), 2, 14);
+  const right = fitWords(ws.slice(pivot + 1), 2, 14);
+  return left && right && left.toLowerCase() !== right.toLowerCase() ? { left, right } : null;
+}
+
+/** "comment GUIDE", "follow for more": the ask, if the speaker makes one. */
+function callToAction(ws: readonly string[]): { verb: string; keyword: string } | null {
+  const lower = ws.map((w) => clean(w).toLowerCase());
+  const i = lower.findIndex((w) => /^(comment|follow|subscribe|save|share|dm)$/.test(w));
+  if (i < 0) return null;
+  const verb = clean(ws[i]!);
+  const next = ws
+    .slice(i + 1)
+    .map(clean)
+    .find((w) => w && !STOP.has(w.toLowerCase()) && !/^(below|now|this|me|today)$/i.test(w));
+  const keyword = (
+    next && next.length <= 16 ? next : verb === 'follow' ? 'for more' : 'below'
+  ).toUpperCase();
+  return { verb: verb[0]!.toUpperCase() + verb.slice(1).toLowerCase(), keyword };
+}
+
+const PROGRESS_WORDS =
+  /\b(finish|finishing|complete|completing|build|building|learn|learning|install|installing|loading|start|starting|ship|launch|grow|growing)\b/i;
+
 export function autoReelPlan(
   words: readonly ReelWord[],
   durationMs: number,
@@ -287,6 +331,7 @@ export function autoReelPlan(
     'headline',
   ];
   let rot = 0;
+  let usedProgress = false;
   segs.forEach((s, k) => {
     const at = (wordIdx: number) => words[Math.max(s.from, Math.min(s.to, wordIdx))]!.startMs;
     const local = s.text;
@@ -334,6 +379,20 @@ export function autoReelPlan(
         return { at: at(cursor), icon: iconFor(p, 'check'), text: sentence(p.split(/\s+/), 26) };
       });
       content = { template: 'list', title: keyWords(local.slice(0, 4), 3) || 'Here is how', items };
+    } else if (isLast && callToAction(local)) {
+      layout = 'speaker';
+      content = { template: 'cta', ...callToAction(local)! };
+    } else if (contrast(local) && lastTpl !== 'compare') {
+      const c = contrast(local)!;
+      content = {
+        template: 'compare',
+        left: c.left,
+        right: c.right,
+        winner: 'right',
+        leftIcon: 'x',
+        rightIcon: iconFor(c.right, 'check'),
+        rows: [],
+      };
     } else if (!lastSpeaker && !isLast && local.length <= 6 && k % 2 === 0) {
       layout = 'speaker';
       content = { template: 'punch', text: sentence(local, 26) };
@@ -350,8 +409,44 @@ export function autoReelPlan(
     } else {
       let tpl = rotation[rot++ % rotation.length]!;
       if (tpl === lastTpl) tpl = rotation[rot++ % rotation.length]!;
-      if (tpl === 'list') tpl = 'statement';
-      if (tpl === 'headline') {
+      const verb = PROGRESS_WORDS.exec(local.join(' '));
+      const lines = clauseLines(local, s.from, at);
+      if (verb && lastTpl !== 'progress' && !usedProgress) {
+        usedProgress = true;
+        const title = fitWords(local, 4, 32) || 'In progress';
+        content = {
+          template: 'progress',
+          icon: iconFor(local.join(' '), 'loader'),
+          title,
+          doneTitle: 'Done',
+        };
+      } else if (lines.length >= 2 && lastTpl !== 'checklist') {
+        const rows = lines
+          .map((l) => ({ at: l.at, label: fitWords(l.text.split(' '), 3, 18) }))
+          .filter((r) => r.label);
+        content =
+          rows.length >= 2
+            ? { template: 'checklist', rows: rows.slice(0, 4) }
+            : { template: 'statement', strike: false, icon: iconFor(local.join(' ')), lines };
+      } else if (tpl === 'list' && lastTpl !== 'stack') {
+        // Stacked key words, each on the word that says it.
+        const keys: { at: number; text: string }[] = [];
+        local.forEach((w, i) => {
+          const c = clean(w);
+          if (c.length >= 4 && !STOP.has(c.toLowerCase()) && keys.length < 4) {
+            if (!keys.some((x) => x.text.toLowerCase() === c.toLowerCase()) && c.length <= 18)
+              keys.push({ at: at(s.from + i), text: c });
+          }
+        });
+        content =
+          keys.length >= 2
+            ? {
+                template: 'stack',
+                label: sentence(local, 30) || 'Remember',
+                words: keys.slice(-3),
+              }
+            : { template: 'statement', strike: false, icon: iconFor(local.join(' ')), lines };
+      } else if (tpl === 'headline') {
         const title = keyWords(local, 4);
         const kicker = leadWords(local, title, 4);
         content = { template: 'headline', ...(kicker ? { kicker } : {}), title };
