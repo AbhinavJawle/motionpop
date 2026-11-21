@@ -20,7 +20,7 @@ service firebase.storage {
       allow write: if isOwner(uid)
         && request.resource != null
         && request.resource.contentType.matches('(video|image)/.*')
-        && request.resource.size <= 150 * 1024 * 1024;
+        && request.resource.size <= 500 * 1024 * 1024;
       allow delete: if isOwner(uid);
     }
 

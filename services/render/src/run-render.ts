@@ -241,6 +241,23 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         } catch (e) {
           log.error({ event: 'source-video-missing', renderId, error: errorText(e) });
         }
+        // Raw footage (spec 27 R5.2): reels play an upright H.264 proxy, so 4K, HEVC, VFR and
+        // rotated phone clips render like the preview. A failed proxy keeps the original.
+        if (reelMode && sourceVideoFile && ffmpeg.proxyVideo) {
+          const proxyRel = 'assets/speaker-proxy.mp4';
+          try {
+            await ffmpeg.proxyVideo({
+              src: sourceVideoFile,
+              dest: join(compDir, proxyRel),
+              longSide: 1920,
+            });
+            await rm(sourceVideoFile, { force: true });
+            sourceVideoFile = join(compDir, proxyRel);
+            reelVideoRel = proxyRel;
+          } catch (e) {
+            log.error({ event: 'video-proxy-failed', renderId, error: errorText(e) });
+          }
+        }
       }
     }
     if (reelMode && !sourceVideoFile) {

@@ -7,4 +7,5 @@
 - [x] 5. Music: music-model provider + route, loop/crossfade, stored as project audio, mixed in preview and export (R3.2)
 - [x] 6. Export loudness normalisation (R3.3)
 - [x] 7. Pipeline defaults: frames to the director, music after media, no extra clicks (R4.1)
-- [ ] 8. Close-out: portrait + landscape footage through the app to export; bugs fixed or listed; dev log (R5.1)
+- [x] 8. Close-out: portrait + landscape footage through the app to export; bugs fixed or listed; dev log (R5.1)
+- [x] 9. Raw footage: export upload cap matches intake (500 MB, client + Storage rule); render plays an H.264/AAC proxy (R5.2)

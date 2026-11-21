@@ -149,6 +149,12 @@ export interface Ffmpeg {
    * the video stream (spec 27 R3.3). Writes `dest`; the caller swaps it in.
    */
   normalizeLoudness?(args: { src: string; dest: string; lufs: number; truePeakDb: number }): Promise<void>;
+  /**
+   * An H.264 + AAC proxy of raw footage (spec 27 R5.2): upright (rotation applied), yuv420p, the
+   * long side at most `longSide`, original timestamps and the first audio stream kept. Phone
+   * footage (4K, HEVC, VFR, rotated) then plays the same in the composition as in the preview.
+   */
+  proxyVideo?(args: { src: string; dest: string; longSide: number }): Promise<void>;
 }
 
 export type CompileAssets = Parameters<typeof compileProject>[1];

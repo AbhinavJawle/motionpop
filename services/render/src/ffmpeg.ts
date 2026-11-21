@@ -132,6 +132,48 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
         { timeout: timeout * 2 },
       );
     },
+    async proxyVideo({ src, dest, longSide }) {
+      const fit = `min(1\\,${longSide}/max(iw\\,ih))`;
+      await run(
+        ffmpeg,
+        [
+          '-loglevel',
+          'error',
+          '-y',
+          '-protocol_whitelist',
+          'file',
+          '-i',
+          src,
+          '-map',
+          '0:v:0',
+          // Reel speaker clips play their own audio (data-has-audio), so the first audio stream
+          // stays, re-encoded so PCM/ALAC phone audio fits the MP4.
+          '-map',
+          '0:a:0?',
+          '-sn',
+          '-dn',
+          '-vf',
+          `scale=w='trunc(${fit}*iw/2)*2':h='trunc(${fit}*ih/2)*2',format=yuv420p`,
+          '-c:v',
+          'libx264',
+          '-preset',
+          'veryfast',
+          '-crf',
+          '18',
+          '-c:a',
+          'aac',
+          '-b:a',
+          '256k',
+          '-ar',
+          '48000',
+          '-movflags',
+          '+faststart',
+          dest,
+        ],
+        // Twenty minutes of 4K footage takes a while even at veryfast.
+        { timeout: timeout * 10 },
+      );
+    },
   };
 }
 

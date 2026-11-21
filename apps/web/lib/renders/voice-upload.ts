@@ -107,7 +107,8 @@ export async function uploadVoice(
   }
 }
 
-const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
+// Same cap as intake (INTAKE_LIMITS.maxVideoBytes) so a clip that processes can always export.
+const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
 const VIDEO_EXT: Readonly<Record<string, 'mp4' | 'mov' | 'webm'>> = {
   'video/mp4': 'mp4',
   'video/quicktime': 'mov',

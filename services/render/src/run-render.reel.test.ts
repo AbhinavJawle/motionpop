@@ -82,6 +82,34 @@ describe('runRender: a talking-head reel (spec 25)', () => {
     expect(html).toContain('Finish what you start');
   });
 
+  it('plays an H.264 proxy of raw footage, and the original when the proxy fails (spec 27 R5.2)', async () => {
+    for (const proxyWorks of [true, false]) {
+      const project = reelProject();
+      const videoPath = `users/${OWNER}/video/${project.id}/source-0123456789abcdef.mov`;
+      const h = await makeHarness({ project, format: '9:16', doc: { videoPath } });
+      await h.blobs.put(videoPath, 'fake 4k hevc');
+      h.deps.reelAssets = REEL_ASSETS;
+      const calls: { longSide: number }[] = [];
+      h.deps.ffmpeg = {
+        ...h.deps.ffmpeg,
+        proxyVideo: async ({ dest, longSide }) => {
+          calls.push({ longSide });
+          if (!proxyWorks) throw new Error('decoder missing');
+          await writeFile(dest, 'proxy');
+        },
+      };
+      let html = '';
+      h.fakes.produce = async (args) => {
+        html = await readFile(`${args.compDir}/index.html`, 'utf8');
+        await writeFile(args.outPath, 'x');
+        return {};
+      };
+      expect(await runRender(h.renderId, h.deps)).toBe('done');
+      expect(calls).toEqual([{ longSide: 1920 }]);
+      expect(html).toContain(proxyWorks ? 'assets/speaker-proxy.mp4' : 'assets/speaker.mov');
+    }
+  });
+
   it('fails clearly when the source video is missing', async () => {
     const project = reelProject();
     const h = await makeHarness({ project, format: '9:16' });

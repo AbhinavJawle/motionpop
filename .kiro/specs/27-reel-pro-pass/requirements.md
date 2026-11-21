@@ -20,3 +20,4 @@ After spec 26 the founder rated exports 5/10. An audit of the engine found:
 - **R3.3** THE export SHALL be loudness-normalised to about −14 LUFS integrated with a true-peak ceiling of −1 dBTP.
 - **R4.1** In the app THE reel director SHALL use the strong model (Remote Config `modelStrong`) with the keyframes, and processing SHALL direct, fetch pictures and music with no extra clicks after upload.
 - **R5.1** THE full flow (upload → processing → editor preview → export) SHALL be exercised on portrait and landscape footage before hand-off, and every bug found SHALL be fixed or listed.
+- **R5.2** WHEN a reel exports raw phone footage (up to the 500 MB intake limit; 4K, HEVC, variable frame rate or rotated) THE SYSTEM SHALL accept the upload for export and render an upright H.264 proxy with the speaker's audio in sync, falling back to the original file if the proxy fails.

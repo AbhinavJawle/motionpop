@@ -698,3 +698,47 @@ Template:
   - Loudness is not yet normalised to −14 LUFS.
   - The reel cost is not shown on Start before processing.
   - Trademark note for the demo: real logos appear only when the user's own speech names a brand, but the demo video should use a script that names no third-party brands.
+
+## 2026-11-21 · Claude Code (`claude-opus-5-5`) + Kiro CLI (commits only) · spec 27 reel pro pass
+- **Founder ask:** export rated 5/10; get the software to its best output before the founder tests lots of raw footage. Paid testing allowed on the lab project.
+- **Built (spec 27, commit 9d85d8f + this close-out commit):**
+  - **Engine motion:** scene hand-overs as pure functions of time: push, layout morph, zoom-through reveal and overlay. Jump cuts and sentence starts alternate a punch-in, and captions hold while a layout settles.
+  - **Footage-aware director:** up to 6 keyframes go to `gemini-4-neon`. It returns the footage kind, face keys and a music brief. Crops follow the face (with a fill zoom for wide shots); screen and scene footage is contain-fit.
+  - **Music:**
+    - Generated per reel from the brief (`lyria-002`, about 30 s, about $0.06 a clip).
+    - Looped with crossfades and stored as project audio.
+    - Ducked under speech, in the preview and in the export.
+  - **Export loudness:** two-pass loudnorm to −14 LUFS / −1 dBTP.
+  - **Raw footage (R5.2):**
+    - The export upload cap now matches intake (500 MB, client and Storage rule; the rule is deployed to the lab project only).
+    - The render plays an upright H.264/AAC proxy (long side ≤ 1920), so 4K, HEVC, VFR and rotated phone clips render like the preview. If the proxy fails, the original is used.
+- **Verified in the real app** (local dev server on the lab profile, headless Chrome, signed-in test user, cloud director, media, music and export):
+
+  | Clip | Upload → editor | Export | Result |
+  |---|---|---|---|
+  | Portrait 40 s | 267 s (95 s of it is the first Whisper download) | 126 s | 1080×1920, −14.1 LUFS |
+  | Landscape 40 s | 129 s | 117 s | face-centred crop |
+  | Rotated HEVC .mov 40 s | 119 s | 120 s | upright |
+  | 160 s talking head | 284 s (48 scenes) | 438 s | −14.1 LUFS |
+
+  Typecheck, lint and the tests are green (render 193, web renders 135, motion reel 18, ai reel 13, pipeline 54).
+- **Bugs found on the way:**
+  - Export failed for clips over 150 MB even though intake allows 500 MB. Fixed.
+  - Rotated HEVC footage: the first proxy dropped the audio, but reel speaker clips carry the voice, so HyperFrames refused the asset. The proxy now keeps AAC audio, measured in sync to 0 ms.
+  - The P10 render test asserted an unchanged voice level. It now checks the true-peak ceiling, because exports are loudness-normalised.
+- **Credits per reel:**
+  - The director costs 3 credits and each generated image 2, so a reel costs 5–9.
+  - Free accounts run dry after about 3 reels.
+  - For local lab testing, `JUDGE_EMAILS` in `.env.local` (gitignored) gives the founder's account and the e2e user the judge plan: 500 credits, with a daily top-up.
+- **Lab spend this session (lower bound):**
+  - 6 director runs on `gemini-4-neon`, about $0.20.
+  - About 14 image calls.
+  - 6 Lyria clips, about $0.36.
+- **Gaps:**
+  - The Storage rule change is not deployed to production.
+  - Preview loudness is not normalised (only the relative mix matches the export).
+  - The director takes 55–90 s during processing.
+  - The music route does not charge credits (it is rate-limited and needs sign-in).
+  - Screenshots still answer 501 on App Hosting.
+  - There is no stock key (photos come from Wikimedia only).
+  - Clips with no speech are refused ("I couldn't hear anything").
