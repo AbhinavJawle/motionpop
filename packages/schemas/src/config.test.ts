@@ -36,9 +36,9 @@ describe('Pip model choices (spec 18 R3)', () => {
   });
 });
 
-describe('film build model (spec 13b R3.1)', () => {
-  it('defaults to the fast model; the director stays on the strong one', () => {
-    expect(APP_CONFIG_DEFAULTS.modelFilmBuild).toBe('gemini-3.5-flash-lite');
+describe('film build model (spec 24 R1.2)', () => {
+  it('defaults to the frontier model so generated Reel code matches director quality', () => {
+    expect(APP_CONFIG_DEFAULTS.modelFilmBuild).toBe('gemini-4-neon');
   });
 });
 

@@ -120,11 +120,11 @@ export function captionBottomForMode(
   }
   switch (mode) {
     case 'split-top-stage':
-      // Sits cleanly right above the arched bottom speaker (y: 55%..100%) on the open seam.
-      return Math.round(frame.height * 0.465);
+      // Sits dead-center across the razor-sharp 50/50 split horizon (y: 50%, spec 24 R5.2).
+      return Math.round(frame.height * 0.478);
     case 'split-top-broll':
       // Sits cleanly along the crisp center seam between top B-roll and bottom speaker.
-      return Math.round(frame.height * 0.44);
+      return Math.round(frame.height * 0.455);
     case 'screen-showcase':
       // Sits cleanly below the tilted screen window without overlapping speaker PiP.
       return Math.round(frame.height * 0.23);
@@ -140,15 +140,15 @@ export function captionBottomForMode(
     case 'backdrop':
     case 'cutaway':
       // Sits cleanly below centered graphic zone (8%..64%).
-      return Math.round(frame.height * 0.2);
+      return Math.round(frame.height * 0.14);
     case 'media-card-pop':
-      return Math.round(frame.height * 0.19);
+      return Math.round(frame.height * 0.16);
     case 'top-card':
     case 'clean':
-      return Math.round(frame.height * 0.15);
+      return Math.round(frame.height * 0.13);
     case 'full':
     default:
-      return Math.round(frame.height * 0.18);
+      return Math.round(frame.height * 0.14);
   }
 }
 
@@ -218,19 +218,17 @@ export function mountCaptions(
     const line = doc.createElement('div');
     line.setAttribute('data-text', '');
     const weight =
-      cfg.presetId === 'editorial' || cfg.presetId === 'pop'
+      cfg.presetId === 'editorial' || cfg.presetId === 'pop' || cfg.presetId === 'studio'
         ? 800
-        : cfg.presetId === 'studio'
-          ? 700
-          : 600;
-    let lineCss = `font:${weight} ${base}px/1.16 ${cfg.font};color:#fff;text-align:center;white-space:nowrap;letter-spacing:${cfg.presetId === 'editorial' ? '-0.025em' : cfg.presetId === 'pop' ? '-0.015em' : '-0.01em'};`;
+        : 600;
+    let lineCss = `font:${weight} ${base}px/1.12 ${cfg.font};color:#fff;text-align:center;white-space:nowrap;letter-spacing:${cfg.presetId === 'studio' ? '0.03em' : cfg.presetId === 'editorial' ? '-0.025em' : cfg.presetId === 'pop' ? '-0.015em' : '-0.01em'};`;
     if (cfg.presetId === 'editorial') {
       // Crisp frameless editorial type (Ref 2): no bulky box; dynamically adapts ink per stage.
       lineCss += 'background:transparent;padding:.06em .24em;';
     } else if (cfg.presetId === 'studio') {
-      // Crisp white type with clean dark outline/shadow on video; docks into black seam bar on split stages (Ref 1/4).
+      // Crisp uppercase broadcast studio black pill/ribbon (spec 24 R5.2): locked on the 50% split seam or bottom safe zone.
       lineCss +=
-        'background:transparent;padding:.14em .42em;text-shadow:0 2px 10px rgba(0,0,0,.92),0 0 3px rgba(0,0,0,.98),0 4px 20px rgba(0,0,0,.55);';
+        'text-transform:uppercase;background:#0A0A0E;border-radius:4px;padding:.16em .44em;box-shadow:0 4px 16px rgba(0,0,0,.32);';
     } else if (cfg.presetId === 'minimal-pill') {
       // Compact refined dark pill (Ref 3) with zero loud highlight box.
       lineCss +=
@@ -298,20 +296,19 @@ export function mountCaptions(
 
     if (line && cfg.presetId === 'studio') {
       if (isSplit) {
-        line.style.width = '100%';
-        line.style.maxWidth = '100%';
-        line.style.borderRadius = '0';
+        line.style.width = 'auto';
+        line.style.maxWidth = `${maxWidth}px`;
+        line.style.borderRadius = `${Math.round(4 * scale)}px`;
         line.style.background = '#0A0A0E';
-        line.style.padding = `${Math.round(10 * scale)}px ${Math.round(24 * scale)}px`;
+        line.style.padding = `${Math.round(8 * scale)}px ${Math.round(22 * scale)}px`;
         line.style.textShadow = 'none';
       } else {
         line.style.width = 'auto';
         line.style.maxWidth = `${maxWidth}px`;
-        line.style.borderRadius = '0';
-        line.style.background = 'transparent';
-        line.style.padding = '.14em .42em';
-        line.style.textShadow =
-          '0 2px 10px rgba(0,0,0,.92),0 0 3px rgba(0,0,0,.98),0 4px 20px rgba(0,0,0,.55)';
+        line.style.borderRadius = `${Math.round(6 * scale)}px`;
+        line.style.background = 'rgba(10,10,14,.92)';
+        line.style.padding = `${Math.round(8 * scale)}px ${Math.round(20 * scale)}px`;
+        line.style.textShadow = 'none';
       }
     } else if (line && cfg.presetId === 'editorial') {
       line.style.textShadow = onLightCanvas

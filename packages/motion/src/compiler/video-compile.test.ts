@@ -156,4 +156,61 @@ describe('compileProject (video overlay & cutaway mode)', () => {
     expect(html).not.toContain('id="beat-split" class="clip mp-slot mp-slot-overlay');
     expect(html).toContain('id="beat-cut" class="clip mp-slot mp-slot-cutaway mp-slot-choreo"');
   });
+
+  it('physically clips split-top-stage (top 50%) and top-card (top 28%) on 9:16 Reels (spec 24)', () => {
+    const p = videoProject();
+    p.format = '9:16';
+    p.slots = [
+      {
+        id: 'beat-top',
+        startMs: 0,
+        endMs: 3000,
+        wordStart: 0,
+        wordEnd: 2,
+        reason: 'split beat',
+        componentId: 'custom',
+        skillId: 'film',
+        prompt: 'Split inspector',
+        params: {
+          brief: 'Split inspector',
+          title: 'Inspector',
+          html: '<div class="x">Timing</div>',
+          css: '.x { color: var(--ink); }',
+          script: 'const tl = mp.timeline(); return tl;',
+          keyMomentMs: 400,
+        },
+        status: 'ready',
+        notes: [],
+        videoStage: 'split-top-stage',
+      },
+      {
+        id: 'beat-card',
+        startMs: 3000,
+        endMs: 6000,
+        wordStart: 0,
+        wordEnd: 2,
+        reason: 'top card',
+        componentId: 'custom',
+        skillId: 'film',
+        prompt: 'Top pill',
+        params: {
+          brief: 'Top pill',
+          title: 'Pill',
+          html: '<div class="x">Zero friction</div>',
+          css: '.x { color: #fff; }',
+          script: 'const tl = mp.timeline(); return tl;',
+          keyMomentMs: 400,
+        },
+        status: 'ready',
+        notes: [],
+        videoStage: 'top-card',
+      },
+    ];
+    const input = projectCompileInput(p, { mode: 'preview' });
+    const html = compileProject({ ...input, style: editorialExplainer }, ASSETS);
+    expect(html).toContain('id="beat-top" class="clip mp-slot mp-slot-choreo mp-slot-top-stage"');
+    expect(html).toContain('id="beat-card" class="clip mp-slot mp-slot-choreo mp-slot-top-card"');
+    expect(html).toContain('.mp-slot-top-stage > .mp-cam { top: 0; left: 0; right: 0; bottom: auto; height: 50%; overflow: hidden;');
+    expect(html).toContain('.mp-slot-top-card > .mp-cam { top: 0; left: 0; right: 0; bottom: auto; height: 28%; overflow: hidden;');
+  });
 });

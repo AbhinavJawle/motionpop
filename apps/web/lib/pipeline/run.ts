@@ -207,8 +207,8 @@ export async function runPipeline(
     // The project id comes first, so every write of this run can be filed under it (design §2.4).
     const id = deps.newId();
     const isVideoUpload = input.file.type.startsWith('video/');
-    // Video uploads default to Editorial Cream (spec 23) unless the creator picked another look.
-    const styleId = input.styleId ?? (isVideoUpload ? 'editorial-cream' : deps.styleId);
+    // Video uploads default to crisp Studio Light (spec 24 R5.2) unless the creator picked another look.
+    const styleId = input.styleId ?? (isVideoUpload ? 'studio-light' : deps.styleId);
     const cleanupOn = input.cleanup ?? true;
 
     // Intake (R1).
@@ -485,9 +485,9 @@ export async function runPipeline(
           ? { captions: { ...DEFAULT_CAPTIONS, enabled: false } }
           : videoTrack
             ? {
-                captions: { enabled: true, presetId: 'editorial' as const },
+                captions: { enabled: true, presetId: 'studio' as const },
                 audio: {
-                  musicId: 'calm-pad' as const,
+                  musicId: 'none' as const,
                   musicGainDb: -22,
                   ducking: true,
                   duckDepthDb: 10,

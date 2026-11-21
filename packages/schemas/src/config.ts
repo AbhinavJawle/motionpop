@@ -70,7 +70,7 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   customProvider: 'gemini',
   modelFast: 'gemini-3.5-flash-lite',
   modelStrong: 'gemini-4-neon',
-  modelFilmBuild: 'gemini-3.5-flash-lite',
+  modelFilmBuild: 'gemini-4-neon',
   modelTts: 'gemini-3.8-flash-tts',
   modelImage: 'gemini-nano-banana-2.1',
   imagesPerVideoMax: 6,

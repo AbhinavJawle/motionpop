@@ -5,8 +5,10 @@ import { storyboardIssues, type Storyboard } from './film';
 import { videoPathFor } from './render';
 import {
   activePunchIn,
+  clampSpeakerFocusY,
   cleanedDurationFromSegments,
   cleanedToSourceMs,
+  coverObjectPosition,
   easedPunchInAt,
   isMediaStageMode,
   keptSourceSegments,
@@ -557,21 +559,29 @@ describe('multi-clip Media Bin & dual-layer choreography (spec 20)', () => {
     expect(issues.some((x) => x.includes('without a clipId'))).toBe(true);
   });
 
-  it('supports editorial split-top-stage (topRadiusOnly), top-card, and clean stages (spec 23)', () => {
+  it('supports crisp 50/50 split-top-stage, top-card, clean stages, and exact face-centered cover crops (spec 24)', () => {
     const stages = stagesFromTimedBeats([
-      { id: 'b1', startMs: 0, endMs: 3000, videoStage: 'split-top-stage', focusX: 0.5, focusY: 0.35 },
+      { id: 'b1', startMs: 0, endMs: 3000, videoStage: 'split-top-stage', focusX: 0.5, focusY: 0.85 },
       { id: 'b2', startMs: 3000, endMs: 6000, videoStage: 'top-card', focusX: 0.5, focusY: 0.35 },
       { id: 'b3', startMs: 6000, endMs: 9000, videoStage: 'clean', focusX: 0.5, focusY: 0.35 },
     ]);
-    // 9:16 vertical split-top-stage places arched speaker in bottom 45%
+    // 9:16 vertical split-top-stage uses crisp 50/50 split and clamps erratic focusY to safe face band
     const splitRect = videoStageRectAt(1200, stages, [], 1080, 1920);
     expect(splitRect.mode).toBe('split-top-stage');
     expect(splitRect.x).toBe(0);
     expect(splitRect.w).toBeCloseTo(1080, 0);
-    expect(splitRect.y).toBeCloseTo(1920 * 0.55, 0);
-    expect(splitRect.h).toBeCloseTo(1920 * 0.45, 0);
-    expect(splitRect.radius).toBeGreaterThan(50);
-    expect(splitRect.topRadiusOnly).toBe(true);
+    expect(splitRect.y).toBeCloseTo(1920 * 0.5, 0);
+    expect(splitRect.h).toBeCloseTo(1920 * 0.5, 0);
+    expect(splitRect.radius).toBe(0);
+    expect(splitRect.focusY).toBeLessThanOrEqual(0.5);
+
+    // Exact CSS coverObjectPosition matches FFmpeg center crop math (fy=0.33 on 1080x1920 into 1080x960 -> yPct=16%)
+    const pos = coverObjectPosition(0.5, 0.33, 1080, 1920, 1080, 960);
+    expect(pos.xPct).toBeCloseTo(50, 1);
+    expect(pos.yPct).toBeCloseTo(16, 1);
+    expect(clampSpeakerFocusY(0.9)).toBe(0.5);
+    expect(clampSpeakerFocusY(0.05)).toBe(0.18);
+    expect(clampSpeakerFocusY(undefined)).toBe(0.33);
 
     // top-card keeps full-bleed speaker unobstructed
     const topCardRect = videoStageRectAt(4500, stages, [], 1080, 1920);
@@ -585,5 +595,78 @@ describe('multi-clip Media Bin & dual-layer choreography (spec 20)', () => {
     expect(cleanRect.mode).toBe('clean');
     expect(cleanRect.w).toBeCloseTo(1080, 0);
     expect(cleanRect.opacity).toBe(1);
+  });
+
+  it('allows cohesive multi-beat split-top-stage runs, type-led Reel beats, and brollQuery before stock fetch (spec 24)', () => {
+    const words = Array.from({ length: 12 }, (_, i) => ({
+      text: `w${i}`,
+      startMs: i * 500,
+      endMs: i * 500 + 450,
+    }));
+    const board: Storyboard = {
+      title: 'Tech Reel',
+      tone: 'tech-explainer',
+      thesis: 'Show clean UI mechanics',
+      world: 'Crisp studio grid',
+      carrier: 'Accent marker',
+      props: [],
+      beats: [
+        {
+          id: 'b1',
+          wordStart: 0,
+          wordEnd: 2,
+          lead: 'type',
+          archetype: 'kinetic-type',
+          videoStage: 'split-top-stage',
+          idea: 'Bold headline on grid',
+          text: ['Reverse engineer'],
+          landsOn: 1,
+          staging: 'Reveal on w1',
+          seam: { kind: 'push', note: 'Next card' },
+        },
+        {
+          id: 'b2',
+          wordStart: 3,
+          wordEnd: 5,
+          lead: 'type',
+          archetype: 'callout-hud',
+          videoStage: 'split-top-stage',
+          idea: 'Inspector timing breakdown',
+          text: ['Timing', 'Easing'],
+          landsOn: 4,
+          staging: 'Rows tick in',
+          seam: { kind: 'push', note: 'Next card' },
+        },
+        {
+          id: 'b3',
+          wordStart: 6,
+          wordEnd: 8,
+          lead: 'type',
+          archetype: 'comparison-split',
+          videoStage: 'split-top-stage',
+          idea: 'Original vs Copy verification',
+          text: ['Original', 'Copy'],
+          landsOn: 7,
+          staging: 'Checks appear',
+          seam: { kind: 'push', note: 'Next clip' },
+        },
+        {
+          id: 'b4',
+          wordStart: 9,
+          wordEnd: 11,
+          lead: 'picture',
+          archetype: 'diagram-flow',
+          videoStage: 'split-top-broll',
+          brollQuery: 'coding laptop studio',
+          idea: 'Real coding B-roll over split',
+          text: ['Live code'],
+          landsOn: 10,
+          staging: 'Hold',
+          seam: { kind: 'push', note: 'End' },
+        },
+      ],
+    };
+    const issues = storyboardIssues(board, words, 6000, { hasVideo: true, mediaBinIds: [] });
+    expect(issues).toEqual([]);
   });
 });

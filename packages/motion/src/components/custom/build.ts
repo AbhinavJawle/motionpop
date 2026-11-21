@@ -110,12 +110,13 @@ export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
   const wrap = doc.createElement('div');
   wrap.className = scope;
   const { colors, fonts } = ctx.style;
+  const frameShortSide = Math.min(ctx.frameWidth ?? ctx.width, ctx.frameHeight ?? ctx.height);
   wrap.style.cssText = [
     'position:absolute',
     'inset:0',
     'overflow:hidden',
-    // 1 % of the frame's short side: sizes in calc(var(--u) * N) read the same in every format.
-    `--u:${Math.min(ctx.width, ctx.height) / 100}px`,
+    // 1 % of the full frame's short side: sizes in calc(var(--u) * N) stay consistent even inside clipped stages.
+    `--u:${frameShortSide / 100}px`,
     `--bg:${colors.bg}`,
     `--ink:${colors.ink}`,
     `--muted:${colors.muted}`,
@@ -163,6 +164,8 @@ export function buildCustom(ctx: BuildContext, p: CustomParams): Composition {
   const { kit, cues } = filmKit(stage, {
     width: ctx.width,
     height: ctx.height,
+    frameShortSide,
+    ...(ctx.videoStage ? { videoStage: ctx.videoStage } : {}),
     format: ctx.format,
     durationMs: ctx.durationMs,
     keyMomentMs: ctx.keyMomentMs,

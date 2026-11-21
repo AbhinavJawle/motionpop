@@ -32,6 +32,10 @@ export interface KitWord {
 export interface KitContext {
   width: number;
   height: number;
+  /** Full frame short side in px so `mp.u` stays consistent inside clipped stages (spec 24). */
+  frameShortSide?: number;
+  /** Coupled video stage mode (`split-top-stage`, `top-card`, `clean`, etc.). */
+  videoStage?: string;
   format: Format;
   durationMs: number;
   keyMomentMs: number;
@@ -80,7 +84,7 @@ export function filmKit(root: HTMLElement, ctx: KitContext) {
   const base = customHelpers(root);
   const W = ctx.width;
   const H = ctx.height;
-  const u = Math.min(W, H) / 100;
+  const u = (ctx.frameShortSide ?? Math.min(W, H)) / 100;
   const sa = safeArea(ctx.format, W, H);
   const safe = Object.freeze({ x: sa.x, y: sa.y, w: sa.width, h: sa.height });
   const keys = ctx.words.map((w) => wordKey(w.text));
@@ -679,6 +683,7 @@ export function filmKit(root: HTMLElement, ctx: KitContext) {
     W,
     H,
     u,
+    ...(ctx.videoStage ? { videoStage: ctx.videoStage } : {}),
     colors: { ...ctx.colors, paper: paperOf(ctx.colors) },
     fonts: {
       display: ctx.fonts.display,

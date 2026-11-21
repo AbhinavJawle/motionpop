@@ -3,6 +3,7 @@ import {
   BEAT_ARCHETYPES,
   FILM_MAX_MS,
   FormatSchema,
+  REEL_TONES,
   StoryboardSchema,
   VIDEO_STAGE_MODES,
   storyboardIssues,
@@ -15,6 +16,12 @@ import {
   filmPropsPromptV1,
 } from '../prompts/film-build.v1';
 import { FILM_DIRECT_SYSTEM_V1, filmDirectPromptV1 } from '../prompts/film-direct.v1';
+import {
+  REEL_DIRECT_SYSTEM_V2,
+  reelBuildPromptV2,
+  reelBuildSystemV2,
+  reelDirectPromptV2,
+} from '../prompts/reel-v2';
 import type { TaskDef } from '../router';
 
 /**
@@ -79,16 +86,56 @@ const int = { type: 'integer' };
  * `StoryboardSchema` and `storyboardIssues`, which run on the answer; a generated schema with
  * every bound in it was rejected by the model API (lab run, 2026-11-17).
  */
-function storyboardJsonSchemaFor(input: FilmDirectInput): Record<string, unknown> {
+/**
+ * Locked modern stage modes for Talking-Head Reel Engine v2 (spec 24 R1.3):
+ * keeps Reels inside the crisp 50/50 split + clean breathing + top-card + real media grammar.
+ */
+const REEL_V2_STAGES_NO_CLIPS = [
+  'split-top-stage',
+  'clean',
+  'top-card',
+  'cutaway',
+  'split-top-broll',
+  'broll-full',
+  'media-card-pop',
+] as const;
+
+const REEL_V2_STAGES_WITH_CLIPS = [
+  ...REEL_V2_STAGES_NO_CLIPS,
+  'screen-showcase',
+] as const;
+
+function storyboardJsonSchemaFor(
+  input: FilmDirectInput,
+  reelV2 = false,
+): Record<string, unknown> {
   const hasClips = Boolean(input.mediaBin && input.mediaBin.length > 0);
   const clipEnum = hasClips ? [...input.mediaBin!.map((c) => c.id), 'none'] : undefined;
-  const stageModes = hasClips
-    ? [...VIDEO_STAGE_MODES]
-    : ['full', 'split-left', 'split-right', 'pip', 'backdrop', 'cutaway'];
+  const stageModes = reelV2
+    ? hasClips
+      ? [...REEL_V2_STAGES_WITH_CLIPS]
+      : [...REEL_V2_STAGES_NO_CLIPS]
+    : hasClips
+      ? [...VIDEO_STAGE_MODES]
+      : [
+          'split-top-stage',
+          'top-card',
+          'clean',
+          'full',
+          'split-left',
+          'split-right',
+          'pip',
+          'backdrop',
+          'cutaway',
+          'split-top-broll',
+          'broll-full',
+          'media-card-pop',
+        ];
   return {
     type: 'object',
     properties: {
       title: str,
+      ...(input.hasVideo ? { tone: { type: 'string', enum: [...REEL_TONES] } } : {}),
       thesis: str,
       world: str,
       carrier: str,
@@ -113,6 +160,13 @@ function storyboardJsonSchemaFor(input: FilmDirectInput): Record<string, unknown
             videoStage: { type: 'string', enum: stageModes },
             focusX: { type: 'number' },
             focusY: { type: 'number' },
+            ...(input.hasVideo
+              ? {
+                  brollQuery: str,
+                  imageSubject: str,
+                  imageKeyed: { type: 'boolean' },
+                }
+              : {}),
             ...(clipEnum
               ? {
                   clipId: { type: 'string', enum: clipEnum },
@@ -153,7 +207,15 @@ function storyboardJsonSchemaFor(input: FilmDirectInput): Record<string, unknown
         },
       },
     },
-    required: ['title', 'thesis', 'world', 'carrier', 'props', 'beats'],
+    required: [
+      'title',
+      ...(input.hasVideo ? ['tone'] : []),
+      'thesis',
+      'world',
+      'carrier',
+      'props',
+      'beats',
+    ],
   };
 }
 
@@ -204,6 +266,7 @@ export const FilmBuildInputSchema = z.object({
     thesis: z.string(),
     world: z.string(),
     carrier: z.string(),
+    tone: z.string().optional(),
   }),
   props: z.array(
     z.object({ id: z.string(), draw: z.string(), width: z.number(), height: z.number() }),
@@ -215,6 +278,11 @@ export const FilmBuildInputSchema = z.object({
     archetype: z.string().optional(),
     videoStage: z.string().optional(),
     stageGuide: z.string().optional(),
+    stageWidth: z.number().int().positive().optional(),
+    stageHeight: z.number().int().positive().optional(),
+    imageAsset: z
+      .object({ id: z.string(), subject: z.string(), keyed: z.boolean() })
+      .optional(),
     idea: z.string(),
     text: z.array(z.string()),
     staging: z.string(),
@@ -232,6 +300,7 @@ export const FilmBuildInputSchema = z.object({
     .array(
       z.object({
         lead: z.string(),
+        videoStage: z.string().optional(),
         idea: z.string(),
         text: z.array(z.string()),
         landsOn: z.string(),
@@ -241,8 +310,10 @@ export const FilmBuildInputSchema = z.object({
   format: FormatSchema,
   look: LookSchema,
   example: BeatCodeSchema,
-  /** Dynamic archetype-specific example for this beat (spec 19 R2.1 / R3.3). */
+  /** Dynamic archetype/stage-matched reference example for this beat (spec 19 + 24). */
   beatExample: BeatCodeSchema.optional(),
+  /** Nearest sampled speaker keyframe JPEG so Reel v2 builders see the actual footage (spec 24 R3.1). */
+  speakerFrame: KeyframeSchema.optional(),
   fix: BeatCodeSchema.extend({ problems: z.string() }).optional(),
 });
 export type FilmBuildInput = z.infer<typeof FilmBuildInputSchema>;
@@ -348,6 +419,103 @@ export function filmPropsTask(
         if (!got) problems.push(`the drawing "${want.id}" is missing`);
         else for (const p of lintProp(got.svg)) problems.push(`"${want.id}" ${p}`);
       }
+      return problems.length ? `fix these problems: ${problems.join('; ')}` : null;
+    },
+  };
+}
+
+/**
+ * `reel.direct` (spec 24 R1): dedicated Talking-Head Reel Director with zero Vox-documentary
+ * bloat, MEDIUM thinking, full Reel v2 JSON schema (tone, brollQuery, imageSubject, locked stage enum),
+ * and zero cartoon SVG props.
+ */
+export const reelDirectTask: TaskDef<FilmDirectInput, Storyboard> = {
+  id: 'reel.direct',
+  maxOutputTokens: 8192,
+  input: FilmDirectInputSchema,
+  output: StoryboardSchema,
+  mode: () => 'ONLY_IN_CLOUD',
+  model: (cfg) => cfg.modelStrong,
+  system: REEL_DIRECT_SYSTEM_V2,
+  prompt: (i) =>
+    reelDirectPromptV2({
+      words: i.words,
+      durationMs: i.durationMs,
+      format: i.format,
+      look: i.look,
+      ...(i.frames?.length ? { frameTimesMs: i.frames.map((f) => f.timeMs) } : {}),
+      ...(i.mediaBin?.length ? { mediaBin: i.mediaBin } : {}),
+      ...(i.stressedWords?.length ? { stressedWords: i.stressedWords } : {}),
+      ...(i.note ? { note: i.note } : {}),
+    }),
+  mediaList: (i) =>
+    i.frames?.length
+      ? i.frames.map((f) => ({ mimeType: f.mimeType, base64: f.base64 }))
+      : undefined,
+  cloudCost: () => 0,
+  cloudFallback: false,
+  maxRepairs: 2,
+  thinking: 'MEDIUM',
+  jsonSchema: (input) => storyboardJsonSchemaFor(input, true),
+  check: (out, input) => {
+    const issues = storyboardIssues(out, input.words, input.durationMs, {
+      hasVideo: true,
+      mediaBinIds: (input.mediaBin ?? []).map((c) => c.id),
+    });
+    return issues.length ? `fix these problems:\n- ${issues.slice(0, 12).join('\n- ')}` : null;
+  },
+};
+
+/**
+ * `reel.build` (spec 24 R1 & R3): dedicated Talking-Head Reel Builder powered by the frontier
+ * model (`cfg.modelFilmBuild` = `gemini-4-neon`), with clean Swiss/Studio HTML+CSS+SVG prompts,
+ * clipped stage coordinates, and the nearest speaker keyframe attached as inline vision context.
+ */
+export function reelBuildTask(
+  lint: (p: Pick<FilmBuildOutput, 'html' | 'css' | 'script'>) => string[],
+  kitDoc: string,
+): TaskDef<FilmBuildInput, FilmBuildOutput> {
+  return {
+    id: 'reel.build',
+    maxOutputTokens: 8192,
+    input: FilmBuildInputSchema,
+    output: FilmBuildOutputSchema,
+    mode: () => 'ONLY_IN_CLOUD',
+    model: (cfg) => cfg.modelFilmBuild,
+    system: reelBuildSystemV2(kitDoc),
+    prompt: (i) =>
+      reelBuildPromptV2({
+        film: {
+          title: i.film.title,
+          thesis: i.film.thesis,
+          world: i.film.world,
+          ...(i.film.tone ? { tone: i.film.tone } : {}),
+        },
+        beat: i.beat,
+        words: i.words,
+        durationMs: i.durationMs,
+        tailMs: i.tailMs,
+        headMs: i.headMs,
+        seamIn: i.seamIn,
+        seamOut: i.seamOut,
+        beats: i.beats,
+        format: i.format,
+        look: i.look,
+        ...(i.beatExample ? { beatExample: i.beatExample } : {}),
+        ...(i.fix ? { fix: i.fix } : {}),
+      }),
+    media: (i) =>
+      i.speakerFrame
+        ? { mimeType: i.speakerFrame.mimeType, base64: i.speakerFrame.base64 }
+        : undefined,
+    cloudCost: () => 0,
+    cloudFallback: false,
+    maxRepairs: 1,
+    thinking: 'LOW',
+    jsonSchema: () => filmBuildJsonSchema,
+    check: (out, input) => {
+      const problems = lint(out);
+      if (out.keyMomentMs > input.durationMs) problems.push('keyMomentMs is after the end');
       return problems.length ? `fix these problems: ${problems.join('; ')}` : null;
     },
   };

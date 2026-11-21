@@ -91,7 +91,7 @@ describe('buildVideoCompositeArgs', () => {
     expect(graph).toContain('[vstaged][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]');
   });
 
-  it('builds arched top-corner alpha mask for split-top-stage and full-bleed top-card/clean (spec 23)', () => {
+  it('builds crisp 50/50 face-centered crop for split-top-stage and full-bleed top-card/clean (spec 24)', () => {
     const args = buildVideoCompositeArgs({
       sourceVideoPath: '/tmp/source.mp4',
       overlayVideoPath: '/tmp/overlay.webm',
@@ -103,18 +103,19 @@ describe('buildVideoCompositeArgs', () => {
       durationMs: 9000,
       segments: keptSourceSegments(9000, []),
       punchIns: [],
-      bgColor: '#EDE8DF',
+      bgColor: '#FFFFFF',
       stages: [
-        { id: 's1', startMs: 0, endMs: 3000, mode: 'split-top-stage', focusX: 0.5, focusY: 0.35, scaleFrom: 1, scaleTo: 1.04 },
+        { id: 's1', startMs: 0, endMs: 3000, mode: 'split-top-stage', focusX: 0.5, focusY: 0.92, scaleFrom: 1, scaleTo: 1.04 },
         { id: 's2', startMs: 3000, endMs: 6000, mode: 'top-card', focusX: 0.5, focusY: 0.35, scaleFrom: 1, scaleTo: 1.03 },
         { id: 's3', startMs: 6000, endMs: 9000, mode: 'clean', focusX: 0.5, focusY: 0.35, scaleFrom: 1, scaleTo: 1.08 },
       ],
     });
     const graph = args[args.indexOf('-filter_complex') + 1]!;
-    expect(graph).toContain('color=c=0xEDE8DF:s=1080x1920');
-    expect(graph).toContain('alphamerge=shortest=1');
-    // Top-only arched mask uses lt(Y,R) without bottom corner cutoffs
-    expect(graph).toContain('lt(Y,78)');
+    expect(graph).toContain('color=c=0xFFFFFF:s=1080x1920');
+    // 50/50 split places speaker cleanly at y=960 (h=960) and clamps erratic focusY=0.92 down to 0.500
+    expect(graph).toContain('crop=1080:960:');
+    expect(graph).toContain('ih*0.500-960/2');
+    expect(graph).toContain('overlay=0:960:');
     expect(graph).toContain('[vstaged][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]');
   });
 

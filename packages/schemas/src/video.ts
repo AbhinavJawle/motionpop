@@ -320,6 +320,44 @@ export interface VideoStageRect {
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+/** Clamps vertical speaker focus into the safe head/eyes band (0.18..0.50, default 0.33) so split crops never drift to the microphone/chest (spec 24 R5.1). */
+export function clampSpeakerFocusY(focusY?: number): number {
+  if (typeof focusY !== 'number' || !Number.isFinite(focusY)) return 0.33;
+  return Math.max(0.18, Math.min(0.5, focusY));
+}
+
+/**
+ * Exact CSS `object-position` percentages (`0..100`) that center source point `(focusX, focusY)`
+ * inside an `object-fit: cover` container of `(boxW, boxH)` — pixel-identical to FFmpeg's
+ * `scale=increase + crop=bw:bh:round(iw*fx-bw/2):round(ih*fy-bh/2)` (spec 24 R5.1).
+ */
+export function coverObjectPosition(
+  focusX: number,
+  focusY: number,
+  srcW: number,
+  srcH: number,
+  boxW: number,
+  boxH: number,
+): { xPct: number; yPct: number } {
+  const sw = Math.max(1, srcW);
+  const sh = Math.max(1, srcH);
+  const bw = Math.max(1, boxW);
+  const bh = Math.max(1, boxH);
+  const coverScale = Math.max(bw / sw, bh / sh);
+  const renderedW = sw * coverScale;
+  const renderedH = sh * coverScale;
+  const overflowX = renderedW - bw;
+  const overflowY = renderedH - bh;
+  const fx = clamp01(focusX);
+  const fy = clamp01(focusY);
+  const xPos = overflowX > 0.5 ? clamp01((fx * renderedW - bw / 2) / overflowX) : 0.5;
+  const yPos = overflowY > 0.5 ? clamp01((fy * renderedH - bh / 2) / overflowY) : 0.5;
+  return {
+    xPct: Math.round(xPos * 1000) / 10,
+    yPct: Math.round(yPos * 1000) / 10,
+  };
+}
 /** Smooth overshoot-free quintic ease-out for choreography transitions. */
 const easeOutQuint = (t: number) => 1 - Math.pow(1 - clamp01(t), 5);
 /** Smooth cubic ease-in-out for continuous punch-in zoom ramps. */
@@ -351,17 +389,16 @@ export function stageBoxForMode(
   const vertical = height > width;
   switch (mode) {
     case 'split-top-stage':
-      // Editorial arched bottom speaker (Ref 2) & 50/50 top-stage split (Ref 1/3):
-      // visual owns top 52%, speaker sits cleanly in bottom 45% with arched top corners.
+      // Crisp 50/50 studio split (spec 24 R2.1): clipped graphic owns top 50%, face-centered
+      // speaker owns bottom 50% with zero gap so the seam caption ribbon locks dead-center.
       return vertical
         ? {
             x: 0,
-            y: 0.55,
+            y: 0.5,
             w: 1,
-            h: 0.45,
-            radiusFrac: 0.072,
-            topRadiusOnly: true,
-            shadow: 0.24,
+            h: 0.5,
+            radiusFrac: 0,
+            shadow: 0,
             blurPx: 0,
             dim: 0,
             opacity: 1,
@@ -755,14 +792,14 @@ export function videoStageRectAt(
 
 const DEFAULT_STAGE_RHYTHM: readonly VideoStageMode[] = [
   'split-top-stage',
-  'clean',
-  'top-card',
   'split-top-stage',
   'clean',
-  'cutaway',
+  'split-top-stage',
+  'top-card',
+  'clean',
 ];
 
-/** Builds gapless `VideoStageSegment[]` directly from timed storyboard beats (spec 19 + 20). */
+/** Builds gapless `VideoStageSegment[]` directly from timed storyboard beats (spec 19 + 20 + 24). */
 export function stagesFromTimedBeats(
   beats: ReadonlyArray<{
     id: string;
@@ -789,7 +826,7 @@ export function stagesFromTimedBeats(
       endMs: b.endMs,
       mode,
       focusX: b.focusX ?? 0.5,
-      focusY: b.focusY ?? 0.35,
+      focusY: clampSpeakerFocusY(b.focusY),
       scaleFrom: mode === 'backdrop' ? 1.04 : alternatingZoom ? 1.0 : 1.06,
       scaleTo: mode === 'backdrop' ? 1.08 : alternatingZoom ? 1.06 : 1.01,
       ...(b.clipId ? { clipId: b.clipId } : {}),

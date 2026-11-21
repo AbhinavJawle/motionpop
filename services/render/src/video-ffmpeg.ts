@@ -1,4 +1,5 @@
 import {
+  clampSpeakerFocusY,
   mediaBoxForMode,
   stageBoxForMode,
   type KeptSegment,
@@ -235,7 +236,7 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
       const bx = Math.max(0, Math.min(width - bw, Math.round(box.x * width)));
       const by = Math.max(0, Math.min(height - bh, Math.round(box.y * height)));
       const fx = Math.max(0, Math.min(1, s.focusX));
-      const fy = Math.max(0, Math.min(1, s.focusY));
+      const fy = clampSpeakerFocusY(s.focusY);
 
       let stageFilter: string;
       const shortSide = Math.min(width, height);

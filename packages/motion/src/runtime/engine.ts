@@ -17,6 +17,7 @@ import { fontStack, primaryFamily } from '../fonts/font-faces';
 import { withTiming } from './timing';
 import { guardSeams, NO_SEAMS, planSeams, seamState, type SlotSeams } from './seams';
 import { planVideo, type VideoPlan } from '../engine/video-plan';
+import { clippedStageBounds } from '../film/stage-bounds';
 
 const FALLBACK_SEAMS: SlotSeams = {
   enter: { kind: 'slide', dir: 1 },
@@ -185,8 +186,15 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       // Each clip runs with its own style: the slot's speed and ease change how it moves, while
       // the background and texture still come from the project's look (spec 09 R4.4).
       const clipStyle = withTiming(project.style, slot.timing);
+      const stageBounds =
+        project.hasVideo && slot.componentId === 'custom'
+          ? clippedStageBounds(project.format, project.width, project.height, slot.videoStage)
+          : { x: 0, y: 0, width: project.width, height: project.height, clipped: false, opaqueSurface: false };
       const cam = doc.createElement('div');
       cam.className = 'mp-cam';
+      if (stageBounds.opaqueSurface) {
+        cam.setAttribute('data-mp-stage-bg', project.style.colors.bg);
+      }
       const root = doc.createElement('div');
       root.className = 'mp-slot-root';
       cam.append(root);
@@ -195,8 +203,11 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
         const composition = component.build(
           {
             root,
-            width: project.width,
-            height: project.height,
+            width: stageBounds.width,
+            height: stageBounds.height,
+            frameWidth: project.width,
+            frameHeight: project.height,
+            ...(slot.videoStage ? { videoStage: slot.videoStage } : {}),
             format: project.format,
             style: clipStyle,
             durationMs,

@@ -15,6 +15,7 @@ import {
   kitExample,
   lintCustom,
   lintProp,
+  reelExampleFor,
   videoStageZoneGuide,
   type ImageRef,
 } from '@motionpop/motion';
@@ -475,10 +476,13 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           lintProp,
           kitDoc: KIT_DOC,
           example: kitExample(),
-          exampleFor: (beat) => archetypeExample(beat.archetype, beat.lead),
+          exampleFor: (beat) =>
+            hasVideo
+              ? reelExampleFor(beat.videoStage, beat.archetype, beat.lead)
+              : archetypeExample(beat.archetype, beat.lead),
           stageGuideFor: videoStageZoneGuide,
           ...(resolveBeatMedia ? { resolveBeatMedia } : {}),
-          ...(deps.model ? { model: deps.model } : {}),
+          ...(deps.model ? { model: deps.model, buildModel: deps.model } : {}),
           ...(inspect ? { inspect } : {}),
           ...(deps.onProgress ? { onProgress: deps.onProgress } : {}),
           ...(deps.cancelled ? { cancelled: deps.cancelled } : {}),
@@ -494,8 +498,8 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
         : { outcome: 'failed', reason: COULDNT_FILM };
     }
 
-    // Spec 22 + 23 R8.1: single-call Multimodal Vision Critic over REAL executed frames composited
-    // with the speaker's true stage geometry + live caption rail.
+    // Spec 22 + 23 + 24 R4.3: full-reel batched Multimodal Vision QA on frontier model over REAL
+    // executed frames composited with face-centered speaker geometry + studio seam captions.
     if (typeof window !== 'undefined' && !deps.inspect && !deps.cancelled?.()) {
       const flagged = await runVisionQaPass({
         router,
@@ -504,6 +508,7 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
         style,
         frames,
         executedSnapshots,
+        ...(deps.model ? { model: deps.model } : {}),
       }).catch(() => []);
       if (flagged.length > 0 && !deps.cancelled?.()) {
         const patched = [...film.beats];
@@ -531,9 +536,12 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
                   lintProp,
                   kitDoc: KIT_DOC,
                   example: kitExample(),
-                  exampleFor: (beat) => archetypeExample(beat.archetype, beat.lead),
+                  exampleFor: (beat) =>
+                    hasVideo
+                      ? reelExampleFor(beat.videoStage, beat.archetype, beat.lead)
+                      : archetypeExample(beat.archetype, beat.lead),
                   stageGuideFor: videoStageZoneGuide,
-                  ...(deps.model ? { model: deps.model } : {}),
+                  ...(deps.model ? { model: deps.model, buildModel: deps.model } : {}),
                   ...(inspect ? { inspect } : {}),
                   storyboard: film.storyboard,
                   props: film.props,

@@ -3,7 +3,9 @@
 import { compileProject } from '@motionpop/motion/compiler';
 import {
   FORMATS,
+  clampSpeakerFocusY,
   cleanedToSourceMs,
+  coverObjectPosition,
   keptSourceSegments,
   mediaLayerRectAt,
   videoStageRectAt,
@@ -171,10 +173,17 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
         stageEl.style.zIndex = rect.mode === 'screen-showcase' ? '3' : '1';
         stageEl.style.boxShadow =
           rect.shadow > 0.01 ? `0 20px 56px rgba(0, 0, 0, ${rect.shadow})` : 'none';
-        const fx = Math.round(rect.focusX * 100);
-        const fy = Math.round(rect.focusY * 100);
-        el.style.objectPosition = `${fx}% ${fy}%`;
-        el.style.transformOrigin = `${fx}% ${fy}%`;
+        const clampedFy = clampSpeakerFocusY(rect.focusY);
+        const pos = coverObjectPosition(
+          rect.focusX,
+          clampedFy,
+          vid.width,
+          vid.height,
+          rect.w,
+          rect.h,
+        );
+        el.style.objectPosition = `${pos.xPct}% ${pos.yPct}%`;
+        el.style.transformOrigin = `${pos.xPct}% ${pos.yPct}%`;
         el.style.transform = `scale(${rect.scale})`;
         const brightness = Math.max(0.2, 1 - rect.dim);
         el.style.filter =

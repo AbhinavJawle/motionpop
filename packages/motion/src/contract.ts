@@ -16,10 +16,15 @@ export interface ImageRef {
 }
 
 export interface BuildContext {
-  /** Container sized to the frame. The component owns its children. */
+  /** Container sized to the frame (or clipped stage box on video Reels). The component owns its children. */
   root: HTMLElement;
   width: number;
   height: number;
+  /** Full output frame dimensions when `width`/`height` are clipped to a video stage (spec 24). */
+  frameWidth?: number;
+  frameHeight?: number;
+  /** Active coupled video stage mode for video Reels (`split-top-stage`, `top-card`, `clean`, etc.). */
+  videoStage?: string;
   format: Format;
   /** Full style pack (brand-kit merging lands in spec 14). Tokens only: never hard-code colours, fonts or timings. */
   style: StylePack;

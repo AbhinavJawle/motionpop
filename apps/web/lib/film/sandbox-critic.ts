@@ -128,6 +128,7 @@ export async function inspectInSandbox(i: SandboxCriticInput): Promise<CriticVer
     headMs: i.beat.headMs,
     lead: i.beat.lead,
     allowNumbers: [...i.allowNumbers],
+    ...(i.hasVideo ? { reelMode: true } : {}),
     ...(i.transparent ? { transparent: true } : {}),
     ...(captionBand ? { captionBand } : {}),
     ...(i.beat.videoStage ? { videoStage: i.beat.videoStage } : {}),

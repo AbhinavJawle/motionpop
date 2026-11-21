@@ -14,6 +14,8 @@ export type BeatLead = (typeof BEAT_LEADS)[number];
 
 /** A beat shorter than this can't land an idea; the Director is asked to merge it. */
 export const FILM_MIN_BEAT_MS = 1600;
+/** Talking-head Reels support tighter clause-synced beats (spec 24 R1.4). */
+export const REEL_MIN_BEAT_MS = 1200;
 /** A beat longer than this drags; the Director is asked to split it. */
 export const FILM_MAX_BEAT_MS = 9000;
 export const FILM_MAX_BEATS = 40;
@@ -331,9 +333,10 @@ export function storyboardIssues(
       `the last beat ends at word ${expect - 1} but the narration has words 0–${n - 1}; cover them all`,
     );
   if (issues.length) return issues;
+  const minBeatMs = opts?.hasVideo ? REEL_MIN_BEAT_MS : FILM_MIN_BEAT_MS;
   for (const b of timeBeats(board, words, durationMs)) {
     const len = b.endMs - b.startMs;
-    if (len < FILM_MIN_BEAT_MS)
+    if (len < minBeatMs)
       issues.push(
         `beat ${b.id} lasts ${(len / 1000).toFixed(1)} s, too short to land an idea: merge it with a neighbour`,
       );
@@ -352,12 +355,15 @@ export function storyboardIssues(
         );
     }
   }
-  const typeLed = board.beats.filter((b) => b.lead === 'type').length;
-  const allowed = Math.max(2, Math.floor(board.beats.length / 4));
-  if (typeLed > allowed)
-    issues.push(
-      `${typeLed} beats are led by type; at most ${allowed} may be: give the others a picture`,
-    );
+  // Voiceover-only documentaries need pictures; talking-head Reels have the human speaker on screen (spec 24 R1.4).
+  if (!opts?.hasVideo) {
+    const typeLed = board.beats.filter((b) => b.lead === 'type').length;
+    const allowed = Math.max(2, Math.floor(board.beats.length / 4));
+    if (typeLed > allowed)
+      issues.push(
+        `${typeLed} beats are led by type; at most ${allowed} may be: give the others a picture`,
+      );
+  }
   const propIds = new Set<string>();
   for (const p of board.props) {
     if (!/^[a-z][a-z0-9-]*$/.test(p.id))
@@ -365,10 +371,11 @@ export function storyboardIssues(
     if (propIds.has(p.id)) issues.push(`prop id "${p.id}" is used twice`);
     propIds.add(p.id);
   }
-  // Spec 19 R3.2: anti-repetition checks for visual archetypes and video choreography stages.
+  // Spec 19 R3.2 + Spec 24 R1.4: prevent identical consecutive archetypes (except clean breathing beats).
   for (let i = 1; i < board.beats.length; i++) {
     const prev = board.beats[i - 1] as StoryBeat;
     const cur = board.beats[i] as StoryBeat;
+    if (cur.videoStage === 'clean' && prev.videoStage === 'clean') continue;
     if (cur.archetype && prev.archetype && cur.archetype === prev.archetype) {
       issues.push(
         `beat ${i + 1} (${cur.id}) repeats archetype "${cur.archetype}" from beat ${i} (${prev.id}); pick a different archetype`,
@@ -381,47 +388,52 @@ export function storyboardIssues(
       const curStage = board.beats[i]?.videoStage;
       if (prevStage === 'cutaway' && curStage === 'cutaway') {
         issues.push(
-          `beats ${i} and ${i + 1} are both "cutaway", hiding the speaker too long; switch one to "full", "split-left", "split-right", "pip", or "backdrop" so the speaker stays connected`,
+          `beats ${i} and ${i + 1} are both "cutaway", hiding the speaker too long; switch one to "split-top-stage", "top-card", or "clean" so the speaker stays connected`,
         );
       }
     }
     const cutaways = board.beats.filter((b) => b.videoStage === 'cutaway').length;
-    const maxCutaways = Math.max(1, Math.floor(board.beats.length * 0.25));
+    const maxCutaways =
+      board.tone === 'personal-story' ? 1 : Math.max(1, Math.floor(board.beats.length * 0.2));
     if (cutaways > maxCutaways) {
       issues.push(
-        `${cutaways} beats use "cutaway" (hiding the speaker); keep at most ${maxCutaways} cutaway ${maxCutaways === 1 ? 'beat' : 'beats'} and use "full", "split-left", "pip", or "backdrop" on the rest`,
+        `${cutaways} beats use "cutaway" (hiding the speaker); keep at most ${maxCutaways} cutaway ${maxCutaways === 1 ? 'beat' : 'beats'} and use "split-top-stage", "top-card", or "clean" on the rest`,
       );
     }
+    // Locked primary stages (`split-top-stage` up to 6 in a row, `clean` up to 4) create cohesive
+    // studio Reels (spec 24 R1.4); legacy stages (`full`, `pip`, `backdrop`, `split-left`, `split-right`)
+    // still flag 3 consecutive repetitions.
     for (let i = 2; i < board.beats.length; i++) {
       const a = board.beats[i - 2]?.videoStage;
       const b = board.beats[i - 1]?.videoStage;
       const c = board.beats[i]?.videoStage;
-      if (a && b && c && a === b && b === c) {
-        issues.push(
-          `beats ${i - 1}–${i + 1} all stay in videoStage "${c}"; vary the speaker framing (e.g. split-left, pip, backdrop, full, cutaway) so the video flows`,
-        );
-      }
+      if (!a || !b || !c || a !== b || b !== c) continue;
+      if (c === 'split-top-stage' || c === 'clean' || c === 'top-card') continue;
+      issues.push(
+        `beats ${i - 1}–${i + 1} all stay in videoStage "${c}"; vary the speaker framing (e.g. split-top-stage, top-card, clean) so the video flows`,
+      );
     }
   }
-  // Spec 20 R2.2: validate Media Bin clip bindings.
+  // Spec 20 R2.2 + Spec 24 R1.4: validate Media Bin clip bindings, allowing `brollQuery` stock fetch before resolution.
   const knownClips = opts?.mediaBinIds ? new Set(opts.mediaBinIds) : null;
   for (let i = 0; i < board.beats.length; i++) {
     const b = board.beats[i] as StoryBeat;
     const isMedia = b.videoStage ? isMediaStageMode(b.videoStage) : false;
+    const hasStockQuery = Boolean(b.brollQuery) && b.videoStage !== 'screen-showcase';
     if (knownClips) {
       if (b.clipId && !knownClips.has(b.clipId)) {
         issues.push(
           `beat ${i + 1} (${b.id}) references unknown clipId "${b.clipId}"; pick an id from the Media Bin or omit clipId`,
         );
       }
-      if (isMedia && !b.clipId) {
+      if (isMedia && !b.clipId && !hasStockQuery) {
         issues.push(
           knownClips.size > 0
             ? `beat ${i + 1} (${b.id}) uses videoStage "${b.videoStage}" without a clipId; set clipId from the Media Bin`
-            : `beat ${i + 1} (${b.id}) uses media videoStage "${b.videoStage}" but no Media Bin clips were provided; use full, split-left, split-right, pip, backdrop, or cutaway`,
+            : `beat ${i + 1} (${b.id}) uses media videoStage "${b.videoStage}" without a clipId or brollQuery; set brollQuery or use split-top-stage, top-card, or clean`,
         );
       }
-    } else if (isMedia && !b.clipId) {
+    } else if (isMedia && !b.clipId && !hasStockQuery) {
       issues.push(
         `beat ${i + 1} (${b.id}) uses media videoStage "${b.videoStage}" without a clipId`,
       );

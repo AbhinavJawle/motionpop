@@ -13,6 +13,7 @@ export interface ReelKitDeps {
   W: number;
   H: number;
   u: number;
+  videoStage?: string;
   colors: {
     bg: string;
     ink: string;
@@ -72,9 +73,21 @@ export function createReelKit(d: ReelKitDeps) {
     return el;
   };
 
+  const OPAQUE_STAGE_FORBIDDEN = new Set([
+    'full',
+    'backdrop',
+    'top-card',
+    'clean',
+    'broll-full',
+    'split-top-broll',
+    'screen-showcase',
+    'media-card-pop',
+  ]);
+
   /**
    * 1. `mp.stage(opts)` — Rich styled canvas for top-half splits or full cutaways.
-   * Kills flat black voids with editorial cream, studio light, or luminous radial glow.
+   * Refuses to paint an opaque curtain over full-bleed speaker/B-roll video stages (spec 24 R2.4),
+   * and always emits explicit `background-color` + `data-mp-stage-bg` for contrast inspection.
    */
   const stage = (
     o: {
@@ -83,10 +96,24 @@ export function createReelKit(d: ReelKitDeps) {
       adopt?: boolean;
     } = {},
   ): HTMLElement => {
+    if (d.videoStage && OPAQUE_STAGE_FORBIDDEN.has(d.videoStage)) {
+      warn(`stage: ignored on "${d.videoStage}" so live speaker/media stays visible`);
+      return getHome() as HTMLElement;
+    }
     const tone = o.tone && o.tone !== 'auto' ? o.tone : isLightLook ? 'cream' : 'glow-violet';
-    const region = o.region ?? 'full';
+    const region = d.videoStage === 'split-top-stage' ? 'full' : (o.region ?? 'full');
     const el = doc.createElement('div');
     el.setAttribute('data-mp-stage', tone);
+    const solidMap: Record<string, string> = {
+      cream: colors.bg,
+      light: '#FFFFFF',
+      'glow-violet': '#14102A',
+      'glow-emerald': '#081A15',
+      'dark-grid': '#0B0C12',
+      dark: '#0B0C12',
+    };
+    const solidBg = solidMap[tone] ?? colors.bg;
+    el.setAttribute('data-mp-stage-bg', solidBg);
     const bgMap: Record<string, string> = {
       cream: `radial-gradient(ellipse 90% 80% at 50% 20%, #F5F1E9 0%, ${colors.bg} 78%)`,
       light: `radial-gradient(circle at 50% 15%, #FFFFFF 0%, #F4F6FA 80%)`,
@@ -97,14 +124,15 @@ export function createReelKit(d: ReelKitDeps) {
     };
     const isDarkStage = tone === 'glow-violet' || tone === 'glow-emerald' || tone === 'dark-grid' || tone === 'dark';
     const gridColor = isDarkStage ? 'rgba(255,255,255,0.045)' : 'rgba(23,22,20,0.045)';
-    const heightCss = region === 'top-half' ? 'height:58%;bottom:auto;' : 'bottom:0;';
+    const heightCss = region === 'top-half' ? 'height:50%;bottom:auto;' : 'bottom:0;';
     el.style.cssText = [
       'position:absolute',
       'left:0',
       'right:0',
       'top:0',
       heightCss,
-      `background:${bgMap[tone] ?? bgMap.cream}`,
+      `background-color:${solidBg}`,
+      `background-image:${bgMap[tone] ?? bgMap.cream}`,
       `color:${isDarkStage ? '#F8FAFC' : '#171614'}`,
       'overflow:hidden',
     ].join(';');

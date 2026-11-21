@@ -44,6 +44,17 @@ const cssDataUrl = (url: string, what: string): string => {
 
 const fmt = (n: number): string => String(Math.round(n * 1000) / 1000);
 
+function hexLuminance(hex: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return 0.2;
+  const n = parseInt(m[1]!, 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+    const c = v / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * ch[0]! + 0.7152 * ch[1]! + 0.0722 * ch[2]!;
+}
+
 /**
  * Compiles a project into one self-contained HyperFrames composition (HTML string).
  * Layers, back to front: background colour, static texture (grain, paper, vignette),
@@ -162,10 +173,20 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
       ? s.videoStage === 'cutaway'
       : hasVideo && !isOverlay;
     const anchor = s.overlayAnchor ?? 'top-right';
+    const stageClipCls =
+      isChoreoCustom && s.videoStage === 'split-top-stage'
+        ? input.format === '9:16'
+          ? ' mp-slot-top-stage'
+          : input.format === '16:9'
+            ? ' mp-slot-left-stage'
+            : ''
+        : isChoreoCustom && s.videoStage === 'top-card' && input.format === '9:16'
+          ? ' mp-slot-top-card'
+          : '';
     const cls = isChoreoCustom
       ? isCutaway
         ? 'clip mp-slot mp-slot-cutaway mp-slot-choreo'
-        : 'clip mp-slot mp-slot-choreo'
+        : `clip mp-slot mp-slot-choreo${stageClipCls}`
       : isOverlay
         ? `clip mp-slot mp-slot-overlay mp-anchor-${escapeAttr(anchor)}`
         : isCutaway
@@ -187,6 +208,11 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
   layers.push('    <div id="mp-captions"></div>');
 
   const pageBg = opaque ? style.colors.bg : 'transparent';
+  const isLightStage = hexLuminance(style.colors.bg) > 0.55;
+  const gridLine = isLightStage ? 'rgba(15, 23, 42, 0.048)' : 'rgba(255, 255, 255, 0.055)';
+  const seamBorder = isLightStage ? 'rgba(15, 23, 42, 0.09)' : 'rgba(255, 255, 255, 0.12)';
+  const gridStep = Math.max(20, Math.round(Math.min(width, height) * 0.033));
+  const stageGridCss = `background-color: ${style.colors.bg}; background-image: linear-gradient(to right, ${gridLine} 1px, transparent 1px), linear-gradient(to bottom, ${gridLine} 1px, transparent 1px); background-size: ${gridStep}px ${gridStep}px;`;
   // Match the dark editor shell's `color-scheme: dark` on transparent compositions so browsers
   // (especially Firefox and Chromium per CSS Color Adjustment) never paint an opaque white canvas
   // behind the `<hyperframes-player>` iframe over the live `<video>` stage.
@@ -204,9 +230,12 @@ ${fontFaceCss(families, assets.fonts)}${colorSchemeCss}
   .mp-texture { position: absolute; inset: 0; pointer-events: none; }
 ${textureCss.join('\n')}
   .mp-slot { position: absolute; inset: 0; }
-  .mp-slot-bg { position: absolute; inset: 0; background: ${style.colors.bg}; z-index: 0; }
+  .mp-slot-bg { position: absolute; inset: 0; ${hasVideo ? stageGridCss : `background: ${style.colors.bg};`} z-index: 0; }
   .mp-slot-choreo { pointer-events: none; background: transparent; }
   .mp-slot-choreo > .mp-cam { z-index: 1; background: transparent; }
+  .mp-slot-top-stage > .mp-cam { top: 0; left: 0; right: 0; bottom: auto; height: 50%; overflow: hidden; ${stageGridCss} border-bottom: 1px solid ${seamBorder}; }
+  .mp-slot-left-stage > .mp-cam { top: 0; left: 0; bottom: 0; right: auto; width: 52%; overflow: hidden; ${stageGridCss} border-right: 1px solid ${seamBorder}; }
+  .mp-slot-top-card > .mp-cam { top: 0; left: 0; right: 0; bottom: auto; height: 28%; overflow: hidden; background: transparent; }
   .mp-slot-cutaway > .mp-cam { z-index: 1; }
   .mp-slot-overlay { pointer-events: none; }
   .mp-slot-overlay > .mp-cam { background: color-mix(in srgb, ${style.colors.bg} 86%, transparent); border: 2px solid color-mix(in srgb, ${style.colors.ink} 16%, transparent); border-radius: 28px; box-shadow: 0 24px 64px rgb(0 0 0 / 0.36); backdrop-filter: blur(14px); overflow: hidden; }

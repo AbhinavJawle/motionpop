@@ -13,7 +13,10 @@ export { KIT_ICON_NAMES } from './icons.generated';
 export { KIT_DOC, kitExample } from './doc';
 export {
   ARCHETYPE_EXAMPLES,
+  REEL_STAGE_EXAMPLES,
   archetypeExample,
+  reelExampleFor,
   videoStageZoneGuide,
   type ArchetypeExample,
 } from './archetypes';
+export { clippedStageBounds, type ClippedStageBounds } from './stage-bounds';

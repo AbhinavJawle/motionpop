@@ -3,7 +3,7 @@ import { componentFillTask } from './component-fill';
 import { customComposeTask } from './custom-compose';
 import { directPlan } from './direct-plan';
 import { editPatchTask } from './edit-patch';
-import { filmBuildTask, filmDirectTask, filmPropsTask } from './film';
+import { filmBuildTask, filmDirectTask, filmPropsTask, reelBuildTask, reelDirectTask } from './film';
 import { noteFixTask } from './note-fix';
 import { pipPlanTask } from './pip-plan';
 import { promptPrefill } from './prompt-prefill';
@@ -22,6 +22,8 @@ function allTasks(): TaskDef<never, unknown>[] {
     filmDirectTask,
     filmBuildTask(() => [], ''),
     filmPropsTask(() => []),
+    reelDirectTask,
+    reelBuildTask(() => [], ''),
     noteFixTask(none),
     pipPlanTask(),
     promptPrefill,
@@ -39,6 +41,8 @@ const EXPECTED: Record<string, number> = {
   'film.direct': 6144,
   'film.build': 8192,
   'film.props': 6144,
+  'reel.direct': 8192,
+  'reel.build': 8192,
   'note.fix': 1024,
   'pip.plan': 4096,
   'prompt.prefill': 512,

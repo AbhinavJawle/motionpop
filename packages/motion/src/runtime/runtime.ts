@@ -15,6 +15,7 @@ import { planVideo } from '../engine/video-plan';
 import { mountCaptions } from './captions';
 import { fontStack } from '../fonts/font-faces';
 import { inspectBeat, type CriticSummary } from '../film/critic';
+import { clippedStageBounds } from '../film/stage-bounds';
 
 declare global {
   interface Window {
@@ -39,6 +40,7 @@ declare global {
           transparent?: boolean;
           captionBand?: { top: number; bottom: number };
           videoStage?: string;
+          reelMode?: boolean;
         },
       ) => CriticSummary | null;
       /** Captures the executed DOM markup of one slot at its keyMomentMs (for real Vision QA, spec 23). */
@@ -125,6 +127,7 @@ if (project) {
       transparent?: boolean;
       captionBand?: { top: number; bottom: number };
       videoStage?: string;
+      reelMode?: boolean;
     } = {},
   ): CriticSummary | null => {
     const slot = project.slots.find((s) => s.id === slotId);
@@ -143,15 +146,32 @@ if (project) {
     const params = slot.params as { keyMomentMs?: unknown };
     const key =
       slot.keyMomentMs ?? (typeof params.keyMomentMs === 'number' ? params.keyMomentMs : 600);
+    const bounds =
+      project.hasVideo && slot.componentId === 'custom'
+        ? clippedStageBounds(project.format, project.width, project.height, slot.videoStage)
+        : {
+            x: 0,
+            y: 0,
+            width: project.width,
+            height: project.height,
+            clipped: false,
+            opaqueSurface: false,
+          };
+    const measureHost = bounds.clipped ? (host.querySelector('.mp-cam') ?? host) : host;
+    const effectiveTransparent = bounds.opaqueSurface ? false : opts.transparent;
+    const effectiveCaptionBand = bounds.clipped ? undefined : opts.captionBand;
     try {
-      return inspectBeat(host, (t) => seek(slot.startMs + Math.round(t)), {
+      return inspectBeat(measureHost, (t) => seek(slot.startMs + Math.round(t)), {
         durationMs,
         keyMomentMs: key,
         ...(slot.tailMs ? { tailMs: slot.tailMs } : {}),
         ...(slot.over ? { over: slot.over } : {}),
         ...opts,
-        width: project.width,
-        height: project.height,
+        ...(effectiveTransparent !== undefined ? { transparent: effectiveTransparent } : {}),
+        ...(effectiveCaptionBand ? { captionBand: effectiveCaptionBand } : { captionBand: undefined }),
+        width: bounds.width,
+        height: bounds.height,
+        frameShortSide: Math.min(project.width, project.height),
         bg: project.style.colors.bg,
         errors: engine.errors
           .filter((e) => e.slotId === slotId)
@@ -178,9 +198,32 @@ if (project) {
     const params = slot.params as { keyMomentMs?: unknown };
     const key =
       slot.keyMomentMs ?? (typeof params.keyMomentMs === 'number' ? params.keyMomentMs : 600);
+    const bounds =
+      project.hasVideo && slot.componentId === 'custom'
+        ? clippedStageBounds(project.format, project.width, project.height, slot.videoStage)
+        : {
+            x: 0,
+            y: 0,
+            width: project.width,
+            height: project.height,
+            clipped: false,
+            opaqueSurface: false,
+          };
     try {
       seek(slot.startMs + Math.round(key));
       const clone = host.cloneNode(true) as HTMLElement;
+      const cloneCam = clone.querySelector('.mp-cam') as HTMLElement | null;
+      if (cloneCam) {
+        cloneCam.style.position = 'absolute';
+        cloneCam.style.left = `${bounds.x}px`;
+        cloneCam.style.top = `${bounds.y}px`;
+        cloneCam.style.width = `${bounds.width}px`;
+        cloneCam.style.height = `${bounds.height}px`;
+        cloneCam.style.overflow = 'hidden';
+        if (bounds.opaqueSurface) {
+          cloneCam.style.backgroundColor = project.style.colors.bg;
+        }
+      }
       const origCanvases = host.querySelectorAll('canvas');
       const cloneCanvases = clone.querySelectorAll('canvas');
       origCanvases.forEach((orig, idx) => {

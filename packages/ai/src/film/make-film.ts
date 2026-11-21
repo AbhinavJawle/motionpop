@@ -1,4 +1,5 @@
 import {
+  FORMATS,
   isMediaStageMode,
   timeBeats,
   type FilmWord,
@@ -12,6 +13,8 @@ import {
   filmBuildTask,
   filmDirectTask,
   filmPropsTask,
+  reelBuildTask,
+  reelDirectTask,
   type DirectMediaClip,
   type FilmBuildInput,
   type FilmBuildOutput,
@@ -165,6 +168,40 @@ export function beatWords(beat: TimedBeat, words: readonly FilmWord[]): FilmWord
 
 const short = (s: string, n = 160) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
+function clippedDimensionsFor(
+  format: Format,
+  stage?: VideoStageMode,
+): { stageWidth: number; stageHeight: number } {
+  const dims = FORMATS[format];
+  if (stage === 'split-top-stage') {
+    if (format === '9:16') return { stageWidth: dims.width, stageHeight: Math.round(dims.height * 0.5) };
+    if (format === '16:9') return { stageWidth: Math.round(dims.width * 0.52), stageHeight: dims.height };
+  }
+  if (stage === 'top-card' && format === '9:16') {
+    return { stageWidth: dims.width, stageHeight: Math.round(dims.height * 0.28) };
+  }
+  return { stageWidth: dims.width, stageHeight: dims.height };
+}
+
+function nearestSpeakerFrame(
+  beat: TimedBeat,
+  frames?: FilmInput['frames'],
+): NonNullable<FilmInput['frames']>[number] | undefined {
+  if (!frames?.length) return undefined;
+  const midMs = (beat.startMs + beat.endMs) / 2;
+  let best = frames[0]!;
+  let bestDist = Math.abs(best.timeMs - midMs);
+  for (let k = 1; k < frames.length; k++) {
+    const f = frames[k]!;
+    const dist = Math.abs(f.timeMs - midMs);
+    if (dist < bestDist) {
+      best = f;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
 /** What one builder is told (pure; exported for tests and the lab). */
 export function buildInputFor(
   board: Storyboard,
@@ -181,9 +218,17 @@ export function buildInputFor(
   const beat = timed[i] as TimedBeat;
   const prev = timed[i - 1];
   const next = timed[i + 1];
+  const stageDims = input.hasVideo ? clippedDimensionsFor(input.format, beat.videoStage) : null;
+  const speakerFrame = input.hasVideo ? nearestSpeakerFrame(beat, input.frames) : undefined;
   return {
-    film: { title: board.title, thesis: board.thesis, world: board.world, carrier: board.carrier },
-    props: board.props,
+    film: {
+      title: board.title,
+      thesis: board.thesis,
+      world: board.world,
+      carrier: board.carrier,
+      ...(board.tone ? { tone: board.tone } : {}),
+    },
+    props: input.hasVideo ? [] : board.props,
     beat: {
       index: i,
       count: timed.length,
@@ -191,6 +236,7 @@ export function buildInputFor(
       ...(beat.archetype ? { archetype: beat.archetype } : {}),
       ...(beat.videoStage ? { videoStage: beat.videoStage } : {}),
       ...(opts?.stageGuide ? { stageGuide: opts.stageGuide } : {}),
+      ...(stageDims ? stageDims : {}),
       ...(opts?.imageAsset ? { imageAsset: opts.imageAsset } : {}),
       idea: beat.idea,
       text: beat.text,
@@ -206,6 +252,7 @@ export function buildInputFor(
     seamOut: next ? { kind: beat.seam.kind, note: beat.seam.note, to: short(next.idea) } : null,
     beats: timed.map((b) => ({
       lead: b.lead,
+      ...(b.videoStage ? { videoStage: b.videoStage } : {}),
       idea: b.idea,
       text: b.text,
       landsOn: input.words[b.landsOn]?.text ?? '',
@@ -214,6 +261,7 @@ export function buildInputFor(
     look: input.look,
     example,
     ...(opts?.beatExample ? { beatExample: opts.beatExample } : {}),
+    ...(speakerFrame ? { speakerFrame } : {}),
   };
 }
 
@@ -239,13 +287,14 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
   let calls = 0;
 
   const runOpts = deps.model ? { model: deps.model } : undefined;
-  // 1. The storyboard.
+  const isReel = Boolean(input.hasVideo);
+  // 1. The storyboard (dedicated Talking-Head Reel Director when hasVideo, legacy Film Director for voiceover-only).
   let board = deps.storyboard;
   if (!board) {
     deps.onProgress?.({ phase: 'storyboard', state: 'start' });
     try {
       const res = await deps.router.run(
-        filmDirectTask,
+        isReel ? reelDirectTask : filmDirectTask,
         {
           words: input.words,
           durationMs: input.durationMs,
@@ -266,6 +315,10 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
       throw e;
     }
     deps.onProgress?.({ phase: 'storyboard', state: 'done' });
+  }
+  // Talking-head Reels never use legacy cartoon SVG props (spec 24 R1.1).
+  if (isReel && board.props.length > 0) {
+    board = { ...board, props: [] };
   }
   // Ids are ours: b1, b2, … whatever the model called them. Also backfill any media-stage beat
   // with its best-matching Media Bin clip & moment parameters when omitted by the Director.
@@ -329,9 +382,9 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
   const timed = timeBeats(board, input.words, input.durationMs);
   stop();
 
-  // 2. The shared drawings and every beat, at the same time.
+  // 2. The shared drawings (voiceover documentaries only; skipped on talking-head Reels) and every beat.
   const propsJob = (async (): Promise<Record<string, string>> => {
-    if (board.props.length === 0) return {};
+    if (isReel || board.props.length === 0) return {};
     deps.onProgress?.({ phase: 'props', state: 'start' });
     try {
       const res = await deps.router.run(
@@ -404,13 +457,40 @@ async function buildOne(
   imageAsset?: { id: string; subject: string; keyed: boolean },
 ): Promise<FilmBeatResult> {
   const beat = timed[i] as TimedBeat;
-  const task = filmBuildTask(deps.lint, deps.kitDoc);
+  const isReel = Boolean(input.hasVideo);
+  const t0 = Date.now();
+  const note = (state: 'building' | 'checking' | 'repairing' | 'ready' | 'failed') =>
+    deps.onProgress?.({ phase: 'beat', beatId: beat.id, index: i, count: timed.length, state });
+
+  // Spec 24 R2.3: pure `clean` breathing beats with no on-screen text need zero graphic overlay.
+  // Skip the AI builder call so the human speaker breathes naturally with smooth punch-in framing.
+  if (isReel && beat.videoStage === 'clean' && beat.text.length === 0 && !imageAsset) {
+    const cleanParams: FilmBeatParams = {
+      title: 'Clean speaker',
+      html: '',
+      css: '',
+      script: 'return { seek() {} };',
+      keyMomentMs: beat.keyMomentMs,
+      brief: short(beat.idea, 500),
+      film: { tailMs: 0, over: 'out', headMs: 0 },
+    };
+    note('ready');
+    return {
+      beat,
+      params: cleanParams,
+      calls: 0,
+      repairs: 0,
+      problems: null,
+      latencyMs: Date.now() - t0,
+    };
+  }
+
+  const task = isReel ? reelBuildTask(deps.lint, deps.kitDoc) : filmBuildTask(deps.lint, deps.kitDoc);
   const maxRepairs = deps.maxRepairs ?? 2;
   const stop = () => {
     if (deps.cancelled?.()) throw new FilmCancelled();
   };
-  const t0 = Date.now();
-  const stageMode = input.hasVideo ? (beat.videoStage ?? 'full') : undefined;
+  const stageMode = input.hasVideo ? (beat.videoStage ?? 'split-top-stage') : undefined;
   const boundClip = beat.clipId ? input.mediaBin?.find((c) => c.id === beat.clipId) : undefined;
   const stageGuide = stageMode
     ? deps.stageGuideFor?.(
@@ -431,9 +511,8 @@ async function buildOne(
     ...(stageGuide ? { stageGuide } : {}),
     ...(imageAsset ? { imageAsset } : {}),
   });
-  const buildOpts = deps.buildModel ? { model: deps.buildModel } : undefined;
-  const note = (state: 'building' | 'checking' | 'repairing' | 'ready' | 'failed') =>
-    deps.onProgress?.({ phase: 'beat', beatId: beat.id, index: i, count: timed.length, state });
+  const effectiveBuildModel = deps.buildModel ?? (isReel ? deps.model : undefined);
+  const buildOpts = effectiveBuildModel ? { model: effectiveBuildModel } : undefined;
   const asParams = (out: FilmBuildOutput, props: Record<string, string>): FilmBeatParams => ({
     ...out,
     // The director's landing time is the truth; the builder's copy is only a cross-check.

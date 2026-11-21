@@ -22,6 +22,7 @@ export * from './tasks/film';
 export * from './tasks/film-vision-critic';
 export * from './film/make-film';
 export { FILM_DIRECT_SYSTEM_V1 } from './prompts/film-direct.v1';
+export { REEL_DIRECT_SYSTEM_V2 } from './prompts/reel-v2';
 export * from './speech';
 export * from './image';
 export * from './cache';

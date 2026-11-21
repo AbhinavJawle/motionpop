@@ -72,7 +72,7 @@ export function filmVisionCriticTask(): TaskDef<FilmVisionCriticInput, FilmVisio
     input: FilmVisionCriticInputSchema,
     output: FilmVisionCriticOutputSchema,
     mode: () => 'ONLY_IN_CLOUD',
-    model: () => 'gemini-3.8-flash',
+    model: (cfg) => cfg.modelStrong,
     system: FILM_VISION_CRITIC_SYSTEM_V1,
     prompt: (i) =>
       filmVisionCriticPromptV1({

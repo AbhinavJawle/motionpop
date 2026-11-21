@@ -356,12 +356,14 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
         output = pipAnswer(input as PipPlanInput);
       } else if (task.id === 'custom.compose') {
         output = customAnswer(input as { brief: string; words: string });
-      } else if (task.id === 'film.direct') {
+      } else if (task.id === 'film.direct' || task.id === 'reel.direct') {
         output = filmDirectAnswer(input as FilmDirectInput);
-      } else if (task.id === 'film.build') {
+      } else if (task.id === 'film.build' || task.id === 'reel.build') {
         output = filmBuildAnswer(input as FilmBuildInput);
       } else if (task.id === 'film.props') {
         output = { props: [] };
+      } else if (task.id === 'film.vision-critic') {
+        output = { pass: true, summary: 'All beats crisp and legible', flagged: [] };
       } else {
         throw fail(ranOn, 'provider', `The fake router has no answer for ${task.id}`);
       }

@@ -86,7 +86,7 @@ function fakeRouter(h: {
   });
   fake.router = {
     run: async (task: { id: string }, arg: unknown) => {
-      if (task.id === 'film.direct') {
+      if (task.id === 'film.direct' || task.id === 'reel.direct') {
         fake.directs++;
         if (h.directFails) throw new Error('director down');
         return ok(h.board ?? boardOf());
@@ -96,7 +96,7 @@ function fakeRouter(h: {
         if (h.propsFails) throw new Error('props down');
         return ok({ props: [{ id: 'ship', svg: SVG }] });
       }
-      if (task.id === 'film.build') {
+      if (task.id === 'film.build' || task.id === 'reel.build') {
         const call = arg as FilmBuildInput;
         fake.builds.push(call);
         const index = call.beat.index;
@@ -248,6 +248,122 @@ describe('makeFilm', () => {
   it('lets a storyboard failure reach the caller', async () => {
     const fake = fakeRouter({ directFails: true });
     await expect(makeFilm(input, depsFor(fake.router))).rejects.toThrow('director down');
+  });
+
+  it('routes talking-head Reels through reel.direct + reel.build, skips film.props, fast-paths pure clean beats, and forwards clipped stage bounds + speakerFrame (spec 24)', async () => {
+    const seenTasks: string[] = [];
+    const seenModels: Record<string, string | undefined> = {};
+    const reelBoard: Storyboard = {
+      title: 'Studio Reel',
+      tone: 'tech-explainer',
+      thesis: 'Show clean UI mechanics',
+      world: 'Crisp studio grid',
+      carrier: 'Accent marker',
+      props: [{ id: 'mirror', draw: 'a hand mirror', width: 80, height: 120 }],
+      beats: [
+        {
+          id: 'b1',
+          wordStart: 0,
+          wordEnd: 3,
+          lead: 'type',
+          archetype: 'callout-hud',
+          videoStage: 'split-top-stage',
+          idea: 'Timing inspector on top 50% grid',
+          text: ['Timing', 'Easing'],
+          landsOn: 1,
+          staging: 'Rows tick in',
+          seam: { kind: 'push', note: 'Next beat' },
+        },
+        {
+          id: 'b2',
+          wordStart: 4,
+          wordEnd: 7,
+          lead: 'type',
+          archetype: 'kinetic-type',
+          videoStage: 'clean',
+          idea: 'Pure unobstructed speaker breathing moment',
+          text: [],
+          landsOn: 5,
+          staging: 'Speaker breathes',
+          seam: { kind: 'push', note: 'Next beat' },
+        },
+        {
+          id: 'b3',
+          wordStart: 8,
+          wordEnd: 11,
+          lead: 'number',
+          archetype: 'hero-stat',
+          videoStage: 'top-card',
+          idea: 'Compact dark top pill above speaker head',
+          text: ['100% Free'],
+          landsOn: 9,
+          staging: 'Card pops in',
+          seam: { kind: 'push', note: 'Hold' },
+        },
+      ],
+    };
+    const builds: FilmBuildInput[] = [];
+    const router = {
+      run: async (task: { id: string }, arg: unknown, opts?: { model?: string }) => {
+        seenTasks.push(task.id);
+        seenModels[task.id] = opts?.model;
+        if (task.id === 'reel.direct') {
+          return { output: reelBoard, ranOn: 'cloud', model: 'gemini-4-neon', costCredits: 0, latencyMs: 10, attempts: 1, cached: false };
+        }
+        if (task.id === 'reel.build') {
+          const call = arg as FilmBuildInput;
+          builds.push(call);
+          return {
+            output: {
+              title: 'Beat',
+              html: '<div>ok</div>',
+              css: '',
+              script: 'return { seek() {} };',
+              keyMomentMs: 0,
+            },
+            ranOn: 'cloud',
+            model: 'gemini-4-neon',
+            costCredits: 0,
+            latencyMs: 10,
+            attempts: 1,
+            cached: false,
+          };
+        }
+        throw new Error(`unexpected task ${task.id}`);
+      },
+    } as unknown as Router;
+
+    const res = await makeFilm(
+      {
+        ...input,
+        format: '9:16',
+        hasVideo: true,
+        frames: [
+          {
+            timeMs: 1200,
+            mimeType: 'image/jpeg',
+            base64: '/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwc=',
+          },
+        ],
+      },
+      depsFor(router, { model: 'gemini-4-neon' }),
+    );
+
+    expect(seenTasks).toEqual(['reel.direct', 'reel.build', 'reel.build']);
+    expect(seenModels['reel.direct']).toBe('gemini-4-neon');
+    expect(seenModels['reel.build']).toBe('gemini-4-neon');
+    expect(res.props).toEqual({});
+    expect(res.storyboard.props).toEqual([]);
+    // Beat 2 (pure clean breathing beat with text: []) used 0 AI calls!
+    expect(res.beats[1]?.calls).toBe(0);
+    expect(res.beats[1]?.params?.html).toBe('');
+    // Beat 1 (`split-top-stage`) got exact clipped 1080×960 stage dimensions + speakerFrame
+    expect(builds[0]?.beat.stageWidth).toBe(1080);
+    expect(builds[0]?.beat.stageHeight).toBe(960);
+    expect(builds[0]?.speakerFrame?.base64).toContain('/9j/');
+    // Beat 3 (`top-card`) got exact clipped 1080×538 stage dimensions
+    expect(builds[1]?.beat.stageWidth).toBe(1080);
+    expect(builds[1]?.beat.stageHeight).toBe(538);
   });
 });
 

@@ -28,6 +28,7 @@ export type CriticRule =
   | 'made-up-number'
   | 'caption-collision'
   | 'face-collision'
+  | 'empty-box'
   | 'banned-pattern';
 
 export interface CriticReport {
@@ -73,6 +74,10 @@ export interface CriticOptions {
   captionBand?: { top: number; bottom: number };
   /** Coupled video stage mode (`split-top-stage`, `top-card`, `clean`, etc., spec 23). */
   videoStage?: string;
+  /** Full frame short side in px when inspecting a clipped video stage container (spec 24). */
+  frameShortSide?: number;
+  /** True for Talking-Head Reel Engine v2 beats where clean structured UI/typography replaces Vox SVG counts. */
+  reelMode?: boolean;
 }
 
 export interface CriticSummary {
@@ -178,7 +183,8 @@ export function inspectBeat(
     for (let n: Element | null = el; n && n !== host.parentElement; n = n.parentElement) {
       const cs = view.getComputedStyle(n);
       if (cs.display === 'none' || cs.visibility === 'hidden') return 0;
-      a *= Number(cs.opacity);
+      const op = cs.opacity === '' ? 1 : Number(cs.opacity);
+      a *= Number.isFinite(op) ? op : 1;
       if (a < 0.02) return 0;
     }
     return a;
@@ -392,7 +398,8 @@ export function inspectBeat(
       hold,
       `nothing is on screen at ${secs(hold)}: the beat must hold its picture until its last 300 ms`,
     );
-  const minPx = Math.min(o.width, o.height) * 0.024;
+  const short = o.frameShortSide ?? Math.min(o.width, o.height);
+  const minPx = short * 0.024;
   for (const t of texts) {
     const name = `"${clip(t.text)}"`;
     const over = Math.max(
@@ -401,7 +408,7 @@ export function inspectBeat(
       frame.top - t.rect.top,
       t.rect.bottom - frame.bottom,
     );
-    if (over > Math.min(o.width, o.height) * 0.012)
+    if (over > short * 0.012)
       add(
         'off-frame',
         'fix',
@@ -429,17 +436,59 @@ export function inspectBeat(
         );
       }
     }
-    if (o.videoStage === 'top-card' && o.height > o.width) {
-      const faceTop = o.height * 0.31;
-      const faceBot = o.height * 0.76;
+    if (
+      (o.videoStage === 'top-card' || o.videoStage === 'full' || o.videoStage === 'clean') &&
+      o.height > o.width * 1.1
+    ) {
+      const faceTop = o.height * (o.videoStage === 'top-card' ? 0.31 : 0.22);
+      const faceBot = o.height * (o.videoStage === 'top-card' ? 0.76 : 0.56);
       if (t.rect.bottom > faceTop && t.rect.top < faceBot) {
         add(
           'face-collision',
           'fix',
           hold,
-          `${name} intrudes into the speaker face zone on a top-card beat (top 31%..76%): keep all cards and text strictly inside top 6%..29%`,
+          `${name} intrudes into the speaker face zone: keep graphics strictly above the head (top 5%..22%) or in the lower chest (top 60%..80%)`,
         );
       }
+    }
+  }
+  // Reject large solid/bordered cards that have ZERO text and ZERO graphics inside them (spec 24 R4.2).
+  for (const el of Array.from(host.querySelectorAll('div, section, figure, article'))) {
+    if (
+      el.hasAttribute('data-mp-stage') ||
+      el.hasAttribute('data-mp-sheet') ||
+      el.hasAttribute('data-mp-map') ||
+      el.hasAttribute('data-mp-paper') ||
+      el.classList.contains('mp-cam') ||
+      el.classList.contains('mp-slot-root') ||
+      el.classList.contains('mp-slot-bg')
+    ) {
+      continue;
+    }
+    if (shown(el) < 0.4) continue;
+    const r = local(el.getBoundingClientRect());
+    if (!inFrame(r) || r.width < short * 0.14 || r.height < short * 0.11) continue;
+    // Skip full-stage wrappers (> 88% of stage box)
+    if (r.width >= o.width * 0.88 && r.height >= o.height * 0.88) continue;
+    const cs = view.getComputedStyle(el);
+    const bg = parseRgb(cs.backgroundColor);
+    const bw =
+      parseFloat(cs.borderTopWidth || '0') +
+      parseFloat(cs.borderLeftWidth || '0') +
+      parseFloat(cs.borderBottomWidth || '0') +
+      parseFloat(cs.borderRightWidth || '0');
+    const hasSurface = (bg !== null && bg[3] >= 0.35) || bw >= 1.5;
+    if (!hasSurface) continue;
+    const hasVisibleText = (el.textContent ?? '').trim().length > 0;
+    const hasVisualChild = el.querySelector('svg, img, canvas') !== null;
+    if (!hasVisibleText && !hasVisualChild) {
+      add(
+        'empty-box',
+        'fix',
+        hold,
+        `an empty card (${Math.round(r.width)} × ${Math.round(r.height)} px) has no text or graphic inside it: fill every card with crisp real content or remove the empty rectangle`,
+      );
+      break;
     }
   }
   // Reject full-frame rectangular viewport borders on transparent video beats (spec 23 R8.2).
@@ -489,17 +538,25 @@ export function inspectBeat(
       hold,
       `${words} words are on screen at once: keep one hero line and one quiet label, and let the picture say the rest`,
     );
-  if (o.wantsPicture && o.videoStage !== 'clean' && shapes < 3 && !hasMap)
+  const structuredUiCount = o.reelMode
+    ? Array.from(host.querySelectorAll('div, section, article, ul, table')).filter((el) => {
+        if (shown(el) < 0.25) return false;
+        const cs = view.getComputedStyle(el);
+        const bg = parseRgb(cs.backgroundColor);
+        const bw = parseFloat(cs.borderTopWidth || '0') + parseFloat(cs.borderLeftWidth || '0');
+        return ((bg !== null && bg[3] >= 0.3) || bw >= 1) && (el.textContent ?? '').trim().length > 0;
+      }).length
+    : 0;
+  if (o.wantsPicture && o.videoStage !== 'clean' && shapes < 3 && !hasMap && (!o.reelMode || structuredUiCount === 0))
     add(
       'no-picture',
       'fix',
       hold,
-      'the frame is only type: draw the thing the words are about (inline SVG, mp.map, mp.icon, mp.dots) and let the text label it',
+      'the frame is only type: draw the thing the words are about (inline SVG, structured UI card, mp.icon, mp.chart) and let the text label it',
     );
   // The hero has to be read from across a room, and the picture has to own the frame.
-  const short = Math.min(o.width, o.height);
   const biggest = texts.reduce((m, t) => Math.max(m, t.fontPx), 0);
-  const heroMin = short * (o.lead === 'number' || o.lead === 'type' ? 0.085 : 0.05);
+  const heroMin = short * (o.lead === 'number' || o.lead === 'type' ? (o.reelMode ? 0.055 : 0.085) : 0.045);
   if (texts.length > 0 && biggest < heroMin)
     add(
       'small-hero',
@@ -653,7 +710,7 @@ function union(rects: readonly DOMRect[]): DOMRect {
   } as DOMRect;
 }
 
-/** The first solid colour behind an element: an ancestor's background or a shape under its centre. */
+/** The first solid colour behind an element: an ancestor's background, explicit stage bg, or a shape under its centre. */
 function backgroundBehind(
   view: Window,
   el: Element,
@@ -669,13 +726,23 @@ function backgroundBehind(
   // An element that can't be hit (pointer-events: none) isn't in the stack: what is listed there
   // may be in front of it, so only its own ancestors are trusted.
   for (const under of self < 0 ? [] : stack.slice(self + 1)) {
-    if (!host.contains(under)) break;
+    if (!host.contains(under) && under !== host) break;
+    const stageAttr = under.getAttribute('data-mp-stage-bg');
+    if (stageAttr) {
+      const sc = parseRgb(stageAttr);
+      if (sc && Number(view.getComputedStyle(under).opacity) > 0.6) return sc;
+    }
     const cs = view.getComputedStyle(under);
     const isShape = under.namespaceURI === 'http://www.w3.org/2000/svg';
     const c = parseRgb(isShape ? cs.fill : cs.backgroundColor);
     if (c && c[3] > 0.6 && Number(cs.opacity) > 0.6) return c;
   }
-  for (let n: Element | null = el.parentElement; n && host.contains(n); n = n.parentElement) {
+  for (let n: Element | null = el.parentElement; n && (host.contains(n) || n === host); n = n.parentElement) {
+    const stageAttr = n.getAttribute('data-mp-stage-bg');
+    if (stageAttr) {
+      const sc = parseRgb(stageAttr);
+      if (sc) return sc;
+    }
     const c = parseRgb(view.getComputedStyle(n).backgroundColor);
     if (c && c[3] > 0.6) return c;
   }

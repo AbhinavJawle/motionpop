@@ -1,5 +1,14 @@
 import { beatWords, rebuildBeat } from '@motionpop/ai';
-import { KIT_DOC, customParams, kitExample, lintCustom, lintProp } from '@motionpop/motion';
+import {
+  KIT_DOC,
+  archetypeExample,
+  customParams,
+  kitExample,
+  lintCustom,
+  lintProp,
+  reelExampleFor,
+  videoStageZoneGuide,
+} from '@motionpop/motion';
 import {
   APP_CONFIG_DEFAULTS,
   costOf,
@@ -94,6 +103,7 @@ export async function rebuildFilmBeat(
       endMs: w.endMs,
     }));
     const allowNumbers = [...spokenNumbers(words)];
+    const hasVideo = Boolean(project.video);
     const inspect: FilmDeps['inspect'] =
       deps.inspect ??
       (assets
@@ -106,11 +116,16 @@ export async function rebuildFilmBeat(
               style,
               assets,
               allowNumbers,
+              ...(hasVideo ? { hasVideo: true } : {}),
+              ...(hasVideo && (beat.videoStage ?? 'full') !== 'cutaway'
+                ? { transparent: true }
+                : {}),
               ...(deps.doc ? { doc: deps.doc } : {}),
             })
         : undefined);
     const board = project.film.storyboard;
     const idea = slot.prompt.trim();
+    const rebuildModel = project.film.model;
     store.getState().setGenerating({ slotId, phase: 'animating', startedAt: now() });
     const started = now();
     let built;
@@ -121,6 +136,7 @@ export async function rebuildFilmBeat(
           durationMs: project.durationMs,
           format: project.format,
           look: { name: style.name, description: style.description.slice(0, 300) },
+          ...(hasVideo ? { hasVideo: true } : {}),
         },
         {
           router,
@@ -128,6 +144,12 @@ export async function rebuildFilmBeat(
           lintProp,
           kitDoc: KIT_DOC,
           example: kitExample(),
+          exampleFor: (beat) =>
+            hasVideo
+              ? reelExampleFor(beat.videoStage, beat.archetype, beat.lead)
+              : archetypeExample(beat.archetype, beat.lead),
+          stageGuideFor: videoStageZoneGuide,
+          ...(rebuildModel ? { model: rebuildModel, buildModel: rebuildModel } : {}),
           ...(inspect ? { inspect } : {}),
           storyboard: board,
           props: project.film.props,
