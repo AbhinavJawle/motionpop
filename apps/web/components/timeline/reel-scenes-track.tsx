@@ -23,6 +23,10 @@ const NAMES: Record<ReelScene['content']['template'], string> = {
   punch: 'Punchline',
   cta: 'Call to action',
   none: 'Speaker',
+  logo: 'Logo',
+  logos: 'Logos',
+  image: 'Picture',
+  website: 'Website',
 };
 
 /** The scene's main words, for its timeline card. */
@@ -56,6 +60,14 @@ function sceneText(s: ReelScene): string {
       return `${c.verb} ${c.keyword}`;
     case 'none':
       return '';
+    case 'logo':
+      return c.name;
+    case 'logos':
+      return c.items.map((x) => x.name).join(' · ');
+    case 'image':
+      return c.title ?? (c.words.map((w) => w.text).join(' · ') || c.media.query);
+    case 'website':
+      return c.headline ?? c.url;
   }
 }
 

@@ -30,9 +30,13 @@ async function toWebp(c: OffscreenCanvas | HTMLCanvasElement): Promise<Blob> {
  * cutout runs; when its guard says the backdrop isn't a clean key colour the picture is kept as
  * a framed photo (`keyed: false`), which every image scene supports.
  */
-export async function processImage(blob: Blob, tryKey: boolean): Promise<ProcessedImage> {
+export async function processImage(
+  blob: Blob,
+  tryKey: boolean,
+  maxSide = MAX_SIDE,
+): Promise<ProcessedImage> {
   const bmp = await createImageBitmap(blob);
-  const k = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height));
+  const k = Math.min(1, maxSide / Math.max(bmp.width, bmp.height));
   const w = Math.max(1, Math.round(bmp.width * k));
   const h = Math.max(1, Math.round(bmp.height * k));
   const c = canvasOf(w, h);

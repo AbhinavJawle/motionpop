@@ -1,5 +1,6 @@
 'use client';
 
+import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
@@ -47,6 +48,7 @@ export function ProcessingScreen({ id }: { id: string }) {
   const [intakeError, setIntakeError] = useState<string | null>(null);
   const controller = useRef<AbortController | null>(null);
   const lastInput = useRef<PipelineInput | null>(null);
+  const { client: credits } = useCreditsClient();
 
   useEffect(() => {
     if (id === 'new') return;
@@ -76,7 +78,7 @@ export function ProcessingScreen({ id }: { id: string }) {
       setPhase('running');
       runPipeline(
         input,
-        browserPipelineDeps(),
+        browserPipelineDeps({ credits }),
         (event) => dispatch({ type: 'event', event }),
         ac.signal,
       )
@@ -101,7 +103,7 @@ export function ProcessingScreen({ id }: { id: string }) {
           }
         });
     },
-    [router, still],
+    [router, still, credits],
   );
 
   // `/processing/new` picks up a hand-off from the dashboard, Start or the recorder (spec 11).

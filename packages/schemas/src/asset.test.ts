@@ -40,7 +40,7 @@ describe('ImageAssetSchema', () => {
   it('rejects an unknown status or source', () => {
     const h = 'a'.repeat(64);
     expect(ImageAssetSchema.safeParse({ ...asset(h), status: 'done' }).success).toBe(false);
-    expect(ImageAssetSchema.safeParse({ ...asset(h), source: 'stock' }).success).toBe(false);
+    expect(ImageAssetSchema.safeParse({ ...asset(h), source: 'scraped' }).success).toBe(false);
   });
 });
 

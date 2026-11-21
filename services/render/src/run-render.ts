@@ -10,7 +10,7 @@ import {
 } from '@motionpop/motion/compiler';
 import type { ImageRef } from '@motionpop/motion';
 import { compileReel } from '@motionpop/motion/reel';
-import { mediaHashOf, mediaStoragePath } from '@motionpop/schemas';
+import { mediaHashOf, mediaStoragePath, reelMediaOf } from '@motionpop/schemas';
 import {
   EditorProjectSchema,
   isSafeId,
@@ -26,7 +26,7 @@ import {
 } from '@motionpop/schemas';
 import { copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
-import { prepareBed } from './bed';
+import { prepareBed, prepareReelBed } from './bed';
 import { loadReelAssets, motionDistDir } from './compile-assets';
 import { contentDisposition } from './headers';
 import { expectedSize, outputIssues } from './output';
@@ -138,7 +138,8 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     // the export goes on with the voice alone rather than failing the whole render.
     let bedSrc: string | null = null;
     try {
-      if (doc.music) bedSrc = await prepareBed(project, compDir);
+      if (project.reel && project.video) bedSrc = await prepareReelBed(project, compDir);
+      else if (doc.music) bedSrc = await prepareBed(project, compDir);
     } catch (e) {
       log.error({ event: 'bed-failed', renderId, error: errorText(e) });
     }
@@ -160,6 +161,25 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         };
       } catch (e) {
         log.error({ event: 'image-missing', renderId, asset: a.id, error: errorText(e) });
+      }
+    }
+
+    // 2c'. Reel pictures (spec 26): logos, illustrations, photos and screenshots the plan uses,
+    // from the owner's media folder only. A missing one draws its template's fallback.
+    const reelImages: Record<string, { src: string; w: number; h: number }> = {};
+    if (project.reel) {
+      const wanted = new Set(reelMediaOf(project.reel).flatMap((m) => (m.asset ? [m.asset] : [])));
+      for (const a of project.assets ?? []) {
+        if (!wanted.has(a.id) || a.status !== 'ready') continue;
+        const hash = mediaHashOf(a.src ?? '');
+        if (!hash) continue;
+        try {
+          const rel = `assets/img-${hash.slice(0, 16)}.webp`;
+          await blobs.download(mediaStoragePath(doc.ownerId, hash), join(compDir, rel));
+          reelImages[a.id] = { src: rel, w: a.width ?? 1024, h: a.height ?? 1024 };
+        } catch (e) {
+          log.error({ event: 'image-missing', renderId, asset: a.id, error: errorText(e) });
+        }
       }
     }
 
@@ -258,6 +278,8 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
               (k) => ({ srcStartMs: k.startMs, srcEndMs: k.endMs }),
             ),
             out: { w: dims.width, h: dims.height },
+            images: reelImages,
+            ...(bedSrc ? { sfxSrc: bedSrc } : {}),
           },
           deps.reelAssets ?? (await loadReelAssets()),
         );

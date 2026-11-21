@@ -13,6 +13,8 @@ export const CreditActionSchema = z.enum([
   'custom',
   /** Film mode (spec 07b): the whole video, priced per started 30 s. */
   'film',
+  /** A directed reel (spec 26): the cloud director's story and scene plan. */
+  'reel',
   'slots-detect',
   'tts',
   'transcribe',
@@ -121,6 +123,7 @@ export const REASON_FOR: Record<CreditAction, CreditReason> = {
   'pip-plan': 'pip-plan',
   custom: 'custom',
   film: 'film',
+  reel: 'reel',
   'slots-detect': 'slots-detect',
   tts: 'tts',
   transcribe: 'transcribe',

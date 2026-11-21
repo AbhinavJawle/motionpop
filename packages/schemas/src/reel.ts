@@ -31,6 +31,19 @@ const icon = z.string().trim().max(40);
 
 const Cued = { at: ms };
 
+/**
+ * A picture a scene wants (spec 26): what to fetch (`query`: a brand name, a domain, a subject)
+ * and, once fetched, the `project.assets` id that holds it. Without `asset` the template draws
+ * its designed fallback, so a reel never shows a broken image.
+ */
+export const ReelMediaSchema = z.object({
+  kind: z.enum(['logo', 'photo', 'illustration', 'screenshot']),
+  query: short(120),
+  asset: z.string().min(1).max(80).optional(),
+});
+export type ReelMedia = z.infer<typeof ReelMediaSchema>;
+const media = ReelMediaSchema.optional();
+
 export const ReelTemplateSchema = z.discriminatedUnion('template', [
   z.object({
     template: z.literal('headline'),
@@ -45,7 +58,7 @@ export const ReelTemplateSchema = z.discriminatedUnion('template', [
     kicker: short(40).optional(),
     title: short(40),
     items: z
-      .array(z.object({ ...Cued, icon, text: short(28) }))
+      .array(z.object({ ...Cued, icon, text: short(28), media }))
       .min(2)
       .max(5),
   }),
@@ -53,7 +66,7 @@ export const ReelTemplateSchema = z.discriminatedUnion('template', [
     template: z.literal('stack'),
     label: short(44),
     words: z
-      .array(z.object({ ...Cued, text: short(18) }))
+      .array(z.object({ ...Cued, text: short(18), media }))
       .min(2)
       .max(5),
   }),
@@ -73,6 +86,8 @@ export const ReelTemplateSchema = z.discriminatedUnion('template', [
     winner: z.enum(['left', 'right', 'none']).default('right'),
     leftIcon: icon.optional(),
     rightIcon: icon.optional(),
+    leftMedia: media,
+    rightMedia: media,
     rows: z
       .array(z.object({ ...Cued, text: short(18) }))
       .max(3)
@@ -138,7 +153,7 @@ export const ReelTemplateSchema = z.discriminatedUnion('template', [
   z.object({
     template: z.literal('flow'),
     steps: z
-      .array(z.object({ ...Cued, icon, text: short(16) }))
+      .array(z.object({ ...Cued, icon, text: short(16), media }))
       .min(2)
       .max(4),
   }),
@@ -150,6 +165,42 @@ export const ReelTemplateSchema = z.discriminatedUnion('template', [
       .max(4),
     /** Words drawn as highlighted links. */
     highlight: z.array(short(24)).max(4).default([]),
+  }),
+  /** One brand, product or app, big (spec 26). */
+  z.object({
+    template: z.literal('logo'),
+    media: ReelMediaSchema,
+    name: short(28),
+    sub: short(48).optional(),
+  }),
+  /** 2–6 brands or tools building on their words. */
+  z.object({
+    template: z.literal('logos'),
+    title: short(40).optional(),
+    items: z
+      .array(z.object({ ...Cued, media: ReelMediaSchema, name: short(20) }))
+      .min(2)
+      .max(6),
+  }),
+  /** A photo or illustration: framed card or full bleed, with kinetic words over it. */
+  z.object({
+    template: z.literal('image'),
+    media: ReelMediaSchema,
+    fit: z.enum(['frame', 'bleed']).default('frame'),
+    kicker: short(40).optional(),
+    title: short(40).optional(),
+    words: z
+      .array(z.object({ ...Cued, text: short(24) }))
+      .max(3)
+      .default([]),
+  }),
+  /** A real web page (screenshot) in a browser frame. */
+  z.object({
+    template: z.literal('website'),
+    media: ReelMediaSchema,
+    url: short(40),
+    headline: short(48).optional(),
+    strikeAt: ms.optional(),
   }),
   /** Speaker overlays (layout `speaker`). */
   z.object({
@@ -179,6 +230,8 @@ export const ReelSceneSchema = z
     bg: ReelBgSchema.optional(),
     /** Small black label at the top of the panel (mono look), e.g. "FRAME BY FRAME". */
     tag: short(28).optional(),
+    /** Continues the previous graphic across a cut (spec 26 R1.5): no entrance replay. */
+    carry: z.boolean().optional(),
     content: ReelTemplateSchema,
   })
   .refine((s) => s.endMs > s.startMs, { message: 'endMs must be > startMs', path: ['endMs'] });
@@ -246,6 +299,48 @@ export function tileReelScenes(scenes: readonly ReelScene[], durationMs: number)
  * cream backgrounds read as light in mono, and the mono-only seam tags and hook band are kept but
  * ignored by cream. Speaker and full scenes are unchanged.
  */
+/** Every picture request in a plan, in scene order (spec 26). */
+export function reelMediaOf(plan: Pick<ReelPlan, 'scenes'>): ReelMedia[] {
+  const out: ReelMedia[] = [];
+  const visit = (v: unknown): void => {
+    if (Array.isArray(v)) v.forEach(visit);
+    else if (v && typeof v === 'object') {
+      const r = ReelMediaSchema.safeParse(v);
+      if (r.success && 'kind' in v && 'query' in v) out.push(v as ReelMedia);
+      else Object.values(v).forEach(visit);
+    }
+  };
+  for (const s of plan.scenes) visit(s.content);
+  return out;
+}
+
+/** Stable key for a picture request (same kind + query → one fetch). */
+export const reelMediaKey = (m: Pick<ReelMedia, 'kind' | 'query'>): string =>
+  `${m.kind}:${m.query.trim().toLowerCase()}`;
+
+/** Returns the plan with each matching request's `asset` set (immutable). */
+export function setReelMediaAssets(
+  plan: ReelPlan,
+  assets: Readonly<Record<string, string>>,
+): ReelPlan {
+  const visit = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(visit);
+    if (v && typeof v === 'object') {
+      if ('kind' in v && 'query' in v && ReelMediaSchema.safeParse(v).success) {
+        const m = v as ReelMedia;
+        const a = assets[reelMediaKey(m)];
+        return a ? { ...m, asset: a } : m;
+      }
+      return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, visit(x)]));
+    }
+    return v;
+  };
+  return {
+    ...plan,
+    scenes: plan.scenes.map((s) => ({ ...s, content: visit(s.content) as ReelTemplate })),
+  };
+}
+
 export function restyleReelPlan(plan: ReelPlan, look: ReelLook): ReelPlan {
   if (plan.look === look) return plan;
   return {

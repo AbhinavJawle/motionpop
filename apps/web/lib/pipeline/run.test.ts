@@ -1,4 +1,10 @@
-import { EditorProjectSchema, timelineIssues, type Word } from '@motionpop/schemas';
+import {
+  EditorProjectSchema,
+  setReelMediaAssets,
+  timelineIssues,
+  type ReelPlan,
+  type Word,
+} from '@motionpop/schemas';
 import { describe, expect, it, vi } from 'vitest';
 import { detectLocal } from '@motionpop/ai';
 import { MemoryAudioStore, type AudioStore } from '../audio/audio-store';
@@ -907,6 +913,60 @@ describe('runPipeline: talking-head reels (spec 25)', () => {
     if (!loaded.ok) throw new Error('not saved');
     expect(loaded.project.reel?.look).toBe('cream');
     expect(loaded.project.reel?.scenes).toHaveLength(1);
+  });
+
+  it('stores the pictures a reel asks for and points the plan at them (spec 26)', async () => {
+    const h = makeHarness();
+    h.deps.directReel = async (i) => ({
+      plan: {
+        v: 1 as const,
+        look: i.look,
+        focus: { x: 0.5, y: 0.32 },
+        captions: true,
+        scenes: [
+          {
+            id: 'r1',
+            startMs: 0,
+            endMs: i.durationMs,
+            layout: 'split' as const,
+            content: {
+              template: 'logo' as const,
+              media: { kind: 'logo' as const, query: 'Acme' },
+              name: 'Acme',
+            },
+          },
+        ],
+      },
+      source: 'cloud' as const,
+    });
+    const asset = {
+      id: 'a1b2c3d4e5f60718',
+      hash: 'a'.repeat(64),
+      status: 'ready' as const,
+      source: 'logo' as const,
+      subject: 'Acme',
+      keyed: false,
+      width: 512,
+      height: 512,
+      src: `media:${'a'.repeat(64)}.webp`,
+    };
+    const resolveReelMedia = vi.fn(async ({ plan }: { plan: ReelPlan }) => ({
+      plan: setReelMediaAssets(plan, { 'logo:acme': asset.id }),
+      assets: [asset],
+    }));
+    h.deps.resolveReelMedia = resolveReelMedia;
+    await runPipeline(
+      makeInput({ file: new Blob(['fake mp4'], { type: 'video/mp4' }), name: 'clip.mp4' }),
+      h.deps,
+      h.onEvent,
+    );
+    expect(resolveReelMedia).toHaveBeenCalledOnce();
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    expect(loaded.project.assets).toEqual([asset]);
+    expect(loaded.project.reel?.scenes[0]?.content).toMatchObject({
+      media: { kind: 'logo', query: 'Acme', asset: asset.id },
+    });
   });
 
   it('honours an explicit styleId override on a video upload', async () => {

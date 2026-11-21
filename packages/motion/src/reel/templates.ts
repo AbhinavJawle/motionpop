@@ -1,7 +1,7 @@
 // Reel engine (spec 25): the hand-crafted scene templates. Each one builds its DOM once and
 // draws any moment from `seek(t)` (absolute ms). The director only chooses a template and fills
 // its props; the craft lives here, so every reel lands at the same quality.
-import type { ReelTemplate } from '@motionpop/schemas';
+import type { ReelMedia, ReelTemplate } from '@motionpop/schemas';
 import {
   applyReveal,
   blurRise,
@@ -16,186 +16,22 @@ import {
   revealAt,
 } from './anim';
 import { check, css, h, icon, svg } from './dom';
-import type { Area, LookTokens, Palette } from './looks';
+import { image, logo, logos, logoTile, website } from './media';
+import {
+  column,
+  ENTER,
+  fit,
+  headingStyle,
+  kickerEl,
+  tagEl,
+  words,
+  type Of,
+  type Tpl,
+  type TplCtx,
+} from './parts';
 
-export interface TplCtx {
-  look: LookTokens;
-  pal: Palette;
-  area: Area;
-  startMs: number;
-  endMs: number;
-  layout: 'split' | 'card' | 'full' | 'speaker';
-}
-
-export interface Tpl {
-  el: HTMLElement;
-  /** Called once after the element is in the document (fonts loaded): measure and fit. */
-  mount?(): void;
-  seek(t: number): void;
-}
-
-type Of<K extends ReelTemplate['template']> = Extract<ReelTemplate, { template: K }>;
-
-const ENTER = 80; // ms after scene start before the first element moves
-
-/** Full-area centred column. */
-function column(
-  ctx: TplCtx,
-  gap: number,
-  extra: Record<string, string | number> = {},
-): HTMLElement {
-  return h('div', {
-    position: 'absolute',
-    left: ctx.area.x,
-    top: ctx.area.y,
-    width: ctx.area.w,
-    height: ctx.area.h,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap,
-    padding: '0 56px',
-    boxSizing: 'border-box',
-    textAlign: 'center',
-    ...extra,
-  });
-}
-
-/** Shrinks `el`'s font size until it fits `maxW` and at most `maxLines` lines. */
-function fit(
-  el: HTMLElement,
-  maxW: number,
-  maxSize: number,
-  minSize: number,
-  maxLines = 1,
-  lineHeight = 1.05,
-): number {
-  let size = maxSize;
-  el.style.maxWidth = `${maxW}px`;
-  for (; size > minSize; size -= 2) {
-    el.style.fontSize = `${size}px`;
-    const lines = Math.round(el.scrollHeight / (size * lineHeight));
-    if (el.scrollWidth <= maxW + 1 && lines <= maxLines) break;
-  }
-  el.style.fontSize = `${size}px`;
-  return size;
-}
-
-function headingStyle(ctx: TplCtx, size: number): Record<string, string | number> {
-  return ctx.look.upper
-    ? {
-        fontFamily: ctx.look.sans,
-        fontWeight: 800,
-        fontSize: size,
-        letterSpacing: '-0.015em',
-        lineHeight: 1.05,
-        textTransform: 'uppercase',
-        color: ctx.pal.ink,
-      }
-    : {
-        fontFamily: ctx.look.serif,
-        fontWeight: 500,
-        fontSize: size,
-        letterSpacing: '-0.025em',
-        lineHeight: 1.02,
-        color: ctx.pal.ink,
-        fontVariationSettings: "'opsz' 72",
-      };
-}
-
-function kickerEl(ctx: TplCtx, text: string): HTMLElement {
-  return ctx.look.upper
-    ? h(
-        'div',
-        {
-          fontFamily: ctx.look.sans,
-          fontWeight: 500,
-          fontSize: 28,
-          color: ctx.pal.dark ? '#BDBDC2' : '#3A3A3A',
-          letterSpacing: '-0.01em',
-        },
-        [text.toLowerCase()],
-      )
-    : h(
-        'div',
-        {
-          fontFamily: ctx.look.sans,
-          fontWeight: 600,
-          fontSize: 17,
-          color: ctx.pal.accent,
-          letterSpacing: '0.2em',
-          textTransform: 'uppercase',
-        },
-        [text],
-      );
-}
-
-/** Black label (mono) or small caps line (cream). */
-export function tagEl(ctx: TplCtx, text: string, size = 22): HTMLElement {
-  return ctx.look.upper
-    ? h(
-        'div',
-        {
-          display: 'inline-block',
-          background: ctx.pal.card,
-          color: ctx.pal.cardInk,
-          fontFamily: ctx.look.sans,
-          fontWeight: 700,
-          fontSize: size,
-          letterSpacing: '0.01em',
-          textTransform: 'uppercase',
-          padding: '6px 11px 5px',
-          lineHeight: 1.15,
-          whiteSpace: 'nowrap',
-        },
-        [text],
-      )
-    : h(
-        'div',
-        {
-          display: 'inline-block',
-          fontFamily: ctx.look.sans,
-          fontWeight: 600,
-          fontSize: Math.round(size * 0.8),
-          color: ctx.pal.accent,
-          letterSpacing: '0.18em',
-          textTransform: 'uppercase',
-          whiteSpace: 'nowrap',
-        },
-        [text],
-      );
-}
-
-/** Splits a title into word spans, marking accent words. */
-function words(
-  ctx: TplCtx,
-  text: string,
-  accent?: string,
-): { el: HTMLElement; spans: HTMLElement[] } {
-  const acc = new Set((accent ?? '').toLowerCase().split(/\s+/).filter(Boolean));
-  const el = h('div', {});
-  const spans: HTMLElement[] = [];
-  text.split(/\s+/).forEach((w, i) => {
-    if (i > 0) el.append(document.createTextNode(' '));
-    const isAcc = acc.has(w.toLowerCase().replace(/[^\p{L}\p{N}%$#]/gu, ''));
-    const s = h('span', { display: 'inline-block', willChange: 'transform, filter, opacity' }, [w]);
-    if (isAcc) {
-      if (ctx.look.upper) css(s, { color: ctx.pal.muted });
-      else
-        css(s, {
-          fontFamily: ctx.look.italic,
-          fontStyle: 'italic',
-          fontWeight: 700,
-          color: ctx.pal.accent,
-          letterSpacing: '-0.02em',
-        });
-    }
-    el.append(s);
-    spans.push(s);
-  });
-  return { el, spans };
-}
+export type { Tpl, TplCtx } from './parts';
+export { tagEl } from './parts';
 
 // ---------------------------------------------------------------------------------------------
 
@@ -249,12 +85,14 @@ function list(p: Of<'list'>, ctx: TplCtx): Tpl {
     gap: ctx.look.upper ? 26 : 22,
   });
   const items = p.items.map((it) => {
-    const ic = icon(
-      it.icon,
-      ctx.look.upper ? 58 : 50,
-      ctx.look.upper ? ctx.pal.ink : ctx.pal.accent,
-      ctx.look.upper ? 1.8 : 1.7,
-    );
+    const ic = it.media
+      ? logoTile(ctx, it.media, it.text, ctx.look.upper ? 64 : 58)
+      : icon(
+          it.icon,
+          ctx.look.upper ? 58 : 50,
+          ctx.look.upper ? ctx.pal.ink : ctx.pal.accent,
+          ctx.look.upper ? 1.8 : 1.7,
+        );
     const label = h(
       'div',
       ctx.look.upper
@@ -315,10 +153,18 @@ function stack(p: Of<'stack'>, ctx: TplCtx): Tpl {
     alignItems: 'center',
     gap: ctx.look.upper ? 6 : 2,
   });
+  const withLogos = p.words.some((w) => w.media);
   const items = p.words.map((w) => {
     const el = h('div', { ...headingStyle(ctx, ctx.look.upper ? 86 : 92), whiteSpace: 'nowrap' }, [
       w.text,
     ]);
+    if (withLogos) {
+      css(el, { display: 'flex', alignItems: 'center', gap: '0.28em' });
+      const tile = logoTile(ctx, w.media, w.text, 72);
+      tile.draw(1);
+      css(tile.el, { width: '0.92em', height: '0.92em', borderRadius: '0.22em' });
+      el.prepend(tile.el);
+    }
     list.append(el);
     return { el, at: w.at };
   });
@@ -456,7 +302,13 @@ function checklist(p: Of<'checklist'>, ctx: TplCtx): Tpl {
   };
 }
 
-function wireframe(ctx: TplCtx, dark: boolean, iconName?: string): HTMLElement {
+function wireframe(
+  ctx: TplCtx,
+  dark: boolean,
+  iconName?: string,
+  media?: ReelMedia,
+  name = '',
+): HTMLElement {
   const bg = dark
     ? ctx.pal.card
     : ctx.pal.dark
@@ -477,7 +329,11 @@ function wireframe(ctx: TplCtx, dark: boolean, iconName?: string): HTMLElement {
     boxSizing: 'border-box',
     ...(ctx.look.upper ? {} : { boxShadow: ctx.pal.shadow }),
   });
-  if (iconName) {
+  if (media) {
+    const tile = logoTile(ctx, media, name, 76);
+    tile.draw(1);
+    box.append(tile.el);
+  } else if (iconName) {
     const ic = icon(iconName, 62, fg, 2);
     ic.draw(1);
     box.append(ic.el);
@@ -523,7 +379,7 @@ function handles(ctx: TplCtx, inner: HTMLElement): HTMLElement {
 function compare(p: Of<'compare'>, ctx: TplCtx): Tpl {
   const col = column(ctx, 34);
   const pair = h('div', { display: 'flex', gap: 26, alignItems: 'flex-start' });
-  const side = (label: string, dark: boolean, ic?: string) => {
+  const side = (label: string, dark: boolean, ic?: string, media?: ReelMedia) => {
     const tag = ctx.look.upper
       ? tagEl(ctx, label, 26)
       : h(
@@ -538,7 +394,7 @@ function compare(p: Of<'compare'>, ctx: TplCtx): Tpl {
           },
           [label],
         );
-    const card = wireframe(ctx, dark, ic);
+    const card = wireframe(ctx, dark, ic, media, label);
     const body = ctx.look.upper ? handles(ctx, card) : card;
     const wrap = h(
       'div',
@@ -547,8 +403,8 @@ function compare(p: Of<'compare'>, ctx: TplCtx): Tpl {
     );
     return { wrap, tag, body };
   };
-  const L = side(p.left, p.winner === 'left', p.leftIcon);
-  const R = side(p.right, p.winner === 'right' || p.winner === 'none', p.rightIcon);
+  const L = side(p.left, p.winner === 'left', p.leftIcon, p.leftMedia);
+  const R = side(p.right, p.winner === 'right' || p.winner === 'none', p.rightIcon, p.rightMedia);
   pair.append(L.wrap, R.wrap);
   const rows = h('div', {
     display: 'flex',
@@ -1323,8 +1179,20 @@ function flow(p: Of<'flow'>, ctx: TplCtx): Tpl {
       justifyContent: 'center',
       background: 'transparent',
     });
+    const pic = ctx.img(st.media);
     const ic = icon(st.icon, size * 0.44, ctx.pal.ink, 1.8);
-    circle.append(ic.el);
+    if (pic) {
+      css(circle, { background: '#FFFFFF', borderColor: ctx.pal.line });
+      const inner = size * 0.5;
+      const k = Math.min(inner / pic.w, inner / pic.h);
+      circle.append(
+        h('img', { width: Math.round(pic.w * k), height: Math.round(pic.h * k) }, [], {
+          src: pic.src,
+          alt: '',
+          decoding: 'sync',
+        }),
+      );
+    } else circle.append(ic.el);
     const label = h(
       'div',
       {
@@ -1381,7 +1249,7 @@ function flow(p: Of<'flow'>, ctx: TplCtx): Tpl {
       arrow = { el, line, head };
     }
     row.append(cell);
-    return { circle, ic, label, cell, arrow, at: st.at };
+    return { circle, ic, label, cell, arrow, at: st.at, logo: !!pic };
   });
   col.append(row);
   const t0 = ctx.startMs + ENTER;
@@ -1406,6 +1274,11 @@ function flow(p: Of<'flow'>, ctx: TplCtx): Tpl {
       });
       steps.forEach((s, i) => {
         const on = i === cur;
+        if (s.logo) {
+          // Logos stay on white; the current step gets a heavier ring instead of a fill.
+          s.circle.style.boxShadow = on ? `0 0 0 4px ${ctx.pal.ink}` : 'none';
+          return;
+        }
         s.circle.style.background = on ? ctx.pal.ink : 'transparent';
         s.ic.el.setAttribute('stroke', on ? ctx.pal.bg : ctx.pal.ink);
       });
@@ -1700,6 +1573,39 @@ const BUILDERS: { [K in ReelTemplate['template']]: (p: Of<K>, ctx: TplCtx) => Tp
   punch,
   cta,
   none,
+  logo,
+  logos,
+  // Pictures fall back to a text template when the picture is missing (spec 26 R2.3).
+  image: (p, ctx) => {
+    const pic = ctx.img(p.media);
+    if (pic) return image(p, ctx, pic);
+    const words = p.words.map((w) => w.text);
+    const title = p.title ?? words.shift();
+    return title
+      ? headline(
+          {
+            template: 'headline',
+            title,
+            ...(p.kicker ? { kicker: p.kicker } : {}),
+            ...(words.length ? { sub: words.join(' · ') } : {}),
+          },
+          ctx,
+        )
+      : none({ template: 'none' }, ctx);
+  },
+  website: (p, ctx) => {
+    const pic = ctx.img(p.media);
+    if (pic) return website(p, ctx, pic);
+    return browser(
+      {
+        template: 'browser',
+        url: p.url,
+        headline: p.headline ?? p.url,
+        ...(p.strikeAt !== undefined ? { strikeAt: p.strikeAt } : {}),
+      },
+      ctx,
+    );
+  },
 };
 
 export function buildTemplate(content: ReelTemplate, ctx: TplCtx): Tpl {

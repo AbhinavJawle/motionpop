@@ -11,6 +11,7 @@ import {
   voiceLevelDb,
   type BedMusic,
 } from '@motionpop/motion/sfx';
+import { reelBed } from '@motionpop/motion/reel';
 import { audioOf, type EditorProject } from '@motionpop/schemas';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -41,5 +42,27 @@ export async function prepareBed(project: EditorProject, compDir: string): Promi
   });
   if (!bed) return null;
   await writeFile(join(compDir, BED_ASSET), encodeWav16(bed.samples, SFX_SAMPLE_RATE));
+  return BED_ASSET;
+}
+
+/**
+ * The reel's sound design (spec 26 R4.1): effects on every reveal from the plan, plus the
+ * project's synthesized music when one is chosen, mixed under the re-encoded voice.
+ */
+export async function prepareReelBed(
+  project: EditorProject,
+  compDir: string,
+): Promise<string | null> {
+  if (!project.reel) return null;
+  const audio = audioOf(project);
+  const voice = decodeWav16(await readFile(join(compDir, 'assets', 'voice.wav')));
+  if (!voice) throw new Error('the re-encoded voice is not a 16-bit WAV');
+  const samples = reelBed(project.reel, project.durationMs, {
+    voiceLevelDb: voiceLevelDb(voice.samples, voice.sampleRate, project.transcript.words),
+    words: project.transcript.words,
+    sfx: audio.autoSfx !== false,
+    music: isSynth(audio.musicId) ? audio.musicId : null,
+  });
+  await writeFile(join(compDir, BED_ASSET), encodeWav16(samples, SFX_SAMPLE_RATE));
   return BED_ASSET;
 }

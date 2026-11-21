@@ -17,7 +17,9 @@ import {
   EditorProjectSchema,
   cleanedDurationFromSegments,
   keptSourceSegments,
+  reelMediaOf,
   type EditorProject,
+  type ImageAsset,
   type Format,
   type Look,
   type MediaClip,
@@ -141,6 +143,17 @@ export interface PipelineDeps {
     words: readonly ReelWord[];
     durationMs: number;
   }): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }>;
+  /**
+   * Fetches the pictures a reel plan asks for (spec 26: logos, illustrations, photos, site
+   * screenshots) and stores them as project assets. Optional; without it the templates draw
+   * their fallbacks.
+   */
+  resolveReelMedia?(params: {
+    plan: ReelPlan;
+    look: ReelLook;
+    projectId: string;
+    onProgress?: (done: number, total: number) => void;
+  }): Promise<{ plan: ReelPlan; assets: ImageAsset[] }>;
   /** Optional extra-clip ingester for B-roll / screen-recordings / screenshots dropped on /start (spec 20). */
   ingestExtraClip?(clip: PendingExtraClip, projectId: string): Promise<MediaClip | null>;
   /** `imagesPerVideoMax` (Remote Config). */
@@ -325,8 +338,33 @@ export async function runPipeline(
         ? deps.directReel({ look, words, durationMs: reelMs }).catch(() => null)
         : Promise.resolve(null));
       checkAbort();
-      const reel = directed?.plan ?? autoReelPlan(words, reelMs, look);
+      let reel = directed?.plan ?? autoReelPlan(words, reelMs, look);
       const source = directed?.source ?? 'auto';
+      // The pictures the plan asks for (spec 26). A failure keeps the plan: every media
+      // template has a designed fallback.
+      let reelAssets: ImageAsset[] = [];
+      if (deps.resolveReelMedia && reelMediaOf(reel).length > 0) {
+        onEvent({ type: 'step', step, state: 'active', detail: 'Finding logos and pictures' });
+        const media = await deps
+          .resolveReelMedia({
+            plan: reel,
+            look,
+            projectId: id,
+            onProgress: (done, total) =>
+              onEvent({
+                type: 'step',
+                step: 'plan',
+                state: 'active',
+                detail: `Finding logos and pictures (${done}/${total})`,
+              }),
+          })
+          .catch(() => null);
+        checkAbort();
+        if (media) {
+          reel = media.plan;
+          reelAssets = media.assets;
+        }
+      }
 
       checkAbort();
       const written: string[] = [];
@@ -383,6 +421,7 @@ export async function runPipeline(
             defaultOverlayAnchor: 'top-right',
           },
           reel,
+          ...(reelAssets.length ? { assets: reelAssets } : {}),
           transcript: transcript(reelWords, videoCuts.length > 0),
           originalTranscript: transcript(t.words, false),
           slots: [],

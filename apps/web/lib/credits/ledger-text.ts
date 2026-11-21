@@ -15,6 +15,7 @@ export const REASON_TEXT: Record<CreditReason, string> = {
   'pip-plan': 'Pip plan',
   custom: 'Custom graphic',
   film: 'Made a film',
+  reel: 'Directed a reel',
   'slots-detect': 'Found moments',
   tts: 'Generated a voice',
   transcribe: 'Transcribed audio',

@@ -1,4 +1,6 @@
-import { detectLocal, directReel, directVideo, planVideo } from '@motionpop/ai';
+import { detectLocal, directVideo, planVideo } from '@motionpop/ai';
+import type { CreditsClient } from '../credits/client';
+import { directReelPaid, resolveReelMedia } from '../reel/media';
 import { requestPlanAllowance } from '../ai/plan-allowance';
 import { getRouter } from '../ai/router-client';
 import { appAudioStore } from '../audio/app-audio-store';
@@ -22,8 +24,13 @@ export function newProjectId(): string {
   return `p-${Array.from(bytes, (b) => (b % 36).toString(36)).join('')}`;
 }
 
-/** The real pipeline dependencies in the browser: Whisper worker, Web Audio, IndexedDB. */
-export function browserPipelineDeps(): PipelineDeps {
+/**
+ * The real pipeline dependencies in the browser: Whisper worker, Web Audio, IndexedDB. With a
+ * credits client, reels use the cloud director and generate illustrations (charged, spec 26);
+ * without one they use the free director and free pictures only (logos, screenshots).
+ */
+export function browserPipelineDeps(opts: { credits?: CreditsClient | null } = {}): PipelineDeps {
+  const credits = opts.credits ?? null;
   return {
     decode: decodeForPipeline,
     transcribe: async (pcm16k, durationMs, onProgress) => {
@@ -60,7 +67,9 @@ export function browserPipelineDeps(): PipelineDeps {
         ...params,
         model: 'gemini-3.8-flash',
       }),
-    directReel: async (params) => directReel(await getRouter().catch(() => null), params),
+    directReel: (params) => directReelPaid({ ...params, refId: 'reel' }, { credits }),
+    resolveReelMedia: ({ plan, look, projectId, onProgress }) =>
+      resolveReelMedia(plan, look, projectId, { credits }, onProgress),
     ingestExtraClip: async (clip, projectId) => {
       const store = appAudioStore();
       const blob = await store.get(clip.ref);

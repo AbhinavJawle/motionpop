@@ -13,7 +13,8 @@
     "./sfx/wav": "./src/sfx/wav.ts",
     "./testing/project-fixture": "./src/testing/project-fixture.ts",
     "./dist/*": "./dist/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./reel-query": "./src/reel/media-query.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
@@ -48,6 +49,7 @@
     "happy-dom": "^21.0.4",
     "katex": "0.16.11",
     "puppeteer": "~25.13.0",
+    "sharp": "0.35.5",
     "three": "0.159.0",
     "typescript": "catalog:",
     "vitest": "catalog:"

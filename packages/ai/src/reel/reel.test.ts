@@ -85,21 +85,27 @@ describe('toReelPlan', () => {
           fromWord: 0,
           toWord: 6,
           layout: 'split',
-          template: 'headline',
-          title: 'Thought of the day',
+          graphic: { template: 'headline', title: 'Thought of the day' },
         },
         {
           fromWord: 7,
           toWord: 19,
           layout: 'split',
-          template: 'list',
-          title: 'The plan',
-          items: [
-            { word: 19, text: 'Learn', icon: 'graduation-cap' },
-            { word: 20, text: 'Build', icon: 'nope-not-an-icon' },
-          ],
+          graphic: {
+            template: 'list',
+            title: 'The plan',
+            items: [
+              { word: 19, text: 'Learn', icon: 'graduation-cap' },
+              { word: 20, text: 'Build', icon: 'nope-not-an-icon' },
+            ],
+          },
         },
-        { fromWord: 20, toWord: 30, layout: 'split', template: 'punch', text: 'Ship it' },
+        {
+          fromWord: 20,
+          toWord: 30,
+          layout: 'split',
+          graphic: { template: 'punch', text: 'Ship it' },
+        },
       ],
     };
     const plan = toReelPlan(out, ws, dur, 'mono', 'test');
@@ -119,14 +125,133 @@ describe('toReelPlan', () => {
   it('turns an unusable scene into a speaker shot and swaps layouts per look', () => {
     const out: ReelDirectOutput = {
       scenes: [
-        { fromWord: 0, toWord: 6, layout: 'split', template: 'headline', title: 'Hello' },
-        { fromWord: 7, toWord: 30, layout: 'split', template: 'chart' }, // no points
+        {
+          fromWord: 0,
+          toWord: 6,
+          layout: 'split',
+          graphic: { template: 'headline', title: 'Hello' },
+        },
+        // A chart with no points can't be drawn.
+        {
+          fromWord: 7,
+          toWord: 30,
+          layout: 'split',
+          graphic: { template: 'chart', title: 'Up', items: [] },
+        },
       ],
     };
     const plan = toReelPlan(out, ws, dur, 'cream', 'test');
     expectTiled(plan, dur);
     expect(plan.scenes[0]!.layout).toBe('card');
     expect(plan.scenes[1]!).toMatchObject({ layout: 'speaker', content: { template: 'none' } });
+  });
+
+  it('turns brands, sites and pictures into media requests (spec 26)', () => {
+    const out: ReelDirectOutput = {
+      brands: [{ name: 'Acme', domain: 'acme.test' }],
+      scenes: [
+        { fromWord: 0, toWord: 5, layout: 'split', graphic: { template: 'logo', brand: 'Acme' } },
+        {
+          fromWord: 6,
+          toWord: 12,
+          layout: 'full',
+          graphic: {
+            template: 'image',
+            kind: 'illustration',
+            subject: 'a half-built bridge',
+            fit: 'frame',
+          },
+        },
+        {
+          fromWord: 13,
+          toWord: 20,
+          layout: 'split',
+          graphic: { template: 'website', domain: 'https://acme.test/' },
+        },
+      ],
+    };
+    const plan = toReelPlan(out, ws, dur, 'mono', 'test');
+    expect(plan.scenes[0]!.content).toMatchObject({
+      template: 'logo',
+      name: 'Acme',
+      media: { kind: 'logo', query: 'Acme|acme.test' },
+    });
+    expect(plan.scenes[1]!.content).toMatchObject({
+      template: 'image',
+      media: { kind: 'illustration', query: 'a half-built bridge' },
+    });
+    expect(plan.scenes[2]!.content).toMatchObject({
+      template: 'website',
+      url: 'acme.test',
+      media: { kind: 'screenshot', query: 'acme.test' },
+    });
+  });
+
+  it('carries a list across other scenes, keeping the shown items on their first cues', () => {
+    const out: ReelDirectOutput = {
+      scenes: [
+        {
+          fromWord: 0,
+          toWord: 8,
+          layout: 'split',
+          graphic: {
+            template: 'list',
+            title: 'Steps',
+            items: [
+              { word: 2, text: 'Learn' },
+              { word: 5, text: 'Build' },
+            ],
+          },
+        },
+        { fromWord: 9, toWord: 12, layout: 'speaker', graphic: { template: 'none' } },
+        {
+          fromWord: 13,
+          toWord: 16,
+          layout: 'split',
+          graphic: { template: 'headline', title: 'Wait' },
+        },
+        {
+          fromWord: 17,
+          toWord: 30,
+          layout: 'split',
+          carry: true,
+          // The model re-cued "Learn" here and left "Build" out: both come back on their old cues.
+          graphic: {
+            template: 'list',
+            title: 'Steps',
+            items: [
+              { word: 17, text: 'Learn' },
+              { word: 19, text: 'Ship' },
+            ],
+          },
+        },
+      ],
+    };
+    const plan = toReelPlan(out, ws, dur, 'mono', 'test');
+    const first = plan.scenes[0]!.content;
+    const last = plan.scenes.at(-1)!;
+    expect(last.carry).toBe(true);
+    if (first.template === 'list' && last.content.template === 'list') {
+      expect(last.content.items.map((i) => i.text)).toEqual(['Learn', 'Build', 'Ship']);
+      expect(last.content.items[0]!.at).toBe(first.items[0]!.at);
+      expect(last.content.items[1]!.at).toBe(first.items[1]!.at);
+      expect(last.content.items[2]!.at).toBeGreaterThanOrEqual(last.startMs);
+    } else throw new Error('expected lists');
+  });
+
+  it('decodes URL-encoded counter symbols', () => {
+    const out: ReelDirectOutput = {
+      scenes: [
+        {
+          fromWord: 0,
+          toWord: 30,
+          layout: 'split',
+          graphic: { template: 'counter', value: 100000, label: 'Skills', suffix: '%2B' },
+        },
+      ],
+    };
+    const c = toReelPlan(out, ws, dur, 'mono', 'test').scenes[0]!.content;
+    expect(c).toMatchObject({ template: 'counter', suffix: '+' });
   });
 });
 

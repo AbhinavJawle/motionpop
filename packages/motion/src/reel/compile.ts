@@ -33,6 +33,8 @@ export interface ReelCompileInput {
   out?: { w: number; h: number };
   /** Optional sound bed / SFX track (relative path), mixed under the voice. */
   sfxSrc?: string;
+  /** Pictures by asset id, with composition-relative `src` (spec 26). */
+  images?: ReelData['images'];
 }
 
 /** Font faces the reel needs, with the weights each file covers. */
@@ -83,7 +85,13 @@ export function compileReel(input: ReelCompileInput, assets: ReelCompileAssets):
     at += dur;
     return el;
   });
-  const data: ReelData = { plan, words: [...input.words], durationMs, video: input.video };
+  const data: ReelData = {
+    plan,
+    words: [...input.words],
+    durationMs,
+    video: input.video,
+    ...(input.images ? { images: input.images } : {}),
+  };
   const sfx = input.sfxSrc
     ? `\n    <audio id="sfx" class="clip" data-start="0" data-duration="${sec(durationMs)}" data-track-index="2" data-volume="1" src="${attr(input.sfxSrc)}"></audio>`
     : '';

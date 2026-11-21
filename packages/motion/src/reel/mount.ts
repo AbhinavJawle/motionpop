@@ -1,11 +1,13 @@
 // Reel engine (spec 25): mounts a reel into a host element and draws any moment from
 // `seek(ms)`. The same code runs in the editor preview (native <video>, real-time) and inside the
 // HyperFrames composition for export (frame-exact), so the preview is the export.
-import type { ReelPlan, ReelScene, ReelWord } from '@motionpop/schemas';
+import type { ReelMedia, ReelPlan, ReelScene, ReelWord } from '@motionpop/schemas';
 import { clamp, easeOutCubic, lerp, prog, revealAt } from './anim';
 import { chunkAt, chunkCaptions, type CaptionChunk } from './captions';
 import { css, h } from './dom';
 import { graphicArea, LOOKS, STAGE_H, STAGE_W, type LookTokens, type Palette } from './looks';
+import type { ReelImage } from './parts';
+import { carryOrigins } from './carry';
 import { buildTemplate, tagEl, type Tpl } from './templates';
 
 export interface ReelData {
@@ -15,6 +17,8 @@ export interface ReelData {
   durationMs: number;
   /** Intrinsic size of the speaker video. */
   video: { w: number; h: number };
+  /** Pictures by `project.assets` id (spec 26): composition-relative or blob URLs. */
+  images?: Record<string, ReelImage>;
 }
 
 export interface ReelHandle {
@@ -190,8 +194,19 @@ export function mountReel(
   let built = false;
   let lastMs = 0;
 
+  const images = data.images ?? {};
+  const img = (m: ReelMedia | undefined): ReelImage | null =>
+    m?.asset ? (images[m.asset] ?? null) : null;
+  // A carried scene (spec 26 R1.5) continues the last graphic with the same template across a
+  // speaker cut: it is built as if it started with that graphic, so items already revealed stay
+  // revealed and nothing replays its entrance.
+  const origins = carryOrigins(scenes);
+  const originOf = (s: ReelScene): number => origins.get(s) ?? s.startMs;
+
   const build = () => {
-    for (const s of scenes) {
+    for (const s0 of scenes) {
+      const origin = originOf(s0);
+      const s = origin === s0.startMs ? s0 : { ...s0, startMs: origin };
       const pal = sceneBg(look, s);
       const layout = s.layout;
       const isOverlay = layout === 'speaker';
@@ -221,12 +236,17 @@ export function mountReel(
         startMs: s.startMs,
         endMs: s.endMs,
         layout,
+        img,
       });
       cam.append(tpl.el);
       sceneHost.append(cam);
       let tag: HTMLElement | undefined;
       if (s.tag && !isOverlay) {
-        tag = tagEl({ look, pal, area, startMs: s.startMs, endMs: s.endMs, layout }, s.tag, 22);
+        tag = tagEl(
+          { look, pal, area, startMs: s.startMs, endMs: s.endMs, layout, img },
+          s.tag,
+          22,
+        );
         css(tag, { position: 'absolute', left: '50%', top: 40, transform: 'translateX(-50%)' });
         const tagWrap = h('div', {
           position: 'absolute',
@@ -239,7 +259,7 @@ export function mountReel(
         sceneHost.append(tagWrap);
       }
       (isOverlay ? over : panel).append(sceneHost);
-      views.push({ scene: s, host: sceneHost, tpl, pal, ...(tag ? { tag } : {}) });
+      views.push({ scene: s0, host: sceneHost, tpl, pal, ...(tag ? { tag } : {}) });
     }
     // Measure with everything laid out but invisible.
     for (const v of views) {
@@ -316,7 +336,11 @@ export function mountReel(
 
   const placeCaption = (s: ReelScene, pal: Palette, t: number) => {
     const i = chunkAt(chunks, t);
-    const hide = i < 0 || (look.id === 'cream' && s.content.template === 'punch');
+    // Captions step aside for the CTA card (both looks) and for cream punchlines.
+    const hide =
+      i < 0 ||
+      s.content.template === 'cta' ||
+      (look.id === 'cream' && s.content.template === 'punch');
     if (hide) {
       cap.style.visibility = 'hidden';
       return;
@@ -390,12 +414,13 @@ export function mountReel(
       // The hook is already on screen at frame 0 (the thumbnail and the first swipe-stop).
       const lt = idx === 0 ? t + HOOK_LEAD_MS : t;
       v.tpl.seek(lt);
-      if (v.tag) revealAt(v.tag, lt, s.startMs + 40, 320, 0, 8);
+      const o = originOf(s);
+      if (v.tag) revealAt(v.tag, lt, o + 40, 320, 0, 8);
       // Gentle camera drift on graphic panels.
       if (s.layout !== 'speaker') {
         const cam = v.host.firstElementChild as HTMLElement;
-        const span = Math.max(1, s.endMs - s.startMs);
-        const z = lerp(1, 1.018, clamp((t - s.startMs) / span));
+        const span = Math.max(1, s.endMs - o);
+        const z = lerp(1, 1.018, clamp((t - o) / span));
         cam.style.transform = `scale(${z.toFixed(4)})`;
       }
     });
@@ -429,6 +454,12 @@ export function mountReel(
       await fonts.ready;
     }
     build();
+    // Every picture is decoded before the first frame is drawn (the export waits on `ready`).
+    await Promise.all(
+      Array.from(host.querySelectorAll('img')).map((im) =>
+        im.decode ? im.decode().catch(() => undefined) : undefined,
+      ),
+    );
     draw(lastMs);
   })();
 

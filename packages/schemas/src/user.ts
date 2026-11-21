@@ -64,6 +64,7 @@ export const CreditReasonSchema = z.enum([
   'edit',
   'image',
   'film',
+  'reel',
 ]);
 export type CreditReason = z.infer<typeof CreditReasonSchema>;
 

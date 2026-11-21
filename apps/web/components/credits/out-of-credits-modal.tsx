@@ -19,6 +19,7 @@ export const ACTION_LABEL: Record<ClientCreditAction, string> = {
   'pip-plan': 'A Pip plan',
   custom: 'A custom graphic',
   film: 'A film',
+  reel: 'A directed reel',
   'slots-detect': 'Finding moments',
   tts: 'Voice generation',
   transcribe: 'Transcription',

@@ -9,7 +9,7 @@ export const ImageAssetSchema = z.object({
   /** sha256 of (model, recipe version, subject, aspect); identical requests reuse the asset. */
   hash: z.string().regex(/^[0-9a-f]{64}$/),
   status: z.enum(['pending', 'ready', 'failed']),
-  source: z.enum(['generated', 'upload', 'openverse']),
+  source: z.enum(['generated', 'upload', 'openverse', 'logo', 'stock', 'screenshot']),
   subject: z.string().min(1).max(120),
   /** True when the background was keyed out; false = shown as a framed photo. */
   keyed: z.boolean(),

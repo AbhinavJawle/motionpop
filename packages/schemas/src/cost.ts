@@ -14,6 +14,7 @@ export const DEFAULT_COSTS: Readonly<Record<PricedAction, number>> = {
   custom: 3,
   // Per started 30 s of voiceover (`filmUnits`): the Director, every beat and its repairs.
   film: 5,
+  reel: 3,
   'slots-detect': 1,
   tts: 2,
   transcribe: 1,

@@ -3,6 +3,8 @@
 //
 //   npx tsx scripts/reel-dev.ts render <video> <words.json> <plan.json> <out.mp4> [--quality draft|standard|high]
 //   npx tsx scripts/reel-dev.ts sheet  <video> <words.json> <plan.json> <out.jpg> [--every 1000]
+//   both take [--images images.json] ({ assetId: { file, w, h } }, from reel-media-lab.ts)
+//   and [--sfx bed.wav]
 //
 // words.json: [{ text, startMs, endMs }]. plan.json: a ReelPlan.
 import { execFileSync } from 'node:child_process';
@@ -12,6 +14,8 @@ import { join, resolve } from 'node:path';
 import { ReelPlanSchema, ReelWordSchema, tileReelScenes } from '@motionpop/schemas';
 import { z } from 'zod';
 import { compileReel } from '../src/reel/compile.ts';
+import { reelBed, reelSfx } from '../src/reel/sound.ts';
+import { SFX_SAMPLE_RATE, encodeWav16, voiceLevelDb } from '../src/sfx/index.ts';
 
 const [cmd, videoArg, wordsArg, planArg, outArg, ...rest] = process.argv.slice(2);
 if (!cmd || !videoArg || !wordsArg || !planArg || !outArg) {
@@ -59,6 +63,40 @@ const plan = { ...rawPlan, scenes: tileReelScenes(rawPlan.scenes, durationMs) };
 
 const dir = mkdtempSync(join(tmpdir(), 'mp-reel-'));
 copyFileSync(videoArg, join(dir, 'speaker.mp4'));
+const imagesArg = flag('images', '');
+const images: Record<string, { src: string; w: number; h: number }> = {};
+if (imagesArg) {
+  mkdirSync(join(dir, 'assets'), { recursive: true });
+  const map = JSON.parse(readFileSync(imagesArg, 'utf8')) as Record<
+    string,
+    { file: string; w: number; h: number }
+  >;
+  for (const [id, m] of Object.entries(map)) {
+    const rel = `assets/${id}.png`;
+    copyFileSync(m.file, join(dir, rel));
+    images[id] = { src: rel, w: m.w, h: m.h };
+  }
+}
+let sfxArg = flag('sfx', '');
+if (sfxArg) copyFileSync(sfxArg, join(dir, 'bed.wav'));
+else if (rest.includes('--sound')) {
+  // The reel's own sound design (spec 26 R4), measured against the video's voice.
+  const pcm = execFileSync(
+    'ffmpeg',
+    ['-v', 'error', '-i', videoArg, '-ac', '1', '-ar', String(SFX_SAMPLE_RATE), '-f', 'f32le', '-'],
+    { maxBuffer: 1 << 30 },
+  );
+  const voice = new Float32Array(pcm.buffer, pcm.byteOffset, pcm.byteLength / 4);
+  const music = flag('music', '');
+  const bed = reelBed(plan, durationMs, {
+    voiceLevelDb: voiceLevelDb(voice, SFX_SAMPLE_RATE, words),
+    words,
+    music: music ? (music as 'calm-pad' | 'steady-pulse') : null,
+  });
+  writeFileSync(join(dir, 'bed.wav'), encodeWav16(bed, SFX_SAMPLE_RATE));
+  sfxArg = 'bed.wav';
+  console.log(`sound: ${reelSfx(plan, durationMs).length} effects${music ? ` + ${music}` : ''}`);
+}
 const html = compileReel(
   {
     plan,
@@ -67,6 +105,8 @@ const html = compileReel(
     videoSrc: 'speaker.mp4',
     video: { w: vw, h: vh },
     out: cmd === 'sheet' ? { w: 720, h: 1280 } : { w: 1080, h: 1920 },
+    ...(imagesArg ? { images } : {}),
+    ...(sfxArg ? { sfxSrc: 'bed.wav' } : {}),
   },
   assets,
 );

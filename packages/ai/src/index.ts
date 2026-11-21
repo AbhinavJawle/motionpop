@@ -29,4 +29,4 @@ export * from './cache';
 export * from './slots/chunk-detect';
 export * from './reel/director';
 export * from './reel/auto';
-export { REEL_DIRECT_SYSTEM_V1, reelDirectPromptV1 } from './reel/prompt';
+export { REEL_DIRECT_SYSTEM_V3, reelDirectPromptV3 } from './reel/prompt';

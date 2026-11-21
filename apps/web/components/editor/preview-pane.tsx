@@ -1,6 +1,12 @@
 'use client';
 
-import { DEFAULT_CAPTIONS, type CaptionsSetting, type Format } from '@motionpop/schemas';
+import {
+  APP_CONFIG_DEFAULTS,
+  DEFAULT_CAPTIONS,
+  costOf,
+  type CaptionsSetting,
+  type Format,
+} from '@motionpop/schemas';
 import { ChevronDown, PenLine, RefreshCw, Scan } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassToolbar, ToolbarDivider } from '@/components/ui/glass-toolbar';
@@ -9,6 +15,7 @@ import { Toggle } from '@/components/ui/toggle';
 import { Dropdown, type DropdownOption } from '@/components/ui/dropdown';
 import { setCaptions, setReelCaptions, setReelLook } from '@/lib/commands';
 import { regenerateReel } from '@/lib/reel/regenerate';
+import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import { Tooltip } from '@/components/ui/tooltip';
 import { slotAt } from '@/lib/notes/active-slot';
 import { styleFor } from '@/lib/composition/project-to-compile';
@@ -90,6 +97,7 @@ function ReelTools() {
   const captions = useEditor((s) => s.project?.reel?.captions ?? true);
   const exec = useEditor((s) => s.exec);
   const [busy, setBusy] = useState(false);
+  const { client: credits } = useCreditsClient();
   return (
     <>
       <div className="flex items-center gap-2 pr-3.5 pl-3.5">
@@ -113,13 +121,16 @@ function ReelTools() {
         />
       </div>
       <ToolbarDivider />
-      <Tooltip content="Direct the reel again · ☁ 3 credits" side="bottom">
+      <Tooltip
+        content={`Direct the reel again · ☁ ${costOf('reel', 1, APP_CONFIG_DEFAULTS)} credits + ${costOf('image', 1, APP_CONFIG_DEFAULTS)} per new picture`}
+        side="bottom"
+      >
         <button
           type="button"
           disabled={busy}
           onClick={() => {
             setBusy(true);
-            regenerateReel()
+            regenerateReel({ credits })
               .then((source) =>
                 toast(source === 'cloud' ? 'New direction ready' : 'New direction (free director)'),
               )

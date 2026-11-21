@@ -27,6 +27,8 @@ const ALLOWED = new Set([
   'lib/slots/custom.ts',
   // A painted picture (spec 07 R4): imageCredits each, refunded when it fails.
   'lib/images/generate.ts',
+  // Spec 26: the cloud reel director and reel illustrations.
+  'lib/reel/media.ts',
   'lib/slots/custom.ts',
   // The credits layer itself.
   'lib/credits/spend-with-ui.ts',
