@@ -11,6 +11,7 @@ import {
 import { markAutoChoreograph } from '@/lib/film/auto-choreograph';
 import {
   APP_CONFIG_DEFAULTS,
+  DEFAULT_AUDIO,
   DEFAULT_CAPTIONS,
   EditorProjectSchema,
   cleanedDurationFromSegments,
@@ -206,9 +207,6 @@ export async function runPipeline(
   try {
     // The project id comes first, so every write of this run can be filed under it (design §2.4).
     const id = deps.newId();
-    const isVideoUpload = input.file.type.startsWith('video/');
-    // Video uploads default to crisp Studio Light (spec 24 R5.2) unless the creator picked another look.
-    const styleId = input.styleId ?? (isVideoUpload ? 'studio-light' : deps.styleId);
     const cleanupOn = input.cleanup ?? true;
 
     // Intake (R1).
@@ -217,7 +215,10 @@ export async function runPipeline(
       type: input.file.type,
       size: input.file.size,
     });
-    if (!intake.ok) rejectFile(intake.message);
+    if (!intake.ok) return rejectFile(intake.message);
+    const isVideoInput = intake.kind === 'video';
+    // Video uploads default to crisp Studio Light (spec 24 R5.2) unless the creator picked another look.
+    const styleId = input.styleId ?? (isVideoInput ? 'studio-light' : deps.styleId);
 
     step = 'transcribe';
     onEvent({ type: 'step', step, state: 'active' });
@@ -257,7 +258,6 @@ export async function runPipeline(
     // Clean (R3) + Video editorial directing (spec 18 R4).
     step = 'clean';
     onEvent({ type: 'step', step, state: 'active' });
-    const isVideoInput = input.file.type.startsWith('video/');
     let videoProbe: VideoProbeResult | null = null;
     if (isVideoInput && deps.probeVideo) {
       videoProbe = await deps.probeVideo(input.file).catch(() => null);
@@ -451,7 +451,7 @@ export async function runPipeline(
         timingQuality: t.timingQuality,
         cleaned,
       });
-      const project: EditorProject = EditorProjectSchema.parse({
+      const candidate = {
         schemaVersion: 1,
         id,
         title: input.title?.trim().slice(0, 80) || titleFrom(input.name),
@@ -485,21 +485,20 @@ export async function runPipeline(
           ? { captions: { ...DEFAULT_CAPTIONS, enabled: false } }
           : videoTrack
             ? {
-                captions: { enabled: true, presetId: 'studio' as const },
+                captions: { enabled: true, presetId: 'studio' },
+                // Absent `musicId` = no background music bed (spec 24 R5.2 + MusicIdSchema).
                 audio: {
-                  musicId: 'none' as const,
+                  ...DEFAULT_AUDIO,
                   musicGainDb: -22,
-                  ducking: true,
                   duckDepthDb: 10,
                   autoSfx: true,
-                  sfxGainDb: 0,
-                  sfxSeed: 0,
                 },
               }
             : {}),
         createdAt: now,
         updatedAt: now,
-      });
+      } satisfies EditorProject;
+      const project: EditorProject = EditorProjectSchema.parse(candidate);
       await deps.repo.save(project);
       if (videoTrack) markAutoChoreograph(id);
       // The project owns its own copy now; the hand-off's local take can go.

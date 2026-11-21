@@ -830,3 +830,61 @@ describe('runPipeline: a single graphic', () => {
     await expect(runPipeline(makeInput(), h.deps, h.onEvent)).rejects.toThrow();
   });
 });
+
+describe('runPipeline: video upload defaults (spec 24)', () => {
+  it('saves a valid 9:16 video project with studio-light, studio captions, autoSfx and no musicId', async () => {
+    const h = makeHarness();
+    h.deps.probeVideo = vi.fn(async () => ({
+      width: 1080,
+      height: 1920,
+      durationMs: CUT_DURATION,
+      format: '9:16' as const,
+      frames: [{ atMs: 1500, base64: 'AAAA' }],
+    }));
+
+    const result = await runPipeline(
+      makeInput({ file: new Blob(['fake mp4'], { type: 'video/mp4' }), name: 'talking-head.mp4' }),
+      h.deps,
+      h.onEvent,
+    );
+    expect(result).toEqual({ projectId: PROJECT_ID });
+
+    const loaded = await h.repo.load(PROJECT_ID);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    const p = loaded.project;
+    expect(EditorProjectSchema.safeParse(p).success).toBe(true);
+    expect(p.styleId).toBe('studio-light');
+    expect(p.format).toBe('9:16');
+    expect(p.captions).toEqual({ enabled: true, presetId: 'studio' });
+    expect(p.audio).toMatchObject({
+      musicGainDb: -22,
+      ducking: true,
+      duckDepthDb: 10,
+      autoSfx: true,
+    });
+    expect(p.audio?.musicId).toBeUndefined();
+    expect(p.audio && 'musicId' in p.audio).toBe(false);
+    expect(p.video).toMatchObject({
+      width: 1080,
+      height: 1920,
+      originalDurationMs: CUT_DURATION,
+    });
+  });
+
+  it('honours an explicit styleId override on a video upload', async () => {
+    const h = makeHarness();
+    await runPipeline(
+      makeInput({
+        file: new Blob(['fake mp4'], { type: 'video/mp4' }),
+        name: 'clip.mp4',
+        styleId: 'creator-dark',
+      }),
+      h.deps,
+      h.onEvent,
+    );
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    expect(loaded.project.styleId).toBe('creator-dark');
+  });
+});
