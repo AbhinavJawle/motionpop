@@ -1,6 +1,6 @@
 'use client';
 
-import { AudioLines, Music } from 'lucide-react';
+import { AudioLines, Film, Music } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PlaybackClock } from '@/lib/editor/playback';
 import { cn } from '@/lib/cn';
@@ -11,17 +11,45 @@ import { AudioTrack } from './audio-track';
 import { PlayheadCapsule, PlayheadLine, usePlayheadVar } from './playhead';
 import { Ruler } from './ruler';
 import { SlotsTrack } from './slots-track';
-import { TimelineContext, TL, useTimeline, type TimelineCtx } from './timeline-context';
+import {
+  TimelineContext,
+  TL,
+  timelineLayout,
+  useTimeline,
+  type TimelineCtx,
+  type TimelineRowGeometry,
+} from './timeline-context';
 import { TimelineHeader } from './timeline-header';
+import { VideoTrack } from './video-track';
 import { VoiceTrack } from './voice-track';
 import { WordsTrack } from './words-track';
 
-const ROWS = [
+type TrackRowId = 'slots' | 'video' | 'words' | 'voice' | 'audio';
+
+const BASE_ROWS: readonly {
+  id: TrackRowId;
+  label: string;
+  surface: string;
+  icon: typeof AudioLines | null;
+}[] = [
   { id: 'slots', label: 'SLOTS', surface: 'bg-track-b', icon: null },
   { id: 'words', label: 'WORDS', surface: 'bg-track-a', icon: null },
   { id: 'voice', label: 'VOICE', surface: 'bg-track-b', icon: AudioLines },
   { id: 'audio', label: 'AUDIO', surface: 'bg-track-a', icon: Music },
-] as const;
+];
+
+const VIDEO_ROWS: readonly {
+  id: TrackRowId;
+  label: string;
+  surface: string;
+  icon: typeof AudioLines | null;
+}[] = [
+  { id: 'slots', label: 'SLOTS', surface: 'bg-track-b', icon: null },
+  { id: 'video', label: 'VIDEO', surface: 'bg-track-a', icon: Film },
+  { id: 'words', label: 'WORDS', surface: 'bg-track-b', icon: null },
+  { id: 'voice', label: 'VOICE', surface: 'bg-track-a', icon: AudioLines },
+  { id: 'audio', label: 'AUDIO', surface: 'bg-track-b', icon: Music },
+];
 
 /**
  * The transcript-first timeline (spec 04 R4, R5): 300 px, full width. Tracks are absolute
@@ -37,10 +65,13 @@ export function Timeline({
   bucketMs: number;
 }) {
   const durationMs = useEditor((s) => s.project?.durationMs ?? 0);
+  const hasVideo = useEditor((s) => Boolean(s.project?.video));
   const storeView = useEditor((s) => s.view);
   const setView = useEditor((s) => s.setView);
   const areaRef = useRef<HTMLDivElement>(null);
   const [widthPx, setWidthPx] = useState(0);
+  const layout = useMemo(() => timelineLayout(hasVideo), [hasVideo]);
+  const rows = hasVideo ? VIDEO_ROWS : BASE_ROWS;
 
   useEffect(() => {
     const el = areaRef.current;
@@ -103,11 +134,13 @@ export function Timeline({
       <section
         ref={sectionRef}
         aria-label="Timeline"
-        className="relative h-[300px] shrink-0 border-t border-white/10 bg-panel select-none"
+        className="relative shrink-0 border-t border-white/10 bg-panel select-none"
+        style={{ height: layout.height }}
       >
         <TimelineHeader />
-        {ROWS.map((row) => {
-          const r = TL.rows[row.id];
+        {rows.map((row) => {
+          const r = layout.rows[row.id];
+          if (!r) return null;
           const Icon = row.icon;
           return (
             <div
@@ -118,14 +151,23 @@ export function Timeline({
               <span className="absolute right-6 bottom-0 left-6 h-px bg-track-hair" />
               <span
                 className="absolute left-6 text-[9px] leading-3 font-medium tracking-[1.1px] text-text-3"
-                style={{ top: row.id === 'slots' ? 26 : row.id === 'words' ? 19 : 17 }}
+                style={{
+                  top:
+                    row.id === 'slots'
+                      ? 26
+                      : row.id === 'video'
+                        ? 22
+                        : row.id === 'words'
+                          ? 19
+                          : 17,
+                }}
               >
                 {row.label}
               </span>
               {Icon && (
                 <Icon
                   className="absolute left-[102px] size-3.5 text-text-3"
-                  style={{ top: row.id === 'voice' ? 16 : 13 }}
+                  style={{ top: row.id === 'video' ? 20 : row.id === 'voice' ? 16 : 13 }}
                   strokeWidth={1.5}
                   aria-hidden
                 />
@@ -133,7 +175,14 @@ export function Timeline({
             </div>
           );
         })}
-        <TimeArea areaRef={areaRef} peaks={peaks} bucketMs={bucketMs} ready={widthPx > 0} />
+        <TimeArea
+          areaRef={areaRef}
+          peaks={peaks}
+          bucketMs={bucketMs}
+          ready={widthPx > 0}
+          hasVideo={hasVideo}
+          layout={layout}
+        />
         <p className="absolute bottom-[3px] left-6 text-[9px] leading-3 text-text-3">
           Space play · ⌘G generate · Drag slot to retime
         </p>
@@ -147,14 +196,19 @@ function TimeArea({
   peaks,
   bucketMs,
   ready,
+  hasVideo,
+  layout,
 }: {
   areaRef: React.RefObject<HTMLDivElement | null>;
   peaks: Float32Array | null;
   bucketMs: number;
   ready: boolean;
+  hasVideo: boolean;
+  layout: ReturnType<typeof timelineLayout>;
 }) {
   usePlayheadVar(areaRef);
   const { view } = useTimeline();
+  const gridHeight = layout.height - layout.rows.slots.top - 18;
   return (
     <div
       ref={areaRef}
@@ -164,24 +218,29 @@ function TimeArea({
       // playhead capsule) while the start is in view. Scrolled, nothing may cross the labels.
       style={{
         left: TL.labelCol,
-        top: TL.rows.ruler.top,
+        top: layout.rows.ruler.top,
         clipPath: view.scrollMs > 0 ? 'inset(0)' : 'inset(0 0 0 -24px)',
       }}
     >
       {ready && (
         <>
-          <BeatGrid />
+          <BeatGrid height={gridHeight} />
           <Ruler />
-          <Row id="slots" label="Slots">
+          <Row geom={layout.rows.slots} rulerTop={layout.rows.ruler.top} label="Slots">
             <SlotsTrack />
           </Row>
-          <Row id="words" label="Words">
+          {hasVideo && layout.rows.video && (
+            <Row geom={layout.rows.video} rulerTop={layout.rows.ruler.top} label="Video">
+              <VideoTrack />
+            </Row>
+          )}
+          <Row geom={layout.rows.words} rulerTop={layout.rows.ruler.top} label="Words">
             <WordsTrack />
           </Row>
-          <Row id="voice" label="Voice">
+          <Row geom={layout.rows.voice} rulerTop={layout.rows.ruler.top} label="Voice">
             <VoiceTrack peaks={peaks} bucketMs={bucketMs} />
           </Row>
-          <Row id="audio" label="Audio">
+          <Row geom={layout.rows.audio} rulerTop={layout.rows.ruler.top} label="Audio">
             <AudioTrack />
           </Row>
           <PlayheadLine />
@@ -193,21 +252,22 @@ function TimeArea({
 }
 
 function Row({
-  id,
+  geom,
+  rulerTop,
   label,
   children,
 }: {
-  id: keyof typeof TL.rows;
+  geom: TimelineRowGeometry;
+  rulerTop: number;
   label: string;
   children: React.ReactNode;
 }) {
-  const r = TL.rows[id];
   return (
     <div
       role="group"
       aria-label={label}
       className="absolute inset-x-0"
-      style={{ top: r.top - TL.rows.ruler.top, height: r.height }}
+      style={{ top: geom.top - rulerTop, height: geom.height }}
     >
       {children}
     </div>
@@ -215,7 +275,7 @@ function Row({
 }
 
 /** Faint 1 s grid through the tracks (2 % white), when there is room for it. */
-function BeatGrid() {
+function BeatGrid({ height }: { height: number }) {
   const { view, widthPx } = useTimeline();
   if (view.pxPerMs * 1000 < 24) return null;
   const lines: number[] = [];
@@ -228,8 +288,12 @@ function BeatGrid() {
         <span
           key={t}
           aria-hidden
-          className="absolute h-[196px] w-px bg-white/2"
-          style={{ left: msToX(t, view), top: TL.rows.slots.top - TL.rows.ruler.top }}
+          className="absolute w-px bg-white/2"
+          style={{
+            left: msToX(t, view),
+            top: TL.rows.slots.top - TL.rows.ruler.top,
+            height,
+          }}
         />
       ))}
     </>

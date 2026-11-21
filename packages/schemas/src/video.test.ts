@@ -368,6 +368,65 @@ describe('video stage choreography (spec 19)', () => {
     expect(issues.some((x) => x.includes('repeats archetype'))).toBe(true);
     expect(issues.some((x) => x.includes('stay in videoStage'))).toBe(true);
   });
+
+  it('rejects consecutive cutaways and excessive cutaways on video projects', () => {
+    const words = Array.from({ length: 12 }, (_, i) => ({
+      text: `w${i}`,
+      startMs: i * 900,
+      endMs: i * 900 + 800,
+    }));
+    const board: Storyboard = {
+      title: 'Too many cutaways',
+      thesis: 'Keep speaker visible',
+      world: 'Clean studio world',
+      carrier: 'Accent bar',
+      props: [],
+      beats: [
+        {
+          id: 'b1',
+          wordStart: 0,
+          wordEnd: 3,
+          lead: 'type',
+          archetype: 'kinetic-type',
+          videoStage: 'full',
+          idea: 'Bold hook over speaker',
+          text: ['Hook'],
+          landsOn: 1,
+          staging: 'Pop on w1',
+          seam: { kind: 'push', note: 'Push right' },
+        },
+        {
+          id: 'b2',
+          wordStart: 4,
+          wordEnd: 7,
+          lead: 'number',
+          archetype: 'hero-stat',
+          videoStage: 'cutaway',
+          idea: 'Big stat cutaway',
+          text: ['Zero'],
+          landsOn: 5,
+          staging: 'Count on w5',
+          seam: { kind: 'push', note: 'Push right' },
+        },
+        {
+          id: 'b3',
+          wordStart: 8,
+          wordEnd: 11,
+          lead: 'picture',
+          archetype: 'data-chart',
+          videoStage: 'cutaway',
+          idea: 'Another cutaway hiding speaker',
+          text: ['Growth'],
+          landsOn: 9,
+          staging: 'Bars rise on w9',
+          seam: { kind: 'push', note: 'Hold' },
+        },
+      ],
+    };
+    const issues = storyboardIssues(board, words, 11_000, { hasVideo: true });
+    expect(issues.some((x) => x.includes('both "cutaway"'))).toBe(true);
+    expect(issues.some((x) => x.includes('beats use "cutaway"'))).toBe(true);
+  });
 });
 
 describe('multi-clip Media Bin & dual-layer choreography (spec 20)', () => {

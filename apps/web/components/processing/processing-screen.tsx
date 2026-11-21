@@ -120,7 +120,11 @@ export function ProcessingScreen({ id }: { id: string }) {
           storedRef: p.meta.ref,
           // An untouched "Untitled Project" lets the file name title the project.
           ...(p.draft.title !== START_COPY.untitled ? { title: p.draft.title } : {}),
-          format: p.draft.format,
+          // Let uploaded videos auto-match their native aspect ratio (9:16 / 16:9 / 1:1) unless
+          // the creator explicitly chose a format pill on Start.
+          ...(p.draft.formatChosen || !p.blob.type.startsWith('video/')
+            ? { format: p.draft.format }
+            : {}),
           cleanup: p.meta.cleanup,
           ...(p.draft.styleId ? { styleId: p.draft.styleId } : {}),
           ...(p.meta.tts ? { tts: p.meta.tts } : {}),

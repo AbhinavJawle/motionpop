@@ -359,6 +359,22 @@ export function storyboardIssues(
     }
   }
   if (opts?.hasVideo && board.beats.length >= 3) {
+    for (let i = 1; i < board.beats.length; i++) {
+      const prevStage = board.beats[i - 1]?.videoStage;
+      const curStage = board.beats[i]?.videoStage;
+      if (prevStage === 'cutaway' && curStage === 'cutaway') {
+        issues.push(
+          `beats ${i} and ${i + 1} are both "cutaway", hiding the speaker too long; switch one to "full", "split-left", "split-right", "pip", or "backdrop" so the speaker stays connected`,
+        );
+      }
+    }
+    const cutaways = board.beats.filter((b) => b.videoStage === 'cutaway').length;
+    const maxCutaways = Math.max(1, Math.floor(board.beats.length * 0.25));
+    if (cutaways > maxCutaways) {
+      issues.push(
+        `${cutaways} beats use "cutaway" (hiding the speaker); keep at most ${maxCutaways} cutaway ${maxCutaways === 1 ? 'beat' : 'beats'} and use "full", "split-left", "pip", or "backdrop" on the rest`,
+      );
+    }
     for (let i = 2; i < board.beats.length; i++) {
       const a = board.beats[i - 2]?.videoStage;
       const b = board.beats[i - 1]?.videoStage;

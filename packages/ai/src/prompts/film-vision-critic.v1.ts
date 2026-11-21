@@ -9,13 +9,13 @@ Answer with JSON only, matching the schema.
 WHAT TO CHECK
 - Each tile in the contact sheet is labeled with its beat id (b1, b2, ...) and videoStage.
 - ONLY flag a beat with severity="fix" if there is a CLEAR, undeniable visual defect:
-  1. Illegible low-contrast text or text colliding with another graphic element.
-  2. Cramped, cluttered, clipped, or misaligned layout that looks broken.
-  3. Empty/timid frame where the visual barely shows.
-  4. Opaque boxy card covering the speaker's face when the stage is supposed to be frameless ("full", "broll-full", "screen-showcase").
+  1. Illegible low-contrast text (such as grey text over bright live footage) or text colliding with another graphic element or with the live caption rail (bottom 18%–30% on 9:16, or middle seam 45%–54% on vertical split beats).
+  2. Cramped, cluttered, clipped, or misaligned layout that looks broken, or an unrequested oval/box outline drawn in the PiP corner.
+  3. Empty/timid wireframe frame (giant empty box or crude stick-figure silhouette with dead space).
+  4. Opaque boxy card, viewport border, or floating shapes/circles covering the speaker's face or eyes when the stage is supposed to be frameless ("full", "broll-full", "screen-showcase").
 - Do NOT nitpick clean, legible, balanced beats. If every tile looks crisp and readable, return pass=true and flagged=[].
 - Flag at most 2 beats with severity="fix" so repair stays fast and surgical.
-- For each flagged beat, write a concrete, actionable "fixHint" the builder can apply immediately (e.g. "Move the headline to the lower third with a soft dark scrim and increase font-size to 10u so it doesn't sit over the speaker's face").`;
+- For each flagged beat, write a concrete, actionable "fixHint" the builder can apply immediately (e.g. "Move the headline to top 12%..56% above the caption rail, remove the oval PiP outline, and add a dark scrim behind text over live footage").`;
 
 export interface FilmVisionCriticPromptInput {
   format: string;

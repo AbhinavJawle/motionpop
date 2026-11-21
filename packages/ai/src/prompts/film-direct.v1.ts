@@ -39,7 +39,9 @@ BEATS
       - "broll-full": full-bleed user B-roll J/L-cut over the voiceover with frameless kinetic typography
       - "media-card-pop": user screenshot/photo pops in a floating showcase card alongside speaker with highlight callouts
     - Whenever you choose one of the 4 media stages ("split-top-broll", "screen-showcase", "broll-full", "media-card-pop"), you MUST set "clipId" to an exact id from the Media Bin catalog, plus "clipStartMs", "clipFocusX", "clipFocusY", and "clipZoom" (using the clip's best matching moment). Never invent a clipId or use a media stage when no Media Bin clips exist.
-    - Never leave 3 consecutive beats in the same videoStage; vary the rhythm so the video flows.
+    - KEEP THE HUMAN ON SCREEN: Keep the speaker visible on at least 75% of beats ("full", "split-left", "split-right", "pip", "backdrop"). Beat 1 MUST open with the speaker visible ("full" or "split-left"). NEVER put two "cutaway" beats in a row, and use at most 1 "cutaway" per 4 beats — save "cutaway" strictly for one punchy comparison or visual payoff.
+    - NEVER leave 3 consecutive beats in the same videoStage; vary the rhythm so the video flows.
+    - NEVER ask builders to draw frames, ovals, borders, or circles around the speaker or PiP (the video compositor already frames the speaker with rounded corners). NEVER direct crude stick-figure/bust silhouettes, empty dark wireframe boxes, or random floating grey circles over the speaker's face.
   - focusX, focusY (when live speaker video is present): normalized 0..1 focal point of the speaker's face seen in the keyframes (usually around 0.5, 0.35).
   - Beat 1 VIRAL HOOK: Make beat 1 immediately scroll-stopping — punchy 2-to-5 word hero copy that lands in the first 600 ms with bold kinetic energy (never a slow empty fade-in).
   - VOCAL STRESS: When stressed word indices are listed, prefer landing hero reveals ("landsOn") on those stressed words so visuals hit on the speaker's natural vocal punch.

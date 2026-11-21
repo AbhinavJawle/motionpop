@@ -86,9 +86,12 @@ export function PreviewPane() {
   const generating = useEditor((s) => s.generating !== null);
   const sceneTotal = useEditor((s) => s.project?.slots.length ?? 0);
   const sceneIndex = useEditor((s) => {
-    const sel = s.project?.slots.find((x) => x.id === s.selectedSlotId);
-    if (!sel || !s.project) return 0;
-    return s.project.slots.filter((x) => x.startMs <= sel.startMs).length;
+    if (!s.project) return 0;
+    const active =
+      s.project.slots.find((x) => x.id === s.selectedSlotId) ??
+      slotAt(s.project.slots, s.playheadMs);
+    if (!active) return 0;
+    return s.project.slots.filter((x) => x.startMs <= active.startMs).length;
   });
 
   return (

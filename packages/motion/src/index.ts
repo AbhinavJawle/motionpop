@@ -11,5 +11,11 @@ export * from './registry';
 export { fontStack, primaryFamily } from './fonts/font-faces';
 export { withTiming } from './runtime/timing';
 export * from './captions/chunk';
-export { mountCaptions, pillColours, captionLayout } from './runtime/captions';
+export {
+  captionBottomForMode,
+  captionLayout,
+  captionSafeBandForStage,
+  mountCaptions,
+  pillColours,
+} from './runtime/captions';
 export * from './sfx';

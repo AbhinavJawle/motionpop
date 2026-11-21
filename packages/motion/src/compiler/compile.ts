@@ -187,12 +187,17 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
   layers.push('    <div id="mp-captions"></div>');
 
   const pageBg = opaque ? style.colors.bg : 'transparent';
+  // Match the dark editor shell's `color-scheme: dark` on transparent compositions so browsers
+  // (especially Firefox and Chromium per CSS Color Adjustment) never paint an opaque white canvas
+  // behind the `<hyperframes-player>` iframe over the live `<video>` stage.
+  const colorSchemeHead = opaque ? '' : '\n<meta name="color-scheme" content="dark">';
+  const colorSchemeCss = opaque ? '' : '\n  html { color-scheme: dark; }';
   return `<!doctype html>
 <html>
 <head>
-<meta charset="utf-8">
+<meta charset="utf-8">${colorSchemeHead}
 <style>
-${fontFaceCss(families, assets.fonts)}
+${fontFaceCss(families, assets.fonts)}${colorSchemeCss}
   html, body { margin: 0; background: ${pageBg}; }
   #mp-root { position: relative; width: ${width}px; height: ${height}px; overflow: hidden; background: transparent; font-variant-numeric: lining-nums; }
   .mp-bg { position: absolute; inset: 0; background: ${style.colors.bg}; }

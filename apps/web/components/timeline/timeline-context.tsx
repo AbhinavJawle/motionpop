@@ -51,3 +51,42 @@ export const TL = {
     audio: { top: 240, height: 42 },
   },
 } as const;
+
+export const VIDEO_ROW_HEIGHT = 56;
+
+export interface TimelineRowGeometry {
+  top: number;
+  height: number;
+}
+
+/**
+ * Computes timeline height and row positions; voiceover-only projects keep exact Figma geometry
+ * (300 px, 4 tracks), while video projects insert a dedicated 56 px `VIDEO` track under `SLOTS`.
+ */
+export function timelineLayout(hasVideo: boolean): {
+  height: number;
+  rows: {
+    ruler: TimelineRowGeometry;
+    slots: TimelineRowGeometry;
+    video?: TimelineRowGeometry;
+    words: TimelineRowGeometry;
+    voice: TimelineRowGeometry;
+    audio: TimelineRowGeometry;
+  };
+} {
+  if (!hasVideo) {
+    return { height: TL.height, rows: TL.rows };
+  }
+  const shift = VIDEO_ROW_HEIGHT;
+  return {
+    height: TL.height + shift,
+    rows: {
+      ruler: TL.rows.ruler,
+      slots: TL.rows.slots,
+      video: { top: TL.rows.slots.top + TL.rows.slots.height, height: shift },
+      words: { top: TL.rows.words.top + shift, height: TL.rows.words.height },
+      voice: { top: TL.rows.voice.top + shift, height: TL.rows.voice.height },
+      audio: { top: TL.rows.audio.top + shift, height: TL.rows.audio.height },
+    },
+  };
+}

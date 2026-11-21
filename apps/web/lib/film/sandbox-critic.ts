@@ -1,5 +1,5 @@
 import type { CriticVerdict, FilmBeatParams } from '@motionpop/ai';
-import { criticText, type CriticSummary } from '@motionpop/motion';
+import { captionSafeBandForStage, criticText, type CriticSummary } from '@motionpop/motion';
 import { compileProject, type CompileAssets, type CompileInput } from '@motionpop/motion/compiler';
 import { FORMATS, type FilmWord, type Format, type TimedBeat } from '@motionpop/schemas';
 
@@ -112,14 +112,18 @@ export async function inspectInSandbox(i: SandboxCriticInput): Promise<CriticVer
     i.assets,
   );
   const token = crypto.randomUUID();
+  const { width, height } = FORMATS[i.format];
+  const captionBand = i.hasVideo
+    ? captionSafeBandForStage(i.format, width, height, i.beat.videoStage ?? 'full')
+    : undefined;
   const opts = {
     wantsPicture: i.beat.lead !== 'type',
     headMs: i.beat.headMs,
     lead: i.beat.lead,
     allowNumbers: [...i.allowNumbers],
     ...(i.transparent ? { transparent: true } : {}),
+    ...(captionBand ? { captionBand } : {}),
   };
-  const { width, height } = FORMATS[i.format];
   const frame = doc.createElement('iframe');
   // Scripts only: no same-origin, so the generated code can't reach the app, its storage or its
   // cookies. Never add `allow-same-origin` here.

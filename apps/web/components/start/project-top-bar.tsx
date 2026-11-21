@@ -56,7 +56,7 @@ export function ProjectTopBar() {
           label="Video format"
           options={FORMATS}
           value={draft.format}
-          onChange={(format) => update({ format })}
+          onChange={(format) => update({ format, formatChosen: true })}
         />
       </div>
       <div className="ml-auto flex items-center">

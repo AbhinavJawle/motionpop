@@ -86,6 +86,7 @@ describe('buildVideoCompositeArgs', () => {
     });
     const graph = args[args.indexOf('-filter_complex') + 1]!;
     expect(graph).toContain('color=c=0xFAF8F5:s=1280x720');
+    expect(graph).toContain('alphamerge=shortest=1');
     expect(graph).toContain('boxblur=10:2');
     expect(graph).toContain('[vstaged][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]');
   });

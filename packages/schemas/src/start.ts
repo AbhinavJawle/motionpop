@@ -6,6 +6,8 @@ import { WordSchema } from './transcript';
 export const StartDraftSchema = z.object({
   title: z.string().trim().min(1).max(80).default('Untitled Project'),
   format: FormatSchema.default('16:9'),
+  /** True only when the creator explicitly clicked a format pill; otherwise uploaded videos auto-match their natural aspect ratio. */
+  formatChosen: z.boolean().optional(),
   styleId: z.string().min(1).optional(),
 });
 export type StartDraft = z.infer<typeof StartDraftSchema>;

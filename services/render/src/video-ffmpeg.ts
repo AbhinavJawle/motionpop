@@ -40,6 +40,31 @@ const ffHex = (hex: string | undefined): string => {
 };
 
 /**
+ * Generates a fast 1-frame looped rounded-rectangle alpha mask and merges it onto `[inLabel]`,
+ * producing `[outLabel]` with crisp rounded corners (matching browser preview `borderRadius`).
+ */
+function roundedCornerFilter(
+  inLabel: string,
+  outLabel: string,
+  bw: number,
+  bh: number,
+  radiusPx: number,
+  fps: number,
+  maskId: string,
+): string {
+  const r = Math.max(4, Math.min(Math.round(radiusPx), Math.floor(Math.min(bw, bh) / 2) - 1));
+  const m = `rmask_${maskId}`;
+  const fg = `rfg_${maskId}`;
+  return (
+    `[${inLabel}]format=rgba[${fg}];` +
+    `color=c=black:s=${bw}x${bh}:r=${fps}:d=0.05,format=gray,` +
+    `geq=lum='if(gt(abs(W/2-X),W/2-${r})*gt(abs(H/2-Y),H/2-${r}),if(lte(hypot(${r}-(W/2-abs(W/2-X)),${r}-(H/2-abs(H/2-Y))),${r}),255,0),255)',` +
+    `loop=-1:size=1:start=0[${m}];` +
+    `[${fg}][${m}]alphamerge=shortest=1[${outLabel}]`
+  );
+}
+
+/**
  * Pure FFmpeg argument builder for video projects (spec 18 R7.1, spec 19 R5.2, spec 21 R5.2):
  * 1. Trims and concatenates each kept source video segment (non-destructive cuts).
  * 2. Scales and center-crops the A-roll footage to exact output `width × height` at `fps` (30).
@@ -208,6 +233,8 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
       const fy = Math.max(0, Math.min(1, s.focusY));
 
       let stageFilter: string;
+      const shortSide = Math.min(width, height);
+      const radiusPx = box.radiusFrac > 0 ? Math.round(box.radiusFrac * shortSide) : 0;
       if (s.mode === 'backdrop') {
         stageFilter = `[${srcLabel}]boxblur=10:2,eq=brightness=-0.24:contrast=0.92[${lay}]`;
       } else if (s.mode === 'media-card-pop' && height > width) {
@@ -217,9 +244,14 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
       } else {
         const cropX = `max(0\\,min(iw-${bw}\\,round(iw*${fx.toFixed(3)}-${bw}/2)))`;
         const cropY = `max(0\\,min(ih-${bh}\\,round(ih*${fy.toFixed(3)}-${bh}/2)))`;
-        stageFilter =
+        const croppedLabel = radiusPx >= 4 ? `vcrop${stepIdx}` : lay;
+        const baseCrop =
           `[${srcLabel}]scale=${bw}:${bh}:force_original_aspect_ratio=increase,` +
-          `crop=${bw}:${bh}:${cropX}:${cropY}[${lay}]`;
+          `crop=${bw}:${bh}:${cropX}:${cropY}[${croppedLabel}]`;
+        stageFilter =
+          radiusPx >= 4
+            ? `${baseCrop};${roundedCornerFilter(croppedLabel, lay, bw, bh, radiusPx, fps, `a${stepIdx}`)}`
+            : baseCrop;
       }
       filters.push(
         `${stageFilter};` +
@@ -262,11 +294,19 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
       const borderPad = mBox.framed
         ? `,drawbox=x=0:y=0:w=iw:h=ih:color=0x262938@0.9:t=4`
         : '';
+      const radiusPx = mBox.radiusFrac > 0 ? Math.round(mBox.radiusFrac * Math.min(width, height)) : 0;
+      const rawLay = radiusPx >= 4 ? `mraw${stepIdx}` : lay;
+      const mediaPrep =
+        `[${rawStream}]${trimPart}fps=${fps},` +
+        `scale=${zw}:${zh}:force_original_aspect_ratio=increase,` +
+        `crop=${bw}:${bh}:${cropX}:${cropY},setsar=1${borderPad}[${rawLay}]`;
+      const mediaFinal =
+        radiusPx >= 4
+          ? `${mediaPrep};${roundedCornerFilter(rawLay, lay, bw, bh, radiusPx, fps, `m${stepIdx}`)}`
+          : mediaPrep;
 
       filters.push(
-        `[${rawStream}]${trimPart}fps=${fps},` +
-          `scale=${zw}:${zh}:force_original_aspect_ratio=increase,` +
-          `crop=${bw}:${bh}:${cropX}:${cropY},setsar=1${borderPad}[${lay}];` +
+        `${mediaFinal};` +
           `[${canvas}][${lay}]overlay=${bx}:${by}:eof_action=pass:enable='between(t,${sec(s.startMs)},${sec(s.endMs)})'[${next}]`,
       );
       canvas = next;

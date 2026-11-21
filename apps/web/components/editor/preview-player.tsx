@@ -280,8 +280,19 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    const ensureTransparentIframe = () => {
+      const iframe = el.shadowRoot?.querySelector('iframe');
+      if (!iframe) return;
+      iframe.setAttribute('allowtransparency', 'true');
+      iframe.style.background = 'transparent';
+      iframe.style.colorScheme = 'dark';
+    };
     attachPreview(el);
-    const onReady = () => resyncPreview();
+    ensureTransparentIframe();
+    const onReady = () => {
+      ensureTransparentIframe();
+      resyncPreview();
+    };
     el.addEventListener('ready', onReady);
     return () => {
       el.removeEventListener('ready', onReady);
@@ -411,6 +422,7 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
           width: '100%',
           height: '100%',
           background: 'transparent',
+          colorScheme: 'dark',
         }}
       />
       {assetsError && (

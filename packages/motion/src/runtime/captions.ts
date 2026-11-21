@@ -99,6 +99,61 @@ export function captionLayout(frame: CaptionFrame, presetId: CaptionPresetId) {
 
 const NUMERIC_POWER = /\d|%|[$€£]/;
 
+/** Stage-specific caption vertical bottom offset in frame pixels (single source of truth for captions + critic). */
+export function captionBottomForMode(
+  baseBottom: number,
+  frame: CaptionFrame,
+  mode?: string,
+): number {
+  const vertical = frame.format === '9:16';
+  if (!vertical) {
+    if (mode === 'split-top-broll' || mode === 'screen-showcase') return Math.round(frame.height * 0.06);
+    return baseBottom;
+  }
+  switch (mode) {
+    case 'split-top-broll':
+      // Sits cleanly along the crisp center seam between top B-roll and bottom speaker.
+      return Math.round(frame.height * 0.44);
+    case 'screen-showcase':
+      // Sits cleanly below the tilted screen window without overlapping speaker PiP.
+      return Math.round(frame.height * 0.23);
+    case 'split-left':
+      // Sits cleanly on the seam between top speaker (4%..45%) and bottom graphic (56%..93%).
+      return Math.round(frame.height * 0.48);
+    case 'split-right':
+      // Sits cleanly on the seam between top graphic (6%..42%) and bottom speaker (55%..96%).
+      return Math.round(frame.height * 0.47);
+    case 'pip':
+      // Sits between upper graphic zone (7%..62%) and bottom-left PiP bubble (76%..95%).
+      return Math.round(frame.height * 0.26);
+    case 'backdrop':
+    case 'cutaway':
+      // Sits cleanly below centered graphic zone (8%..64%).
+      return Math.round(frame.height * 0.2);
+    case 'media-card-pop':
+      return Math.round(frame.height * 0.19);
+    case 'full':
+    default:
+      return Math.round(frame.height * 0.18);
+  }
+}
+
+/** Reserved vertical pixel band `[top, bottom]` where live captions render for a given format + video stage. */
+export function captionSafeBandForStage(
+  format: Format,
+  width: number,
+  height: number,
+  mode?: string,
+): { top: number; bottom: number } {
+  const frame: CaptionFrame = { width, height, format };
+  const layout = captionLayout(frame, 'pop');
+  const bottomOffset = mode ? captionBottomForMode(layout.bottom, frame, mode) : layout.bottom;
+  const bandHeight = Math.round(layout.base * 1.85);
+  const bottom = Math.max(0, Math.min(height, height - bottomOffset));
+  const top = Math.max(0, bottom - bandHeight);
+  return { top, bottom };
+}
+
 /** Pure stage-aware bottom offset in frame pixels so captions never collide with B-roll splits (spec 21 R2). */
 export function captionBottomForStage(
   baseBottom: number,
@@ -107,29 +162,7 @@ export function captionBottomForStage(
   stageWindows?: readonly { startMs: number; endMs: number; mode: string }[],
 ): number {
   if (!stageWindows || stageWindows.length === 0) return baseBottom;
-  const vertical = frame.format === '9:16';
-  const targetFor = (mode: string): number => {
-    if (!vertical) {
-      if (mode === 'split-top-broll' || mode === 'screen-showcase') return Math.round(frame.height * 0.06);
-      return baseBottom;
-    }
-    switch (mode) {
-      case 'split-top-broll':
-        // Sits cleanly along the crisp center seam between top B-roll and bottom speaker.
-        return Math.round(frame.height * 0.44);
-      case 'screen-showcase':
-        // Sits cleanly below the tilted screen window without overlapping speaker PiP.
-        return Math.round(frame.height * 0.23);
-      case 'split-left':
-        return Math.round(frame.height * 0.51);
-      case 'split-right':
-        return Math.round(frame.height * 0.45);
-      case 'media-card-pop':
-        return Math.round(frame.height * 0.19);
-      default:
-        return baseBottom;
-    }
-  };
+  const targetFor = (mode: string): number => captionBottomForMode(baseBottom, frame, mode);
   const idx = stageWindows.findIndex((s) => tMs >= s.startMs && tMs < s.endMs);
   if (idx < 0) return baseBottom;
   const cur = stageWindows[idx]!;

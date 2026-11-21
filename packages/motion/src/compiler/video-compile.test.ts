@@ -94,6 +94,8 @@ describe('compileProject (video overlay & cutaway mode)', () => {
 
     const html = compileProject({ ...input, style: editorialExplainer }, ASSETS);
     expect(html).toContain('background: transparent;');
+    expect(html).toContain('<meta name="color-scheme" content="dark">');
+    expect(html).toContain('html { color-scheme: dark; }');
     expect(html).not.toContain('<div class="mp-bg"></div>');
     expect(html).toContain('class="clip mp-slot mp-slot-overlay mp-anchor-side-right"');
     expect(html).toContain('class="clip mp-slot mp-slot-cutaway"');

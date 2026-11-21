@@ -1,32 +1,61 @@
 'use client';
 
+import { type VideoStageMode } from '@motionpop/schemas';
 import { Scissors, ZoomIn } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   addVideoPunchIn,
   applyResplicedAudio,
   removeVideoPunchIn,
+  setSlotVideoStage,
   toggleVideoCut,
 } from '@/lib/commands';
 import { cn } from '@/lib/cn';
+import { subscribePreviewSeek } from '@/lib/editor/preview-bridge';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 import { respliceProjectAudio } from '@/lib/video/resplice-audio';
 
 const fmtSec = (ms: number) => `${(ms / 1000).toFixed(1)}s`;
 
+const QUICK_STAGE_CYCLE: readonly VideoStageMode[] = [
+  'full',
+  'split-left',
+  'split-right',
+  'pip',
+  'backdrop',
+  'cutaway',
+];
+
 /**
  * Compact video edit strip in the preview pane (spec 18 R5.4): only renders when `project.video`
- * exists (zero impact on voiceover-only design checks). Lets creators inspect/toggle AI cuts and
- * add or remove punch-in zooms at the playhead.
+ * exists (zero impact on voiceover-only design checks). Lets creators inspect/toggle AI cuts,
+ * see and switch the live choreography stage, and add or remove punch-in zooms at the playhead.
  */
 export function VideoCutsBar() {
   const video = useEditor((s) => s.project?.video ?? null);
+  const slots = useEditor((s) => s.project?.slots ?? []);
   const durationMs = useEditor((s) => s.project?.durationMs ?? 0);
   const playheadMs = useEditor((s) => s.playheadMs);
   const exec = useEditor((s) => s.exec);
   const [expanded, setExpanded] = useState(false);
   const [resplicing, setResplicing] = useState(false);
+  const [liveStageId, setLiveStageId] = useState<string | null>(null);
+
+  // Track the active stage at 60fps during playback without re-rendering on every frame:
+  // only commit state when the playhead crosses into a different stage segment.
+  useEffect(() => {
+    const resolveStageId = (ms: number): string | null => {
+      const stages = editorStore.getState().project?.video?.stages;
+      if (!stages?.length) return null;
+      const hit = stages.find((s) => ms >= s.startMs && ms < s.endMs) ?? stages[stages.length - 1];
+      return hit?.id ?? null;
+    };
+    return subscribePreviewSeek((ms) => {
+      const next = resolveStageId(ms);
+      setLiveStageId((prev) => (prev === next ? prev : next));
+    });
+  }, []);
 
   if (!video) return null;
 
@@ -48,7 +77,19 @@ export function VideoCutsBar() {
 
   const enabledCuts = video.cuts.filter((c) => c.enabled);
   const trimmedMs = enabledCuts.reduce((n, c) => n + (c.endMs - c.startMs), 0);
-  const activeStage = video.stages?.find((s) => playheadMs >= s.startMs && playheadMs < s.endMs);
+  const activeStage =
+    (liveStageId ? video.stages?.find((s) => s.id === liveStageId) : undefined) ??
+    video.stages?.find((s) => playheadMs >= s.startMs && playheadMs < s.endMs);
+  const activeSlot = activeStage
+    ? slots.find((sl) => sl.startMs <= activeStage.startMs + 50 && sl.endMs >= activeStage.endMs - 50)
+    : undefined;
+
+  const cycleActiveStage = () => {
+    if (!activeStage || !activeSlot) return;
+    const idx = QUICK_STAGE_CYCLE.indexOf(activeStage.mode);
+    const next = QUICK_STAGE_CYCLE[(idx + 1) % QUICK_STAGE_CYCLE.length]!;
+    exec(setSlotVideoStage(activeSlot.id, next));
+  };
 
   const addPunchAtPlayhead = () => {
     const startMs = Math.max(0, Math.min(Math.max(0, durationMs - 1500), playheadMs));
@@ -93,12 +134,15 @@ export function VideoCutsBar() {
           {activeStage && (
             <>
               <span className="text-text-3">·</span>
-              <span
+              <button
+                type="button"
                 data-testid="active-stage-pill"
-                className="rounded-full bg-violet/16 px-2 py-0.5 font-mono text-[10px] text-violet-ink"
+                onClick={cycleActiveStage}
+                title="Click to switch this beat's video layout"
+                className="rounded-full bg-violet/16 px-2 py-0.5 font-mono text-[10px] text-violet-ink transition-colors hover:bg-violet/28"
               >
                 stage: {activeStage.mode}
-              </span>
+              </button>
             </>
           )}
         </div>

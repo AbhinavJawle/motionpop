@@ -25,7 +25,8 @@ export type CriticRule =
   | 'small-hero'
   | 'small-picture'
   | 'picture-off-frame'
-  | 'made-up-number';
+  | 'made-up-number'
+  | 'caption-collision';
 
 export interface CriticReport {
   rule: CriticRule;
@@ -66,6 +67,8 @@ export interface CriticOptions {
    * behind the text.
    */
   transparent?: boolean;
+  /** Reserved vertical pixel band `[top, bottom]` where live captions sit; graphic text must stay clear of it. */
+  captionBand?: { top: number; bottom: number };
 }
 
 export interface CriticSummary {
@@ -408,6 +411,20 @@ export function inspectBeat(
         hold,
         `${name} is ${Math.round(t.fontPx)} px tall: nothing readable is under ${Math.round(minPx)} px (2.4 % of the short side)`,
       );
+    if (o.captionBand && t.rect.height > 0) {
+      const overlapY =
+        Math.min(t.rect.bottom, o.captionBand.bottom) - Math.max(t.rect.top, o.captionBand.top);
+      if (overlapY / t.rect.height > 0.28) {
+        const topPct = Math.round((o.captionBand.top / o.height) * 100);
+        const botPct = Math.round((o.captionBand.bottom / o.height) * 100);
+        add(
+          'caption-collision',
+          'fix',
+          hold,
+          `${name} collides with the live caption band (top ${topPct}%..${botPct}%): move this text cleanly above top ${Math.max(6, topPct - 4)}% or below top ${Math.min(90, botPct + 3)}%`,
+        );
+      }
+    }
   }
   for (let i = 0; i < texts.length; i++) {
     for (let j = i + 1; j < texts.length; j++) {
