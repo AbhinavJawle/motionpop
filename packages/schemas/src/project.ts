@@ -3,6 +3,7 @@ import { BrandSchema } from './brand';
 import { ProjectFilmSchema } from './film';
 import { z } from 'zod';
 import { FormatSchema } from './format';
+import { ReelPlanSchema } from './reel';
 import { EnergySchema } from './score';
 import { SCRIPT_MAX_CHARS } from './start';
 import { TranscriptSchema } from './transcript';
@@ -338,6 +339,11 @@ export const EditorProjectBaseSchema = z.object({
   video: VideoTrackSchema.optional(),
   /** Secondary Media Bin clips: user-uploaded B-roll, screen recordings, screenshots & photos (spec 20). */
   mediaBin: z.array(MediaClipSchema).max(24).optional(),
+  /**
+   * Talking-head reel (spec 25): scene templates over the speaker video, on the cleaned timeline.
+   * When present with `video`, the preview and the export use the reel engine, not the slots.
+   */
+  reel: ReelPlanSchema.optional(),
 });
 
 export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {

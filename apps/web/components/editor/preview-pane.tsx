@@ -1,17 +1,20 @@
 'use client';
 
 import { DEFAULT_CAPTIONS, type CaptionsSetting, type Format } from '@motionpop/schemas';
-import { ChevronDown, PenLine, Scan } from 'lucide-react';
+import { ChevronDown, PenLine, RefreshCw, Scan } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassToolbar, ToolbarDivider } from '@/components/ui/glass-toolbar';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Toggle } from '@/components/ui/toggle';
 import { Dropdown, type DropdownOption } from '@/components/ui/dropdown';
-import { setCaptions } from '@/lib/commands';
+import { setCaptions, setReelCaptions, setReelLook } from '@/lib/commands';
+import { regenerateReel } from '@/lib/reel/regenerate';
 import { Tooltip } from '@/components/ui/tooltip';
 import { slotAt } from '@/lib/notes/active-slot';
 import { styleFor } from '@/lib/composition/project-to-compile';
 import { cn } from '@/lib/cn';
+import { useState } from 'react';
+import type { ReelLook } from '@motionpop/schemas';
 import { useEditor, type SaveStatus } from '@/lib/stores/editor';
 import { useUploadState, type UploadState } from '@/lib/audio/use-upload-state';
 import { audioRefsOf } from '@/lib/projects/summary';
@@ -20,6 +23,7 @@ import { OfflineBanner } from './offline-banner';
 import { PreviewBadge } from './preview-badge';
 import { PreviewProgress } from './preview-progress';
 import { PreviewPlayer } from './preview-player';
+import { ReelPreview } from './reel-preview';
 import { VideoCutsBar } from './video-cuts-bar';
 
 const ASPECT: Record<Format, string> = { '16:9': '16 / 9', '9:16': '9 / 16', '1:1': '1 / 1' };
@@ -75,9 +79,72 @@ const CAPTION_PRESETS: readonly DropdownOption<CaptionsSetting['presetId']>[] = 
   { value: 'boxed', label: 'Captions · Boxed', hint: 'Dark box' },
 ];
 
+const REEL_LOOKS: readonly DropdownOption<ReelLook>[] = [
+  { value: 'mono', label: 'Look · Mono', hint: 'Split screen, white grid panel, bold labels' },
+  { value: 'cream', label: 'Look · Cream', hint: 'Editorial serif, speaker in a rounded card' },
+];
+
+/** Reel tools (spec 25): look, captions and a new direction. */
+function ReelTools() {
+  const look = useEditor((s) => s.project?.reel?.look ?? 'mono');
+  const captions = useEditor((s) => s.project?.reel?.captions ?? true);
+  const exec = useEditor((s) => s.exec);
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      <div className="flex items-center gap-2 pr-3.5 pl-3.5">
+        <Dropdown
+          label="Reel look"
+          value={look}
+          options={REEL_LOOKS}
+          className="text-text-2"
+          onChange={(next) => {
+            if (next !== look) exec(setReelLook(next));
+          }}
+        />
+      </div>
+      <ToolbarDivider />
+      <div className="flex items-center gap-2 pr-3.5 pl-3.5">
+        <span className="text-[11px] leading-[14px] font-semibold text-text">CC</span>
+        <Toggle
+          checked={captions}
+          onCheckedChange={(on) => exec(setReelCaptions(on))}
+          label="Captions"
+        />
+      </div>
+      <ToolbarDivider />
+      <Tooltip content="Direct the reel again · ☁ 3 credits" side="bottom">
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            regenerateReel()
+              .then((source) =>
+                toast(source === 'cloud' ? 'New direction ready' : 'New direction (free director)'),
+              )
+              .catch(() => toast.error("Couldn't direct the reel. Try again."))
+              .finally(() => setBusy(false));
+          }}
+          className="flex items-center gap-[7px] px-3.5 text-text-2 transition-colors hover:text-text disabled:text-text-4"
+        >
+          <RefreshCw
+            className={cn('size-[16px]', busy && 'animate-spin')}
+            strokeWidth={1.5}
+            aria-hidden
+          />
+          {busy ? 'Directing…' : 'Re-direct'}
+        </button>
+      </Tooltip>
+    </>
+  );
+}
+
 /** Preview workspace ("Preview workspace" in design/figma-export.css): toolbar, frame, footer. */
 export function PreviewPane() {
-  const format = useEditor((s) => s.project?.format ?? '16:9');
+  const isReel = useEditor((s) => Boolean(s.project?.reel && s.project?.video));
+  const projectFormat = useEditor((s) => s.project?.format ?? '16:9');
+  const format: Format = isReel ? '9:16' : projectFormat;
   const styleName = useEditor((s) => (s.project ? styleFor(s.project).name : ''));
   const captions = useEditor((s) => s.project?.captions ?? DEFAULT_CAPTIONS);
   const exec = useEditor((s) => s.exec);
@@ -87,9 +154,15 @@ export function PreviewPane() {
   const voiceover = useEditor((s) => s.project?.voiceover);
   const uploads = useUploadState(voiceover ? audioRefsOf({ voiceover }) : undefined);
   const generating = useEditor((s) => s.generating !== null);
-  const sceneTotal = useEditor((s) => s.project?.slots.length ?? 0);
+  const sceneTotal = useEditor(
+    (s) => s.project?.reel?.scenes.length ?? s.project?.slots.length ?? 0,
+  );
   const sceneIndex = useEditor((s) => {
     if (!s.project) return 0;
+    if (s.project.reel) {
+      const t = s.playheadMs;
+      return s.project.reel.scenes.filter((x) => x.startMs <= t).length;
+    }
     const active =
       s.project.slots.find((x) => x.id === s.selectedSlotId) ??
       slotAt(s.project.slots, s.playheadMs);
@@ -104,61 +177,68 @@ export function PreviewPane() {
     >
       <Ambient />
       <GlassToolbar label="Preview tools" className="relative z-10 mt-5 gap-0 px-0">
-        <PenButton />
-        <ToolbarDivider />
-        <div className="flex items-center gap-2 pr-3.5 pl-3.5">
-          <span className="text-[11px] leading-[14px] font-semibold text-text">CC</span>
-          <Dropdown
-            label="Caption style"
-            value={captions.presetId}
-            options={CAPTION_PRESETS}
-            className="text-text-2"
-            onChange={(presetId) => {
-              if (presetId !== captions.presetId) exec(setCaptions({ presetId, enabled: true }));
-            }}
-          />
-          <Toggle
-            checked={captions.enabled}
-            onCheckedChange={(enabled) => exec(setCaptions({ enabled }))}
-            label="Captions"
-            className="ml-1.5"
-          />
-        </div>
-        <ToolbarDivider />
-        <button
-          type="button"
-          aria-pressed={safeZone}
-          onClick={toggleSafeZone}
-          className={cn(
-            'flex items-center gap-[7px] px-3.5 transition-colors',
-            safeZone ? 'text-text' : 'text-text-2 hover:text-text',
-          )}
-        >
-          <Scan
-            className={cn('size-[18px]', safeZone && 'text-violet')}
-            strokeWidth={1.5}
-            aria-hidden
-          />
-          Safe zone
-        </button>
-        <ToolbarDivider />
-        <button
-          type="button"
-          className="flex items-center gap-[27px] pr-4 pl-[18px] text-text-2 hover:text-text"
-          onClick={() => toast('Preview zoom is on its way.')}
-        >
-          <span className="tabular">Fit</span>
-          <ChevronDown className="size-[13px]" strokeWidth={1.5} aria-hidden />
-        </button>
+        {isReel ? (
+          <ReelTools />
+        ) : (
+          <>
+            <PenButton />
+            <ToolbarDivider />
+            <div className="flex items-center gap-2 pr-3.5 pl-3.5">
+              <span className="text-[11px] leading-[14px] font-semibold text-text">CC</span>
+              <Dropdown
+                label="Caption style"
+                value={captions.presetId}
+                options={CAPTION_PRESETS}
+                className="text-text-2"
+                onChange={(presetId) => {
+                  if (presetId !== captions.presetId)
+                    exec(setCaptions({ presetId, enabled: true }));
+                }}
+              />
+              <Toggle
+                checked={captions.enabled}
+                onCheckedChange={(enabled) => exec(setCaptions({ enabled }))}
+                label="Captions"
+                className="ml-1.5"
+              />
+            </div>
+            <ToolbarDivider />
+            <button
+              type="button"
+              aria-pressed={safeZone}
+              onClick={toggleSafeZone}
+              className={cn(
+                'flex items-center gap-[7px] px-3.5 transition-colors',
+                safeZone ? 'text-text' : 'text-text-2 hover:text-text',
+              )}
+            >
+              <Scan
+                className={cn('size-[18px]', safeZone && 'text-violet')}
+                strokeWidth={1.5}
+                aria-hidden
+              />
+              Safe zone
+            </button>
+            <ToolbarDivider />
+            <button
+              type="button"
+              className="flex items-center gap-[27px] pr-4 pl-[18px] text-text-2 hover:text-text"
+              onClick={() => toast('Preview zoom is on its way.')}
+            >
+              <span className="tabular">Fit</span>
+              <ChevronDown className="size-[13px]" strokeWidth={1.5} aria-hidden />
+            </button>
+          </>
+        )}
       </GlassToolbar>
 
       <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col items-center justify-center px-6 pt-5 pb-4">
         <div
           className="relative max-h-full max-w-full overflow-hidden rounded-card bg-frame shadow-glass"
-          style={{ aspectRatio: ASPECT[format], height: 'min(405px, 100%)' }}
+          style={{ aspectRatio: ASPECT[format], height: isReel ? '100%' : 'min(405px, 100%)' }}
         >
-          <PreviewPlayer />
-          <FrameNotesLayer />
+          {isReel ? <ReelPreview /> : <PreviewPlayer />}
+          {!isReel && <FrameNotesLayer />}
           <PreviewProgress />
           <PreviewBadge />
           <OfflineBanner />
@@ -166,12 +246,12 @@ export function PreviewPane() {
         </div>
       </div>
 
-      <VideoCutsBar />
+      {!isReel && <VideoCutsBar />}
       <footer className="relative z-10 mb-[19px] flex w-[720px] max-w-[calc(100%-48px)] items-center justify-between text-[11px] leading-[14px]">
         <span className="font-mono text-[10px] leading-[13px] tracking-[0.5px] text-text-3">
           SCENE {String(sceneIndex).padStart(2, '0')} / {String(sceneTotal).padStart(2, '0')}
         </span>
-        <span className="text-text-2">{styleName}</span>
+        <span className="text-text-2">{isReel ? 'Talking-head reel' : styleName}</span>
         <SaveIndicator status={saveStatus} uploads={uploads} generating={generating} />
       </footer>
     </section>

@@ -1,4 +1,4 @@
-import { detectLocal, directVideo, planVideo } from '@motionpop/ai';
+import { detectLocal, directReel, directVideo, planVideo } from '@motionpop/ai';
 import { requestPlanAllowance } from '../ai/plan-allowance';
 import { getRouter } from '../ai/router-client';
 import { appAudioStore } from '../audio/app-audio-store';
@@ -60,6 +60,7 @@ export function browserPipelineDeps(): PipelineDeps {
         ...params,
         model: 'gemini-3.8-flash',
       }),
+    directReel: async (params) => directReel(await getRouter().catch(() => null), params),
     ingestExtraClip: async (clip, projectId) => {
       const store = appAudioStore();
       const blob = await store.get(clip.ref);

@@ -65,15 +65,22 @@ export function ExportController() {
   const costOverride = useExportUi((s) => s.costOverride);
 
   const free = client.mode === 'offline';
-  const options =
+  const baseOptions =
     storedOptions ??
     (project ? defaultOptions(project.format, project.captions?.enabled ?? true) : null);
+  // Reels (spec 25) are vertical by design: they export in 9:16 whatever card is picked.
+  const options =
+    baseOptions && project?.reel && project.video
+      ? { ...baseOptions, format: '9:16' as const }
+      : baseOptions;
 
   const start = useCallback(
-    async (picked: RenderOptions) => {
+    async (chosen: RenderOptions) => {
       const ui = exportStore.getState();
       const current = editorStore.getState().project;
       if (!current || ui.starting) return;
+      const picked: RenderOptions =
+        current.reel && current.video ? { ...chosen, format: '9:16' } : chosen;
       ui.setOptions(picked);
       ui.beginStart();
       // Freeze what is exported now: later edits don't change a running render (R2.1).

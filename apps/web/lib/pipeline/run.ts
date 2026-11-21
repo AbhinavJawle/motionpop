@@ -1,4 +1,5 @@
 import {
+  autoReelPlan,
   planVideo,
   postPass,
   tagSpans,
@@ -22,6 +23,10 @@ import {
   type MediaClip,
   type OverlayAnchor,
   type PendingExtraClip,
+  type ReelLook,
+  type ReelPlan,
+  type ReelWord,
+  type VideoCut,
   type Slot,
   type SlotPlacement,
   type SlotSuggestion,
@@ -79,6 +84,8 @@ export interface PipelineInput {
   extraClips?: PendingExtraClip[];
   /** A single graphic: silent audio with typed `words`, one slot over all of them, no captions. */
   single?: boolean;
+  /** The reel look for video uploads (spec 25). Default `mono`. */
+  reelLook?: ReelLook;
 }
 
 export interface TranscribeOutput {
@@ -125,6 +132,15 @@ export interface PipelineDeps {
     frames: readonly { atMs: number; base64: string }[];
     audioEdlCuts: readonly AudioEdlCutInput[];
   }): Promise<EnforcedVideoPlan>;
+  /**
+   * The reel director (spec 25): talking-head uploads become a template reel. Default: the free
+   * deterministic `autoReelPlan`.
+   */
+  directReel?(params: {
+    look: ReelLook;
+    words: readonly ReelWord[];
+    durationMs: number;
+  }): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }>;
   /** Optional extra-clip ingester for B-roll / screen-recordings / screenshots dropped on /start (spec 20). */
   ingestExtraClip?(clip: PendingExtraClip, projectId: string): Promise<MediaClip | null>;
   /** `imagesPerVideoMax` (Remote Config). */
@@ -161,6 +177,9 @@ export function firstVersions(
   });
   return { slots: out, versions };
 }
+
+/** Reels cut tighter than voiceovers: pauses over 0.5 s keep 0.24 s of air (spec 25). */
+const REEL_EDL = { pauseMs: 500, keepMs: 240 } as const;
 
 function titleFrom(name: string): string {
   const base = name.replace(/\.[a-z0-9]{2,5}$/i, '').trim();
@@ -254,6 +273,144 @@ export async function runPipeline(
         (input.words ? 'Sample transcript · ' : '') +
         transcriptSummary(t.words.length, audio.durationMs),
     });
+
+    // Talking-head video (spec 25): jump cuts on the pauses and fillers, then a template reel.
+    if (isVideoInput && !input.single) {
+      step = 'clean';
+      onEvent({ type: 'step', step, state: 'active' });
+      const probe = deps.probeVideo ? await deps.probeVideo(input.file).catch(() => null) : null;
+      checkAbort();
+      const sourceMs = Math.max(1, probe?.durationMs ?? audio.durationMs);
+      const reelEdl = cleanupOn
+        ? buildEdl(t.words, audio.durationMs, REEL_EDL)
+        : { cuts: [], fillersRemoved: 0, pausesShortened: 0, skipped: undefined };
+      const videoCuts: VideoCut[] = reelEdl.cuts
+        .map((c) => ({
+          startMs: Math.round(c.startMs),
+          endMs: Math.round(Math.min(c.endMs, sourceMs)),
+        }))
+        .filter((c) => c.endMs > c.startMs)
+        .map((c, i) => ({
+          id: `cut-${i + 1}`,
+          ...c,
+          kind: 'silence' as const,
+          reason: 'Pause or filler',
+          enabled: true,
+        }));
+      const kept = keptSourceSegments(sourceMs, videoCuts);
+      const reelMs = Math.max(1, cleanedDurationFromSegments(kept));
+      const reelWords = retimeWords(t.words, videoCuts);
+      const reelPcm =
+        videoCuts.length > 0
+          ? await deps.renderCleaned(audio.pcm24k, OUTPUT_SAMPLE_RATE, videoCuts)
+          : null;
+      checkAbort();
+      onEvent({ type: 'words', words: reelWords, durationMs: reelMs });
+      onEvent({
+        type: 'step',
+        step,
+        state: 'done',
+        detail: !cleanupOn
+          ? 'Cleanup is off'
+          : cleanupSummary(reelEdl.fillersRemoved, reelEdl.pausesShortened),
+      });
+      onEvent({ type: 'step', step: 'moments', state: 'skipped', detail: 'Reels skip this' });
+      onEvent({ type: 'step', step: 'suggest', state: 'skipped', detail: 'Reels skip this' });
+
+      step = 'plan';
+      onEvent({ type: 'step', step, state: 'active', detail: 'Directing your reel' });
+      const look: ReelLook = input.reelLook ?? 'mono';
+      const words = reelWords.map((w) => ({ text: w.text, startMs: w.startMs, endMs: w.endMs }));
+      const directed = await (deps.directReel
+        ? deps.directReel({ look, words, durationMs: reelMs }).catch(() => null)
+        : Promise.resolve(null));
+      checkAbort();
+      const reel = directed?.plan ?? autoReelPlan(words, reelMs, look);
+      const source = directed?.source ?? 'auto';
+
+      checkAbort();
+      const written: string[] = [];
+      try {
+        const place = { projectId: id, kind: 'voice' } as const;
+        const reuse = input.storedRef && !deps.audioStore.syncs?.() ? input.storedRef : null;
+        const originalSrc = reuse ?? (await deps.audioStore.put(input.file, place));
+        if (!reuse) written.push(originalSrc);
+        const src = reelPcm
+          ? await deps.audioStore.put(
+              new Blob([deps.encodeWav(reelPcm, OUTPUT_SAMPLE_RATE)], { type: 'audio/wav' }),
+              place,
+            )
+          : originalSrc;
+        if (src !== originalSrc) written.push(src);
+        const now = deps.now();
+        const transcript = (ws: Word[], cleaned: boolean): Transcript => ({
+          words: ws,
+          language: 'en',
+          ranOn: t.ranOn,
+          timingQuality: t.timingQuality,
+          cleaned,
+        });
+        const candidate = {
+          schemaVersion: 1,
+          id,
+          title: input.title?.trim().slice(0, 80) || titleFrom(input.name),
+          format: '9:16',
+          fps: 30,
+          styleId,
+          durationMs: reelMs,
+          voiceover: {
+            src,
+            durationMs: reelMs,
+            source: input.source,
+            originalSrc,
+            originalDurationMs: audio.durationMs,
+            cleanup: {
+              fillersRemoved: reelEdl.fillersRemoved,
+              pausesShortened: reelEdl.pausesShortened,
+              enabled: videoCuts.length > 0,
+              ...(reelEdl.skipped ? { skipped: reelEdl.skipped } : {}),
+            },
+          },
+          video: {
+            src: originalSrc,
+            width: probe?.width ?? 1080,
+            height: probe?.height ?? 1920,
+            originalDurationMs: sourceMs,
+            cuts: videoCuts,
+            punchIns: [],
+            defaultOverlayAnchor: 'top-right',
+          },
+          reel,
+          transcript: transcript(reelWords, videoCuts.length > 0),
+          originalTranscript: transcript(t.words, false),
+          slots: [],
+          versions: [],
+          // The reel draws its own captions (spec 25); the slot captions stay off.
+          captions: { ...DEFAULT_CAPTIONS, enabled: false },
+          createdAt: now,
+          updatedAt: now,
+        } satisfies EditorProject;
+        const project: EditorProject = EditorProjectSchema.parse(candidate);
+        await deps.repo.save(project);
+        if (input.storedRef && !reuse && input.storedRef !== originalSrc) {
+          await deps.audioStore.delete(input.storedRef).catch(() => undefined);
+        }
+        onEvent({
+          type: 'step',
+          step,
+          state: 'done',
+          detail: `${reel.scenes.length} scenes${source === 'cloud' ? '' : ' · free director'}`,
+          ...(source === 'cloud' ? { route: 'cloud' as const } : {}),
+        });
+        onEvent({ type: 'done', projectId: id });
+        return { projectId: id };
+      } catch (err) {
+        await Promise.all(written.map((ref) => deps.audioStore.delete(ref).catch(() => undefined)));
+        throw err instanceof PipelineError
+          ? err
+          : new PipelineError(step, "Couldn't save the project in this browser.", { cause: err });
+      }
+    }
 
     // Clean (R3) + Video editorial directing (spec 18 R4).
     step = 'clean';

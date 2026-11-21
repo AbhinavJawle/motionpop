@@ -455,7 +455,8 @@ export function isImageSlot(slot: Pick<Slot, 'params'>): boolean {
 }
 
 export function exportAvailability(
-  project: Pick<EditorProject, 'slots' | 'durationMs'>,
+  project: Pick<EditorProject, 'slots' | 'durationMs'> &
+    Partial<Pick<EditorProject, 'reel' | 'video'>>,
   options: Pick<RenderOptions, 'format'>,
   ctx: ExportAvailabilityContext,
 ): ExportAvailability {
@@ -463,7 +464,9 @@ export function exportAvailability(
     .filter((s) => ctx.isRenderable(s, options.format))
     .map((s) => s.id);
   const reasons: ExportBlock[] = [];
-  if (renderableIds.length === 0) reasons.push('nothing-to-render');
+  // A reel (spec 25) renders its scenes over the speaker, with or without slots.
+  const isReel = Boolean(project.reel && project.video);
+  if (renderableIds.length === 0 && !isReel) reasons.push('nothing-to-render');
   if (project.durationMs > ctx.maxMs) reasons.push('too-long');
   return {
     renderableIds,

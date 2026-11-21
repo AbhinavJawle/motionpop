@@ -9,6 +9,7 @@ import {
   styleFor,
 } from '@motionpop/motion/compiler';
 import type { ImageRef } from '@motionpop/motion';
+import { compileReel } from '@motionpop/motion/reel';
 import { mediaHashOf, mediaStoragePath } from '@motionpop/schemas';
 import {
   EditorProjectSchema,
@@ -24,9 +25,9 @@ import {
   type RenderPaths,
 } from '@motionpop/schemas';
 import { copyFile, mkdir, rm, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { prepareBed } from './bed';
-import { motionDistDir } from './compile-assets';
+import { loadReelAssets, motionDistDir } from './compile-assets';
 import { contentDisposition } from './headers';
 import { expectedSize, outputIssues } from './output';
 import { preflightSamples } from './preflight-samples';
@@ -180,8 +181,11 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     }
 
     // 2e. Source video for video projects (spec 18 R7.1, spec 19 R5.1), downloaded from owner's folder.
+    // Reels (spec 25) play it inside the composition, so it lands in the composition folder.
+    const reelMode = Boolean(project.reel && project.video);
     let sourceVideoFile: string | null = null;
-    if (project.video && ffmpeg.compositeVideo) {
+    let reelVideoRel: string | null = null;
+    if (project.video && (ffmpeg.compositeVideo || reelMode)) {
       const candidate =
         doc.videoPath ??
         (project.video.src.startsWith('storage:')
@@ -191,7 +195,11 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         videoPathFor(doc.ownerId, doc.projectId).test(candidate) ||
         voicePathFor(doc.ownerId, doc.projectId).test(candidate);
       if (allowed) {
-        const dest = join(deps.workDir, 'source-video');
+        const ext = /^\.[a-z0-9]{2,5}$/i.test(extname(candidate)) ? extname(candidate) : '.mp4';
+        if (reelMode) reelVideoRel = `assets/speaker${ext.toLowerCase()}`;
+        const dest = reelVideoRel
+          ? join(compDir, reelVideoRel)
+          : join(deps.workDir, 'source-video');
         try {
           await blobs.download(candidate, dest);
           sourceVideoFile = dest;
@@ -200,10 +208,15 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         }
       }
     }
-    const videoComposite = Boolean(project.video && sourceVideoFile && ffmpeg.compositeVideo);
+    if (reelMode && !sourceVideoFile) {
+      throw new RenderStepError('input-missing', 'the source video could not be read');
+    }
+    const videoComposite =
+      !reelMode && Boolean(project.video && sourceVideoFile && ffmpeg.compositeVideo);
 
     // 2f. Secondary Media Bin clips referenced by video stages (spec 21 R5.3).
-    const downloadedClips: Record<string, { path: string; isVideo: boolean; durationMs?: number }> = {};
+    const downloadedClips: Record<string, { path: string; isVideo: boolean; durationMs?: number }> =
+      {};
     if (videoComposite && doc.clipPaths && project.mediaBin?.length) {
       const clipRe = mediaClipPathFor(doc.ownerId, doc.projectId);
       let idx = 0;
@@ -226,8 +239,31 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       }
     }
 
-    // 3. Compile.
+    // 3. Compile. A reel is one composition: the speaker clips, the scenes and the captions.
     const slots = await step('compile-failed', 'compiling', async () => {
+      if (reelMode && project.reel && project.video && reelVideoRel) {
+        const dims = expectedSize(doc.format, doc.resolution);
+        const html = compileReel(
+          {
+            plan: project.reel,
+            words: project.transcript.words.map((w) => ({
+              text: w.text,
+              startMs: w.startMs,
+              endMs: w.endMs,
+            })),
+            durationMs: project.durationMs,
+            videoSrc: reelVideoRel,
+            video: { w: project.video.width, h: project.video.height },
+            segments: keptSourceSegments(project.video.originalDurationMs, project.video.cuts).map(
+              (k) => ({ srcStartMs: k.startMs, srcEndMs: k.endMs }),
+            ),
+            out: { w: dims.width, h: dims.height },
+          },
+          deps.reelAssets ?? (await loadReelAssets()),
+        );
+        await writeFile(join(compDir, 'index.html'), html);
+        return [];
+      }
       const input = projectCompileInput(project, {
         mode: 'render',
         format: doc.format,
@@ -247,13 +283,15 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     });
 
     // 4a. Preflight: a slot that fails to build leaves its clip empty, so catch it before the render.
-    const issues = await step('render-failed', 'the preflight', () =>
-      deps.preflight.check({
-        compDir,
-        format: doc.format,
-        samplesMs: preflightSamples(slots),
-        signal,
-      }),
+    const issues = await step('render-failed', 'the preflight', async () =>
+      reelMode
+        ? []
+        : deps.preflight.check({
+            compDir,
+            format: doc.format,
+            samplesMs: preflightSamples(slots),
+            signal,
+          }),
     );
     if (issues.length > 0) {
       log.error({ event: 'slot-errors', renderId, issues: issues.slice(0, 10) });

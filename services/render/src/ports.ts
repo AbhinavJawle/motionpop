@@ -1,6 +1,7 @@
 // Ports of the render job (spec 08 design §8). `runRender` only talks to these interfaces, so the
 // same orchestration runs in the cloud (Firestore + Storage), against the emulators and offline
 // (memory + filesystem), and tests drive it with fakes.
+import type { ReelCompileAssets } from '@motionpop/motion/reel';
 import type { compileProject } from '@motionpop/motion/compiler';
 import type { VideoCompositeArgs } from './video-ffmpeg';
 import type {
@@ -165,6 +166,8 @@ export interface RenderDeps {
   producer: Producer;
   ffmpeg: Ffmpeg;
   assets: CompileAssets;
+  /** Reel engine assets (spec 25); loaded from the motion dist when absent. */
+  reelAssets?: ReelCompileAssets;
   clock: Clock;
   /** A folder this render owns; deleted when it ends (`os.tmpdir()/render-{id}`). */
   workDir: string;

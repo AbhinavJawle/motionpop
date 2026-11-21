@@ -13,8 +13,31 @@
 - `hf-entry.ts` → `dist/reel-runtime.js` — mounts on `#reel-stage`, draws from `hf-seek`.
 - `compile.ts` — `compileReel(input, assets)` → one HyperFrames `index.html`: fonts as data URLs, the stage scaled to the output size, one timed `<video data-has-audio>` per kept segment inside an untimed wrapper, `data-no-timeline` on the root.
 
+## Pipeline (video uploads)
+`runPipeline` sends every talking-head video upload down the reel path. The steps are:
+1. Transcribe.
+2. Build jump cuts from a tighter EDL: pauses over 500 ms keep 240 ms of air, and fillers are cut. The cuts are stored as `video.cuts`.
+3. Re-time the words onto the cleaned timeline.
+4. Run `directReel`: cloud when available, else `autoReelPlan`.
+5. Save a 9:16 project with `reel`, no slots, and the slot captions off.
+
+The old spec 18–24 video director (`video.direct`) and the stage choreography are not used for new uploads.
+
 ## Preview
-The editor mounts the same `mountReel` into a scaled div with a native `<video>`; a rAF loop calls `seek(video.currentTime)`. No iframe is needed: the reel runs only our own code.
+`ReelPreview` (`apps/web/components/editor/reel-preview.tsx`) mounts the same `mountReel` into a 720 × 1280 div scaled to the frame, with a muted native `<video>`:
+- The editor's cleaned voice stays the master clock. Every clock tick calls `seek(playheadMs)` and keeps the video on `cleanedToSourceMs(playheadMs)`.
+- No iframe is needed, because the reel runs only our own code.
+- Fonts come from `/api/composition/reel-fonts`, the same files the export inlines.
+
+The toolbar shows the look (mono/cream, via `restyleReelPlan`), captions and Re-direct (☁ 3). Each one is a single undo step (`setReel*` commands).
+
+## Export
+When the snapshot has `reel` and `video`, `runRender`:
+- downloads the source video into `composition/assets/speaker.<ext>`;
+- compiles `compileReel` with one clip per kept segment, at the output size;
+- skips the slot preflight and the FFmpeg composite, so the producer writes the MP4 directly (the voice comes from the clips' own audio).
+
+Reels always export in 9:16. `exportAvailability` allows reels without slots.
 
 ## Director
 `reel.direct` (`packages/ai`) gets the indexed words and returns scenes with word indices (`fromWord`, `toWord`, cue words); post-processing maps indices to ms, clamps text, tiles scenes and validates with `ReelPlanSchema`. `autoReelPlan` is the free deterministic fallback.

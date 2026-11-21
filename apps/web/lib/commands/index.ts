@@ -47,3 +47,4 @@ export {
   toggleVideoCut,
   updateMediaClips,
 } from './video';
+export { setReel, setReelCaptions, setReelLook } from './reel';

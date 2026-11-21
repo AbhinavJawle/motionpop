@@ -241,6 +241,29 @@ export function tileReelScenes(scenes: readonly ReelScene[], durationMs: number)
   return out;
 }
 
+/**
+ * The same plan in the other look: graphic layouts swap (mono split screen ↔ cream speaker card),
+ * cream backgrounds read as light in mono, and the mono-only seam tags and hook band are kept but
+ * ignored by cream. Speaker and full scenes are unchanged.
+ */
+export function restyleReelPlan(plan: ReelPlan, look: ReelLook): ReelPlan {
+  if (plan.look === look) return plan;
+  return {
+    ...plan,
+    look,
+    scenes: plan.scenes.map((s) => {
+      const layout =
+        look === 'mono' && s.layout === 'card'
+          ? 'split'
+          : look === 'cream' && s.layout === 'split'
+            ? 'card'
+            : s.layout;
+      const bg = look === 'mono' && s.bg === 'cream' ? 'light' : s.bg;
+      return { ...s, layout, ...(bg ? { bg } : {}) };
+    }),
+  };
+}
+
 /** Icons the director may name (all exist in the motion kit's lucide set). */
 export const REEL_ICONS = [
   'rocket',

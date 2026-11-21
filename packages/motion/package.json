@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./compiler": "./src/compiler/index.ts",
+    "./reel": "./src/reel/index.ts",
     "./styles": "./src/styles/index.ts",
     "./registry": "./src/registry.ts",
     "./sfx": "./src/sfx/index.ts",

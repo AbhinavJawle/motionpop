@@ -3,7 +3,7 @@
 // and CI.
 //
 // Usage: pnpm --filter @motionpop/render render:project <project.json> <voice> <out.mp4>
-//          [--resolution 720p|1080p] [--format 16:9|9:16|1:1] [--no-sandbox]
+//          [--resolution 720p|1080p] [--format 16:9|9:16|1:1] [--video <source.mp4>] [--no-sandbox]
 // The project JSON is an `EditorProject` (what the editor saves). The voice is any audio file.
 import { createHash, randomUUID } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
@@ -38,7 +38,8 @@ const positional: string[] = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i]!;
   if (a === '--no-sandbox') flags.set('no-sandbox', '1');
-  else if (a === '--resolution' || a === '--format') flags.set(a.slice(2), args[++i] ?? '');
+  else if (a === '--resolution' || a === '--format' || a === '--video')
+    flags.set(a.slice(2), args[++i] ?? '');
   else if (a.startsWith('--')) fail(`unknown flag ${a}`);
   else positional.push(a);
 }
@@ -70,6 +71,18 @@ const blobs = new FsBlobStore(join(root, 'bucket'));
 await blobs.put(paths.input, JSON.stringify(project));
 await blobs.put(voicePath, voiceBytes);
 
+// Video projects (spec 18, spec 25 reels): the source video goes where uploads go.
+let videoPath: string | undefined;
+const videoFile = flags.get('video');
+if (videoFile) {
+  const bytes = await readFile(videoFile);
+  const vext = extname(videoFile).slice(1).toLowerCase();
+  if (!['mp4', 'mov', 'webm'].includes(vext)) fail(`the video must be .mp4, .mov or .webm`);
+  const vhash = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
+  videoPath = `users/${OWNER}/video/${project.id}/source-${vhash}.${vext}`;
+  await blobs.put(videoPath, bytes);
+}
+
 const store = new MemoryRenderStore();
 store.create(
   renderId,
@@ -91,6 +104,7 @@ store.create(
     mode: 'offline',
     inputPath: paths.input,
     voicePath,
+    ...(videoPath ? { videoPath } : {}),
     createdAt: new Date(),
   }),
 );

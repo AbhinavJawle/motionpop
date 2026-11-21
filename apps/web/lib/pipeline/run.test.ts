@@ -831,8 +831,8 @@ describe('runPipeline: a single graphic', () => {
   });
 });
 
-describe('runPipeline: video upload defaults (spec 24)', () => {
-  it('saves a valid 9:16 video project with studio-light, studio captions, autoSfx and no musicId', async () => {
+describe('runPipeline: talking-head reels (spec 25)', () => {
+  it('saves a valid 9:16 reel project: jump cuts, a tiled reel plan, no slots, slot captions off', async () => {
     const h = makeHarness();
     h.deps.probeVideo = vi.fn(async () => ({
       width: 1080,
@@ -856,20 +856,57 @@ describe('runPipeline: video upload defaults (spec 24)', () => {
     expect(EditorProjectSchema.safeParse(p).success).toBe(true);
     expect(p.styleId).toBe('studio-light');
     expect(p.format).toBe('9:16');
-    expect(p.captions).toEqual({ enabled: true, presetId: 'studio' });
-    expect(p.audio).toMatchObject({
-      musicGainDb: -22,
-      ducking: true,
-      duckDepthDb: 10,
-      autoSfx: true,
-    });
-    expect(p.audio?.musicId).toBeUndefined();
-    expect(p.audio && 'musicId' in p.audio).toBe(false);
+    expect(p.slots).toEqual([]);
+    expect(p.captions?.enabled).toBe(false);
     expect(p.video).toMatchObject({
       width: 1080,
       height: 1920,
       originalDurationMs: CUT_DURATION,
     });
+    const reel = p.reel!;
+    expect(reel.look).toBe('mono');
+    expect(reel.scenes[0]!.startMs).toBe(0);
+    expect(reel.scenes.at(-1)!.endMs).toBe(p.durationMs);
+    // Every enabled cut is a removed range, so the reel is the kept length.
+    const cutMs = p.video!.cuts.reduce((a, c) => a + (c.endMs - c.startMs), 0);
+    expect(p.durationMs).toBe(CUT_DURATION - cutMs);
+  });
+
+  it('uses the reel director when one is given, and the requested look', async () => {
+    const h = makeHarness();
+    const directReel = vi.fn(async (i: { look: 'mono' | 'cream'; durationMs: number }) => ({
+      plan: {
+        v: 1 as const,
+        look: i.look,
+        focus: { x: 0.5, y: 0.32 },
+        captions: true,
+        scenes: [
+          {
+            id: 'r1',
+            startMs: 0,
+            endMs: i.durationMs,
+            layout: 'speaker' as const,
+            content: { template: 'none' as const },
+          },
+        ],
+      },
+      source: 'cloud' as const,
+    }));
+    h.deps.directReel = directReel;
+    await runPipeline(
+      makeInput({
+        file: new Blob(['fake mp4'], { type: 'video/mp4' }),
+        name: 'clip.mp4',
+        reelLook: 'cream',
+      }),
+      h.deps,
+      h.onEvent,
+    );
+    expect(directReel).toHaveBeenCalledOnce();
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    expect(loaded.project.reel?.look).toBe('cream');
+    expect(loaded.project.reel?.scenes).toHaveLength(1);
   });
 
   it('honours an explicit styleId override on a video upload', async () => {

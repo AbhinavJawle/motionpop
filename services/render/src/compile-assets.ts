@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { dirname, isAbsolute, join } from 'node:path';
+import type { ReelCompileAssets } from '@motionpop/motion/reel';
 import type { CompileAssets } from './ports';
 
 let cached: Promise<CompileAssets> | undefined;
@@ -54,4 +55,30 @@ export function loadCompileAssets(distDir: string = motionDistDir()): Promise<Co
     }
   })();
   return cached;
+}
+
+let reelCached: Promise<ReelCompileAssets> | undefined;
+
+/** The reel engine's runtime, the HyperFrames runtime and the reel fonts (spec 25). */
+export function loadReelAssets(distDir: string = motionDistDir()): Promise<ReelCompileAssets> {
+  reelCached ??= (async () => {
+    try {
+      const [reelRuntimeJs, hyperframesRuntimeJs, fontsJson] = await Promise.all(
+        ['reel-runtime.js', 'hyperframe.runtime.iife.js', 'reel-fonts.json'].map((f) =>
+          readFile(join(distDir, f), 'utf8'),
+        ),
+      );
+      return {
+        reelRuntimeJs: reelRuntimeJs!,
+        hyperframesRuntimeJs: hyperframesRuntimeJs!,
+        fonts: JSON.parse(fontsJson!) as Record<string, string>,
+      };
+    } catch (e) {
+      reelCached = undefined;
+      throw new Error(
+        `reel runtime not built in ${distDir} (run pnpm --filter @motionpop/motion build:runtime): ${String(e)}`,
+      );
+    }
+  })();
+  return reelCached;
 }
