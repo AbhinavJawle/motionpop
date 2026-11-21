@@ -26,3 +26,4 @@ export * from './brand';
 export * from './film';
 export * from './hash';
 export * from './video';
+export * from './reel';

@@ -1,0 +1,141 @@
+// Reel engine (spec 25) dev tool. Compiles a reel next to its video and either renders it to MP4
+// with @hyperframes/producer or takes quick stills (a contact sheet) in headless Chrome.
+//
+//   npx tsx scripts/reel-dev.ts render <video> <words.json> <plan.json> <out.mp4> [--quality draft|standard|high]
+//   npx tsx scripts/reel-dev.ts sheet  <video> <words.json> <plan.json> <out.jpg> [--every 1000]
+//
+// words.json: [{ text, startMs, endMs }]. plan.json: a ReelPlan.
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { ReelPlanSchema, ReelWordSchema, tileReelScenes } from '@motionpop/schemas';
+import { z } from 'zod';
+import { compileReel } from '../src/reel/compile.ts';
+
+const [cmd, videoArg, wordsArg, planArg, outArg, ...rest] = process.argv.slice(2);
+if (!cmd || !videoArg || !wordsArg || !planArg || !outArg) {
+  console.error('usage: reel.ts render|sheet <video> <words.json> <plan.json> <out> [flags]');
+  process.exit(2);
+}
+const flag = (name: string, dflt: string): string => {
+  const i = rest.indexOf(`--${name}`);
+  return i >= 0 ? (rest[i + 1] ?? dflt) : dflt;
+};
+
+const dist = resolve(import.meta.dirname, '../dist');
+// Always bundle the latest runtime so stills never show a stale build.
+execFileSync('node', [resolve(import.meta.dirname, 'build-runtime.ts')], { stdio: 'ignore' });
+const assets = {
+  reelRuntimeJs: readFileSync(join(dist, 'reel-runtime.js'), 'utf8'),
+  hyperframesRuntimeJs: readFileSync(join(dist, 'hyperframe.runtime.iife.js'), 'utf8'),
+  fonts: JSON.parse(readFileSync(join(dist, 'reel-fonts.json'), 'utf8')) as Record<string, string>,
+};
+
+const probe = JSON.parse(
+  execFileSync(
+    'ffprobe',
+    [
+      '-v',
+      'error',
+      '-select_streams',
+      'v:0',
+      '-show_entries',
+      'stream=width,height:stream_side_data=rotation:format=duration',
+      '-of',
+      'json',
+      videoArg,
+    ],
+    { encoding: 'utf8' },
+  ),
+) as { streams: { width: number; height: number }[]; format: { duration: string } };
+const vw = probe.streams[0]!.width;
+const vh = probe.streams[0]!.height;
+const durationMs = Math.floor(Number(probe.format.duration) * 1000);
+
+const words = z.array(ReelWordSchema).parse(JSON.parse(readFileSync(wordsArg, 'utf8')));
+const rawPlan = ReelPlanSchema.parse(JSON.parse(readFileSync(planArg, 'utf8')));
+const plan = { ...rawPlan, scenes: tileReelScenes(rawPlan.scenes, durationMs) };
+
+const dir = mkdtempSync(join(tmpdir(), 'mp-reel-'));
+copyFileSync(videoArg, join(dir, 'speaker.mp4'));
+const html = compileReel(
+  {
+    plan,
+    words,
+    durationMs,
+    videoSrc: 'speaker.mp4',
+    video: { w: vw, h: vh },
+    out: cmd === 'sheet' ? { w: 720, h: 1280 } : { w: 1080, h: 1920 },
+  },
+  assets,
+);
+writeFileSync(join(dir, 'index.html'), html);
+console.log(`composition: ${dir} (${plan.scenes.length} scenes, ${durationMs} ms)`);
+
+if (cmd === 'render') {
+  // The producer lives in the render service; its render-dir script does the work.
+  const quality = flag('quality', 'standard');
+  execFileSync('npx', ['tsx', 'scripts/render-dir.ts', dir, resolve(outArg), quality], {
+    cwd: resolve(import.meta.dirname, '../../../services/render'),
+    stdio: 'inherit',
+  });
+} else if (cmd === 'sheet') {
+  const puppeteer = await import('puppeteer');
+  const every = Number(flag('every', '1500'));
+  const browser = await puppeteer.default.launch({
+    headless: true,
+    args: ['--autoplay-policy=no-user-gesture-required', '--allow-file-access-from-files'],
+  });
+  const page = await browser.newPage();
+  await page.setViewport({ width: 720, height: 1280 });
+  page.on('pageerror', (e) => console.error('pageerror', e));
+  page.on('console', (m) => {
+    if (m.type() === 'error') console.error('console', m.text());
+  });
+  await page.goto(`file://${join(dir, 'index.html')}`, { waitUntil: 'load' });
+  await page.evaluate('window.__reel && window.__reel.ready');
+  const shots = join(dir, 'shots');
+  mkdirSync(shots);
+  const times: number[] = [];
+  for (let t = 400; t < durationMs; t += every) times.push(t);
+  for (const [i, t] of times.entries()) {
+    // A string, not a function: tsx would inject helpers the page doesn't have.
+    await page.evaluate(`(async () => {
+      const ms = ${t};
+      const v = document.querySelector('video');
+      if (v) {
+        v.style.visibility = 'visible';
+        v.removeAttribute('data-hf-clip-hidden');
+        await new Promise((res) => {
+          v.addEventListener('seeked', () => res(), { once: true });
+          v.currentTime = ms / 1000;
+          setTimeout(res, 1500);
+        });
+      }
+      window.__reel && window.__reel.seek(ms);
+    })()`);
+    await page.screenshot({
+      path: join(shots, `${String(i).padStart(3, '0')}.jpg`),
+      type: 'jpeg',
+      quality: 82,
+    });
+  }
+  await browser.close();
+  const cols = Number(flag('cols', '8'));
+  execFileSync('ffmpeg', [
+    '-v',
+    'error',
+    '-y',
+    '-framerate',
+    '1',
+    '-i',
+    join(shots, '%03d.jpg'),
+    '-vf',
+    `scale=270:-1,tile=${cols}x${Math.ceil(times.length / cols)}:padding=4:color=white`,
+    '-frames:v',
+    '1',
+    resolve(outArg),
+  ]);
+  console.log(`sheet ${outArg} (${times.length} stills, every ${every} ms) — stills in ${shots}`);
+}

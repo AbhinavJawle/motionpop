@@ -23,6 +23,28 @@ await build({
   legalComments: 'none',
 });
 
+// Reel engine (spec 25): its own runtime bundle and fonts.
+await build({
+  entryPoints: [join(pkgDir, 'src/reel/hf-entry.ts')],
+  outfile: join(outDir, 'reel-runtime.js'),
+  bundle: true,
+  format: 'iife',
+  platform: 'browser',
+  target: 'chrome120',
+  minify: true,
+  legalComments: 'none',
+});
+const reelFontDir = join(pkgDir, 'src/reel/fonts');
+const reelFonts: Record<string, string> = {
+  Inter: (await readFile(join(reelFontDir, 'Inter-Variable.woff2'))).toString('base64'),
+  Newsreader: (await readFile(join(reelFontDir, 'Newsreader-Variable.woff2'))).toString('base64'),
+  'Playfair Display Italic': (
+    await readFile(join(reelFontDir, 'PlayfairDisplay-Italic-Variable.woff2'))
+  ).toString('base64'),
+  'Geist Mono': (await readFile(join(pkgDir, 'src/fonts/GeistMono-Variable.woff2'))).toString('base64'),
+};
+await writeFile(join(outDir, 'reel-fonts.json'), JSON.stringify(reelFonts));
+
 const require = createRequire(import.meta.url);
 const corePkg = require.resolve('@hyperframes/core/package.json');
 await copyFile(

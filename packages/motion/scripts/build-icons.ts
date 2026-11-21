@@ -17,7 +17,12 @@ sun moon star cloud-rain snowflake flame droplet leaf sprout wind fish bird
 clock calendar hourglass timer book-open newspaper mail phone megaphone lightbulb wrench hammer package box shopping-cart gift trophy flag target bell camera music mic
 wheat apple utensils coffee
 arrow-right arrow-up-right check x plus minus triangle-alert ban info infinity equal
-swords bomb gavel vote oil-barrel pickaxe drill construction tractor cog`
+swords bomb gavel vote oil-barrel pickaxe drill construction tractor cog
+video film file file-text image terminal square-terminal mouse-pointer-click message-circle message-square play circle-play gauge
+list-checks layers sparkles wand-sparkles repeat refresh-cw circle-check badge-check alarm-clock calendar-check dumbbell goal thumbs-up
+user-check circle-x door-open git-branch folder download upload link search settings sliders-horizontal pen-tool palette
+layout-dashboard activity check-check list-todo notebook-pen square-check-big circle-dashed loader smile frown sunrise mountain-snow
+hand-heart handshake rocket timer-reset brain-circuit lightbulb-off octagon-x trending-up chart-no-axes-combined key-round shield-check`
     .split(/\s+/)
     .filter(Boolean);
 
