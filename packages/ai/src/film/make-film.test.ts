@@ -308,7 +308,15 @@ describe('makeFilm', () => {
         seenTasks.push(task.id);
         seenModels[task.id] = opts?.model;
         if (task.id === 'reel.direct') {
-          return { output: reelBoard, ranOn: 'cloud', model: 'gemini-4-neon', costCredits: 0, latencyMs: 10, attempts: 1, cached: false };
+          return {
+            output: reelBoard,
+            ranOn: 'cloud',
+            model: 'gemini-4-neon',
+            costCredits: 0,
+            latencyMs: 10,
+            attempts: 1,
+            cached: false,
+          };
         }
         if (task.id === 'reel.build') {
           const call = arg as FilmBuildInput;

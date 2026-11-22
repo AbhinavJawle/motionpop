@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { RouterConfig } from '../router';
-import { filmBuildTask, filmDirectTask, filmPropsTask, reelBuildTask, reelDirectTask } from './film';
+import {
+  filmBuildTask,
+  filmDirectTask,
+  filmPropsTask,
+  reelBuildTask,
+  reelDirectTask,
+} from './film';
 
 const CONFIG: RouterConfig = {
   routingOverrides: {},

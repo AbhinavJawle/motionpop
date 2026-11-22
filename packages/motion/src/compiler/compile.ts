@@ -169,9 +169,7 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
     // video stage (no boxy scale(0.44) card wrapper); only `cutaway` paints a full studio ground.
     const isChoreoCustom = hasVideo && s.componentId === 'custom';
     const isOverlay = !isChoreoCustom && hasVideo && s.placement === 'overlay';
-    const isCutaway = isChoreoCustom
-      ? s.videoStage === 'cutaway'
-      : hasVideo && !isOverlay;
+    const isCutaway = isChoreoCustom ? s.videoStage === 'cutaway' : hasVideo && !isOverlay;
     const anchor = s.overlayAnchor ?? 'top-right';
     const stageClipCls =
       isChoreoCustom && s.videoStage === 'split-top-stage'

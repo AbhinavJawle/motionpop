@@ -85,7 +85,10 @@ export function reelDirectPromptV2(i: ReelDirectPromptInput): string {
     );
   }
   if (hasMedia && i.mediaBin) {
-    lines.push('', `MEDIA BIN (${i.mediaBin.length} uploaded ${i.mediaBin.length === 1 ? 'clip' : 'clips'} — weave these into matching beats first!):`);
+    lines.push(
+      '',
+      `MEDIA BIN (${i.mediaBin.length} uploaded ${i.mediaBin.length === 1 ? 'clip' : 'clips'} — weave these into matching beats first!):`,
+    );
     for (const c of i.mediaBin) {
       const dur = c.durationMs ? `${(c.durationMs / 1000).toFixed(1)}s` : 'still';
       const tags = c.tags?.length ? ` [${c.tags.join(', ')}]` : '';

@@ -64,7 +64,12 @@ export function splitFrame(
     // the sub-frame ran to the frame edge and its smaller margins let text leave the safe area.
     const gap = Math.round(w * 0.03);
     const tx = left ? image.x + iw + gap : safe.x;
-    const target = { x: tx, y: safe.y, width: (left ? safe.x + safe.width : image.x - gap) - tx, height: safe.height };
+    const target = {
+      x: tx,
+      y: safe.y,
+      width: (left ? safe.x + safe.width : image.x - gap) - tx,
+      height: safe.height,
+    };
     const sub = frameAround(target, slack);
     return { image: r(image), text: r(sub.box), textFormat: sub.format };
   }
@@ -117,7 +122,12 @@ export function frameAround(target: Box, slack = 1): { box: Box; format: Format 
   const x = Math.ceil(box.x);
   const y = Math.ceil(box.y);
   return {
-    box: { x, y, width: Math.floor(box.x + box.width) - x, height: Math.floor(box.y + box.height) - y },
+    box: {
+      x,
+      y,
+      width: Math.floor(box.x + box.width) - x,
+      height: Math.floor(box.y + box.height) - y,
+    },
     format,
   };
 }

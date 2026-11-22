@@ -189,7 +189,14 @@ export function createEngine(project: RuntimeProject, opts: EngineOptions): Engi
       const stageBounds =
         project.hasVideo && slot.componentId === 'custom'
           ? clippedStageBounds(project.format, project.width, project.height, slot.videoStage)
-          : { x: 0, y: 0, width: project.width, height: project.height, clipped: false, opaqueSurface: false };
+          : {
+              x: 0,
+              y: 0,
+              width: project.width,
+              height: project.height,
+              clipped: false,
+              opaqueSurface: false,
+            };
       const cam = doc.createElement('div');
       cam.className = 'mp-cam';
       if (stageBounds.opaqueSurface) {

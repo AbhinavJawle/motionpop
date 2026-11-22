@@ -150,9 +150,17 @@ const LEXICON: Record<string, string> = Object.fromEntries(
   ).flatMap(([words, icon]) => words.split(' ').map((w) => [w, icon] as const)),
 );
 
-const LENGTH = /^(metres?|meters?|km|kilometres?|kilometers?|miles?|feet|foot|ft|yards?|inches?|centimetres?|centimeters?|nautical)$/i;
+const LENGTH =
+  /^(metres?|meters?|km|kilometres?|kilometers?|miles?|feet|foot|ft|yards?|inches?|centimetres?|centimeters?|nautical)$/i;
 const MONEY = /^(\$|€|£)$/;
-const MONEY_ICONS = new Set(['coins', 'banknote', 'wallet', 'piggy-bank', 'credit-card', 'receipt']);
+const MONEY_ICONS = new Set([
+  'coins',
+  'banknote',
+  'wallet',
+  'piggy-bank',
+  'credit-card',
+  'receipt',
+]);
 
 /** Lower-case bare word (edge punctuation dropped). */
 export const bareWord = (w: string): string =>
@@ -226,14 +234,19 @@ export function numberCompanion(f: NumberFacts): Companion | null {
   const suffix = (f.suffix ?? '').trim();
   const v = f.value;
   if (suffix === '%') {
-    if (v > 0 && v <= 100) return { kind: 'units', filled: Math.round(v), ...(anyIcon ? { icon: anyIcon } : {}) };
+    if (v > 0 && v <= 100)
+      return { kind: 'units', filled: Math.round(v), ...(anyIcon ? { icon: anyIcon } : {}) };
     return anyIcon ? { kind: 'stamp', icon: v > 100 ? 'trending-up' : anyIcon } : null;
   }
-  if (noun && LENGTH.test(noun)) return { kind: 'ruler', ...(firstIcon(words) ? { icon: firstIcon(words)! } : {}) };
+  if (noun && LENGTH.test(noun))
+    return { kind: 'ruler', ...(firstIcon(words) ? { icon: firstIcon(words)! } : {}) };
   if (MONEY.test(f.prefix ?? '') || /^(k|m|b|bn|t)$/i.test(suffix)) {
     // Money: a money icon from the words when there is one ("goods" → banknote), else coins.
     const money = words.map(iconFor).find((x) => x !== null && MONEY_ICONS.has(x));
-    return { kind: 'stamp', icon: money ?? (MONEY.test(f.prefix ?? '') ? 'coins' : (anyIcon ?? 'coins')) };
+    return {
+      kind: 'stamp',
+      icon: money ?? (MONEY.test(f.prefix ?? '') ? 'coins' : (anyIcon ?? 'coins')),
+    };
   }
   const whole = Number.isInteger(v) && v > 0;
   if (whole && v >= 2 && v <= ICONS_MAX && nounIcon) return { kind: 'icons', n: v, icon: nounIcon };

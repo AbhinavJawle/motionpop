@@ -168,7 +168,9 @@ if (project) {
         ...(slot.over ? { over: slot.over } : {}),
         ...opts,
         ...(effectiveTransparent !== undefined ? { transparent: effectiveTransparent } : {}),
-        ...(effectiveCaptionBand ? { captionBand: effectiveCaptionBand } : { captionBand: undefined }),
+        ...(effectiveCaptionBand
+          ? { captionBand: effectiveCaptionBand }
+          : { captionBand: undefined }),
         width: bounds.width,
         height: bounds.height,
         frameShortSide: Math.min(project.width, project.height),

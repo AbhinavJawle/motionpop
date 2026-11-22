@@ -119,7 +119,19 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
       const target = `I=${lufs}:TP=${truePeakDb}:LRA=11`;
       const { stderr } = await run(
         ffmpeg,
-        ['-hide_banner', '-nostats', '-i', src, '-map', '0:a:0', '-af', `loudnorm=${target}:print_format=json`, '-f', 'null', '-'],
+        [
+          '-hide_banner',
+          '-nostats',
+          '-i',
+          src,
+          '-map',
+          '0:a:0',
+          '-af',
+          `loudnorm=${target}:print_format=json`,
+          '-f',
+          'null',
+          '-',
+        ],
         { timeout: timeout * 2, maxBuffer: 1 << 24 },
       );
       const m = parseLoudnorm(stderr);
@@ -128,7 +140,27 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
       const filter = `loudnorm=${target}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true,aresample=48000`;
       await run(
         ffmpeg,
-        ['-y', '-hide_banner', '-i', src, '-map', '0:v:0?', '-map', '0:a:0', '-c:v', 'copy', '-af', filter, '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', dest],
+        [
+          '-y',
+          '-hide_banner',
+          '-i',
+          src,
+          '-map',
+          '0:v:0?',
+          '-map',
+          '0:a:0',
+          '-c:v',
+          'copy',
+          '-af',
+          filter,
+          '-c:a',
+          'aac',
+          '-b:a',
+          '192k',
+          '-movflags',
+          '+faststart',
+          dest,
+        ],
         { timeout: timeout * 2 },
       );
     },

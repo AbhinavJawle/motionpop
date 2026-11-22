@@ -499,7 +499,10 @@ export function inspectBeat(
       if (r.width >= o.width * 0.88 && r.height >= o.height * 0.88) {
         const cs = view.getComputedStyle(el);
         const bw = parseFloat(cs.borderTopWidth || '0') + parseFloat(cs.borderLeftWidth || '0');
-        const sw = el.tagName.toLowerCase() === 'rect' ? parseFloat(el.getAttribute('stroke-width') || '0') : 0;
+        const sw =
+          el.tagName.toLowerCase() === 'rect'
+            ? parseFloat(el.getAttribute('stroke-width') || '0')
+            : 0;
         if (bw >= 1.5 || sw >= 1.5) {
           add(
             'banned-pattern',
@@ -544,10 +547,18 @@ export function inspectBeat(
         const cs = view.getComputedStyle(el);
         const bg = parseRgb(cs.backgroundColor);
         const bw = parseFloat(cs.borderTopWidth || '0') + parseFloat(cs.borderLeftWidth || '0');
-        return ((bg !== null && bg[3] >= 0.3) || bw >= 1) && (el.textContent ?? '').trim().length > 0;
+        return (
+          ((bg !== null && bg[3] >= 0.3) || bw >= 1) && (el.textContent ?? '').trim().length > 0
+        );
       }).length
     : 0;
-  if (o.wantsPicture && o.videoStage !== 'clean' && shapes < 3 && !hasMap && (!o.reelMode || structuredUiCount === 0))
+  if (
+    o.wantsPicture &&
+    o.videoStage !== 'clean' &&
+    shapes < 3 &&
+    !hasMap &&
+    (!o.reelMode || structuredUiCount === 0)
+  )
     add(
       'no-picture',
       'fix',
@@ -556,7 +567,8 @@ export function inspectBeat(
     );
   // The hero has to be read from across a room, and the picture has to own the frame.
   const biggest = texts.reduce((m, t) => Math.max(m, t.fontPx), 0);
-  const heroMin = short * (o.lead === 'number' || o.lead === 'type' ? (o.reelMode ? 0.055 : 0.085) : 0.045);
+  const heroMin =
+    short * (o.lead === 'number' || o.lead === 'type' ? (o.reelMode ? 0.055 : 0.085) : 0.045);
   if (texts.length > 0 && biggest < heroMin)
     add(
       'small-hero',
@@ -740,7 +752,11 @@ function backgroundBehind(
     const c = parseRgb(isShape ? cs.fill : cs.backgroundColor);
     if (c && c[3] > 0.6 && Number(cs.opacity) > 0.6) return c;
   }
-  for (let n: Element | null = el.parentElement; n && (host.contains(n) || n === host); n = n.parentElement) {
+  for (
+    let n: Element | null = el.parentElement;
+    n && (host.contains(n) || n === host);
+    n = n.parentElement
+  ) {
     const stageAttr = n.getAttribute('data-mp-stage-bg');
     if (stageAttr) {
       const sc = parseRgb(stageAttr);

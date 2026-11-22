@@ -120,19 +120,22 @@ export function buildCompanionLayer(args: {
     width: number,
   ) => {
     const gen = rough.generator();
-    return gen.toPaths(shape).slice(0, 1).map((p) => {
-      const path = el('path', {
-        d: p.d,
-        fill: 'none',
-        stroke: color,
-        'stroke-width': width,
-        'stroke-linecap': 'round',
-        pathLength: 1,
-        'stroke-dasharray': '1 1',
-        'stroke-dashoffset': 1,
+    return gen
+      .toPaths(shape)
+      .slice(0, 1)
+      .map((p) => {
+        const path = el('path', {
+          d: p.d,
+          fill: 'none',
+          stroke: color,
+          'stroke-width': width,
+          'stroke-linecap': 'round',
+          pathLength: 1,
+          'stroke-dasharray': '1 1',
+          'stroke-dashoffset': 1,
+        });
+        return path as SVGElement;
       });
-      return path as SVGElement;
-    });
   };
 
   const q = (t: number) => (stepped ? Math.floor(t / stepMs) * stepMs : t);
@@ -303,7 +306,8 @@ export function buildCompanionLayer(args: {
     const cy = H / 2;
     const disc = doc.createElement('div');
     disc.style.cssText = `position:absolute;left:${cx - d / 2}px;top:${cy - d / 2}px;width:${d}px;height:${d}px;background:${torn ? mix(colors.bg, '#FFFFFF', 0.55) : mix(colors.bg, colors.accent, 0.16)};${torn ? `clip-path:${tornPolygon(d, d, seed, d * 0.02)};` : 'border-radius:50%;'}transform-origin:50% 50%;`;
-    if (torn) disc.style.filter = `drop-shadow(0 ${Math.round(frameH * 0.006)}px ${Math.round(frameH * 0.012)}px rgba(20,16,10,0.25))`;
+    if (torn)
+      disc.style.filter = `drop-shadow(0 ${Math.round(frameH * 0.006)}px ${Math.round(frameH * 0.012)}px rgba(20,16,10,0.25))`;
     outer.insertBefore(disc, svg);
     const ic = icon(c.icon, cx, cy, d * 0.52, colors.ink, 1.4);
     const gen = rough.generator();
@@ -332,8 +336,7 @@ export function buildCompanionLayer(args: {
     const t = q(raw);
     draw(t);
     let opacity = 1;
-    if (exitMs > 0 && t > args.exitStartMs)
-      opacity = 1 - progress(t, args.exitStartMs, exitMs);
+    if (exitMs > 0 && t > args.exitStartMs) opacity = 1 - progress(t, args.exitStartMs, exitMs);
     // Hold: a slow push while the text beside it is read (slow juice only).
     const hold = progress(t, landMs, Math.max(1, args.durationMs - landMs));
     outer.style.opacity = opacity.toFixed(3);

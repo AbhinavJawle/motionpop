@@ -75,13 +75,14 @@ export function cleanQuery(q: string): string | null {
 const LANDFORM =
   /\b(canal|sea|ocean|river|lake|bay|gulf|strait|straits|channel|island|islands|desert|valley|mountains?|peninsula|falls|glacier|volcano|reef|coast|delta|forest|plains?)\W*$/i;
 
-const words = (p: EditorProject, s: Slot) =>
-  p.transcript.words.slice(s.wordStart, s.wordEnd + 1);
+const words = (p: EditorProject, s: Slot) => p.transcript.words.slice(s.wordStart, s.wordEnd + 1);
 
 /** The slot's ready picture, if it has one. */
 const hasPicture = (p: EditorProject, s: Slot): boolean => {
   const id = (s.params as { images?: { assetId?: unknown }[] }).images?.[0]?.assetId;
-  return typeof id === 'string' && (p.assets ?? []).some((a) => a.id === id && a.status === 'ready');
+  return (
+    typeof id === 'string' && (p.assets ?? []).some((a) => a.id === id && a.status === 'ready')
+  );
 };
 
 /**
@@ -195,7 +196,10 @@ export interface AutoPictureDeps {
 export async function runAutoPictures(deps: AutoPictureDeps): Promise<number> {
   const start = deps.getProject();
   if (!start) return 0;
-  const queries = pictureQueries(start, { tried: deps.tried(), ...(deps.max !== undefined ? { max: deps.max } : {}) });
+  const queries = pictureQueries(start, {
+    tried: deps.tried(),
+    ...(deps.max !== undefined ? { max: deps.max } : {}),
+  });
   const used = new Map<string, number>();
   let added = 0;
   for (const q of queries) {
@@ -215,7 +219,8 @@ export async function runAutoPictures(deps: AutoPictureDeps): Promise<number> {
     // The user may have deleted the slot, changed its graphic or added a picture meanwhile.
     const now = deps.getProject();
     const slot = now?.slots.find((s) => s.id === q.slotId);
-    if (!now || !slot || imageRoleOf(slot.componentId) !== q.role || hasPicture(now, slot)) continue;
+    if (!now || !slot || imageRoleOf(slot.componentId) !== q.role || hasPicture(now, slot))
+      continue;
     try {
       const blob = await deps.fetchImage(hit);
       if (deps.cancelled()) break;

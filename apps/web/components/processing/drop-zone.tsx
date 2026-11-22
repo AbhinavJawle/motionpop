@@ -7,7 +7,8 @@ import { cn } from '@/lib/cn';
 import { INTAKE_LIMITS, validateIntake } from '@/lib/audio/intake';
 import { springPop } from '@/lib/motion/presets';
 
-const ACCEPT = 'audio/*,video/mp4,video/quicktime,video/webm,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus,.mp4,.mov';
+const ACCEPT =
+  'audio/*,video/mp4,video/quicktime,video/webm,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus,.mp4,.mov';
 
 /**
  * Minimal entry for spec 05 (the designed Start screen is spec 11): drop or pick a voiceover,

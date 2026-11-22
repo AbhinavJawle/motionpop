@@ -36,7 +36,9 @@ export const BedRequestSchema = z.object({
     video: z
       .object({
         stages: z
-          .array(z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), mode: z.string() }))
+          .array(
+            z.object({ id: z.string(), startMs: z.number(), endMs: z.number(), mode: z.string() }),
+          )
           .optional(),
       })
       .optional(),

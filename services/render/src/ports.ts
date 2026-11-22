@@ -148,7 +148,12 @@ export interface Ffmpeg {
    * Re-encodes the audio of an MP4 to a loudness target (two-pass EBU R128, linear gain), copying
    * the video stream (spec 27 R3.3). Writes `dest`; the caller swaps it in.
    */
-  normalizeLoudness?(args: { src: string; dest: string; lufs: number; truePeakDb: number }): Promise<void>;
+  normalizeLoudness?(args: {
+    src: string;
+    dest: string;
+    lufs: number;
+    truePeakDb: number;
+  }): Promise<void>;
   /**
    * An H.264 + AAC proxy of raw footage (spec 27 R5.2): upright (rotation applied), yuv420p, the
    * long side at most `longSide`, original timestamps and the first audio stream kept. Phone

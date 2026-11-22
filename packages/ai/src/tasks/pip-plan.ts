@@ -15,7 +15,14 @@ export const PipPlanInputSchema = z.object({
     styleId: z.string(),
     hasVideo: z.boolean().optional(),
     mediaBin: z
-      .array(z.object({ id: z.string(), name: z.string(), kind: z.string(), summary: z.string().optional() }))
+      .array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          kind: z.string(),
+          summary: z.string().optional(),
+        }),
+      )
       .max(24)
       .optional(),
     styles: z.array(z.object({ id: z.string(), name: z.string() })).max(12),

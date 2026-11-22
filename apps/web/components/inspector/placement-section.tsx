@@ -33,8 +33,18 @@ const STAGES: readonly {
   { value: 'full', label: 'Full', hint: 'Speaker full-frame + frameless HUD', icon: Layers },
   { value: 'split-left', label: 'Split L', hint: 'Speaker left, graphic right', icon: Columns2 },
   { value: 'split-right', label: 'Split R', hint: 'Speaker right, graphic left', icon: Columns2 },
-  { value: 'pip', label: 'PiP', hint: 'Speaker bubble + full canvas graphic', icon: PictureInPicture2 },
-  { value: 'backdrop', label: 'Dim BG', hint: 'Blurred dimmed speaker behind graphic', icon: Sparkles },
+  {
+    value: 'pip',
+    label: 'PiP',
+    hint: 'Speaker bubble + full canvas graphic',
+    icon: PictureInPicture2,
+  },
+  {
+    value: 'backdrop',
+    label: 'Dim BG',
+    hint: 'Blurred dimmed speaker behind graphic',
+    icon: Sparkles,
+  },
   { value: 'cutaway', label: 'Cutaway', hint: 'Full-screen motion graphic beat', icon: Maximize2 },
 ];
 
@@ -45,9 +55,24 @@ const MEDIA_STAGES: readonly {
   icon: typeof Layers;
 }[] = [
   { value: 'split-top-broll', label: 'Split B-Roll', hint: 'B-roll panel + speaker', icon: Rows2 },
-  { value: 'screen-showcase', label: 'Screen 3D', hint: '3D-tilted screen recording + zoom + PiP', icon: MonitorPlay },
-  { value: 'broll-full', label: 'Full B-Roll', hint: 'Full-bleed B-roll J/L-cut over voice', icon: Film },
-  { value: 'media-card-pop', label: 'Card Pop', hint: 'Floating screenshot/photo showcase', icon: ImageIcon },
+  {
+    value: 'screen-showcase',
+    label: 'Screen 3D',
+    hint: '3D-tilted screen recording + zoom + PiP',
+    icon: MonitorPlay,
+  },
+  {
+    value: 'broll-full',
+    label: 'Full B-Roll',
+    hint: 'Full-bleed B-roll J/L-cut over voice',
+    icon: Film,
+  },
+  {
+    value: 'media-card-pop',
+    label: 'Card Pop',
+    hint: 'Floating screenshot/photo showcase',
+    icon: ImageIcon,
+  },
 ];
 
 const ANCHORS: readonly { value: OverlayAnchor; label: string }[] = [
@@ -96,7 +121,11 @@ export function PlacementSection({ slot }: { slot: Slot }) {
         )}
       </div>
 
-      <div className="mt-2.5 grid grid-cols-3 gap-1.5" role="group" aria-label="Video choreography stage">
+      <div
+        className="mt-2.5 grid grid-cols-3 gap-1.5"
+        role="group"
+        aria-label="Video choreography stage"
+      >
         {STAGES.map(({ value, label, hint, icon: Icon }) => {
           const active = stage === value;
           return (
@@ -130,7 +159,11 @@ export function PlacementSection({ slot }: { slot: Slot }) {
           <p className="font-mono text-[10px] leading-[13px] tracking-[1px] text-text-3 uppercase">
             B-ROLL &amp; SCREEN STAGE
           </p>
-          <div className="mt-2 grid grid-cols-2 gap-1.5" role="group" aria-label="Media choreography stage">
+          <div
+            className="mt-2 grid grid-cols-2 gap-1.5"
+            role="group"
+            aria-label="Media choreography stage"
+          >
             {MEDIA_STAGES.map(({ value, label, hint, icon: Icon }) => {
               const active = stage === value;
               return (

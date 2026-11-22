@@ -172,7 +172,10 @@ export function normalizeCuts(cuts: ReadonlyArray<CutRange>): CutRange[] {
 }
 
 /** Indexes of the original words `retimeWords` keeps, in order: cleaned word i is original word out[i]. */
-export function keptWordIndexes(words: ReadonlyArray<Word>, cuts: ReadonlyArray<CutRange>): number[] {
+export function keptWordIndexes(
+  words: ReadonlyArray<Word>,
+  cuts: ReadonlyArray<CutRange>,
+): number[] {
   const norm = normalize(cuts);
   const out: number[] = [];
   words.forEach((w, i) => {

@@ -23,6 +23,11 @@ describe('splitScript', () => {
     const runOn = Array.from({ length: 80 }, (_, i) => `word${i}`).join(', ');
     const parts = splitScript(runOn, 200);
     expect(parts.every((p) => p.length <= 200)).toBe(true);
-    expect(parts.join(' ').split(/[\s,]+/).filter(Boolean)).toEqual(runOn.split(/[\s,]+/));
+    expect(
+      parts
+        .join(' ')
+        .split(/[\s,]+/)
+        .filter(Boolean),
+    ).toEqual(runOn.split(/[\s,]+/));
   });
 });

@@ -186,13 +186,31 @@ for (const [key, m] of requests) {
   // does (apps/web lib/images/trim.ts), keeping a small even margin.
   let used = file;
   if (m.kind === 'illustration') {
-    const { data, info } = await sharp(buf).trim({ threshold: 18 }).toBuffer({ resolveWithObject: true });
-    const corner = await sharp(buf).extract({ left: 0, top: 0, width: 1, height: 1 }).raw().toBuffer();
+    const { data, info } = await sharp(buf)
+      .trim({ threshold: 18 })
+      .toBuffer({ resolveWithObject: true });
+    const corner = await sharp(buf)
+      .extract({ left: 0, top: 0, width: 1, height: 1 })
+      .raw()
+      .toBuffer();
     const pad = Math.round(Math.max(info.width, info.height) * 0.06);
     buf = await sharp(data)
-      .extend({ top: pad, bottom: pad, left: pad, right: pad, background: { r: corner[0]!, g: corner[1]!, b: corner[2]! } })
+      .extend({
+        top: pad,
+        bottom: pad,
+        left: pad,
+        right: pad,
+        background: { r: corner[0]!, g: corner[1]!, b: corner[2]! },
+      })
       // Paper to pure white, like the product's whitenPaper.
-      .linear([255 / Math.max(1, corner[0]!), 255 / Math.max(1, corner[1]!), 255 / Math.max(1, corner[2]!)], [0, 0, 0])
+      .linear(
+        [
+          255 / Math.max(1, corner[0]!),
+          255 / Math.max(1, corner[1]!),
+          255 / Math.max(1, corner[2]!),
+        ],
+        [0, 0, 0],
+      )
       .png()
       .toBuffer();
     // Paper to transparency, like the product's paperToAlpha.

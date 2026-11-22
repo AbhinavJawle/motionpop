@@ -250,7 +250,10 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
         const clipDur = Math.max(1000, clip.durationMs ?? 10_000);
         const clipTargetSec = ((mRect.clipStartMs + elapsedMs) % clipDur) / 1000;
         if (mediaVidEl.readyState >= 1) {
-          if (!isPlaying || Math.abs(mediaVidEl.currentTime - clipTargetSec) > VIDEO_DRIFT_SEC * 1.5) {
+          if (
+            !isPlaying ||
+            Math.abs(mediaVidEl.currentTime - clipTargetSec) > VIDEO_DRIFT_SEC * 1.5
+          ) {
             mediaVidEl.currentTime = clipTargetSec;
           }
         }

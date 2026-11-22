@@ -12,7 +12,11 @@ export interface Box {
 }
 
 /** Average colour of the four corner pixels (the paper). */
-export function paperColour(rgba: Uint8ClampedArray, w: number, h: number): [number, number, number] {
+export function paperColour(
+  rgba: Uint8ClampedArray,
+  w: number,
+  h: number,
+): [number, number, number] {
   const at = [0, w - 1, (h - 1) * w, h * w - 1];
   const sum = [0, 0, 0];
   for (const p of at) for (let c = 0; c < 3; c++) sum[c]! += rgba[p * 4 + c]!;
@@ -65,7 +69,10 @@ export function paddedCrop(box: Box, w: number, h: number, pad = 0.06): Box {
  * Scales each channel so the paper becomes pure white (the drawing keeps its proportions).
  * Reels multiply illustrations onto the panel, so white paper vanishes on any panel colour.
  */
-export function whitenPaper(rgba: Uint8ClampedArray, paper: readonly [number, number, number]): void {
+export function whitenPaper(
+  rgba: Uint8ClampedArray,
+  paper: readonly [number, number, number],
+): void {
   const k = paper.map((c) => 255 / Math.max(1, c));
   for (let i = 0; i < rgba.length; i += 4) {
     rgba[i] = rgba[i]! * k[0]!;

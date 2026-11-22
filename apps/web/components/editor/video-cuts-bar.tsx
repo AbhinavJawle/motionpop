@@ -83,7 +83,9 @@ export function VideoCutsBar() {
     (liveStageId ? video.stages?.find((s) => s.id === liveStageId) : undefined) ??
     video.stages?.find((s) => playheadMs >= s.startMs && playheadMs < s.endMs);
   const activeSlot = activeStage
-    ? slots.find((sl) => sl.startMs <= activeStage.startMs + 50 && sl.endMs >= activeStage.endMs - 50)
+    ? slots.find(
+        (sl) => sl.startMs <= activeStage.startMs + 50 && sl.endMs >= activeStage.endMs - 50,
+      )
     : undefined;
 
   const cycleActiveStage = () => {
@@ -160,12 +162,12 @@ export function VideoCutsBar() {
       {expanded && (video.cuts.length > 0 || video.punchIns.length > 0) && (
         <div className="flex flex-wrap gap-1.5 rounded-chip border border-white/8 bg-card px-3 py-2 text-[11px]">
           {video.cuts.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                disabled={resplicing}
-                onClick={() => void handleToggleCut(c.id)}
-                title={c.enabled ? 'Click to restore this cut' : 'Click to re-enable this cut'}
+            <button
+              key={c.id}
+              type="button"
+              disabled={resplicing}
+              onClick={() => void handleToggleCut(c.id)}
+              title={c.enabled ? 'Click to restore this cut' : 'Click to re-enable this cut'}
               className={cn(
                 'rounded-full border px-2 py-0.5 transition-colors',
                 c.enabled

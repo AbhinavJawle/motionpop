@@ -144,7 +144,8 @@ const html = compileProject(
   assets,
 );
 const [w, h] = format === '16:9' ? [1920, 1080] : format === '9:16' ? [1080, 1920] : [1080, 1080];
-const outName = opt('out') ?? `${basename(file, extname(file))}-${lookId}-${format.replace(':', 'x')}`;
+const outName =
+  opt('out') ?? `${basename(file, extname(file))}-${lookId}-${format.replace(':', 'x')}`;
 const out = join(pkgDir, '.check', 'reel', outName);
 await mkdir(out, { recursive: true });
 await writeFile(join(out, 'composition.html'), html);
@@ -202,9 +203,17 @@ const sp = await browser.newPage();
 await sp.setViewport({ width: cols * (tw + 6) + 6, height: 400 });
 await sp.setContent(sheet, { waitUntil: 'load' });
 const sheetPath = join(out, 'sheet.jpg');
-await sp.screenshot({ path: sheetPath as `${string}.jpg`, fullPage: true, type: 'jpeg', quality: 82 });
+await sp.screenshot({
+  path: sheetPath as `${string}.jpg`,
+  fullPage: true,
+  type: 'jpeg',
+  quality: 82,
+});
 for (const s of shots.filter((_, i) => i % 1 === 0)) {
-  await writeFile(join(out, `f-${String(s.t).padStart(6, '0')}.jpg`), Buffer.from(s.data, 'base64'));
+  await writeFile(
+    join(out, `f-${String(s.t).padStart(6, '0')}.jpg`),
+    Buffer.from(s.data, 'base64'),
+  );
 }
 await browser.close();
 server.close();

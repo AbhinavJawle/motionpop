@@ -100,15 +100,9 @@ const REEL_V2_STAGES_NO_CLIPS = [
   'media-card-pop',
 ] as const;
 
-const REEL_V2_STAGES_WITH_CLIPS = [
-  ...REEL_V2_STAGES_NO_CLIPS,
-  'screen-showcase',
-] as const;
+const REEL_V2_STAGES_WITH_CLIPS = [...REEL_V2_STAGES_NO_CLIPS, 'screen-showcase'] as const;
 
-function storyboardJsonSchemaFor(
-  input: FilmDirectInput,
-  reelV2 = false,
-): Record<string, unknown> {
+function storyboardJsonSchemaFor(input: FilmDirectInput, reelV2 = false): Record<string, unknown> {
   const hasClips = Boolean(input.mediaBin && input.mediaBin.length > 0);
   const clipEnum = hasClips ? [...input.mediaBin!.map((c) => c.id), 'none'] : undefined;
   const stageModes = reelV2
@@ -280,9 +274,7 @@ export const FilmBuildInputSchema = z.object({
     stageGuide: z.string().optional(),
     stageWidth: z.number().int().positive().optional(),
     stageHeight: z.number().int().positive().optional(),
-    imageAsset: z
-      .object({ id: z.string(), subject: z.string(), keyed: z.boolean() })
-      .optional(),
+    imageAsset: z.object({ id: z.string(), subject: z.string(), keyed: z.boolean() }).optional(),
     idea: z.string(),
     text: z.array(z.string()),
     staging: z.string(),

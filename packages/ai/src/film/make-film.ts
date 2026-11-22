@@ -132,9 +132,7 @@ export interface FilmDeps {
    * resolves Director `brollQuery` stock clips and `imageSubject` AI cutouts in parallel so beat
    * builders can bind real B-roll clips and call `mp.image(assetId)`.
    */
-  resolveBeatMedia?: (
-    board: Storyboard,
-  ) => Promise<{
+  resolveBeatMedia?: (board: Storyboard) => Promise<{
     board: Storyboard;
     beatImages?: Readonly<Record<string, { id: string; subject: string; keyed: boolean }>>;
   }>;
@@ -174,8 +172,10 @@ function clippedDimensionsFor(
 ): { stageWidth: number; stageHeight: number } {
   const dims = FORMATS[format];
   if (stage === 'split-top-stage') {
-    if (format === '9:16') return { stageWidth: dims.width, stageHeight: Math.round(dims.height * 0.5) };
-    if (format === '16:9') return { stageWidth: Math.round(dims.width * 0.52), stageHeight: dims.height };
+    if (format === '9:16')
+      return { stageWidth: dims.width, stageHeight: Math.round(dims.height * 0.5) };
+    if (format === '16:9')
+      return { stageWidth: Math.round(dims.width * 0.52), stageHeight: dims.height };
   }
   if (stage === 'top-card' && format === '9:16') {
     return { stageWidth: dims.width, stageHeight: Math.round(dims.height * 0.28) };
@@ -339,7 +339,9 @@ export async function makeFilm(input: FilmInput, deps: FilmDeps): Promise<FilmRe
       const id = `b${i + 1}`;
       if (!b.videoStage || !isMediaStageMode(b.videoStage)) return { ...b, id };
       // Keep media stage intact when `brollQuery` is present so `resolveBeatMedia` can supply its clip.
-      const clip = (b.clipId ? bin.find((c) => c.id === b.clipId) : undefined) ?? pickClipForStage(b.videoStage);
+      const clip =
+        (b.clipId ? bin.find((c) => c.id === b.clipId) : undefined) ??
+        pickClipForStage(b.videoStage);
       if (!clip) {
         if (b.brollQuery && deps.resolveBeatMedia) return { ...b, id };
         return { ...b, id, videoStage: 'split-top-stage' as const };
@@ -485,7 +487,9 @@ async function buildOne(
     };
   }
 
-  const task = isReel ? reelBuildTask(deps.lint, deps.kitDoc) : filmBuildTask(deps.lint, deps.kitDoc);
+  const task = isReel
+    ? reelBuildTask(deps.lint, deps.kitDoc)
+    : filmBuildTask(deps.lint, deps.kitDoc);
   const maxRepairs = deps.maxRepairs ?? 2;
   const stop = () => {
     if (deps.cancelled?.()) throw new FilmCancelled();

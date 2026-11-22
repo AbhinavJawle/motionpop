@@ -376,7 +376,9 @@ describe('RunOptions.model override (spec 18 R3.2)', () => {
     expect(again.model).toBe('model-a');
     expect(p.calls).toHaveLength(2);
 
-    expect(cacheKeyOf({ task: 'test.task', promptVersion: 'v1', model: 'model-a', input: { q: 'x' } })).not.toBe(
+    expect(
+      cacheKeyOf({ task: 'test.task', promptVersion: 'v1', model: 'model-a', input: { q: 'x' } }),
+    ).not.toBe(
       cacheKeyOf({ task: 'test.task', promptVersion: 'v1', model: 'model-b', input: { q: 'x' } }),
     );
   });

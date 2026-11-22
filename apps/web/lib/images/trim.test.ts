@@ -11,7 +11,8 @@ function paper(w: number, h: number, rgb: [number, number, number]): Uint8Clampe
 describe('paper trim (spec 26)', () => {
   it('finds the drawing on off-white paper', () => {
     const a = paper(40, 30, [250, 246, 238]);
-    for (let y = 10; y < 20; y++) for (let x = 5; x < 25; x++) a.set([30, 30, 30, 255], (y * 40 + x) * 4);
+    for (let y = 10; y < 20; y++)
+      for (let x = 5; x < 25; x++) a.set([30, 30, 30, 255], (y * 40 + x) * 4);
     const p = paperColour(a, 40, 30);
     expect(contentBox(a, 40, 30, p)).toEqual({ x: 5, y: 10, w: 20, h: 10 });
   });
@@ -59,15 +60,18 @@ describe('paper trim (spec 26)', () => {
 
   it('makes white paper transparent and keeps how every pixel looks over white', () => {
     fc.assert(
-      fc.property(fc.array(fc.integer({ min: 0, max: 255 }), { minLength: 3, maxLength: 3 }), ([r, g, b]) => {
-        const a = new Uint8ClampedArray([r!, g!, b!, 255]);
-        paperToAlpha(a);
-        const al = a[3]! / 255;
-        for (let c = 0; c < 3; c++) {
-          const overWhite = a[c]! * al + 255 * (1 - al);
-          expect(Math.abs(overWhite - [r!, g!, b!][c]!)).toBeLessThanOrEqual(2);
-        }
-      }),
+      fc.property(
+        fc.array(fc.integer({ min: 0, max: 255 }), { minLength: 3, maxLength: 3 }),
+        ([r, g, b]) => {
+          const a = new Uint8ClampedArray([r!, g!, b!, 255]);
+          paperToAlpha(a);
+          const al = a[3]! / 255;
+          for (let c = 0; c < 3; c++) {
+            const overWhite = a[c]! * al + 255 * (1 - al);
+            expect(Math.abs(overWhite - [r!, g!, b!][c]!)).toBeLessThanOrEqual(2);
+          }
+        },
+      ),
     );
     const w = new Uint8ClampedArray([255, 255, 255, 255]);
     paperToAlpha(w);

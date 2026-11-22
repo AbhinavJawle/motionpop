@@ -2665,3 +2665,35 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
   - `?? packages/motion/scripts/film-lab/studio.ts`
 <!-- /kiro-session:sess_0163eb4b-19eb-460d-bcfb-df0aa95eaa04 -->
+
+<!-- kiro-session:sess_35b121ee-5346-4c5a-bf03-2d27eb07f084 -->
+### 2026-11-22 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-22T02:51:52.269Z · last stop: 2026-11-22T02:52:11.853Z · session: sess_35b121ee-5346-4c5a-bf03-2d27eb07f084
+- commits since start: 
+  - 135fb1c fix(29-reel-notes): Enter with the pen never presses the focused button
+- uncommitted changes: 
+  - `M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_35b121ee-5346-4c5a-bf03-2d27eb07f084 -->

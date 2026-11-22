@@ -222,7 +222,10 @@ export function applyFilm(input: {
         if (input.assets?.length) {
           const existing = d.assets ?? [];
           const seen = new Set(existing.map((a) => a.id));
-          d.assets = [...existing, ...structuredClone(input.assets.filter((a) => !seen.has(a.id)))].slice(0, 60);
+          d.assets = [
+            ...existing,
+            ...structuredClone(input.assets.filter((a) => !seen.has(a.id))),
+          ].slice(0, 60);
         }
       });
       const issue = timelineIssues(next)[0];

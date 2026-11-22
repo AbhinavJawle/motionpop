@@ -144,7 +144,11 @@ export function fallbackIndexClip(clip: {
   durationMs?: number;
 }): IndexedClipResult {
   const kind = inferClipKind(clip.name, clip.mimeType);
-  const cleanName = clip.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Uploaded clip';
+  const cleanName =
+    clip.name
+      .replace(/\.[^.]+$/, '')
+      .replace(/[_-]+/g, ' ')
+      .trim() || 'Uploaded clip';
   const tags = cleanName
     .toLowerCase()
     .split(/\s+/)
@@ -183,20 +187,18 @@ export function sanitizeIndexedClip(
   meta: { id: string; name: string; mimeType: string; durationMs?: number },
 ): IndexedClipResult {
   const maxMs = meta.durationMs ?? 10_000;
-  const moments: MediaClipMoment[] = raw.moments
-    .slice(0, 6)
-    .map((m) => {
-      const startMs = clamp(Math.round(m.startMs), 0, Math.max(0, maxMs - 200));
-      const endMs = clamp(Math.round(m.endMs), startMs + 200, Math.max(startMs + 200, maxMs));
-      return {
-        startMs,
-        endMs,
-        focusX: Math.round(clamp(m.focusX, 0.1, 0.9) * 100) / 100,
-        focusY: Math.round(clamp(m.focusY, 0.1, 0.9) * 100) / 100,
-        zoom: Math.round(clamp(m.zoom, 1, 2.2) * 100) / 100,
-        description: m.description.trim().slice(0, 220) || raw.summary.slice(0, 220),
-      };
-    });
+  const moments: MediaClipMoment[] = raw.moments.slice(0, 6).map((m) => {
+    const startMs = clamp(Math.round(m.startMs), 0, Math.max(0, maxMs - 200));
+    const endMs = clamp(Math.round(m.endMs), startMs + 200, Math.max(startMs + 200, maxMs));
+    return {
+      startMs,
+      endMs,
+      focusX: Math.round(clamp(m.focusX, 0.1, 0.9) * 100) / 100,
+      focusY: Math.round(clamp(m.focusY, 0.1, 0.9) * 100) / 100,
+      zoom: Math.round(clamp(m.zoom, 1, 2.2) * 100) / 100,
+      description: m.description.trim().slice(0, 220) || raw.summary.slice(0, 220),
+    };
+  });
   return {
     id: meta.id,
     kind: raw.kind,

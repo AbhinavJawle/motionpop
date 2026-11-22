@@ -125,7 +125,8 @@ export async function createRender(
   }
   const parsed = RenderRequestSchema.safeParse(raw);
   if (!parsed.success) return apiError('invalid');
-  const { requestId, options, expectedCost, project, voicePath, videoPath, clipPaths } = parsed.data;
+  const { requestId, options, expectedCost, project, voicePath, videoPath, clipPaths } =
+    parsed.data;
   if (!isSafeId(uid) || !isSafeId(project.id)) return apiError('invalid');
   if (!voicePathFor(uid, project.id).test(voicePath)) return apiError('invalid');
   if (videoPath && !videoPathFor(uid, project.id).test(videoPath)) return apiError('invalid');

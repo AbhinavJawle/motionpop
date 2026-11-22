@@ -80,10 +80,7 @@ export function useFilm() {
   const run = () => {
     if (disabledReason !== null) return;
     const selectedModel = usePipModel.getState().model || config.modelStrong;
-    void runFilm(
-      { store: editorStore, credits, getRouter, config, model: selectedModel },
-      route,
-    );
+    void runFilm({ store: editorStore, credits, getRouter, config, model: selectedModel }, route);
   };
   return {
     route,

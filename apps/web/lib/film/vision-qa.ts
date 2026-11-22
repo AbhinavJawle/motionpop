@@ -138,7 +138,8 @@ async function drawBeatTile(
       `--body:system-ui,-apple-system,sans-serif`,
       `--mono:ui-monospace,monospace`,
     ].join(';');
-    const rawMarkup = executedHtml ?? `<style>${escapeXml(beat.params.css)}</style>${beat.params.html}`;
+    const rawMarkup =
+      executedHtml ?? `<style>${escapeXml(beat.params.css)}</style>${beat.params.html}`;
     const xhtml = rawMarkup.replace(/<(br|hr|img|input)([^>]*?)(?<!\/)>/gi, '<$1$2/>');
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${frameW}" height="${frameH}">
       <foreignObject width="100%" height="100%">
@@ -262,7 +263,9 @@ async function runSingleBatch(args: {
     args.model ? { model: args.model } : undefined,
   );
 
-  const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), QA_TIMEOUT_MS));
+  const timeoutPromise = new Promise<null>((resolve) =>
+    setTimeout(() => resolve(null), QA_TIMEOUT_MS),
+  );
   const verdict = await Promise.race([qaPromise, timeoutPromise]);
   if (!verdict || verdict.pass) return [];
   return verdict.flagged.filter((f) => f.severity === 'fix');
@@ -288,7 +291,11 @@ export async function runVisionQaPass(args: {
   const visualBeats = args.beats.filter(
     (b) =>
       b.params !== null &&
-      !(b.beat.videoStage === 'clean' && b.params.html.trim().length === 0 && b.beat.text.length === 0),
+      !(
+        b.beat.videoStage === 'clean' &&
+        b.params.html.trim().length === 0 &&
+        b.beat.text.length === 0
+      ),
   );
   if (visualBeats.length === 0) return [];
 

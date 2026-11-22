@@ -12,3 +12,5 @@ tmp
 design
 .claude/skills
 .kiro/skills
+# Generated sources (rewritten by their build scripts)
+*.generated.ts

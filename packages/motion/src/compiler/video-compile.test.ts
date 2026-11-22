@@ -210,7 +210,11 @@ describe('compileProject (video overlay & cutaway mode)', () => {
     const html = compileProject({ ...input, style: editorialExplainer }, ASSETS);
     expect(html).toContain('id="beat-top" class="clip mp-slot mp-slot-choreo mp-slot-top-stage"');
     expect(html).toContain('id="beat-card" class="clip mp-slot mp-slot-choreo mp-slot-top-card"');
-    expect(html).toContain('.mp-slot-top-stage > .mp-cam { top: 0; left: 0; right: 0; bottom: auto; height: 50%; overflow: hidden;');
-    expect(html).toContain('.mp-slot-top-card > .mp-cam { top: 0; left: 0; right: 0; bottom: auto; height: 28%; overflow: hidden;');
+    expect(html).toContain(
+      '.mp-slot-top-stage > .mp-cam { top: 0; left: 0; right: 0; bottom: auto; height: 50%; overflow: hidden;',
+    );
+    expect(html).toContain(
+      '.mp-slot-top-card > .mp-cam { top: 0; left: 0; right: 0; bottom: auto; height: 28%; overflow: hidden;',
+    );
   });
 });

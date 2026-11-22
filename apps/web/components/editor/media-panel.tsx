@@ -18,12 +18,7 @@ import { getRouter } from '@/lib/ai/router-client';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
 import { getAuthSnapshot } from '@/lib/auth/auth-store';
 import { cn } from '@/lib/cn';
-import {
-  addMediaClips,
-  removeMediaClip,
-  setSlotMediaClip,
-  updateMediaClips,
-} from '@/lib/commands';
+import { addMediaClips, removeMediaClip, setSlotMediaClip, updateMediaClips } from '@/lib/commands';
 import { addOwnImage, imageRoleOf } from '@/lib/images/generate';
 import { sceneFor } from '@/lib/motion/registry';
 import { usePipModel } from '@/lib/pip/model-store';
@@ -90,13 +85,7 @@ function ClipThumb({ clip }: { clip: MediaClip }) {
   }
   if (isVideo) {
     return (
-      <video
-        src={url}
-        muted
-        playsInline
-        preload="metadata"
-        className="size-full object-cover"
-      />
+      <video src={url} muted playsInline preload="metadata" className="size-full object-cover" />
     );
   }
   // Local blob URL preview of user-uploaded screenshot/photo.
@@ -202,7 +191,9 @@ export function MediaPanelBody() {
       }
       if (added.length) {
         exec(addMediaClips(added));
-        toast.success(`Added ${added.length} ${added.length === 1 ? 'clip' : 'clips'} to Media Bin`);
+        toast.success(
+          `Added ${added.length} ${added.length === 1 ? 'clip' : 'clips'} to Media Bin`,
+        );
         const latest = editorStore.getState().project?.mediaBin ?? [...mediaBin, ...added];
         void runIndex(latest, preSampled);
       }
@@ -339,7 +330,8 @@ export function MediaPanelBody() {
         <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto px-1 pb-6">
           <div className="flex items-center justify-between gap-2">
             <p className="text-[11px] leading-[15px] text-text-3">
-              Upload B-roll, screen recordings, or screenshots. AI watches them and weaves them into your beats.
+              Upload B-roll, screen recordings, or screenshots. AI watches them and weaves them into
+              your beats.
             </p>
             {unindexedCount > 0 && (
               <Button
@@ -393,7 +385,10 @@ export function MediaPanelBody() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-1">
-                          <p className="truncate text-[12px] font-medium text-text" title={clip.name}>
+                          <p
+                            className="truncate text-[12px] font-medium text-text"
+                            title={clip.name}
+                          >
                             {clip.name}
                           </p>
                           <button
@@ -406,7 +401,8 @@ export function MediaPanelBody() {
                           </button>
                         </div>
                         <p className="mt-0.5 line-clamp-2 text-[11px] leading-[14px] text-text-2">
-                          {clip.summary ?? (indexing ? 'Analyzing with Gemini 4 Neon…' : 'Ready to analyze')}
+                          {clip.summary ??
+                            (indexing ? 'Analyzing with Gemini 4 Neon…' : 'Ready to analyze')}
                         </p>
                         {clip.tags && clip.tags.length > 0 && (
                           <div className="mt-1.5 flex flex-wrap gap-1">
@@ -424,7 +420,9 @@ export function MediaPanelBody() {
                     </div>
                     <div className="flex items-center justify-between border-t border-white/6 bg-black/15 px-2.5 py-1.5">
                       <span className="font-mono text-[10px] text-text-3">
-                        {clip.durationMs ? `${(clip.durationMs / 1000).toFixed(1)}s` : `${clip.width}×${clip.height}`}
+                        {clip.durationMs
+                          ? `${(clip.durationMs / 1000).toFixed(1)}s`
+                          : `${clip.width}×${clip.height}`}
                         {clip.moments?.length ? ` · ${clip.moments.length} focus` : ''}
                       </span>
                       <button
@@ -516,7 +514,8 @@ export function MediaPanelBody() {
               </ul>
             )}
             <p className="mt-4 text-[11px] leading-[14px] text-text-3">
-              Photos come from Openverse under CC0 or CC BY. The credit line is kept with each picture.
+              Photos come from Openverse under CC0 or CC BY. The credit line is kept with each
+              picture.
             </p>
           </div>
         </>

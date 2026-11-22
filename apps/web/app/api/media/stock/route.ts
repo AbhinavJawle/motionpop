@@ -222,7 +222,9 @@ export async function GET(request: Request) {
   const kind = searchParams.get('kind') === 'photo' ? 'photo' : 'video';
   const orientationParam = searchParams.get('orientation');
   const orientation: 'portrait' | 'landscape' | 'square' =
-    orientationParam === 'landscape' || orientationParam === 'square' ? orientationParam : 'portrait';
+    orientationParam === 'landscape' || orientationParam === 'square'
+      ? orientationParam
+      : 'portrait';
   const limit = Math.max(1, Math.min(8, Number(searchParams.get('limit') ?? 4) || 4));
   const pexelsKey = process.env.PEXELS_API_KEY?.trim();
 

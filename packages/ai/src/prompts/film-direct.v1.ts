@@ -134,11 +134,16 @@ export function filmDirectPromptV1(i: FilmDirectPromptInput): string {
           ? 'Choreograph every beat with both an `archetype` and a `videoStage` (prefer "split-top-stage", "top-card", "clean", plus "full", "backdrop", "cutaway", "split-left", "split-right", "pip", and Media Bin stages "split-top-broll", "screen-showcase", "broll-full", "media-card-pop" with matching `clipId` + `clipStartMs`/`clipFocusX`/`clipFocusY`/`clipZoom` from the Media Bin below) plus `focusX`/`focusY` on the speaker face and top-level `tone`.'
           : 'Choreograph every beat with both an `archetype` and a `videoStage` (prefer "split-top-stage", "top-card", "clean", plus "full", "backdrop", "cutaway", "split-left", "split-right", "pip") plus `focusX`/`focusY` on the speaker face and top-level `tone`. You may also set `brollQuery` on 1–2 beats (paired with "split-top-broll" or "broll-full") and `imageSubject` + `imageKeyed: true` on 1–2 beats for AI studio cutouts.',
       ]
-    : ['Mode: VOICEOVER FILM (full-canvas motion graphics). Set `archetype` on every beat and vary it every beat.'];
+    : [
+        'Mode: VOICEOVER FILM (full-canvas motion graphics). Set `archetype` on every beat and vary it every beat.',
+      ];
 
   const mediaLines: string[] = [];
   if (hasMedia && i.mediaBin) {
-    mediaLines.push('', `MEDIA BIN (${i.mediaBin.length} uploaded ${i.mediaBin.length === 1 ? 'clip' : 'clips'} — weave into matching beats):`);
+    mediaLines.push(
+      '',
+      `MEDIA BIN (${i.mediaBin.length} uploaded ${i.mediaBin.length === 1 ? 'clip' : 'clips'} — weave into matching beats):`,
+    );
     for (const c of i.mediaBin) {
       const dur = c.durationMs ? `${(c.durationMs / 1000).toFixed(1)}s` : 'still';
       const tags = c.tags?.length ? ` [${c.tags.join(', ')}]` : '';

@@ -309,7 +309,12 @@ export function reelExampleFor(
   lead?: string,
 ): ArchetypeExample {
   if (stage === 'top-card') return REEL_STAGE_EXAMPLES['top-card-pill'];
-  if (stage === 'clean' || stage === 'full' || stage === 'broll-full' || stage === 'split-top-broll') {
+  if (
+    stage === 'clean' ||
+    stage === 'full' ||
+    stage === 'broll-full' ||
+    stage === 'split-top-broll'
+  ) {
     return REEL_STAGE_EXAMPLES['clean-cta'];
   }
   switch (archetype) {
@@ -362,10 +367,7 @@ export const ARCHETYPE_EXAMPLES: Readonly<Record<BeatArchetype, ArchetypeExample
 };
 
 /** Picks the best archetype reference example for a beat (spec 19). */
-export function archetypeExample(
-  archetype?: BeatArchetype,
-  lead?: string,
-): ArchetypeExample {
+export function archetypeExample(archetype?: BeatArchetype, lead?: string): ArchetypeExample {
   if (archetype && Object.hasOwn(ARCHETYPE_EXAMPLES, archetype)) {
     return ARCHETYPE_EXAMPLES[archetype];
   }

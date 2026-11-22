@@ -216,8 +216,18 @@ export function filmKit(root: HTMLElement, ctx: KitContext) {
         const dur = Math.max(180, o.dur ?? 280);
         tl.fromTo(els, { x: W * 0.42 }, { x: 0 }, { at: 0, dur, ease: 'outStrong', each: 24 });
         tl.fromTo(els, { skewX: -8 }, { skewX: 0 }, { at: 0, dur, ease: 'outQuart', each: 24 });
-        tl.fromTo(els, { blur: 14 }, { blur: 0 }, { at: 0, dur: Math.round(dur * 0.8), ease: 'out', each: 24 });
-        tl.fromTo(els, { opacity: 0.2 }, { opacity: 1 }, { at: 0, dur: 140, ease: 'linear', each: 24 });
+        tl.fromTo(
+          els,
+          { blur: 14 },
+          { blur: 0 },
+          { at: 0, dur: Math.round(dur * 0.8), ease: 'out', each: 24 },
+        );
+        tl.fromTo(
+          els,
+          { opacity: 0.2 },
+          { opacity: 1 },
+          { at: 0, dur: 140, ease: 'linear', each: 24 },
+        );
       }
       // "lift" and "match": the opening frame is already composed; nothing to do.
       return tl;
@@ -244,7 +254,11 @@ export function filmKit(root: HTMLElement, ctx: KitContext) {
         tl.to(els, { x: -W * 0.42 }, { at: D - dur, dur, ease: 'inStrong', each: 14 });
         tl.to(els, { skewX: 8 }, { at: D - dur, dur, ease: 'in', each: 14 });
         tl.to(els, { blur: 14 }, { at: D - dur, dur, ease: 'in', each: 14 });
-        tl.to(els, { opacity: 0 }, { at: D - dur, dur: Math.round(dur * 0.85), ease: 'linear', each: 14 });
+        tl.to(
+          els,
+          { opacity: 0 },
+          { at: D - dur, dur: Math.round(dur * 0.85), ease: 'linear', each: 14 },
+        );
       }
       // "cover", "match" and "hold": the last frame stays; nothing to do.
       return tl;

@@ -208,8 +208,7 @@ export function VideoTrack() {
   const slotForStage = (st: VideoStageSegment) =>
     slots.find(
       (sl) =>
-        `stage-${sl.id}` === st.id ||
-        (sl.startMs <= st.startMs + 60 && sl.endMs >= st.endMs - 60),
+        `stage-${sl.id}` === st.id || (sl.startMs <= st.startMs + 60 && sl.endMs >= st.endMs - 60),
     );
 
   return (

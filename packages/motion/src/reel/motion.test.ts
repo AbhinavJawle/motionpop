@@ -70,15 +70,19 @@ describe('reel motion (spec 27)', () => {
       y: fc.double({ min: 0, max: 1, noNaN: true }),
     });
     fc.assert(
-      fc.property(fc.array(key, { maxLength: 12 }), fc.integer({ min: -500, max: 70_000 }), (ks, t) => {
-        const keys = [...ks].sort((a, b) => a.atMs - b.atMs);
-        const f = focusAt(keys, t, { x: 0.5, y: 0.3 });
-        expect(f.x).toBeGreaterThanOrEqual(0);
-        expect(f.x).toBeLessThanOrEqual(1);
-        expect(f.y).toBeGreaterThanOrEqual(0);
-        expect(f.y).toBeLessThanOrEqual(1);
-        if (keys.length === 0) expect(f).toEqual({ x: 0.5, y: 0.3 });
-      }),
+      fc.property(
+        fc.array(key, { maxLength: 12 }),
+        fc.integer({ min: -500, max: 70_000 }),
+        (ks, t) => {
+          const keys = [...ks].sort((a, b) => a.atMs - b.atMs);
+          const f = focusAt(keys, t, { x: 0.5, y: 0.3 });
+          expect(f.x).toBeGreaterThanOrEqual(0);
+          expect(f.x).toBeLessThanOrEqual(1);
+          expect(f.y).toBeGreaterThanOrEqual(0);
+          expect(f.y).toBeLessThanOrEqual(1);
+          if (keys.length === 0) expect(f).toEqual({ x: 0.5, y: 0.3 });
+        },
+      ),
     );
     const keys = [
       { atMs: 0, x: 0.2, y: 0.3 },

@@ -1,8 +1,4 @@
-import {
-  DEFAULT_IMAGE_RECIPE,
-  ImageSubjectSchema,
-  generateImageWithFirebase,
-} from '@motionpop/ai';
+import { DEFAULT_IMAGE_RECIPE, ImageSubjectSchema, generateImageWithFirebase } from '@motionpop/ai';
 import {
   APP_CONFIG_DEFAULTS,
   type Format,
@@ -83,7 +79,8 @@ export async function generateReelImageAsset(
   if (!parsed.success) return null;
   const subject = parsed.data;
   const keyed = opts.keyed !== false;
-  const recipe = 'image' in style && style.image?.recipe ? style.image.recipe : DEFAULT_IMAGE_RECIPE;
+  const recipe =
+    'image' in style && style.image?.recipe ? style.image.recipe : DEFAULT_IMAGE_RECIPE;
   const model = APP_CONFIG_DEFAULTS.modelImage;
 
   try {

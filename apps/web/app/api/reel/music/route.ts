@@ -16,8 +16,17 @@ export const maxDuration = 120;
 
 const BodySchema = z.object({
   brief: MusicBriefSchema,
-  durationMs: z.number().int().min(1000).max(10 * 60_000),
-  seed: z.number().int().min(0).max(2 ** 31 - 1).optional(),
+  durationMs: z
+    .number()
+    .int()
+    .min(1000)
+    .max(10 * 60_000),
+  seed: z
+    .number()
+    .int()
+    .min(0)
+    .max(2 ** 31 - 1)
+    .optional(),
 });
 
 // A light per-instance guard against loops: each account gets a handful of soundtracks a minute.

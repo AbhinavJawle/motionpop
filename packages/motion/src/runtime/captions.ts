@@ -97,7 +97,14 @@ export function captionLayout(frame: CaptionFrame, presetId: CaptionPresetId) {
     Math.round(frame.width * 0.88),
   );
   const base = Math.round(
-    ref * (presetId === 'editorial' ? 0.082 : presetId === 'pop' ? 0.07 : presetId === 'studio' ? 0.056 : 0.052),
+    ref *
+      (presetId === 'editorial'
+        ? 0.082
+        : presetId === 'pop'
+          ? 0.07
+          : presetId === 'studio'
+            ? 0.056
+            : 0.052),
   );
   const min = Math.round(ref * 0.04);
   return { bottom, maxWidth, base, min, scale };

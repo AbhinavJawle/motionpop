@@ -7,11 +7,7 @@ export const MUSIC_MODEL = 'lyria-002';
 /** What one generated clip costs us (USD), for usage logs. */
 export const MUSIC_CLIP_USD = 0.06;
 
-export const MusicBriefSchema = z
-  .string()
-  .trim()
-  .min(3)
-  .max(300);
+export const MusicBriefSchema = z.string().trim().min(3).max(300);
 
 const MusicResponseSchema = z.object({
   predictions: z

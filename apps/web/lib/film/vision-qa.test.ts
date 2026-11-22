@@ -4,7 +4,10 @@ import { studioLight } from '@motionpop/motion';
 import { describe, expect, it, vi } from 'vitest';
 import { runVisionQaPass } from './vision-qa';
 
-function makeBeat(index: number, opts: { stage?: FilmBeatResult['beat']['videoStage']; emptyClean?: boolean } = {}): FilmBeatResult {
+function makeBeat(
+  index: number,
+  opts: { stage?: FilmBeatResult['beat']['videoStage']; emptyClean?: boolean } = {},
+): FilmBeatResult {
   const id = `b${index + 1}`;
   const stage = opts.stage ?? 'split-top-stage';
   return {

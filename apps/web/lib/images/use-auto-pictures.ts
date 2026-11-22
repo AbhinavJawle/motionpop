@@ -7,12 +7,7 @@ import { getAuthSnapshot } from '@/lib/auth/auth-store';
 import { loadAppConfig } from '@/lib/firebase/remote-config';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 import { apiHeaders } from '@/lib/users/bootstrap-client';
-import {
-  AUTO_PICTURES_MAX,
-  MediaHitSchema,
-  runAutoPictures,
-  type MediaHit,
-} from './auto-pictures';
+import { AUTO_PICTURES_MAX, MediaHitSchema, runAutoPictures, type MediaHit } from './auto-pictures';
 import { addOwnImage } from './generate';
 
 /**

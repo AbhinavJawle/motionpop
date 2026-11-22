@@ -41,7 +41,13 @@ export async function regenerateReel(
     ...media.plan,
     focus: prev.focus,
     ...(prev.footage ? { footage: prev.footage } : {}),
-    ...(sameBrief ? (prev.music ? { music: prev.music } : {}) : scored.music ? { music: scored.music } : {}),
+    ...(sameBrief
+      ? prev.music
+        ? { music: prev.music }
+        : {}
+      : scored.music
+        ? { music: scored.music }
+        : {}),
     captions: prev.captions,
   };
   const { exec } = editorStore.getState();

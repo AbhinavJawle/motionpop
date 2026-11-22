@@ -1,5 +1,10 @@
 import type { CriticVerdict, FilmBeatParams } from '@motionpop/ai';
-import { captionSafeBandForStage, criticText, type CriticSummary, type ImageRef } from '@motionpop/motion';
+import {
+  captionSafeBandForStage,
+  criticText,
+  type CriticSummary,
+  type ImageRef,
+} from '@motionpop/motion';
 import { compileProject, type CompileAssets, type CompileInput } from '@motionpop/motion/compiler';
 import { FORMATS, type FilmWord, type Format, type TimedBeat } from '@motionpop/schemas';
 

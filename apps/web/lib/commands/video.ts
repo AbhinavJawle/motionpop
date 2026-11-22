@@ -305,7 +305,8 @@ export function setSlotVideoStage(slotId: string, mode: VideoStageMode): Command
 
 /** Switch every beat's coupled video choreography stage in one undoable step. */
 export function setAllSlotsVideoStage(mode: VideoStageMode): Command {
-  let prevSlotStates: Map<string, { stage?: VideoStageMode; placement?: SlotPlacement }> | undefined;
+  let prevSlotStates:
+    Map<string, { stage?: VideoStageMode; placement?: SlotPlacement }> | undefined;
   let prevStages: VideoStageSegment[] | undefined;
   return {
     label: `Set all beats to ${mode}`,

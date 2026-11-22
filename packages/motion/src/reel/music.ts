@@ -21,7 +21,7 @@ export function decodeWavStereo16(bytes: Uint8Array): StereoPcm | null {
   let sampleRate = 0;
   let bits = 0;
   let format = 0;
-  for (let o = 12; o + 8 <= bytes.length; ) {
+  for (let o = 12; o + 8 <= bytes.length;) {
     const id = tag(o);
     const size = v.getUint32(o + 4, true);
     const body = o + 8;

@@ -122,7 +122,8 @@ export function createReelKit(d: ReelKitDeps) {
       'dark-grid': `radial-gradient(circle at 50% 25%, #191B26 0%, #0B0C12 85%)`,
       dark: `radial-gradient(circle at 50% 30%, #1A1B24 0%, #0B0C12 82%)`,
     };
-    const isDarkStage = tone === 'glow-violet' || tone === 'glow-emerald' || tone === 'dark-grid' || tone === 'dark';
+    const isDarkStage =
+      tone === 'glow-violet' || tone === 'glow-emerald' || tone === 'dark-grid' || tone === 'dark';
     const gridColor = isDarkStage ? 'rgba(255,255,255,0.045)' : 'rgba(23,22,20,0.045)';
     const heightCss = region === 'top-half' ? 'height:50%;bottom:auto;' : 'bottom:0;';
     el.style.cssText = [
@@ -170,7 +171,8 @@ export function createReelKit(d: ReelKitDeps) {
       parent?: Element;
     } = {},
   ): { el: HTMLElement; body: HTMLElement } => {
-    const v = o.variant && o.variant !== 'auto' ? o.variant : isLightLook ? 'light-elevated' : 'dark-glass';
+    const v =
+      o.variant && o.variant !== 'auto' ? o.variant : isLightLook ? 'light-elevated' : 'dark-glass';
     const x = px(o.x, W, W * 0.08);
     const y = px(o.y, H, H * 0.1);
     const w = px(o.w, W, W * 0.84);
@@ -339,7 +341,11 @@ export function createReelKit(d: ReelKitDeps) {
     const sw = o.strokeWidth ?? Math.max(3, Math.round(sz * 0.11));
     const r = sz / 2 - sw;
     const circ = 2 * Math.PI * r;
-    const svg = svgNode('svg', { width: sz, height: sz, viewBox: `0 0 ${sz} ${sz}` }) as SVGSVGElement;
+    const svg = svgNode('svg', {
+      width: sz,
+      height: sz,
+      viewBox: `0 0 ${sz} ${sz}`,
+    }) as SVGSVGElement;
     svg.style.display = 'block';
     const track = svgNode('circle', {
       cx: sz / 2,
@@ -417,17 +423,15 @@ export function createReelKit(d: ReelKitDeps) {
   /**
    * 7. `mp.tile(opts)` — Glowing rounded iOS-style concept/app tile (Ref 3).
    */
-  const tile = (
-    o: {
-      label: string;
-      icon?: string;
-      color?: string;
-      size?: Len;
-      x?: Len;
-      y?: Len;
-      parent?: Element;
-    },
-  ): HTMLElement => {
+  const tile = (o: {
+    label: string;
+    icon?: string;
+    color?: string;
+    size?: Len;
+    x?: Len;
+    y?: Len;
+    parent?: Element;
+  }): HTMLElement => {
     const sz = px(o.size, W, u * 16);
     const col = o.color ?? colors.accent;
     const wrap = doc.createElement('div');
@@ -535,7 +539,13 @@ export function createReelKit(d: ReelKitDeps) {
   const chart = (o: {
     type: 'line' | 'bar' | 'scatter';
     title?: string;
-    points: readonly { label?: string; x?: number; y: number; color?: string; highlight?: boolean }[];
+    points: readonly {
+      label?: string;
+      x?: number;
+      y: number;
+      color?: string;
+      highlight?: boolean;
+    }[];
     targetZone?: { fromX?: number; toX?: number; label?: string; color?: string };
     x?: Len;
     y?: Len;
@@ -589,7 +599,16 @@ export function createReelKit(d: ReelKitDeps) {
     const lblCol = dark ? 'rgba(255,255,255,0.58)' : 'rgba(23,22,20,0.55)';
     for (let i = 0; i <= 4; i++) {
       const gy = padT + (ph * i) / 4;
-      svg.append(svgNode('line', { x1: padL, y1: gy, x2: vw - padR, y2: gy, stroke: gridCol, 'stroke-width': 1 }));
+      svg.append(
+        svgNode('line', {
+          x1: padL,
+          y1: gy,
+          x2: vw - padR,
+          y2: gy,
+          stroke: gridCol,
+          'stroke-width': 1,
+        }),
+      );
     }
 
     if (o.targetZone) {
@@ -630,7 +649,12 @@ export function createReelKit(d: ReelKitDeps) {
       }
     }
 
-    const pts = o.points.length ? o.points : [{ label: 'A', y: 40 }, { label: 'B', y: 85 }];
+    const pts = o.points.length
+      ? o.points
+      : [
+          { label: 'A', y: 40 },
+          { label: 'B', y: 85 },
+        ];
     const maxY = Math.max(1, ...pts.map((p) => p.y));
     const maxX = Math.max(1, ...pts.map((p, i) => p.x ?? i));
     const coords = pts.map((p, i) => ({
@@ -639,10 +663,18 @@ export function createReelKit(d: ReelKitDeps) {
       cy: padT + ph - (p.y / maxY) * ph,
     }));
 
-    const animEls: { kind: 'path' | 'bar' | 'dot'; el: SVGElement; len?: number; baseY?: number; fullH?: number }[] = [];
+    const animEls: {
+      kind: 'path' | 'bar' | 'dot';
+      el: SVGElement;
+      len?: number;
+      baseY?: number;
+      fullH?: number;
+    }[] = [];
 
     if (o.type === 'line') {
-      const dStr = coords.map((c, i) => `${i === 0 ? 'M' : 'L'}${c.cx.toFixed(1)},${c.cy.toFixed(1)}`).join(' ');
+      const dStr = coords
+        .map((c, i) => `${i === 0 ? 'M' : 'L'}${c.cx.toFixed(1)},${c.cy.toFixed(1)}`)
+        .join(' ');
       const path = svgNode('path', {
         d: dStr,
         fill: 'none',
@@ -652,7 +684,8 @@ export function createReelKit(d: ReelKitDeps) {
         'stroke-linejoin': 'round',
       });
       const approxLen = coords.reduce(
-        (acc, c, i) => (i === 0 ? 0 : acc + Math.hypot(c.cx - coords[i - 1]!.cx, c.cy - coords[i - 1]!.cy)),
+        (acc, c, i) =>
+          i === 0 ? 0 : acc + Math.hypot(c.cx - coords[i - 1]!.cx, c.cy - coords[i - 1]!.cy),
         0,
       );
       path.setAttribute('stroke-dasharray', String(Math.max(1, Math.ceil(approxLen))));
@@ -793,8 +826,12 @@ export function createReelKit(d: ReelKitDeps) {
   ): { el: SVGSVGElement; set: (p: number) => void } => {
     const col = o.color ?? colors.negative;
     const sw = o.width ?? Math.max(6, Math.round(u * 1.3));
-    const svg = svgNode('svg', { viewBox: '0 0 100 100', preserveAspectRatio: 'none' }) as SVGSVGElement;
-    svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;';
+    const svg = svgNode('svg', {
+      viewBox: '0 0 100 100',
+      preserveAspectRatio: 'none',
+    }) as SVGSVGElement;
+    svg.style.cssText =
+      'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;';
     const ln = svgNode('line', {
       x1: 92,
       y1: 8,
@@ -870,7 +907,12 @@ export function createReelKit(d: ReelKitDeps) {
           ? v.trim()
           : `${px(v, total, 0)}px`;
     const box = o.parent
-      ? { x: rel(o.x, W, '0px'), y: rel(o.y, H, '0px'), w: rel(o.w, W, '100%'), h: rel(o.h, H, '100%') }
+      ? {
+          x: rel(o.x, W, '0px'),
+          y: rel(o.y, H, '0px'),
+          w: rel(o.w, W, '100%'),
+          h: rel(o.h, H, '100%'),
+        }
       : {
           x: `${px(o.x, W, W * 0.14)}px`,
           y: `${px(o.y, H, H * 0.08)}px`,
@@ -934,7 +976,11 @@ export function createReelKit(d: ReelKitDeps) {
       variant?: 'dark-glass' | 'light-elevated' | 'cream-soft';
       parent?: Element;
     } = {},
-  ): { el: HTMLElement; body: HTMLElement; setTilt: (rx: number, ry: number, scale?: number) => void } => {
+  ): {
+    el: HTMLElement;
+    body: HTMLElement;
+    setTilt: (rx: number, ry: number, scale?: number) => void;
+  } => {
     const persp = o.perspective ?? 1200;
     const { el, body } = card({
       ...(o.x !== undefined ? { x: o.x } : {}),
@@ -1020,7 +1066,11 @@ export function createReelKit(d: ReelKitDeps) {
       ctx2d.arc(cx, cy, r, 0, Math.PI * 2);
       ctx2d.fill();
 
-      const proj = geoOrthographic().translate([cx, cy]).scale(r).rotate([-lon, -lat]).clipAngle(90);
+      const proj = geoOrthographic()
+        .translate([cx, cy])
+        .scale(r)
+        .rotate([-lon, -lat])
+        .clipAngle(90);
       const path = geoPath(proj, ctx2d);
 
       // Graticule
@@ -1034,13 +1084,10 @@ export function createReelKit(d: ReelKitDeps) {
       ctx2d.beginPath();
       path(LAND_GEO);
       ctx2d.fillStyle =
-        style === 'editorial'
-          ? colors.ink
-          : style === 'satellite'
-            ? '#38A169'
-            : '#334878';
+        style === 'editorial' ? colors.ink : style === 'satellite' ? '#38A169' : '#334878';
       ctx2d.fill();
-      ctx2d.strokeStyle = style === 'editorial' ? 'rgba(255,255,255,0.25)' : 'rgba(147,197,253,0.3)';
+      ctx2d.strokeStyle =
+        style === 'editorial' ? 'rgba(255,255,255,0.25)' : 'rgba(147,197,253,0.3)';
       ctx2d.lineWidth = 0.9;
       ctx2d.stroke();
 
@@ -1061,18 +1108,16 @@ export function createReelKit(d: ReelKitDeps) {
   /**
    * 16. `mp.mesh3d(opts)` — Deterministic procedural 3D geometric props (stacked 3D coins, glowing 3D cube/chip, 3D bars, Ref 3).
    */
-  const mesh3d = (
-    o: {
-      kind: 'coins' | 'cube' | 'bars';
-      count?: number;
-      color?: string;
-      x?: Len;
-      y?: Len;
-      w?: Len;
-      h?: Len;
-      parent?: Element;
-    },
-  ): { el: SVGSVGElement; set: (p: number) => void } => {
+  const mesh3d = (o: {
+    kind: 'coins' | 'cube' | 'bars';
+    count?: number;
+    color?: string;
+    x?: Len;
+    y?: Len;
+    w?: Len;
+    h?: Len;
+    parent?: Element;
+  }): { el: SVGSVGElement; set: (p: number) => void } => {
     const x = px(o.x, W, W * 0.2);
     const y = px(o.y, H, H * 0.1);
     const w = px(o.w, W, W * 0.6);
@@ -1092,8 +1137,12 @@ export function createReelKit(d: ReelKitDeps) {
         for (let i = 0; i < visible; i++) {
           const cy = 172 - i * 8.5;
           const g = svgNode('g');
-          g.append(svgNode('ellipse', { cx: 120, cy: cy + 4, rx: 46, ry: 13, fill: alphaHex(col, 0.7) }));
-          g.append(svgNode('rect', { x: 74, y: cy, width: 92, height: 4, fill: alphaHex(col, 0.7) }));
+          g.append(
+            svgNode('ellipse', { cx: 120, cy: cy + 4, rx: 46, ry: 13, fill: alphaHex(col, 0.7) }),
+          );
+          g.append(
+            svgNode('rect', { x: 74, y: cy, width: 92, height: 4, fill: alphaHex(col, 0.7) }),
+          );
           g.append(
             svgNode('ellipse', {
               cx: 120,
@@ -1142,7 +1191,16 @@ export function createReelKit(d: ReelKitDeps) {
           const bh = (28 + frac * 110) * local;
           const bx = 36 + i * (170 / n);
           const by = 178 - bh;
-          svg.append(svgNode('rect', { x: bx, y: by, width: 24, height: bh, rx: 4, fill: i === n - 1 ? col : alphaHex(col, 0.55) }));
+          svg.append(
+            svgNode('rect', {
+              x: bx,
+              y: by,
+              width: 24,
+              height: bh,
+              rx: 4,
+              fill: i === n - 1 ? col : alphaHex(col, 0.55),
+            }),
+          );
           svg.append(
             svgNode('polygon', {
               points: `${bx + 24},${by} ${bx + 32},${by - 6} ${bx + 32},${172} ${bx + 24},${178}`,

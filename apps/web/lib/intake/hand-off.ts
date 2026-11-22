@@ -65,7 +65,10 @@ export async function handOffFiles(
   if (files.length === 0) return { ok: false, message: 'Pick at least one file.' };
   if (files.length === 1) return handOffFile(files[0]!, draft);
   const audioOrVideo = files.filter(
-    (f) => f.type.startsWith('audio/') || f.type.startsWith('video/') || /\.(mp3|wav|m4a|aac|ogg|opus|mp4|mov|webm)$/i.test(f.name),
+    (f) =>
+      f.type.startsWith('audio/') ||
+      f.type.startsWith('video/') ||
+      /\.(mp3|wav|m4a|aac|ogg|opus|mp4|mov|webm)$/i.test(f.name),
   );
   if (audioOrVideo.length === 0) {
     return { ok: false, message: 'Include your main talking-head video or voiceover first.' };
