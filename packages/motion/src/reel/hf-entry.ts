@@ -15,6 +15,7 @@ const stage = document.getElementById('reel-stage');
 if (data && stage) {
   const videos = Array.from(stage.querySelectorAll('video'));
   const reel = mountReel(stage, data, videos);
+  const hasCustom = data.plan.scenes.some((s) => s.content.template === 'custom');
   let ready = false;
   void reel.ready.then(() => {
     ready = true;
@@ -24,7 +25,9 @@ if (data && stage) {
       .detail;
     reel.seek(Math.round(detail.time * 1000));
     // Until fonts are in and scenes are built, the capture waits (HyperFrames 0.9.46).
-    if (!ready) detail.waitUntil?.(reel.ready);
+    if (!ready) detail.waitUntil?.(reel.ready.then(() => reel.drawn()));
+    // AI-written scenes draw in their own frames (spec 30): the capture waits for this frame.
+    else if (hasCustom) detail.waitUntil?.(reel.drawn());
   });
   window.__reel = { seek: (ms) => reel.seek(ms), ready: reel.ready };
   reel.seek(0);

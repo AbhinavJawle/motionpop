@@ -42,7 +42,7 @@ function graphicRegion(sceneId: string): Region | null {
 export function ReelNotesLayer() {
   const scenes = useEditor((s) => s.project?.reel?.scenes);
   const playheadMs = useEditor((s) => s.playheadMs);
-  const { route, cloudRoute, run } = useReelNoteFix();
+  const { route, cloudRoute, cost, run } = useReelNoteFix();
   const working = useAIActivity((s) => (s.busy?.kind === 'note' ? s.busy.slotId : null));
   const scene = useMemo(
     () => (scenes ? reelSceneAt(scenes, playheadMs) : null),
@@ -58,6 +58,7 @@ export function ReelNotesLayer() {
       aspect={REEL_STAGE_W / REEL_STAGE_H}
       route={route}
       cloudRoute={cloudRoute}
+      cost={cost}
       noteTime={(ms) => Math.max(0, Math.min(scene.endMs - scene.startMs, ms - scene.startMs))}
       add={(note) => editorStore.getState().exec(addReelNote(scene.id, note))}
       remove={(id) => editorStore.getState().exec(deleteReelNote(scene.id, id))}

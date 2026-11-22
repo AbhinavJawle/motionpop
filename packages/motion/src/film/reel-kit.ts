@@ -860,18 +860,37 @@ export function createReelKit(d: ReelKitDeps) {
     } = {},
   ): HTMLElement => {
     const ref = d.images?.[assetId];
-    const x = px(o.x, W, W * 0.14);
-    const y = px(o.y, H, H * 0.08);
-    const w = px(o.w, W, W * 0.72);
-    const h = px(o.h, H, H * 0.36);
+    // Inside a parent, places and sizes are relative to that parent (CSS %, so it holds whether
+    // or not the parent is laid out yet) and the picture fills it by default ("the logo in this
+    // slot"); otherwise they are frame pixels.
+    const rel = (v: Len | undefined, total: number, fallback: string): string =>
+      v === undefined
+        ? fallback
+        : typeof v === 'string' && v.trim().endsWith('%')
+          ? v.trim()
+          : `${px(v, total, 0)}px`;
+    const box = o.parent
+      ? { x: rel(o.x, W, '0px'), y: rel(o.y, H, '0px'), w: rel(o.w, W, '100%'), h: rel(o.h, H, '100%') }
+      : {
+          x: `${px(o.x, W, W * 0.14)}px`,
+          y: `${px(o.y, H, H * 0.08)}px`,
+          w: `${px(o.w, W, W * 0.72)}px`,
+          h: `${px(o.h, H, H * 0.36)}px`,
+        };
+    // The picture is placed inside its parent, so a static parent becomes its containing block.
+    const pe = o.parent as HTMLElement | undefined;
+    if (pe?.style && !pe.style.position && doc.defaultView) {
+      const pos = doc.defaultView.getComputedStyle(pe).position;
+      if (pos === 'static' || pos === '') pe.style.position = 'relative';
+    }
     const wrap = doc.createElement('div');
     wrap.setAttribute('data-mp-image', assetId);
     wrap.style.cssText = [
       'position:absolute',
-      `left:${x}px`,
-      `top:${y}px`,
-      `width:${w}px`,
-      `height:${h}px`,
+      `left:${box.x}`,
+      `top:${box.y}`,
+      `width:${box.w}`,
+      `height:${box.h}`,
       `border-radius:${o.radius ?? (ref?.keyed ? 0 : Math.round(u * 2))}px`,
       ref?.keyed ? 'overflow:visible;' : 'overflow:hidden;',
       o.shadow !== false && !ref?.keyed

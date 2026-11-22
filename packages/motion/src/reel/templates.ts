@@ -1556,7 +1556,13 @@ export function mix(a: string, b: string, p: number): string {
   return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
 }
 
+/** An AI-written scene (spec 30): its own frame, or its title until the custom runtime is in. */
+function custom(p: Of<'custom'>, ctx: TplCtx): Tpl {
+  return ctx.custom ? ctx.custom(p, ctx) : headline({ template: 'headline', title: p.title }, ctx);
+}
+
 const BUILDERS: { [K in ReelTemplate['template']]: (p: Of<K>, ctx: TplCtx) => Tpl } = {
+  custom,
   headline,
   list,
   stack,

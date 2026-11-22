@@ -28,7 +28,12 @@ function makeKit() {
     radius: 18,
     stroke: 2,
     images: {
-      'img-demo': { src: 'data:image/png;base64,iVBORw0KGgo=', width: 512, height: 512, keyed: true },
+      'img-demo': {
+        src: 'data:image/png;base64,iVBORw0KGgo=',
+        width: 512,
+        height: 512,
+        keyed: true,
+      },
     },
     warn: () => undefined,
   });
@@ -96,6 +101,17 @@ describe('Reel UI, Motion & 3D Kit (spec 23 Pillars 4 & 5)', () => {
 
     const imgWrap = kit.image('img-demo');
     expect(imgWrap.querySelector('img')?.getAttribute('src')).toContain('data:image/png;base64');
+    // Inside a parent the picture is sized to that parent's box (spec 30: a logo in its slot).
+    const slot = document.createElement('div');
+    const inSlot = kit.image('img-demo', { parent: slot, w: '50%' });
+    expect(inSlot.parentElement).toBe(slot);
+    expect([inSlot.style.left, inSlot.style.top, inSlot.style.width, inSlot.style.height]).toEqual([
+      '0px',
+      '0px',
+      '50%',
+      '100%',
+    ]);
+    expect(slot.style.position).toBe('relative');
 
     const c3 = kit.card3d({ rotateX: 8, rotateY: -12 });
     c3.setTilt(2, -4, 1.02);

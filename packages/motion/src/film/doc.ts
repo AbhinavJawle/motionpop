@@ -61,7 +61,7 @@ Reel UI, Motion & 3D Kit (PREFER THESE on talking-head Reels — agency-grade, z
   const st = mp.stamp("OLD WAY", { color: mp.colors.negative, angle: -9 });   bold angled rubber-stamp slam.
   const sl = mp.strike(el, { color: mp.colors.negative });   tl.fn((p) => sl.set(p), { at: 500, dur: 320 });   bold diagonal red slash across an element.
   const chap = mp.chapter("skill no #1", "find skills");   editorial italic-serif + bold-sans lower-third chapter stamp over full-bleed speaker.
-  const img = mp.image("assetId", { x, y, w, h, fit: "contain" | "cover", shadow: true });   pre-inlined AI cutout or stock photo (only use assetIds listed in your beat brief).
+  const img = mp.image("assetId", { x, y, w, h, fit: "contain" | "cover", shadow: true, parent });   pre-inlined AI cutout or stock photo (only use assetIds listed in your beat brief). With parent: it goes inside that element, x/y/w/h are relative to it and it fills it by default (mp.image("m0", { parent: root.querySelector(".logo-slot"), fit: "contain", shadow: false })). Never move it yourself.
   const c3 = mp.card3d({ x, y, w, h, rotateX: 6, rotateY: -10, variant: "dark-glass" });   tl.fn((p) => c3.setTilt(6 * (1 - p), -10 * (1 - p)), { at: 100, dur: 800 });   3D perspective showcase card.
   const gl = mp.globe({ x: "16%", y: "8%", size: "68%", style: "editorial" | "night" | "satellite", lon: -20, lat: 25 });   tl.fn((p) => gl.set(-20 + p * 65, 25), { at: 0, dur: ctx.durationMs, ease: "linear" });   spinning 3D orthographic Earth.
   const m3 = mp.mesh3d({ kind: "coins" | "cube" | "bars", count: 10, color: mp.colors.accent, x, y, w, h });   tl.fn((p) => m3.set(p), { at: 120, dur: 900 });   deterministic 3D isometric coins, chip cube, or 3D bars.

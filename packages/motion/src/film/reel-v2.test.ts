@@ -104,4 +104,33 @@ describe('Reel Engine v2 core invariants (spec 24)', () => {
     expect(summary.reports.some((r) => r.rule === 'empty-box')).toBe(true);
     host.remove();
   });
+
+  it('reads a badge against its own fill, not the card under it (spec 30)', () => {
+    const host = document.createElement('div');
+    const card = document.createElement('div');
+    card.style.cssText = 'background-color:#FFFFFF;';
+    card.getBoundingClientRect = () => new DOMRect(100, 100, 600, 200);
+    const badge = document.createElement('div');
+    badge.textContent = '01';
+    badge.style.cssText = 'background-color:#0A0A0E;color:#FFFFFF;font-size:32px;';
+    badge.getBoundingClientRect = () => new DOMRect(560, 160, 80, 48);
+    const label = document.createElement('div');
+    label.textContent = 'Train assistants';
+    label.style.cssText = 'color:#0A0A0E;font-size:48px;';
+    label.getBoundingClientRect = () => new DOMRect(140, 150, 380, 60);
+    card.append(label, badge);
+    host.append(card);
+    document.body.append(host);
+    const summary = inspectBeat(host, () => {}, {
+      durationMs: 3000,
+      keyMomentMs: 500,
+      width: 720,
+      height: 640,
+      frameShortSide: 720,
+      bg: '#FFFFFF',
+      reelMode: true,
+    });
+    expect(summary.reports.filter((r) => r.rule === 'low-contrast')).toEqual([]);
+    host.remove();
+  });
 });

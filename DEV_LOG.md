@@ -801,3 +801,42 @@ Template:
   - Name-only logos fall back to the icon set or the favicon when the model skips the domain.
   - The on-device route (Nano) was not exercised here (headless Chrome has no model).
   - Commits are local, not pushed.
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) + Kiro CLI (commits only) · spec 30 notes that rewrite the scene
+- **Founder ask:** a note came back "Animations are fixed by the motion engine…". The ask: "a user describes what they want, they should be able to get exactly that … that slot should change if the note says it should change … no limitations. use frontier models for everything including the notes feature … but don't accidentally break anything." Test note: "i dont like this its boring make it snappier and use better symbols and animations".
+- **Built (spec 30):**
+  - **Note step:** `reel.note` now runs on `gemini-4-neon` in the cloud for every note. Its answer gains `compose`, a brief for a new motion graphic, used for anything templates can't do (motion, style, symbols, design). Text, logo and caption fixes stay plain edits.
+  - **New scene type:** a `custom` reel template, film-kit code written for one scene.
+    - Editor: each custom scene is its own document in a sandboxed frame (`allow-scripts`, opaque origin), driven by message from the reel clock, with a token and a give-up timeout.
+    - Export: the same document runs inlined in the render container, so the preview is the export.
+    - Without the runtime the scene shows its title.
+  - **`reel.compose`:** writes the code from the note, the brief, the scene's words, the area and palette, what is there now (or its previous code) and the kit doc. Checks: lint, picture ids, key moment, plus one repair.
+  - **Review before applying:** each new graphic is built in a hidden sandboxed frame and checked by the film critic (build and seek errors, overflow, tiny text, contrast, late start). Problems go back once. A graphic that still won't build is never applied.
+  - **Cost and undo:** 1 credit for the note, plus 3 when a graphic is written. Both are shown before sending ("☁ 1–4") and refunded on any failure. One undo restores the template.
+- **Lab (the founder's reel, real cloud calls, rendered in Chrome at 7 moments):**
+  - **Steps scene (r3):** a three-card flow with the Loom logo, a team icon and a stopwatch. Cards spring in on their words; arrows and a progress rail draw.
+  - **Compare scene (r2):** "Team of 5" is crossed out and dimmed while six tool icons slam in under a winner badge.
+  - **Fixes the lab forced:**
+    - The graphic drew the scene's tag a second time; the prompt now says the reel pins it.
+    - MEDIUM thinking took 112 s for one compose; LOW takes 44–56 s with no visible loss.
+    - The note's brief ran past 500 characters (+38 s for a repair round); the limit is now 1 200.
+    - The repair was logged as another 3 credits; it now logs at 0.
+- **Real app (local dev server, lab profile, headless Chrome, e2e user, project `p-9ac4thm8k9`):**
+  - **First run:** the new graphic landed and undo restored the template, but the Loom logo filled the panel. Cause: off-screen scenes are `display: none`, the frame builds asynchronously, so it built with no layout and the kit fell back to frame-wide sizes.
+    - Fix: scenes with a custom frame stay laid out off screen (opacity 0).
+    - Fix: `mp.image(id, { parent })` now sizes in CSS % of its parent, and the kit doc says how to use it.
+  - **Second run:** correct in the preview in 113 s (note 10 s, compose 57 s, review, repair 45 s).
+  - **Export:** the 1080p export (local render, 114 s) shows the same graphic frame for frame. The editor console logged one 404 during the export; it didn't reproduce on reload and wasn't traced.
+- **Critic bug found on the way:** text with its own solid fill (a badge, a pill) was measured against the card under it ("1.0:1 contrast"), so repairs chased phantom problems. Film mode benefits too.
+- **Verified:**
+  - Typecheck in all five packages and lint: green.
+  - Tests: schemas 25 files, ai 36 (507 tests), motion 68 (561), render 26 (193), web 143 (1211).
+  - The slot notes spec failed 1 of 4 full runs on "Enter with the pen circles the focal element" (the slot graphic not yet mounted) and passes alone; that code path didn't change.
+- **Lab and app spend (lower bound):** about 12 `gemini-4-neon` calls in the lab ($0.09 measured by the lab ledger) and 6 in the real app (two notes, three composes, one repair), roughly $0.15–0.25 in all. The app's own usage log undercounts.
+- **Gaps:**
+  - A note that writes a graphic takes about 1.5–2.5 minutes. The toast tells the user, but the panel isn't usable for anything else on that scene meanwhile.
+  - The notes capture can't see inside a sandboxed frame. A note on a custom scene sends the scene's code and brief instead of what is drawn.
+  - No sound for custom scenes (`mp.sfx` is ignored there).
+  - Not tried on the cream look in the real app.
+  - The device route for reel notes is gone by design (founder: frontier models for notes).
+  - Commits are local, not pushed.

@@ -87,6 +87,10 @@ General prompt rules (all tasks):
 - **Output:** `{ html: string; css: string; script: string; params: JSONSchema; keyMomentMs: number }`: a HyperFrames sub-composition implementing the same `seek(t)` contract (component-contract.md) using only `@motionpop/motion` core helpers. No GSAP.
 - **Checks before saving:** static lint (no `Date.now`, `Math.random`, timers, `fetch`, CSS animations, external URLs, GSAP) + `@hyperframes/lint` → sandbox mount → stills at 0 %, key moment, 90 % → layout checks (overflow, safe area, contrast) → save version. Fail → 1 retry with errors fed back → else suggest nearest library component.
 
+## 7b. `reel.note` and `reel.compose` (frame notes on reels, specs 29–30)
+- `reel.note`: `modelStrong`, ONLY_IN_CLOUD, LOW thinking, 8 192 tokens, 1 credit. Answers `edit` (template data, as spec 29), `compose` (a brief for a new graphic) or `none` (outside the graphic).
+- `reel.compose`: `modelStrong`, ONLY_IN_CLOUD, LOW thinking, 24 576 tokens, the custom price (3). Writes film-kit code for one reel scene (`custom` template); `lintCustom` + picture ids + key moment, one repair. The editor builds it in a sandboxed frame and runs the film critic before applying; the review repair is logged at 0.
+
 ## 8. `tts.generate`
 - **Mode:** ONLY_IN_CLOUD. Provider: Gemini TTS (`gemini-3.8-flash-tts`, D-026) through Firebase AI Logic. Cost: 2 credits per started minute.
 - **Input:** `{ text, voiceId, speed }` → **Output:** audio file in Storage + duration.
@@ -109,6 +113,8 @@ General prompt rules (all tasks):
 | edit.patch / note.fix (cloud fallback) | 1 |
 | pip.plan | 2 + generations |
 | custom.compose | 3 |
+| reel.note (always cloud, spec 30) | 1 |
+| reel.compose (a note that writes a new graphic) | +3 |
 | tts.generate | 2 per minute |
 | transcribe.cloud | 1 per minute |
 | film (spec 07b) | 5 per started 30 s |

@@ -74,12 +74,15 @@ export function NoteInput({
   n,
   placement,
   route,
+  cost,
   onSave,
   onCancel,
 }: {
   n: number;
   placement: BubblePlacement;
   route: Route;
+  /** A cost range for the cloud chip (reel notes may write a new graphic, spec 30). */
+  cost?: { label: string; hint: string };
   onSave: (text: string) => void;
   onCancel: () => void;
 }) {
@@ -114,7 +117,11 @@ export function NoteInput({
           {reason}
         </Chip>
       ) : chip ? (
-        <CostChip route={chip.route} credits={chip.route === 'cloud' ? chip.credits : 0} />
+        <CostChip
+          route={chip.route}
+          credits={chip.route === 'cloud' ? chip.credits : 0}
+          {...(chip.route === 'cloud' && cost ? { label: cost.label, hint: cost.hint } : {})}
+        />
       ) : null}
     </BubbleShell>
   );

@@ -19,6 +19,11 @@ export interface TplCtx {
   layout: 'split' | 'card' | 'full' | 'speaker';
   /** The picture for a media request, or null (draw the fallback). */
   img(m: ReelMedia | undefined): ReelImage | null;
+  /**
+   * Builds an AI-written scene (spec 30) in its own frame. Absent (no custom runtime loaded) the
+   * scene shows its title as a headline until it is.
+   */
+  custom?(p: Extract<ReelTemplate, { template: 'custom' }>, ctx: TplCtx): Tpl;
 }
 
 export interface Tpl {

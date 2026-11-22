@@ -6,6 +6,7 @@ import type { Route } from '@/lib/ai/route';
 import { addReelNote, fixReelScene } from '@/lib/commands';
 import { LocalCredits } from '@/lib/credits/local-credits';
 import { createEditorStore } from '@/lib/stores/editor';
+import type { CustomReport, ReelCustomAssets, ReelCustomScene } from '@motionpop/motion/reel';
 import { runReelNoteFix, type ReelNoteFixDeps } from './note-fix';
 
 const DEVICE: Route = { kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: false };
@@ -45,11 +46,16 @@ const plan: ReelPlan = {
 };
 
 /** A router that answers with `answer`, through the task's own parse and check like the real one. */
-function stubRouter(answer: unknown | (() => unknown), seen: unknown[] = []): Router {
+type Answer = unknown | ((taskId: string, input: unknown) => unknown);
+
+function stubRouter(answer: Answer, seen: unknown[] = []): Router {
   return {
     async run<I, O>(task: TaskDef<I, O>, input: I): Promise<RunResult<O>> {
       seen.push(input);
-      const raw = typeof answer === 'function' ? (answer as () => unknown)() : answer;
+      const raw =
+        typeof answer === 'function'
+          ? (answer as (id: string, input: unknown) => unknown)(task.id, input)
+          : answer;
       const output = task.output.parse(raw);
       const err = task.check?.(output, task.input.parse(input));
       if (err) throw new Error(err);
@@ -66,7 +72,7 @@ function stubRouter(answer: unknown | (() => unknown), seen: unknown[] = []): Ro
   };
 }
 
-function setup(answer: unknown | (() => unknown), extra: Partial<ReelNoteFixDeps> = {}) {
+function setup(answer: Answer, extra: Partial<ReelNoteFixDeps> = {}) {
   const store = createEditorStore(() => 1000);
   const base = fixtureProject({ slots: [], durationMs: 6000 });
   store.getState().load(
@@ -150,10 +156,11 @@ describe('runReelNoteFix (spec 29 R4)', () => {
     expect(store.getState().project).toEqual(before);
   });
 
-  it('is free on the device', async () => {
-    const { deps, credits } = setup(titleAnswer);
+  it('runs on the strong cloud model only: a device route is blocked and spends nothing (spec 30)', async () => {
+    const { deps, credits, seen } = setup(titleAnswer);
     const r = await runReelNoteFix(deps, 'r1', 'n1', DEVICE);
-    expect(r.kind).toBe('applied');
+    expect(r).toEqual({ kind: 'blocked', reason: 'Needs cloud AI' });
+    expect(seen).toHaveLength(0);
     expect(credits.balance()).toBe(50);
   });
 
@@ -177,7 +184,6 @@ describe('runReelNoteFix (spec 29 R4)', () => {
     });
     const before = scene();
     expect(await runReelNoteFix(deps, 'r1', 'n1', CLOUD)).toEqual({ kind: 'cloud-failed' });
-    expect(await runReelNoteFix(deps, 'r1', 'n1', DEVICE)).toEqual({ kind: 'device-failed' });
     expect(scene()).toEqual(before);
     expect(credits.balance()).toBe(50);
   });
@@ -257,5 +263,188 @@ describe('runReelNoteFix (spec 29 R4)', () => {
     await vi.waitFor(() => expect(onPictures).toHaveBeenCalledWith(1));
     expect(scene().content).toMatchObject({ media: { asset: 'img1' } });
     expect(scene().notes![0]!.status).toBe('fixed');
+  });
+});
+
+// ----- spec 30: a note that needs a new motion graphic ---------------------------------------------
+
+const ASSETS: ReelCustomAssets = { js: '/* runtime */', fontCss: '' };
+const CLEAN: CustomReport = {
+  summary: {
+    reports: [],
+    stats: {
+      textWords: 3,
+      texts: ['Heavy lifting'],
+      shapes: 2,
+      hasMap: false,
+      hasPaper: false,
+      distinctFrames: 4,
+      samples: 8,
+    },
+  },
+  errors: [],
+};
+const BROKEN: CustomReport = { summary: null, errors: ['tl.from is not a function'] };
+const CROWDED: CustomReport = {
+  summary: {
+    ...CLEAN.summary!,
+    reports: [
+      {
+        rule: 'off-frame',
+        level: 'fix',
+        atMs: 900,
+        hint: '"Heavy lifting" runs off the right edge',
+      },
+    ],
+  },
+  errors: [],
+};
+
+const composeNote = {
+  action: 'compose',
+  message: 'Making it snappier with clearer icons.',
+  compose:
+    'Rebuild the list as a snappy two-step flow: "Train fast" and "Write well" with bold icons, each landing on its spoken word, title "AI does the heavy lifting".',
+};
+const graphic = (title = 'Snappy flow') => ({
+  title,
+  brief: 'Two steps with icons, landing on the words.',
+  html: '<div class="t">Heavy lifting</div>',
+  css: '.t { font-size: calc(var(--u) * 8); color: var(--ink); }',
+  script:
+    'const tl = mp.timeline();\ntl.from(".t", { y: 30, opacity: 0 }, { at: 0, dur: 240, ease: "outStrong" });\nreturn tl;',
+  keyMomentMs: 700,
+  newPictures: [],
+  message: 'Rebuilt it as a snappy flow.',
+});
+
+function composeSetup(opts: {
+  reports?: CustomReport[];
+  answers?: unknown[];
+  assets?: ReelCustomAssets | null;
+  plan?: ReelPlan;
+}) {
+  const answers = [...(opts.answers ?? [graphic()])];
+  const reports = [...(opts.reports ?? [CLEAN])];
+  const inspect = vi.fn<
+    (
+      scene: Omit<ReelCustomScene, 'token'>,
+      assets: ReelCustomAssets,
+      allow: string[],
+    ) => Promise<CustomReport>
+  >(async () => reports.shift() ?? CLEAN);
+  const onStage = vi.fn();
+  const t = setup((id: string) => (id === 'reel.note' ? composeNote : answers.shift()), {
+    customAssets: async () => (opts.assets === undefined ? ASSETS : opts.assets),
+    inspect,
+    onStage,
+  });
+  return { ...t, inspect, onStage };
+}
+
+describe('runReelNoteFix: new motion graphics (spec 30)', () => {
+  it('writes the scene a new graphic, reviews it, and applies it as one undo step', async () => {
+    const t = composeSetup({});
+    const before = t.store.getState().project;
+    const r = await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD);
+    expect(r).toMatchObject({
+      kind: 'applied',
+      composed: true,
+      message: 'Rebuilt it as a snappy flow.',
+    });
+    const s = t.scene();
+    expect(s).toMatchObject({
+      id: 'r1',
+      startMs: 0,
+      endMs: 3000,
+      layout: 'split',
+      tag: 'MY STACK',
+    });
+    expect(s.content).toMatchObject({ template: 'custom', title: 'Snappy flow', keyMomentMs: 700 });
+    expect(s.notes![0]!.status).toBe('fixed');
+    // 1 for the note, 3 for the new graphic.
+    expect(t.credits.balance()).toBe(46);
+    // What the writer was told: the note, the brief, the area and what is there now.
+    expect(t.seen[1]).toMatchObject({
+      note: 'make this say AI does the heavy lifting',
+      brief: composeNote.compose,
+      look: 'mono',
+      layout: 'split',
+      area: { w: 720, h: 640 },
+      durationMs: 3000,
+      current: { kind: 'template', graphic: { template: 'list', title: 'Seamlessly and let AI' } },
+    });
+    // The review ran on the same scene the preview will build.
+    expect(t.inspect).toHaveBeenCalledTimes(1);
+    expect(t.inspect.mock.calls[0]![0]).toMatchObject({
+      width: 720,
+      height: 640,
+      durationMs: 3000,
+    });
+    expect(t.onStage.mock.calls.map((c) => c[0])).toEqual(['compose', 'check']);
+    t.store.getState().undo();
+    expect(t.store.getState().project).toEqual(before);
+  });
+
+  it("sends the review's problems back for one repair, then applies the repaired graphic", async () => {
+    const t = composeSetup({
+      reports: [CROWDED, CLEAN],
+      answers: [graphic('First'), graphic('Second')],
+    });
+    const r = await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD);
+    expect(r.kind).toBe('applied');
+    expect(t.scene().content).toMatchObject({ template: 'custom', title: 'Second' });
+    expect(t.seen[2]).toMatchObject({
+      fix: { problems: expect.stringContaining('runs off the right edge') },
+    });
+    expect(t.onStage.mock.calls.map((c) => c[0])).toEqual(['compose', 'check', 'repair', 'check']);
+    expect(t.credits.balance()).toBe(46);
+  });
+
+  it('a graphic that still fails to build after the repair is never applied, and both spends come back', async () => {
+    const t = composeSetup({ reports: [BROKEN, BROKEN], answers: [graphic(), graphic()] });
+    const before = t.scene();
+    expect(await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD)).toEqual({ kind: 'cloud-failed' });
+    expect(t.scene()).toEqual(before);
+    expect(t.credits.balance()).toBe(50);
+  });
+
+  it("layout notes that survive the repair don't block the graphic", async () => {
+    const t = composeSetup({ reports: [CROWDED, CROWDED], answers: [graphic(), graphic('Kept')] });
+    expect((await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD)).kind).toBe('applied');
+    expect(t.scene().content).toMatchObject({ title: 'Kept' });
+  });
+
+  it('without the scene runtime nothing is written and the note credit comes back', async () => {
+    const t = composeSetup({ assets: null });
+    const before = t.scene();
+    expect(await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD)).toEqual({ kind: 'cloud-failed' });
+    expect(t.seen).toHaveLength(1);
+    expect(t.scene()).toEqual(before);
+    expect(t.credits.balance()).toBe(50);
+  });
+
+  it('a note on an AI-written scene revises its code', async () => {
+    const t = composeSetup({ answers: [graphic(), graphic('Revised')] });
+    await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD);
+    t.store.getState().exec(
+      addReelNote('r1', {
+        id: 'n2',
+        tMs: 900,
+        shape: { kind: 'circle', points: [0.5, 0.2, 0.3, 0.06] },
+        text: 'make the title bigger',
+        status: 'open',
+      }),
+    );
+    const r = await runReelNoteFix(t.deps, 'r1', 'n2', CLOUD);
+    expect(r.kind).toBe('applied');
+    // The note model saw the scene as an AI-written graphic, and the writer got its code.
+    expect(t.seen[2]).toMatchObject({
+      scene: { graphic: { template: 'custom', title: 'Snappy flow' } },
+    });
+    expect(t.seen[3]).toMatchObject({
+      current: { kind: 'custom', title: 'Snappy flow', html: '<div class="t">Heavy lifting</div>' },
+    });
+    expect(t.scene().content).toMatchObject({ template: 'custom', title: 'Revised' });
   });
 });

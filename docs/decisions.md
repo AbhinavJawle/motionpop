@@ -299,3 +299,16 @@ Spec 11 R1 asked for projects in the account; design §2.1 stored each field as 
   - Use **`gemini-4-neon`** (verified live on the Vertex `global` endpoint) for agentic video directing, editing, and custom motion graphics, alongside a **model selector inside Pip** so creators can pick between fast, balanced, and Gemini 4 frontier models (with on-device Gemini Nano still handling free instant edits).
 - **Consequences:**
   - Single unified editor, single project schema, pure GSAP-free deterministic motion engine, Apache-2.0 licence, and full Firebase Hybrid AI / Auth / Firestore / Storage / Cloud Run integration for both hackathons.
+
+## D-078 · 2026-11-22 · decided (founder ask, Claude Code `claude-opus-5-5`) — Reel notes run on the frontier model and can rewrite their scene with AI-written code
+- **Context:** spec 29 notes could only change a reel scene's template data, so "make it snappier, better symbols and animations" was refused. The founder asked for no limitations, frontier models for notes, and nothing else broken.
+- **Decision (spec 30):**
+  - Every reel note runs `reel.note` on `modelStrong` (`gemini-4-neon`) in the cloud. The free on-device route for reel notes is removed. Slot notes (`note.fix`) are unchanged.
+  - A note that needs a new graphic is answered with `compose`. `reel.compose` then writes film-kit code for that one scene (a `custom` reel template), at the custom price (3) on top of the note's credit (1).
+  - Generated code runs only in a sandboxed frame in the editor (D-021: `allow-scripts`, never same-origin) and in the isolated render container for the export, from one document builder, so preview and export match.
+  - Each new graphic is built and reviewed by the film critic before it lands, with one repair.
+- **Consequences:**
+  - Notes take 10 s for an edit and about 1.5–2.5 minutes when a graphic is written.
+  - A reel's custom code is capped at 400 000 characters (the project is one Firestore document).
+  - Custom scenes have no sound of their own.
+  - `mp.image` with a parent now sizes relative to that parent. The critic reads badge text against its own fill. Both changes also affect film mode.

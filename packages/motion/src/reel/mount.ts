@@ -18,6 +18,7 @@ import {
   type TransKind,
 } from './motion';
 import { buildTemplate, tagEl, type Tpl } from './templates';
+import { customFrame, reelCustomScene, type CustomFrame, type ReelCustomAssets } from './custom';
 
 export interface ReelData {
   plan: ReelPlan;
@@ -30,11 +31,25 @@ export interface ReelData {
   images?: Record<string, ReelImage>;
   /** Reel-time jump cuts in the speaker video (spec 27 R1.2): the framing alternates on them. */
   cuts?: readonly number[];
+  /**
+   * Pictures for AI-written scenes' frames by asset id, when `images` can't be read from a
+   * sandboxed frame (the editor's blob: URLs): data URLs. Default `images`.
+   */
+  customImages?: Record<string, ReelImage>;
+  /** The custom runtime and fonts for AI-written scenes (spec 30); absent they show a title. */
+  custom?: ReelCustomAssets;
+  /**
+   * Sandbox the AI-written scenes' frames (an opaque origin). The editor always does; the export
+   * renders in its own isolated container and leaves it off so the capture sees the frames.
+   */
+  customSandbox?: boolean;
 }
 
 export interface ReelHandle {
   seek(ms: number): void;
   ready: Promise<void>;
+  /** Resolves when every AI-written scene on screen has drawn the last seek (spec 30). */
+  drawn(): Promise<void>;
   destroy(): void;
 }
 
@@ -47,6 +62,25 @@ interface SceneView {
   tpl: Tpl;
   pal: Palette;
   tag?: HTMLElement;
+  /**
+   * The scene holds an AI-written frame (spec 30). Off screen it stays laid out (opacity 0, not
+   * display: none): the frame builds and measures asynchronously, and a frame inside a
+   * display: none subtree has no layout (sizes read 0, so pictures and fitted text go wrong).
+   */
+  keepLaidOut?: boolean;
+  /** On screen at the last draw. */
+  on?: boolean;
+}
+
+/** Takes a scene off screen. */
+function hideScene(v: SceneView): void {
+  v.on = false;
+  if (v.keepLaidOut) {
+    v.host.style.display = 'block';
+    v.host.style.visibility = 'hidden';
+    v.host.style.opacity = '0';
+    v.host.style.zIndex = '';
+  } else v.host.style.display = 'none';
 }
 
 interface Box {
@@ -164,7 +198,9 @@ export function mountReel(
 
   const scenes =
     plan.look === 'cream'
-      ? plan.scenes.map((s) => ({ ...s, content: sentenceCase(s.content) }))
+      ? plan.scenes.map((s) =>
+          s.content.template === 'custom' ? s : { ...s, content: sentenceCase(s.content) },
+        )
       : plan.scenes;
   const views: SceneView[] = [];
   const chunks: CaptionChunk[] = plan.captions ? chunkCaptions(data.words, plan.look) : [];
@@ -211,7 +247,8 @@ export function mountReel(
 
   let built = false;
   let lastMs = 0;
-
+  const customAssets = data.custom;
+  const frames: CustomFrame[] = [];
   const images = data.images ?? {};
   const img = (m: ReelMedia | undefined): ReelImage | null =>
     m?.asset ? (images[m.asset] ?? null) : null;
@@ -266,6 +303,28 @@ export function mountReel(
         endMs: s.endMs,
         layout,
         img,
+        ...(customAssets
+          ? {
+              custom: (p) => {
+                // `p` is a custom template, so the scene always comes back.
+                const scene = reelCustomScene({
+                  look: plan.look,
+                  scene: { ...s0, content: p },
+                  words: data.words,
+                  pictures: data.customImages ?? data.images ?? {},
+                })!;
+                const f = customFrame({
+                  doc: host.ownerDocument,
+                  scene,
+                  assets: customAssets,
+                  startMs: s0.startMs,
+                  sandbox: data.customSandbox !== false,
+                });
+                frames.push(f);
+                return f;
+              },
+            }
+          : {}),
       });
       cam.setAttribute('data-reel-part', 'graphic');
       cam.append(tpl.el);
@@ -298,6 +357,7 @@ export function mountReel(
         pal,
         ...(bg ? { bg } : {}),
         ...(tag ? { tag } : {}),
+        ...(frames.includes(tpl as CustomFrame) ? { keepLaidOut: true } : {}),
       });
     }
     // Frame notes (spec 29) name the picture a circle lands on: tag each <img> with its asset id.
@@ -312,7 +372,7 @@ export function mountReel(
       v.host.style.opacity = '0';
       v.tpl.mount?.();
       v.host.style.opacity = '';
-      v.host.style.display = 'none';
+      hideScene(v);
     }
     built = true;
   };
@@ -502,9 +562,13 @@ export function mountReel(
       const outgoing = !!ho && i === ho.prev;
       const on = incoming || outgoing;
       // display, not visibility: revealed children set their own visibility.
-      v.host.style.display = on ? 'block' : 'none';
+      if (!on) {
+        hideScene(v);
+        return;
+      }
+      v.on = true;
+      v.host.style.display = 'block';
       v.host.style.visibility = 'visible';
-      if (!on) return;
       const sc = scenes[i]!;
       // The hook is already on screen at frame 0 (the thumbnail and the first swipe-stop).
       const lt = i === 0 ? t + HOOK_LEAD_MS : t;
@@ -626,6 +690,8 @@ export function mountReel(
         im.decode ? im.decode().catch(() => undefined) : undefined,
       ),
     );
+    // AI-written scenes build in their own frames (spec 30); the export waits for them too.
+    await Promise.all(frames.map((f) => f.ready));
     draw(lastMs);
   })();
 
@@ -635,7 +701,14 @@ export function mountReel(
       lastMs = ms;
       draw(ms);
     },
+    drawn() {
+      const on = views.filter((v) => v.on).map((v) => v.tpl);
+      return Promise.all(frames.filter((f) => on.includes(f)).map((f) => f.drawn())).then(
+        () => undefined,
+      );
+    },
     destroy() {
+      for (const f of frames) f.destroy();
       for (const el of [bgLayer, panel, over, capLayer]) el.remove();
       if (!existing) vwrap.remove();
     },

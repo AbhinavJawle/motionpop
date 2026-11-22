@@ -716,6 +716,9 @@ function backgroundBehind(
   el: Element,
   host: Element,
 ): [number, number, number, number] | null {
+  // A text element with its own solid fill (a badge, a pill) is read against that fill.
+  const own = parseRgb(view.getComputedStyle(el).backgroundColor);
+  if (own && own[3] > 0.6) return own;
   const doc = el.ownerDocument;
   const r = el.getBoundingClientRect();
   const stack =

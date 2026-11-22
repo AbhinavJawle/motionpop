@@ -42,6 +42,8 @@ export interface NotesOverlayProps {
   aspect: number;
   route: Route;
   cloudRoute: Route;
+  /** A cost range for the draft's chip, when a note may cost more than its route. */
+  cost?: { label: string; hint: string };
   /** The note's time from the playhead (relative to the target's start). */
   noteTime: (playheadMs: number) => number;
   /** Executes the add; false when it was rejected. */
@@ -246,6 +248,7 @@ export function NotesOverlay(p: NotesOverlayProps) {
             n={draftN}
             placement={draftPlacement}
             route={p.route}
+            {...(p.cost ? { cost: p.cost } : {})}
             onSave={save}
             onCancel={() => setDraft(null)}
           />

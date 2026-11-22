@@ -13,6 +13,8 @@ export interface ReelCompileAssets {
   hyperframesRuntimeJs: string;
   /** dist/reel-fonts.json: family → base64 woff2. */
   fonts: Readonly<Record<string, string>>;
+  /** dist/reel-custom.js: the runtime of AI-written scenes (spec 30); needed when a plan has one. */
+  reelCustomJs?: string;
 }
 
 export interface ReelSegment {
@@ -96,6 +98,14 @@ export function compileReel(input: ReelCompileInput, assets: ReelCompileAssets):
     ...(input.images ? { images: input.images } : {}),
     cuts: cutsFromSegments(segments),
   };
+  // AI-written scenes (spec 30) draw in their own frames, from the same documents as the editor.
+  // The render container is the isolation here, so the frames are not sandboxed: the capture
+  // then sees them in-process.
+  if (plan.scenes.some((s) => s.content.template === 'custom')) {
+    if (!assets.reelCustomJs) throw new Error('reel-custom.js missing (run build:runtime)');
+    data.custom = { js: assets.reelCustomJs, fontCss: reelFontCss(assets.fonts) };
+    data.customSandbox = false;
+  }
   const sfx =
     (input.sfxSrc
       ? `\n    <audio id="sfx" class="clip" data-start="0" data-duration="${sec(durationMs)}" data-track-index="2" data-volume="1" src="${attr(input.sfxSrc)}"></audio>`

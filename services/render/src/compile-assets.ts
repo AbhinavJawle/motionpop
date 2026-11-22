@@ -68,10 +68,15 @@ export function loadReelAssets(distDir: string = motionDistDir()): Promise<ReelC
           readFile(join(distDir, f), 'utf8'),
         ),
       );
+      // AI-written scenes' runtime (spec 30); only reels with such a scene need it.
+      const reelCustomJs = await readFile(join(distDir, 'reel-custom.js'), 'utf8').catch(
+        () => undefined,
+      );
       return {
         reelRuntimeJs: reelRuntimeJs!,
         hyperframesRuntimeJs: hyperframesRuntimeJs!,
         fonts: JSON.parse(fontsJson!) as Record<string, string>,
+        ...(reelCustomJs ? { reelCustomJs } : {}),
       };
     } catch (e) {
       reelCached = undefined;

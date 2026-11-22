@@ -1,5 +1,6 @@
 'use client';
 
+import { costOf } from '@motionpop/schemas';
 import { toast } from 'sonner';
 import type { Route } from '@/lib/ai/route';
 import { getRouter } from '@/lib/ai/router-client';
@@ -9,6 +10,7 @@ import type { Region } from '@/lib/notes/geometry';
 import { useAppConfig } from '@/lib/renders/hooks';
 import { beginActivity, endActivity, useAIActivity } from '@/lib/stores/ai-activity';
 import { editorStore } from '@/lib/stores/editor';
+import { customPictures, loadReelCustomAssets } from './custom-assets';
 import { resolveReelMedia } from './media';
 import { runReelNoteFix, type ReelNoteFixDeps, type ReelNoteOutcome } from './note-fix';
 import { captureReelRegion, readReelTarget, reelStage, type ReelTarget } from './note-look';
@@ -43,6 +45,13 @@ export async function runReelNoteFixWithUi(
   }
   beginActivity('note', sceneId);
   let outcome: ReelNoteOutcome;
+  // A new graphic takes a while: one toast follows its steps.
+  let stageToast: string | number | null = null;
+  const STAGES = {
+    compose: 'Pip is writing a new graphic…',
+    check: 'Pip is checking the graphic…',
+    repair: 'Pip is polishing the graphic…',
+  } as const;
   try {
     outcome = await runReelNoteFix(
       {
@@ -51,6 +60,11 @@ export async function runReelNoteFixWithUi(
           if (n > 0) toast.success(n === 1 ? 'Picture added' : `${n} pictures added`);
           else toast('Couldn’t find that picture. The design fallback stays.');
         },
+        customAssets: loadReelCustomAssets,
+        customPictures: (ids) => customPictures(ids, editorStore.getState().project?.assets),
+        onStage: (stage) => {
+          stageToast = toast.loading(STAGES[stage], stageToast === null ? {} : { id: stageToast });
+        },
         ...deps,
       },
       sceneId,
@@ -58,10 +72,14 @@ export async function runReelNoteFixWithUi(
       route,
     );
   } catch {
-    outcome = route.kind === 'cloud' ? { kind: 'cloud-failed' } : { kind: 'device-failed' };
+    outcome = { kind: 'cloud-failed' };
   }
+  if (stageToast !== null && !(outcome.kind === 'applied' && outcome.composed))
+    toast.dismiss(stageToast);
   if (outcome.kind === 'applied') {
     endActivity({ slotId: sceneId, ms: outcome.ms });
+    if (outcome.composed)
+      toast.success('New graphic ready', stageToast === null ? {} : { id: stageToast });
     if (outcome.pictures > 0) toast('Fetching the picture…');
     return outcome;
   }
@@ -87,10 +105,13 @@ export async function runReelNoteFixWithUi(
   return outcome;
 }
 
-/** The routes and the runner a reel note bubble needs (same routing as notes on graphics). */
+/**
+ * The route and the runner a reel note bubble needs. Reel notes run on the strong cloud model
+ * (spec 30): 1 credit, plus the custom price when the note needs a new motion graphic.
+ */
 export function useReelNoteFix() {
-  const route = useRoute('note.fix');
   const cloudRoute = useRoute('note.fix', { forceCloud: true });
+  const route = cloudRoute;
   const { client: credits } = useCreditsClient();
   const config = useAppConfig();
   const run = (sceneId: string, noteId: string, r: Route = route) =>
@@ -114,5 +135,10 @@ export function useReelNoteFix() {
       noteId,
       r,
     );
-  return { route, cloudRoute, run };
+  const note = costOf('edit', 1, config);
+  const cost = {
+    label: `${note}–${note + costOf('custom', 1, config)}`,
+    hint: `${note} credit for the note, ${costOf('custom', 1, config)} more if Pip writes a new graphic`,
+  };
+  return { route, cloudRoute, cost, run };
 }

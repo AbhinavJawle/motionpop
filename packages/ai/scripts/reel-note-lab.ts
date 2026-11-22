@@ -136,7 +136,7 @@ if (mode === 'direct') {
     console.log(`\n### ${c.scene} [${c.parts.join(',')}] "${c.note}"`);
     console.log(`  before: ${scene.layout} ${scene.bg ?? ''} ${JSON.stringify(scene.content)}`);
     try {
-      const res = await runReelNote(router, input, 'ONLY_IN_CLOUD');
+      const res = await runReelNote(router, input);
       const r = applyReelNote(ctx, res.output, { hook });
       console.log(
         `  ${res.latencyMs} ms, attempts ${res.attempts}, action ${res.output.action}, changed ${r.changed}`,

@@ -1,17 +1,34 @@
 import {
+  applyReelCompose,
   applyReelNote,
+  reelComposeTask,
   reelNoteContext,
   reelNoteInput,
   runReelNote,
+  type ReelComposeInput,
+  type ReelComposeOutput,
+  type ReelNoteContext,
   type Router,
 } from '@motionpop/ai';
+import { KIT_DOC, REEL_STAGE_EXAMPLES, criticText, lintCustom } from '@motionpop/motion';
+import {
+  inspectCustomScene,
+  reelCustomScene,
+  type CustomReport,
+  type ReelCustomAssets,
+  type ReelCustomScene,
+  type ReelImage,
+} from '@motionpop/motion/reel';
 import {
   APP_CONFIG_DEFAULTS,
+  REEL_CUSTOM_BUDGET,
+  reelCustomSize,
   reelMediaOf,
   reelSceneData,
   type AppConfig,
   type ImageAsset,
   type ReelLook,
+  type ReelMedia,
   type ReelPlan,
   type ReelScene,
 } from '@motionpop/schemas';
@@ -25,14 +42,24 @@ import type { EditorStore } from '@/lib/stores/editor';
 import type { ReelTarget } from './note-look';
 
 /**
- * Frame note → `reel.note` (spec 29 R4): routed, charged and refunded exactly like a note on a
- * graphic (spec 09): the device is free and never falls back to the cloud by itself; the cloud
- * costs 1 credit, reserved first and returned whenever nothing is applied. The fix is one undo
- * step (the scene, the hook, the caption words and the note's status). Pictures the fix asks for
- * are fetched afterwards and land as a second step, so the edit shows at once.
+ * Frame note → `reel.note` (spec 29 R4, spec 30): the strong model in the cloud, 1 credit reserved
+ * first and returned whenever nothing is applied. When the note needs a new motion graphic, the
+ * scene's graphic is written by `reel.compose` (the custom price, reserved before that call), built
+ * and reviewed in a sandbox, repaired once when the review finds problems, and only then applied.
+ * The fix is one undo step (the scene, the hook, the caption words and the note's status).
+ * Pictures the fix asks for are fetched afterwards and land as a second step, so the edit shows at
+ * once.
  */
 export type ReelNoteOutcome =
-  | { kind: 'applied'; ms: number; ranOn: 'device' | 'cloud'; message: string; pictures: number }
+  | {
+      kind: 'applied';
+      ms: number;
+      ranOn: 'device' | 'cloud';
+      message: string;
+      pictures: number;
+      /** True when the fix wrote a new motion graphic. */
+      composed?: boolean;
+    }
   | { kind: 'escalate'; message: string }
   | { kind: 'device-failed' }
   | { kind: 'cloud-failed' }
@@ -59,6 +86,18 @@ export interface ReelNoteFixDeps {
   newKey?: () => string;
   /** Called when the pictures of an applied fix have landed (or failed). */
   onPictures?: (landed: number) => void;
+  /** The runtime of AI-written scenes, for the review before a new graphic lands (spec 30). */
+  customAssets?: () => Promise<ReelCustomAssets | null>;
+  /** Stored pictures as data URLs, for the review (`customPictures`). */
+  customPictures?: (ids: string[]) => Promise<Record<string, ReelImage>>;
+  /** Builds a new graphic in a sandbox and reviews it (defaults to `inspectCustomScene` here). */
+  inspect?: (
+    scene: Omit<ReelCustomScene, 'token'>,
+    assets: ReelCustomAssets,
+    allowNumbers: string[],
+  ) => Promise<CustomReport>;
+  /** The steps of a fix that writes a new graphic, for the UI. */
+  onStage?: (stage: 'compose' | 'check' | 'repair') => void;
 }
 
 const sceneJson = (s: ReelScene | undefined) => (s ? JSON.stringify(reelSceneData(s)) : '');
@@ -70,7 +109,8 @@ export async function runReelNoteFix(
   route: Route,
 ): Promise<ReelNoteOutcome> {
   if (route.kind === 'disabled') return { kind: 'blocked', reason: route.reason };
-  if (route.kind === 'local') return { kind: 'blocked', reason: 'Needs on-device AI' };
+  // Reel notes run on the strong cloud model only (spec 30).
+  if (route.kind !== 'cloud') return { kind: 'blocked', reason: 'Needs cloud AI' };
   const project = deps.store.getState().project;
   const reel = project?.reel;
   const index = reel?.scenes.findIndex((s) => s.id === sceneId) ?? -1;
@@ -80,27 +120,24 @@ export async function runReelNoteFix(
   const text = note.text.trim();
   if (text === '') return { kind: 'blocked', reason: 'Type what to change' };
 
-  let txId: string | null = null;
-  if (route.kind === 'cloud') {
-    if (!deps.credits) return { kind: 'blocked', reason: 'Sign in to use cloud AI' };
-    const spent = await spendWithUi(
-      deps.credits,
-      { action: 'edit', key: (deps.newKey ?? newSpendKey)(), refId: sceneId },
-      deps.config ?? APP_CONFIG_DEFAULTS,
-    );
-    if (spent === null) return { kind: 'no-credits' };
-    if (!spent.ok) {
-      return spent.reason === 'insufficient'
-        ? { kind: 'no-credits' }
-        : { kind: 'blocked', reason: 'Couldn’t reserve the credit' };
-    }
-    txId = spent.txId;
+  if (!deps.credits) return { kind: 'blocked', reason: 'Sign in to use cloud AI' };
+  const spent = await spendWithUi(
+    deps.credits,
+    { action: 'edit', key: (deps.newKey ?? newSpendKey)(), refId: sceneId },
+    deps.config ?? APP_CONFIG_DEFAULTS,
+  );
+  if (spent === null) return { kind: 'no-credits' };
+  if (!spent.ok) {
+    return spent.reason === 'insufficient'
+      ? { kind: 'no-credits' }
+      : { kind: 'blocked', reason: 'Couldn’t reserve the credit' };
   }
+  const txId = spent.txId;
+  const credits = deps.credits;
   const refund = async () => {
-    if (txId && deps.credits) await deps.credits.refund(txId).catch(() => undefined);
+    await credits.refund(txId).catch(() => undefined);
   };
-  const failed = (): ReelNoteOutcome =>
-    route.kind === 'cloud' ? { kind: 'cloud-failed' } : { kind: 'device-failed' };
+  const failed = (): ReelNoteOutcome => ({ kind: 'cloud-failed' });
 
   const router = await deps.getRouter().catch(() => null);
   if (!router) {
@@ -139,29 +176,28 @@ export async function runReelNoteFix(
 
   let res;
   try {
-    res = await runReelNote(
-      router,
-      input,
-      route.kind === 'cloud' ? 'ONLY_IN_CLOUD' : 'ONLY_ON_DEVICE',
-    );
+    res = await runReelNote(router, input);
   } catch {
     await refund();
     return failed();
   }
 
   // The scene or the note moved on while the model worked: never overwrite what the user did.
-  const nowReel = deps.store.getState().project?.reel;
-  const nowScene = nowReel?.scenes.find((s) => s.id === sceneId);
-  const nowNote = nowScene?.notes?.find((n) => n.id === noteId);
-  if (
-    !nowReel ||
-    !nowScene ||
-    !nowNote ||
-    nowNote.status !== 'open' ||
-    sceneJson(nowScene) !== sceneJson(scene) ||
-    nowReel.hook !== reel.hook ||
-    nowReel.look !== reel.look
-  ) {
+  const stale = () => {
+    const nowReel = deps.store.getState().project?.reel;
+    const nowScene = nowReel?.scenes.find((s) => s.id === sceneId);
+    const nowNote = nowScene?.notes?.find((n) => n.id === noteId);
+    return (
+      !nowReel ||
+      !nowScene ||
+      !nowNote ||
+      nowNote.status !== 'open' ||
+      sceneJson(nowScene) !== sceneJson(scene) ||
+      nowReel.hook !== reel.hook ||
+      nowReel.look !== reel.look
+    );
+  };
+  if (stale()) {
     await refund();
     return { kind: 'changed' };
   }
@@ -172,6 +208,66 @@ export async function runReelNoteFix(
   } catch {
     await refund();
     return failed();
+  }
+  if (result.compose) {
+    if (!result.compose.brief) {
+      await refund();
+      return failed();
+    }
+    const composed = await composeScene(deps, {
+      ctx,
+      router,
+      note: text,
+      brief: result.compose.brief,
+      layout: result.compose.layout,
+      image,
+      sceneId,
+    });
+    if (composed.kind !== 'ok') {
+      await refund();
+      return composed.outcome;
+    }
+    if (stale()) {
+      await composed.refund();
+      await refund();
+      return { kind: 'changed' };
+    }
+    const nextReel = deps.store.getState().project?.reel;
+    const size = nextReel
+      ? reelCustomSize({
+          scenes: nextReel.scenes.map((s) => (s.id === sceneId ? composed.scene : s)),
+        })
+      : 0;
+    if (size > REEL_CUSTOM_BUDGET) {
+      await composed.refund();
+      await refund();
+      return { kind: 'blocked', reason: 'This reel holds too many new graphics. Undo one first.' };
+    }
+    const ok = deps.store
+      .getState()
+      .exec(
+        composite('Fix note', [
+          fixReelScene(sceneId, { scene: composed.scene }),
+          setReelNoteStatus(sceneId, noteId, 'fixed'),
+        ]),
+      );
+    if (!ok) {
+      await composed.refund();
+      await refund();
+      return failed();
+    }
+    const wanted = reelMediaOf({ scenes: [composed.scene] }).filter((m) => !m.asset);
+    if (wanted.length && deps.fetchMedia) {
+      void fetchPictures(deps, sceneId, composed.scene).then((n) => deps.onPictures?.(n));
+    }
+    return {
+      kind: 'applied',
+      ms: res.latencyMs + composed.ms,
+      ranOn: 'cloud',
+      message: composed.message || result.message,
+      pictures: wanted.length,
+      composed: true,
+    };
   }
   if (!result.changed) {
     await refund();
@@ -201,7 +297,7 @@ export async function runReelNoteFix(
   if (wanted.length && deps.fetchMedia) {
     void fetchPictures(deps, sceneId, result.scene).then((n) => deps.onPictures?.(n));
   }
-  const ranOn = res.ranOn === 'cloud' ? 'cloud' : 'device';
+  const ranOn = 'cloud' as const;
   return {
     kind: 'applied',
     ms: res.latencyMs,
@@ -239,5 +335,202 @@ async function fetchPictures(
     return landed;
   } catch {
     return 0;
+  }
+}
+
+// ----- a new motion graphic for the scene (spec 30) ------------------------------------------------
+
+type Composed =
+  | { kind: 'ok'; scene: ReelScene; message: string; ms: number; refund: () => Promise<void> }
+  | { kind: 'fail'; outcome: ReelNoteOutcome };
+
+/** What a stored picture shows, in a few words, for the model. */
+function shows(m: ReelMedia): string {
+  if (m.kind === 'logo') return `the ${m.query.split('|')[0]?.trim() || 'brand'} logo`;
+  return `${m.kind === 'photo' ? 'a photo' : m.kind === 'screenshot' ? 'a screenshot' : 'an illustration'} of ${m.query}`;
+}
+
+/** Figures the new graphic may show (the critic reports any other number), as plain digits. */
+function numbersIn(...texts: string[]): string[] {
+  const out = new Set<string>();
+  for (const t of texts)
+    for (const m of t.matchAll(/\d[\d,.]*/g)) out.add(m[0].replace(/[,.]+$/, '').replace(/,/g, ''));
+  return [...out];
+}
+
+/** The review's problems as one repair message, or null when the graphic is fine. */
+function problemsOf(report: CustomReport): { text: string; broken: boolean } | null {
+  const errors = report.errors.map((e) => `- the script failed: ${e}`);
+  const critic = report.summary ? criticText(report.summary.reports) : null;
+  if (!errors.length && !critic && report.summary) return null;
+  if (!report.summary && !errors.length) errors.push('- the graphic did not build');
+  return {
+    text: [...errors, ...(critic ? [critic] : [])].join('\n').slice(0, 3800),
+    broken: errors.length > 0 || report.summary === null,
+  };
+}
+
+async function composeScene(
+  deps: ReelNoteFixDeps,
+  p: {
+    ctx: ReelNoteContext;
+    router: Router;
+    note: string;
+    brief: string;
+    layout: ReelScene['layout'];
+    image: string | undefined;
+    sceneId: string;
+  },
+): Promise<Composed> {
+  const failed: Composed = { kind: 'fail', outcome: { kind: 'cloud-failed' } };
+  const { scene, look, words } = p.ctx;
+  if (!deps.credits)
+    return { kind: 'fail', outcome: { kind: 'blocked', reason: 'Sign in to use cloud AI' } };
+  const assets = await (deps.customAssets?.() ?? Promise.resolve(null)).catch(() => null);
+  if (!assets) return failed;
+
+  // The pictures the code may show: a custom scene's own list, or the template's fetched ones.
+  const pictures: ReelMedia[] =
+    scene.content.template === 'custom'
+      ? [...(scene.content.media ?? [])]
+      : reelMediaOf({ scenes: [scene] })
+          .filter((m) => m.asset)
+          .slice(0, 6);
+  const target: ReelScene = { ...scene, layout: p.layout };
+  const probe = reelCustomScene({
+    look,
+    scene: {
+      ...target,
+      content: {
+        template: 'custom',
+        title: 'probe',
+        brief: '',
+        html: '',
+        css: '',
+        script: 'return {seek(){}}',
+      },
+    },
+    words,
+    pictures: {},
+  });
+  if (!probe) return failed;
+
+  const spent = await spendWithUi(
+    deps.credits,
+    { action: 'custom', key: (deps.newKey ?? newSpendKey)(), refId: p.sceneId },
+    deps.config ?? APP_CONFIG_DEFAULTS,
+  );
+  if (spent === null) return { kind: 'fail', outcome: { kind: 'no-credits' } };
+  if (!spent.ok) {
+    return {
+      kind: 'fail',
+      outcome:
+        spent.reason === 'insufficient'
+          ? { kind: 'no-credits' }
+          : { kind: 'blocked', reason: 'Couldn’t reserve the credits' },
+    };
+  }
+  const credits = deps.credits;
+  const txId = spent.txId;
+  const refund = async () => {
+    await credits.refund(txId).catch(() => undefined);
+  };
+
+  const c = scene.content;
+  const input: ReelComposeInput = {
+    note: p.note.slice(0, 300),
+    brief: p.brief,
+    look,
+    layout: p.layout,
+    area: { w: probe.width, h: probe.height },
+    palette: {
+      bg: probe.palette.bg,
+      ink: probe.palette.ink,
+      muted: probe.palette.muted,
+      accent: probe.palette.accent,
+      link: probe.palette.link,
+    },
+    durationMs: Math.max(300, probe.durationMs),
+    // The reel pins the tag over the graphic (mono, graphic layouts).
+    ...(scene.tag && look === 'mono' && p.layout !== 'speaker'
+      ? { tag: scene.tag.slice(0, 60) }
+      : {}),
+    words: probe.words
+      .slice(0, 240)
+      .map((w) => ({ text: w.text.slice(0, 60), startMs: w.startMs })),
+    current:
+      c.template === 'custom'
+        ? {
+            kind: 'custom',
+            title: c.title,
+            brief: c.brief,
+            html: c.html,
+            css: c.css,
+            script: c.script,
+          }
+        : { kind: 'template', graphic: p.ctx.graphic as Record<string, unknown> },
+    pictures: pictures.map((m, i) => ({ id: `m${i}`, shows: shows(m).slice(0, 120) })),
+    example:
+      p.layout === 'speaker'
+        ? REEL_STAGE_EXAMPLES['clean-cta']
+        : REEL_STAGE_EXAMPLES['split-inspector'],
+    ...(p.image ? { image: p.image } : {}),
+  };
+  const task = reelComposeTask(lintCustom, KIT_DOC);
+  const inspect =
+    deps.inspect ??
+    ((sc: Omit<ReelCustomScene, 'token'>, a: ReelCustomAssets, allow: string[]) =>
+      inspectCustomScene({ doc: document, scene: sc, assets: a, allowNumbers: allow }));
+  const pics = await (
+    deps.customPictures?.(pictures.flatMap((m) => (m.asset ? [m.asset] : []))) ??
+    Promise.resolve({})
+  ).catch(() => ({}));
+  const allow = numbersIn(
+    p.note,
+    p.brief,
+    probe.words.map((w) => w.text).join(' '),
+    JSON.stringify(input.current),
+  );
+
+  let ms = 0;
+  const attempt = async (fix?: ReelComposeInput['fix']) => {
+    deps.onStage?.(fix ? 'repair' : 'compose');
+    const run = await p.router.run(task, fix ? { ...input, fix } : input, {
+      mode: 'ONLY_IN_CLOUD',
+      allowCloud: false,
+    });
+    ms += run.latencyMs;
+    const out: ReelComposeOutput = run.output;
+    const next = applyReelCompose(target, look, out, pictures);
+    deps.onStage?.('check');
+    const sc = reelCustomScene({ look, scene: next, words, pictures: pics });
+    const report = sc ? await inspect(sc, assets, allow) : { summary: null, errors: ['no scene'] };
+    return { out, next, problems: problemsOf(report) };
+  };
+
+  try {
+    let got = await attempt();
+    if (got.problems) {
+      const first = got;
+      try {
+        got = await attempt({
+          html: first.out.html,
+          css: first.out.css,
+          script: first.out.script,
+          problems: first.problems!.text,
+        });
+      } catch {
+        got = first;
+      }
+      // Layout notes that survive the repair don't block; a graphic that fails to build does.
+      if (got.problems?.broken) {
+        await refund();
+        return failed;
+      }
+    }
+    return { kind: 'ok', scene: got.next, message: got.out.message, ms, refund };
+  } catch {
+    await refund();
+    return failed;
   }
 }

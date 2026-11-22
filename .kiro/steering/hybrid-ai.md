@@ -24,6 +24,7 @@ Hybrid inference is a core product feature, not a checkbox. Users always see whe
 | `slots.detect` > 400 words, device ready | PREFER_ON_DEVICE in chunks of ≤ 400 words (sentence ends), merged | free; a chunk that fails twice sends the whole transcript to the cloud (spec 13b R4.3) |
 | `slots.detect` > 400 words without the device model, `pip.plan` | PREFER_IN_CLOUD | longer context, multi-step reasoning |
 | `custom.compose` (tier 2) | ONLY_IN_CLOUD (Claude or Gemini per flag) | heavy generation |
+| `reel.note`, `reel.compose` (reel frame notes) | ONLY_IN_CLOUD (`modelStrong`) | founder decision D-078: notes on reels get the frontier model and may rewrite their scene |
 | `tts.generate`, `transcribe.cloud` | ONLY_IN_CLOUD | audio is not supported on-device |
 
 ## Rules

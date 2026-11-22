@@ -13,6 +13,7 @@ import {
   reelNoteContext,
   reelNoteInput,
   reelNotePromptV1,
+  reelNoteTask,
   ReelNoteOutputSchema,
   type ReelNoteOutput,
 } from './note';
@@ -509,6 +510,69 @@ describe('reel.note checks and prompt (spec 29 R2)', () => {
     expect(p).toContain('Hook band: "Six tools"');
     expect(p).toContain('Note: "make this say Work smarter"');
     expect(p).toContain('3@0.90 w3');
+  });
+
+  it('a visual request is "compose": the scene stays, the brief and layout go to the writer (spec 30)', () => {
+    const out = ReelNoteOutputSchema.parse({
+      action: 'compose',
+      message: 'Making it snappier.',
+      compose: 'Rebuild it as a snappy title card with a bold icon.',
+      layout: 'card',
+    });
+    expect(checkReelNote(out, input)).toBeNull();
+    const res = applyReelNote(ctx, out);
+    expect(res.changed).toBe(false);
+    expect(res.scene).toBe(scene);
+    // mono has no card layout: the split panel.
+    expect(res.compose).toEqual({
+      brief: 'Rebuild it as a snappy title card with a bold icon.',
+      layout: 'split',
+    });
+    expect(checkReelNote({ ...out, compose: 'short' }, input)).toMatch(/brief/);
+  });
+
+  it('shows an AI-written scene to the model by its title and brief (spec 30)', () => {
+    const custom = sceneOf({
+      template: 'custom',
+      title: 'Snappy flow',
+      brief: 'Two steps with icons.',
+      html: '<b>x</b>',
+      css: '',
+      script: 'return tl;',
+    });
+    const c = reelNoteContext(custom, WORDS, 'mono');
+    expect(c.graphic).toEqual({ template: 'none' });
+    expect(c.custom).toEqual({ title: 'Snappy flow', brief: 'Two steps with icons.' });
+    const i = reelNoteInput(c, {
+      sceneIndex: 0,
+      sceneCount: 1,
+      note: { text: 'bigger title', region: { x: 0.1, y: 0.1, w: 0.5, h: 0.2 } },
+      target: { parts: ['graphic'], texts: [], pictures: [] },
+    });
+    expect(i.scene.graphic).toEqual({
+      template: 'custom',
+      title: 'Snappy flow',
+      brief: 'Two steps with icons.',
+    });
+    expect(reelNotePromptV1(i)).toContain(
+      'Graphic: custom (an AI-written motion graphic) "Snappy flow"',
+    );
+    // A layout-only edit keeps the code.
+    const moved = applyReelNote(c, edit({ layout: 'full' }));
+    expect(moved.scene.layout).toBe('full');
+    expect(moved.scene.content).toEqual(custom.content);
+    // Replacing it with a template the note names works like any edit.
+    const swapped = applyReelNote(
+      c,
+      edit({ graphic: { template: 'headline', title: 'Work smarter' } }),
+    );
+    expect(swapped.scene.content).toMatchObject({ template: 'headline', title: 'Work smarter' });
+  });
+
+  it('runs on the strong model in the cloud (spec 30)', () => {
+    const t = reelNoteTask();
+    expect(t.mode(input, {} as never)).toBe('ONLY_IN_CLOUD');
+    expect(t.model({ modelStrong: 'strong' } as never)).toBe('strong');
   });
 
   it('finds caption words across punctuation, case and split tokens', () => {

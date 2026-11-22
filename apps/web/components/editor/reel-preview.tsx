@@ -8,6 +8,7 @@ import {
   mountReel,
   reelBed,
   REEL_STAGE_W,
+  type ReelCustomAssets,
   type ReelHandle,
   type ReelImage,
 } from '@motionpop/motion/reel';
@@ -26,6 +27,7 @@ import {
   type ReelPlan,
 } from '@motionpop/schemas';
 import { getImage } from '@/lib/images/image-store';
+import { customPictures, loadReelCustomAssets } from '@/lib/reel/custom-assets';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
 import { subscribePreviewSeek } from '@/lib/editor/preview-bridge';
@@ -45,6 +47,47 @@ function ensureReelFonts(): Promise<void> {
     document.head.append(link);
   });
   return fontsLink;
+}
+
+const hasCustomScene = (reel: ReelPlan | undefined): boolean =>
+  Boolean(reel?.scenes.some((s) => s.content.template === 'custom'));
+
+/**
+ * For a reel with AI-written scenes (spec 30): the custom runtime, and those scenes' pictures as
+ * data URLs (a sandboxed frame can't read the page's blob: URLs). `undefined` while loading;
+ * `null` when the reel has none or the runtime is missing (the scenes then show their title).
+ */
+function useReelCustom(
+  reel: ReelPlan | undefined,
+  assets: readonly ImageAsset[] | undefined,
+): { assets: ReelCustomAssets; images: Record<string, ReelImage> } | null | undefined {
+  const ids = useMemo(() => {
+    if (!reel) return '';
+    const custom = { scenes: reel.scenes.filter((s) => s.content.template === 'custom') };
+    return [...new Set(reelMediaOf(custom).flatMap((m) => (m.asset ? [m.asset] : [])))]
+      .sort()
+      .join(',');
+  }, [reel]);
+  const wanted = hasCustomScene(reel);
+  const [state, setState] = useState<{
+    key: string;
+    value: { assets: ReelCustomAssets; images: Record<string, ReelImage> } | null;
+  } | null>(null);
+  const key = `${wanted}|${ids}`;
+  useEffect(() => {
+    if (!wanted) return;
+    let cancelled = false;
+    void (async () => {
+      const runtime = await loadReelCustomAssets();
+      const images = await customPictures(ids ? ids.split(',') : [], assets);
+      if (!cancelled) setState({ key, value: runtime ? { assets: runtime, images } : null });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [wanted, ids, assets, key]);
+  if (!wanted) return null;
+  return state && state.key === key ? state.value : undefined;
 }
 
 /**
@@ -227,6 +270,7 @@ export function ReelPreview() {
   const assets = useEditor((s) => s.project?.assets);
   const playing = useEditor((s) => s.playing);
   const images = useReelImages(reel, assets);
+  const custom = useReelCustom(reel, assets);
   const voiceSrc = useEditor((s) => s.project?.voiceover.src);
   const voiceLevel = useVoiceLevel(voiceSrc, words);
   const bedUrl = useReelBedUrl(reel, words, durationMs, voiceLevel);
@@ -277,7 +321,7 @@ export function ReelPreview() {
   // Mount the engine whenever the plan, the words or the video change.
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || !reel || !video || !url || !words || !images) return;
+    if (!host || !reel || !video || !url || !words || !images || custom === undefined) return;
     let cancelled = false;
     const v = document.createElement('video');
     v.muted = true;
@@ -296,6 +340,10 @@ export function ReelPreview() {
           durationMs,
           video: { w: video.width, h: video.height },
           images,
+          // AI-written scenes run sandboxed in their own frames (spec 30).
+          ...(custom
+            ? { custom: custom.assets, customImages: custom.images, customSandbox: true }
+            : {}),
           // Jump cuts on the reel clock: the framing alternates on them (spec 27 R1.2).
           cuts: cutsFromSegments(
             segments.map((k) => ({ srcStartMs: k.startMs, srcEndMs: k.endMs })),
@@ -318,7 +366,7 @@ export function ReelPreview() {
       v.load();
       host.replaceChildren();
     };
-  }, [reel, video, url, words, durationMs, images, segments]);
+  }, [reel, video, url, words, durationMs, images, segments, custom]);
 
   // The sound tracks follow the editor clock like the video does.
   useEffect(() => {

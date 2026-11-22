@@ -27,6 +27,7 @@ const NAMES: Record<ReelScene['content']['template'], string> = {
   logos: 'Logos',
   image: 'Picture',
   website: 'Website',
+  custom: 'Custom',
 };
 
 /** The scene's main words, for its timeline card. */
@@ -68,6 +69,8 @@ function sceneText(s: ReelScene): string {
       return c.title ?? (c.words.map((w) => w.text).join(' · ') || c.media.query);
     case 'website':
       return c.headline ?? c.url;
+    case 'custom':
+      return c.title;
   }
 }
 

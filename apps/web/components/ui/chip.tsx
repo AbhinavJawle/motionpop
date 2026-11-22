@@ -58,10 +58,16 @@ export function Chip({
 export function CostChip({
   route,
   credits = 0,
+  label,
+  hint,
   className,
 }: {
   route: 'device' | 'cloud';
   credits?: number;
+  /** Shown instead of the number when the cost is a range ("1–4"). */
+  label?: string;
+  /** What the range means (tooltip and screen readers). */
+  hint?: string;
   className?: string;
 }) {
   if (route === 'device') {
@@ -83,7 +89,9 @@ export function CostChip({
       icon={<Cloud strokeWidth={1.5} aria-hidden />}
       className={cn('h-[18px] px-1.5 font-mono', className)}
     >
-      <span aria-label={`${credits} credits, runs in the cloud`}>{credits}</span>
+      <span title={hint} aria-label={hint ?? `${credits} credits, runs in the cloud`}>
+        {label ?? credits}
+      </span>
     </Chip>
   );
 }

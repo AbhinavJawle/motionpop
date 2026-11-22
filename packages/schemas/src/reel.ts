@@ -44,6 +44,11 @@ export const ReelMediaSchema = z.object({
 export type ReelMedia = z.infer<typeof ReelMediaSchema>;
 const media = ReelMediaSchema.optional();
 
+/** Size limits of an AI-written scene (spec 30), the custom graphic's own (spec 15 R2.1). */
+export const REEL_CUSTOM_LIMITS = { html: 12_000, css: 12_000, script: 24_000 } as const;
+/** All AI-written code in one reel (the project body is one Firestore document). */
+export const REEL_CUSTOM_BUDGET = 400_000;
+
 export const ReelTemplateSchema = z.discriminatedUnion('template', [
   z.object({
     template: z.literal('headline'),
@@ -215,6 +220,24 @@ export const ReelTemplateSchema = z.discriminatedUnion('template', [
     keyword: short(16),
   }),
   z.object({ template: z.literal('none') }),
+  /**
+   * A graphic the AI wrote for this scene alone (spec 30): film-kit code (`root`, `ctx`, `mp`,
+   * returns `{ seek(tMs) }`), linted for determinism and run only in a sandboxed frame. Made by a
+   * frame note when no template can do what the note asks; never by the director.
+   */
+  z.object({
+    template: z.literal('custom'),
+    title: z.string().trim().min(1).max(60),
+    /** What the graphic shows and how it moves (the next note revises from it). */
+    brief: z.string().max(500),
+    html: z.string().max(REEL_CUSTOM_LIMITS.html),
+    css: z.string().max(REEL_CUSTOM_LIMITS.css),
+    script: z.string().min(1).max(REEL_CUSTOM_LIMITS.script),
+    /** Where the focal element lands, from the scene start (ms). */
+    keyMomentMs: z.number().int().nonnegative().optional(),
+    /** Pictures the code shows with `mp.image('m0')`, `mp.image('m1')`… (index in this list). */
+    media: z.array(ReelMediaSchema).max(8).optional(),
+  }),
 ]);
 export type ReelTemplate = z.infer<typeof ReelTemplateSchema>;
 export type ReelTemplateId = ReelTemplate['template'];
@@ -315,6 +338,15 @@ export const ReelPlanSchema = z.object({
   by: z.string().max(60).optional(),
 });
 export type ReelPlan = z.infer<typeof ReelPlanSchema>;
+
+/** Characters of AI-written code in a plan (kept under `REEL_CUSTOM_BUDGET`, spec 30). */
+export function reelCustomSize(plan: Pick<ReelPlan, 'scenes'>): number {
+  let n = 0;
+  for (const s of plan.scenes)
+    if (s.content.template === 'custom')
+      n += s.content.html.length + s.content.css.length + s.content.script.length;
+  return n;
+}
 
 /**
  * Sorts scenes, clamps them to [0, durationMs] and closes gaps and overlaps so they tile the

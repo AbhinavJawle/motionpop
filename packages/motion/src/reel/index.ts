@@ -1,6 +1,16 @@
 // Reel engine (spec 25): the public surface. Browser-safe (no Node imports).
 export { mountReel, type ReelData, type ReelHandle } from './mount';
 export {
+  customFrame,
+  inspectCustomScene,
+  reelCustomDoc,
+  reelCustomScene,
+  type CustomContent,
+  type CustomReport,
+  type ReelCustomAssets,
+  type ReelCustomScene,
+} from './custom';
+export {
   compileReel,
   reelFontCss,
   REEL_FONT_FACES,

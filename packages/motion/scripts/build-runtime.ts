@@ -34,6 +34,17 @@ await build({
   minify: true,
   legalComments: 'none',
 });
+// AI-written reel scenes (spec 30): the runtime inside each custom scene's frame.
+await build({
+  entryPoints: [join(pkgDir, 'src/reel/custom-entry.ts')],
+  outfile: join(outDir, 'reel-custom.js'),
+  bundle: true,
+  format: 'iife',
+  platform: 'browser',
+  target: 'chrome120',
+  minify: true,
+  legalComments: 'none',
+});
 const reelFontDir = join(pkgDir, 'src/reel/fonts');
 const reelFonts: Record<string, string> = {
   Inter: (await readFile(join(reelFontDir, 'Inter-Variable.woff2'))).toString('base64'),
@@ -41,7 +52,9 @@ const reelFonts: Record<string, string> = {
   'Playfair Display Italic': (
     await readFile(join(reelFontDir, 'PlayfairDisplay-Italic-Variable.woff2'))
   ).toString('base64'),
-  'Geist Mono': (await readFile(join(pkgDir, 'src/fonts/GeistMono-Variable.woff2'))).toString('base64'),
+  'Geist Mono': (await readFile(join(pkgDir, 'src/fonts/GeistMono-Variable.woff2'))).toString(
+    'base64',
+  ),
 };
 await writeFile(join(outDir, 'reel-fonts.json'), JSON.stringify(reelFonts));
 

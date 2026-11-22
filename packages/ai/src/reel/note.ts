@@ -30,9 +30,7 @@ import {
 } from './director';
 import { REEL_LAYOUTS_AND_TEMPLATES } from './prompt';
 
-export const REEL_NOTE_PROMPT_VERSION = 'v1';
-/** The balanced model: the lite one misreads structured edits (spec 28 lab notes). */
-export const REEL_NOTE_MODEL = 'gemini-3.8-flash';
+export const REEL_NOTE_PROMPT_VERSION = 'v2';
 
 const LAYOUTS = ['split', 'card', 'full', 'speaker'] as const;
 const PARTS = ['graphic', 'speaker', 'caption', 'tag', 'hook'] as const;
@@ -82,8 +80,13 @@ export const ReelNoteInputSchema = z.object({
 export type ReelNoteInput = z.infer<typeof ReelNoteInputSchema>;
 
 export const ReelNoteOutputSchema = z.object({
-  action: z.enum(['edit', 'none']),
+  action: z.enum(['edit', 'compose', 'none']),
   message: z.string().max(300).catch('').default(''),
+  /** action "compose": what the new motion graphic shows and how it moves (spec 30). */
+  compose: z
+    .string()
+    .transform((v) => v.slice(0, 1200))
+    .optional(),
   layout: z.enum(LAYOUTS).optional(),
   bg: z.enum(['light', 'cream', 'dark']).optional(),
   /** "" removes the tag. */
@@ -119,6 +122,8 @@ export interface ReelNoteContext {
   brands: Map<string, string | undefined>;
   /** Word index → the exact cue it stood for, so items that stay keep their time. */
   cueOf: Map<number, number>;
+  /** The scene's graphic is AI-written code (spec 30): `graphic` is then `none`. */
+  custom?: { title: string; brief: string };
 }
 
 const brandOf = (m: ReelMedia | undefined, brands: Map<string, string | undefined>) => {
@@ -314,9 +319,20 @@ export function reelNoteContext(
     case 'none':
       g = { template: 'none' };
       break;
+    case 'custom':
+      g = { template: 'none' };
+      break;
   }
   const graphic = GraphicSchema.parse(stripUndefined(g));
-  return { scene, look, words, graphic, brands, cueOf };
+  return {
+    scene,
+    look,
+    words,
+    graphic,
+    brands,
+    cueOf,
+    ...(c.template === 'custom' ? { custom: { title: c.title, brief: c.brief } } : {}),
+  };
 }
 
 // ----- the model's answer → the scene --------------------------------------------------------------
@@ -469,6 +485,11 @@ export interface ReelNoteResult {
   /** False when the answer leaves the scene, the hook and the captions as they were. */
   changed: boolean;
   message: string;
+  /**
+   * The note needs a new motion graphic (spec 30): what it should be, and the layout it goes on.
+   * The scene is then unchanged; the caller runs `reel.compose`.
+   */
+  compose?: { brief: string; layout: ReelScene['layout'] };
 }
 
 const ICONS = new Set<string>(REEL_ICONS);
@@ -499,7 +520,8 @@ export function applyReelNote(
   opts: { hook?: string | undefined } = {},
 ): ReelNoteResult {
   const kept = applyOnce(ctx, out, opts, true);
-  if (!out.graphic || kept.hook !== undefined || kept.captions.length) return kept;
+  if (out.action !== 'edit' || !out.graphic || kept.hook !== undefined || kept.captions.length)
+    return kept;
   // Left-out fields are kept (carryOver). When that leaves the scene as it was (compared with the
   // scene rebuilt as is, so a cleaned-up old value doesn't count), dropping them was the whole
   // edit ("remove this small text" answered by leaving the kicker out): apply it as sent.
@@ -523,6 +545,13 @@ function applyOnce(
   const { scene, look, words } = ctx;
   const message = cut(out.message, 200) ?? '';
   if (out.action === 'none') return { scene, captions: [], changed: false, message };
+  if (out.action === 'compose') {
+    let layout = out.layout ?? scene.layout;
+    if (look === 'mono' && layout === 'card') layout = 'split';
+    if (look === 'cream' && layout === 'split') layout = 'card';
+    const brief = (out.compose ?? '').trim().slice(0, 1200);
+    return { scene, captions: [], changed: false, message, compose: { brief, layout } };
+  }
 
   const brands: Brands = new Map([
     ...ctx.brands,
@@ -614,9 +643,10 @@ function applyOnce(
 export const REEL_NOTE_LIMITS = `Character limits (shorter is better; longer text is cut): headline title 60, kicker 40, sub 80, accent 40 · list title 40, item 28 · stack label 44, item 18 · checklist item 18, value 14 · compare left/right 14, items 18 · statement items 22 · counter label 36, prefix 4, suffix 8 · progress title 32 · terminal items 48 · chart title 36, item label 10 · browser url 32, headline 48, button 18 · flow items 16 · quote items 60 · logo brand 28, sub 48 · logos brand 20 · image title 40, items 24, subject 120 · punch text 28, top 28 · cta verb 14, keyword 16 · tag 28 · hook 48.`;
 
 export const REEL_NOTE_SYSTEM_V1 = `You fix one scene of a vertical (9:16) talking-head reel from the creator's note.
-The creator paused the video, circled something on the frame and wrote what to change. Make exactly
-that change, as small as possible, and keep everything else exactly as it is. A fixed motion engine
-animates everything; you only change the scene's data.
+The creator paused the video, circled something on the frame and wrote what to change. They must get
+exactly what they describe, and nothing else may change. You have two tools: edit the scene's data
+(the reel's templates, animated by its standard motion), or have a new motion graphic written for
+this scene (compose), which can show and move anything.
 
 WHAT WAS CIRCLED
 - "Circled" lists what lies under the circle: graphic (the graphic panel), speaker (the speaker's
@@ -651,19 +681,29 @@ HOW TO ANSWER
     words exactly as in the spoken words list, "replace" = the right text. Only fix transcription
     mistakes; never rewrite what was said.
   - brands: the official domain of any brand you name that is new to the scene.
-- action "none": the note can't be done by changing this scene's data (moving things by pixels,
-  fonts, colours other than the background, the speaker's face or voice, the music, other scenes).
-  Say why in "message" and what they can do instead, in one short friendly sentence.
-- message: one short sentence saying what you changed, in plain words ("Changed the title to
-  'Work smarter'.").
+- action "compose": the note asks for something the template data can't give: how things move
+  ("snappier", "more dynamic", "animate the numbers"), the style or design of the graphic ("boring",
+  "better symbols", "more premium", "bigger icons", "different colours"), positions, sizes, a custom
+  diagram or visual, or anything else visual. Also EVERY change to an AI-written graphic (Graphic
+  "custom") except its layout, background or tag, and except replacing it with a template the note
+  names. Write "compose": a precise brief for the motion designer, 2–4 sentences: what the graphic
+  shows (the exact on-screen words, kept from the current graphic unless the note changes them),
+  how it should look and move to satisfy the note, and what must stay. Add "layout" only when the
+  note asks for a bigger or different area. Never use compose for a plain text, logo or caption fix
+  on a template graphic: that's an edit.
+- action "none": only when the note is about something outside this scene's graphic (the speaker's
+  face or voice, the music, other scenes, the cut). Say why in "message" and what they can do
+  instead, in one short friendly sentence.
+- message: one short sentence saying what you changed or will make, in plain words ("Changed the
+  title to 'Work smarter'.", "Making it a snappier graphic with clearer icons.").
 
 RULES
 1. Do what the note says, literally. Change the circled thing, not its neighbours.
 2. Keep text short and in the speaker's language and style. Fix spellings of names when asked.
 3. Change the template only when the note asks for a different kind of graphic ("make this a chart",
    "show their logo", "turn this into a list"). When there are more items than a template takes,
-   pick one that fits (logos takes 6 brands) or keep the most important ones and say so in message.
-   Prefer doing the closest possible version of the note over refusing it.
+   pick one that fits (logos takes 6 brands) or compose a graphic that holds them all. Never refuse
+   a visual request: compose it.
 4. Pictures: a different picture means a different brand (its real logo) or a new image subject/kind.
    Subjects are plain nouns, no text, no brands, no real people.
 5. Never invent facts or numbers: take them from the note or the spoken words.
@@ -676,10 +716,13 @@ Return JSON only, matching the schema.`;
 export function reelNotePromptV1(i: ReelNoteInput): string {
   const s = i.scene;
   const words = i.words.map(([idx, ms, text]) => `${idx}@${(ms / 1000).toFixed(2)} ${text}`);
+  const custom = s.graphic['template'] === 'custom';
   const lines = [
     `Look: ${i.look}. Scene ${s.n} of ${s.of}, ${(s.startMs / 1000).toFixed(2)}–${(s.endMs / 1000).toFixed(2)} s.`,
     `Layout: ${s.layout}. Background: ${s.bg ?? 'default'}. Tag: ${s.tag ? `"${s.tag}"` : 'none'}.`,
-    `Graphic: ${JSON.stringify(s.graphic)}`,
+    custom
+      ? `Graphic: custom (an AI-written motion graphic) "${String(s.graphic['title'])}": ${String(s.graphic['brief'])}`
+      : `Graphic: ${JSON.stringify(s.graphic)}`,
     i.hook !== undefined ? `Hook band: "${i.hook}"` : null,
     i.caption ? `Caption on screen: "${i.caption}"` : null,
     `Spoken words around the scene (index@seconds word):`,
@@ -704,8 +747,9 @@ export function reelNoteJsonSchema(): Record<string, unknown> {
   return {
     type: 'object',
     properties: {
-      action: { type: 'string', enum: ['edit', 'none'] },
+      action: { type: 'string', enum: ['edit', 'compose', 'none'] },
       message: s,
+      compose: s,
       layout: { type: 'string', enum: [...LAYOUTS] },
       bg: { type: 'string', enum: ['light', 'cream', 'dark'] },
       tag: s,
@@ -774,6 +818,11 @@ function cutTexts(g: Graphic, content: ReelTemplate): string[] {
 
 export function checkReelNote(out: ReelNoteOutput, input: ReelNoteInput): string | null {
   if (out.action === 'none') return null;
+  if (out.action === 'compose') {
+    if ((out.compose ?? '').trim().length < 12)
+      return 'action is "compose": write the brief for the new graphic in "compose" (2–4 sentences)';
+    return null;
+  }
   const nothing =
     !out.graphic &&
     !out.layout &&
@@ -807,9 +856,10 @@ export function reelNoteTask(): TaskDef<ReelNoteInput, ReelNoteOutput> {
     id: 'reel.note',
     input: ReelNoteInputSchema,
     output: ReelNoteOutputSchema as unknown as z.ZodType<ReelNoteOutput>,
-    // Hybrid like `note.fix` (hybrid-ai.md): the caller's route decides device or cloud.
-    mode: () => 'PREFER_ON_DEVICE',
-    model: () => REEL_NOTE_MODEL,
+    // Spec 30: the strong model in the cloud, so a note can ask for anything (founder, 2026-11-22:
+    // "use frontier models for everything including the notes feature").
+    mode: () => 'ONLY_IN_CLOUD',
+    model: (cfg) => cfg.modelStrong,
     system: REEL_NOTE_SYSTEM_V1,
     prompt: reelNotePromptV1,
     jsonSchema: reelNoteJsonSchema,
@@ -819,7 +869,7 @@ export function reelNoteTask(): TaskDef<ReelNoteInput, ReelNoteOutput> {
     maxRepairs: 1,
     promptVersion: REEL_NOTE_PROMPT_VERSION,
     thinking: 'LOW',
-    maxOutputTokens: 2048,
+    maxOutputTokens: 8192,
     media: (i) => (i.image ? { mimeType: 'image/jpeg', base64: i.image } : undefined),
     check: checkReelNote,
   };
@@ -859,7 +909,7 @@ export function reelNoteInput(
       layout: scene.layout,
       ...(scene.bg ? { bg: scene.bg } : {}),
       ...(scene.tag ? { tag: scene.tag } : {}),
-      graphic: ctx.graphic,
+      graphic: ctx.custom ? { template: 'custom', ...ctx.custom } : ctx.graphic,
     },
     words: around,
     ...(p.caption ? { caption: p.caption.slice(0, 120) } : {}),
@@ -869,10 +919,6 @@ export function reelNoteInput(
 }
 
 /** Runs the note. Throws on any failure (the caller refunds and reports). */
-export async function runReelNote(
-  router: Router,
-  input: ReelNoteInput,
-  mode: 'ONLY_ON_DEVICE' | 'ONLY_IN_CLOUD',
-) {
-  return router.run(reelNoteTask(), input, { mode, allowCloud: false });
+export async function runReelNote(router: Router, input: ReelNoteInput) {
+  return router.run(reelNoteTask(), input, { mode: 'ONLY_IN_CLOUD', allowCloud: false });
 }

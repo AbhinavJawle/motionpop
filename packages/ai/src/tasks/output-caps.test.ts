@@ -3,13 +3,21 @@ import { componentFillTask } from './component-fill';
 import { customComposeTask } from './custom-compose';
 import { directPlan } from './direct-plan';
 import { editPatchTask } from './edit-patch';
-import { filmBuildTask, filmDirectTask, filmPropsTask, reelBuildTask, reelDirectTask } from './film';
+import {
+  filmBuildTask,
+  filmDirectTask,
+  filmPropsTask,
+  reelBuildTask,
+  reelDirectTask,
+} from './film';
 import { noteFixTask } from './note-fix';
 import { pipPlanTask } from './pip-plan';
 import { promptPrefill } from './prompt-prefill';
 import { slotsDetect } from './slots-detect';
 import { transcribeCloud } from './transcribe-cloud';
 import type { TaskDef } from '../router';
+import { reelComposeTask } from '../reel/compose';
+import { reelNoteTask } from '../reel/note';
 
 /** Every cloud task definition the package ships (spec 13b R3.5). */
 function allTasks(): TaskDef<never, unknown>[] {
@@ -25,6 +33,8 @@ function allTasks(): TaskDef<never, unknown>[] {
     reelDirectTask,
     reelBuildTask(() => [], ''),
     noteFixTask(none),
+    reelNoteTask(),
+    reelComposeTask(() => [], ''),
     pipPlanTask(),
     promptPrefill,
     slotsDetect,
@@ -44,6 +54,8 @@ const EXPECTED: Record<string, number> = {
   'reel.direct': 8192,
   'reel.build': 8192,
   'note.fix': 1024,
+  'reel.note': 8192,
+  'reel.compose': 24576,
   'pip.plan': 4096,
   'prompt.prefill': 512,
   'slots.detect': 4096,
