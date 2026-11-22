@@ -840,3 +840,38 @@ Template:
   - Not tried on the cream look in the real app.
   - The device route for reel notes is gone by design (founder: frontier models for notes).
   - Commits are local, not pushed.
+
+## 2026-11-22 (night) · Claude Code (`claude-opus-5-5`) + Kiro CLI (reviews and every commit) · overnight QA
+- **Founder ask:** "work overnight to fix bugs and make the software more quality and do qa assurance of the code and use a lot of kiro-cli to commit very often". No Claude co-author trailer.
+- **Commits (9, all made by Kiro after it re-ran the checks, local only):** 135fb1c, 43efdae, 6fc8a88, 5a9e896, 93f930f, c32c577, 9e132c4, 2ef2009, fe2d84e.
+- **Baseline (Kiro):**
+  - Typecheck and lint were clean.
+  - Three heavy tests failed only on a loaded machine. Their timeouts and budgets now scale with load.
+  - Prettier failed on 73 files. 56 were formatted. The 6 still failing are the founder's uncommitted film-lab, schemas and render files, so CI's format check stays red until those are committed.
+- **Kiro review of spec 30 (11 findings, all fixed):**
+  - A custom frame that reports ready late recovers. Its timers are cleared on destroy.
+  - Every export seek fails loudly on a custom-frame error, so the render refunds instead of shipping a blank scene.
+  - Custom documents get a CSP with no network access. Checked in real Chrome on two composed scenes: no violations, build, seek and review all OK.
+  - Fonts load before the build. Size limits count UTF-8 bytes.
+  - The note flow refunds on any throw after a spend, keeps the first graphic when a repair breaks it, and checks the custom budget before spending.
+- **Kiro review of specs 28 and 29 (13 findings, all fixed):**
+  - Retakes: asides and real lines are no longer cut as retakes. A dropped take needs a matching next phrase. A runaway review is capped.
+  - The cloud review runs only for users with credits, gives up after 25 s and never blocks Cancel. A video longer than its audio loses the silent tail.
+  - A note pauses on its own time and reads that frame before spending.
+  - Caption fixes prefer the word inside the scene. A late picture is silent.
+  - The cost range includes a fetched illustration.
+- **Other fixes:**
+  - Enter with the pen on no longer presses a focused button.
+  - A free export that fails no longer says "your credits are back".
+  - The auth e2e project runs green against the emulators (App Check variables blanked for it).
+- **e2e (chromium project):** 9 failures were traced one by one.
+  - **Real bug:** the fake router (local dev and e2e) had no repair step, so Generate on a hook whose safe line misses the read-time gate always failed. It now repairs once, like the real router. Unit test added; reverting the fix fails it.
+  - **Stale tests (behaviour changed on purpose):** updated for the 3-slot sample, the 2.4 s minimum for hooks, 3 export scenes, and the new export dialog rows.
+  - **Parked:** the inspector-fold checks, with `test.fixme`. The Picture section and the Custom button push TIMING 80–120 px below the fold at 1440×900. That's a design call for the founder.
+  - **Found on the way, not changed:** the showcase fixture's hook slots (slot 1, slot 4) are too tight for the hook's read-time gate, so Generate can't pass on them. `/editor/demo` isn't linked in the app.
+- **Verified:** web unit 144 files (1232 tests, 1 expected fail). The six repaired e2e specs: 18 passed, 4 fixme. The auth project: 9/9.
+- **Spend:** no paid AI calls tonight. The CSP check reused composed scenes from the spec 30 lab.
+- **Open:**
+  - The processing-flow 404 seen during the spec 30 export is still untraced.
+  - The inspector fold question above.
+  - Nothing pushed (16 local commits ahead of origin).
