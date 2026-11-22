@@ -171,4 +171,22 @@ describe('caption fixes (spec 29 R4.3)', () => {
       { numRuns: 150 },
     );
   });
+
+  it('a word said just before the scene and again inside it: the one inside is fixed', () => {
+    const words = ['icachi', 'then', 'icachi', 'again'].map((text, i) => ({
+      i,
+      text,
+      startMs: 2000 + i * 600,
+      endMs: 2000 + i * 600 + 400,
+      conf: 0.9,
+      filler: false,
+    }));
+    // The scene starts at 3000: word 0 (2000 ms) is in the margin, word 2 (3200 ms) inside.
+    const out = fixCaptionWords({ words }, [{ find: 'icachi', replace: 'eye-catching' }], {
+      startMs: 1500,
+      endMs: 6600,
+      core: { startMs: 3000, endMs: 6000 },
+    });
+    expect(out!.words.map((w) => w.text)).toEqual(['icachi', 'then', 'eye-catching', 'again']);
+  });
 });

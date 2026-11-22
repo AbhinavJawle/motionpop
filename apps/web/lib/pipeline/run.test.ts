@@ -838,6 +838,55 @@ describe('runPipeline: a single graphic', () => {
   });
 });
 
+function rawTake(videoExtraMs = 0) {
+  // "I use the camera daily." said twice, a 3 s pause after each line; Whisper stretches the
+  // last word of each line over the pause.
+  const lines = [
+    ['I', 'use', 'the', 'camera', 'daily.'],
+    ['I', 'use', 'the', 'camera', 'daily.'],
+    ['Follow', 'for', 'more', 'tips', 'now.'],
+  ];
+  const words: Word[] = [];
+  const speech: { a: number; b: number }[] = [];
+  let at = 500;
+  for (const line of lines) {
+    const a = at;
+    for (const t of line) {
+      words.push(w(words.length, t, at, at + 260));
+      at += 300;
+    }
+    speech.push({ a, b: at - 40 });
+    words[words.length - 1] = { ...words[words.length - 1]!, endMs: at + 2500 };
+    at += 3000;
+  }
+  const durationMs = at;
+  const tone = (rate: number) => {
+    const out = new Float32Array(Math.round((durationMs * rate) / 1000)).fill(0.0005);
+    for (const r of speech)
+      for (let i = Math.round((r.a * rate) / 1000); i < (r.b * rate) / 1000; i++)
+        out[i] = 0.3 * Math.sin((2 * Math.PI * 180 * i) / rate);
+    return out;
+  };
+  const h = makeHarness({
+    words,
+    durationMs,
+    decoded: { pcm16k: tone(16_000), pcm24k: tone(24_000), durationMs },
+  });
+  h.deps.probeVideo = async () => ({
+    width: 1080,
+    height: 1920,
+    durationMs: durationMs + videoExtraMs,
+    format: '9:16' as const,
+    frames: [],
+  });
+  // Like the Whisper worker: the transcriber takes the PCM buffer, the array left is empty.
+  h.transcribe.mockImplementation(async (pcm16k) => {
+    structuredClone(pcm16k.buffer, { transfer: [pcm16k.buffer] });
+    return { words, ranOn: 'device', timingQuality: 'word' };
+  });
+  return { h, durationMs };
+}
+
 describe('runPipeline: talking-head reels (spec 25)', () => {
   it('saves a valid 9:16 reel project: jump cuts, a tiled reel plan, no slots, slot captions off', async () => {
     const h = makeHarness();
@@ -1023,51 +1072,7 @@ describe('runPipeline: talking-head reels (spec 25)', () => {
   });
 
   it('cuts dead air from the audio and removes a retake, with the cloud review (spec 28)', async () => {
-    // "I use the camera daily." said twice, a 3 s pause after each line; Whisper stretches the
-    // last word of each line over the pause.
-    const lines = [
-      ['I', 'use', 'the', 'camera', 'daily.'],
-      ['I', 'use', 'the', 'camera', 'daily.'],
-      ['Follow', 'for', 'more', 'tips', 'now.'],
-    ];
-    const words: Word[] = [];
-    const speech: { a: number; b: number }[] = [];
-    let at = 500;
-    for (const line of lines) {
-      const a = at;
-      for (const t of line) {
-        words.push(w(words.length, t, at, at + 260));
-        at += 300;
-      }
-      speech.push({ a, b: at - 40 });
-      words[words.length - 1] = { ...words[words.length - 1]!, endMs: at + 2500 };
-      at += 3000;
-    }
-    const durationMs = at;
-    const tone = (rate: number) => {
-      const out = new Float32Array(Math.round((durationMs * rate) / 1000)).fill(0.0005);
-      for (const r of speech)
-        for (let i = Math.round((r.a * rate) / 1000); i < (r.b * rate) / 1000; i++)
-          out[i] = 0.3 * Math.sin((2 * Math.PI * 180 * i) / rate);
-      return out;
-    };
-    const h = makeHarness({
-      words,
-      durationMs,
-      decoded: { pcm16k: tone(16_000), pcm24k: tone(24_000), durationMs },
-    });
-    h.deps.probeVideo = async () => ({
-      width: 1080,
-      height: 1920,
-      durationMs,
-      format: '9:16' as const,
-      frames: [],
-    });
-    // Like the Whisper worker: the transcriber takes the PCM buffer, the array left is empty.
-    h.transcribe.mockImplementation(async (pcm16k) => {
-      structuredClone(pcm16k.buffer, { transfer: [pcm16k.buffer] });
-      return { words, ranOn: 'device', timingQuality: 'word' };
-    });
+    const { h } = rawTake();
     const reviewEdit = vi.fn<NonNullable<PipelineDeps['reviewEdit']>>(async () => ({
       cut: [],
       keep: [],
@@ -1097,6 +1102,37 @@ describe('runPipeline: talking-head reels (spec 25)', () => {
       (e) => e.type === 'step' && e.step === 'moments' && e.state === 'done',
     );
     expect(JSON.stringify(moments)).toContain('1 retake cut');
+  });
+
+  it('cuts the silent tail of a video that runs past its audio (spec 28 review)', async () => {
+    const { h, durationMs } = rawTake(2000);
+    await runPipeline(
+      makeInput({ file: new Blob(['fake mp4'], { type: 'video/mp4' }), name: 'raw.mp4' }),
+      h.deps,
+      h.onEvent,
+    );
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    const cuts = loaded.project.video!.cuts;
+    // The last cut reaches the end of the video, not just the end of the audio.
+    expect(Math.max(...cuts.map((c) => c.endMs))).toBe(durationMs + 2000);
+    expect(loaded.project.durationMs).toBeLessThan(4500);
+  });
+
+  it('Cancel during the cloud review returns at once (spec 28 review)', async () => {
+    const { h } = rawTake();
+    h.deps.reviewEdit = () => new Promise(() => {});
+    const ctl = new AbortController();
+    const run = runPipeline(
+      makeInput({ file: new Blob(['fake mp4'], { type: 'video/mp4' }), name: 'raw.mp4' }),
+      h.deps,
+      (e) => {
+        h.onEvent(e);
+        if (e.type === 'step' && e.step === 'moments' && e.state === 'active') ctl.abort();
+      },
+      ctl.signal,
+    );
+    await expect(run).rejects.toThrow(/cancel/i);
   });
 
   it('honours an explicit styleId override on a video upload', async () => {

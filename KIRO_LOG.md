@@ -2921,3 +2921,35 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - `?? packages/motion/scripts/film-lab/tts.ts`
   - `?? packages/motion/scripts/film-lab/words.ts`
 <!-- /kiro-session:sess_806dead5-c2a5-4bc2-86d7-2eaea1d2ee7f -->
+
+<!-- kiro-session:sess_f5ff49c7-3bb6-42da-97df-403e1a292b7a -->
+### 2026-11-22 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-22T05:17:56.604Z · last stop: 2026-11-22T05:18:15.799Z · session: sess_f5ff49c7-3bb6-42da-97df-403e1a292b7a
+- commits since start: 
+  - 9e132c4 fix(28-auto-edit): asides, double takes and dropped takes stop eating real lines
+- uncommitted changes: 
+  - `M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_f5ff49c7-3bb6-42da-97df-403e1a292b7a -->

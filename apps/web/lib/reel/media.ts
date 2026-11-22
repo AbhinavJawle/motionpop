@@ -292,13 +292,28 @@ export async function directReelPaid(
  */
 export async function reviewReelCuts(
   phrases: [number, string, boolean][],
-  deps: { credits: CreditsClient | null; config?: Partial<ReelCfg> },
+  deps: { credits: CreditsClient | null; config?: Partial<ReelCfg>; timeoutMs?: number },
 ): Promise<EditReview | null> {
   const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
-  if (!deps.credits || cfg.killSwitch || phrases.length < 2) return null;
+  // R3.1: only for creators with credits (a signed-in account at 0 gets the rules alone).
+  const balance = deps.credits?.balance() ?? null;
+  if (!deps.credits || balance === null || balance <= 0 || cfg.killSwitch || phrases.length < 2)
+    return null;
   const router = await getRouter().catch(() => null);
-  return reviewReelEdit(router, phrases);
+  // A hung call must not hold the "Removing retakes" step: after this long the rules stand.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), deps.timeoutMs ?? REVIEW_TIMEOUT_MS);
+  });
+  try {
+    return await Promise.race([reviewReelEdit(router, phrases), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
 }
+
+/** The longest the automatic edit waits for the cloud editor's check (spec 28 review). */
+export const REVIEW_TIMEOUT_MS = 25_000;
 
 /**
  * The reel's soundtrack (spec 27 R3.2): asks our server to generate music from the director's

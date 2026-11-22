@@ -86,7 +86,8 @@ export interface ReelNoteFixDeps {
   config?: Pick<AppConfig, 'creditCosts' | 'imageCredits' | 'exportCredits'>;
   newKey?: () => string;
   /** Called when the pictures of an applied fix have landed (or failed). */
-  onPictures?: (landed: number) => void;
+  /** How many pictures landed; null when the scene changed meanwhile (nothing to report). */
+  onPictures?: (landed: number | null) => void;
   /** The runtime of AI-written scenes, for the review before a new graphic lands (spec 30). */
   customAssets?: () => Promise<ReelCustomAssets | null>;
   /** Stored pictures as data URLs, for the review (`customPictures`). */
@@ -124,6 +125,19 @@ export async function runReelNoteFix(
   if (text === '') return { kind: 'blocked', reason: 'Type what to change' };
 
   if (!deps.credits) return { kind: 'blocked', reason: 'Sign in to use cloud AI' };
+
+  // Read the preview at the note's own frame, before any wait: paused, on the note's time (a
+  // press of Space or a scrub during the spend would otherwise show the model another frame).
+  const state = deps.store.getState();
+  if (state.playing) state.setPlaying(false);
+  const noteMs = scene.startMs + note.tMs;
+  if (Math.abs(state.playheadMs - noteMs) > 40) state.setPlayhead(noteMs);
+  // The reel is always 9:16.
+  const region = regionOf(note.shape, 9 / 16);
+  const seen: { target: ReelTarget; image?: string | undefined } = await Promise.resolve()
+    .then(() => deps.look(region, cropRect(region), sceneId))
+    .catch(() => ({ target: { parts: [], texts: [], pictures: [] } }));
+
   const spent = await spendWithUi(
     deps.credits,
     { action: 'edit', key: (deps.newKey ?? newSpendKey)(), refId: sceneId },
@@ -145,6 +159,8 @@ export async function runReelNoteFix(
   // Every path below refunds by hand before it returns; this catches what throws in between
   // (a scene the context can't describe, an unexpected note shape) so the credit never sticks.
   let charged = false;
+  // The new graphic's own spend, once it exists: refunded with the note's if anything throws.
+  const composedSpend: { refund?: () => Promise<void> } = {};
   const fixAfterSpend = async (): Promise<ReelNoteOutcome> => {
     const router = await deps.getRouter().catch(() => null);
     if (!router) {
@@ -152,11 +168,6 @@ export async function runReelNoteFix(
       return failed();
     }
 
-    // The reel is always 9:16.
-    const region = regionOf(note.shape, 9 / 16);
-    const seen: { target: ReelTarget; image?: string | undefined } = await deps
-      .look(region, cropRect(region), sceneId)
-      .catch(() => ({ target: { parts: [], texts: [], pictures: [] } }));
     const words = project.transcript.words.map((w) => ({
       text: w.text,
       startMs: w.startMs,
@@ -241,6 +252,7 @@ export async function runReelNoteFix(
         await refund();
         return composed.outcome;
       }
+      composedSpend.refund = composed.refund;
       if (stale()) {
         await composed.refund();
         await refund();
@@ -325,7 +337,10 @@ export async function runReelNoteFix(
   try {
     return await fixAfterSpend();
   } catch {
-    if (!charged) await refund();
+    if (!charged) {
+      await composedSpend.refund?.();
+      await refund();
+    }
     return failed();
   }
 }
@@ -335,7 +350,7 @@ async function fetchPictures(
   deps: ReelNoteFixDeps,
   sceneId: string,
   fixed: ReelScene,
-): Promise<number> {
+): Promise<number | null> {
   const reel = deps.store.getState().project?.reel;
   if (!reel || !deps.fetchMedia) return 0;
   try {
@@ -344,7 +359,7 @@ async function fetchPictures(
     const nowReel = deps.store.getState().project?.reel;
     const nowScene = nowReel?.scenes.find((s) => s.id === sceneId);
     // Only onto the scene as the fix left it (the user may have undone or edited it since).
-    if (!nowReel || !nowScene || sceneJson(nowScene) !== sceneJson(fixed)) return 0;
+    if (!nowReel || !nowScene || sceneJson(nowScene) !== sceneJson(fixed)) return null;
     const withPics = got.plan.scenes[0];
     if (!withPics || got.assets.length === 0) return 0;
     const next: ReelPlan = {

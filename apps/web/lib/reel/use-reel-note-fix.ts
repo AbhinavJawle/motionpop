@@ -21,6 +21,10 @@ export async function lookAtReel(
   crop: Region,
   sceneId: string,
 ): Promise<{ target: ReelTarget; image?: string }> {
+  // The caller may just have moved the playhead to the note's time: let the stage draw it.
+  if (typeof requestAnimationFrame === 'function') {
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+  }
   const stage = reelStage();
   const reel = editorStore.getState().project?.reel;
   if (!stage || !reel) return { target: { parts: [], texts: [], pictures: [] } };
@@ -57,6 +61,8 @@ export async function runReelNoteFixWithUi(
       {
         look: lookAtReel,
         onPictures: (n) => {
+          // The scene changed while the picture was on its way: nothing to say.
+          if (n === null) return;
           if (n > 0) toast.success(n === 1 ? 'Picture added' : `${n} pictures added`);
           else toast('Couldn’t find that picture. The design fallback stays.');
         },
@@ -86,12 +92,8 @@ export async function runReelNoteFixWithUi(
   endActivity();
   switch (outcome.kind) {
     case 'cloud-failed':
-      toast('Couldn’t fix that note', {
-        action: {
-          label: 'Retry',
-          onClick: () => void runReelNoteFixWithUi(deps, sceneId, noteId, route),
-        },
-      });
+      // The retry lives on the note ("Fix again"), which also shows the result when it lands.
+      toast('Couldn’t fix that note. Try “Fix again” on it.');
       break;
     case 'changed':
       toast('The scene changed while Pip worked. Try again.');
@@ -136,9 +138,12 @@ export function useReelNoteFix() {
       r,
     );
   const note = costOf('edit', 1, config);
+  const custom = costOf('custom', 1, config);
+  // A fix may also fetch one new illustration (`maxIllustrations: 1` below): it is in the range.
+  const image = costOf('image', 1, config);
   const cost = {
-    label: `${note}–${note + costOf('custom', 1, config)}`,
-    hint: `${note} credit for the note, ${costOf('custom', 1, config)} more if Pip writes a new graphic`,
+    label: `${note}–${note + custom + image}`,
+    hint: `${note} credit for the note, ${custom} more if Pip writes a new graphic, ${image} for a new illustration`,
   };
   return { route, cloudRoute, cost, run };
 }

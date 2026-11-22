@@ -328,10 +328,13 @@ export async function runPipeline(
       // Spec 28: pauses are cut where the audio is silent (not where Whisper's words end),
       // retakes are found by the rules and double-checked by the cloud editor.
       const map = measured;
+      // Cuts are planned over the longer of the two clocks: a video that runs past its audio
+      // gets its silent tail cut too, so the voice and the reel end together (spec 28 review).
+      const editMs = Math.max(audio.durationMs, sourceMs);
       const spoken = spokenWords(t.words, map);
       let retakes = cleanupOn ? findRetakes(spoken) : [];
       const firstPass = cleanupOn
-        ? planAutoCuts({ words: t.words, durationMs: audio.durationMs, speech: map, retakes })
+        ? planAutoCuts({ words: t.words, durationMs: editMs, speech: map, retakes })
         : null;
       onEvent({
         type: 'step',
@@ -351,9 +354,14 @@ export async function runPipeline(
       let reviewed = false;
       if (cleanupOn && deps.reviewEdit) {
         const phrases = phrasesOf(spoken);
-        const review = await deps
-          .reviewEdit({ phrases: reviewPhrases(spoken, phrases, retakes) })
-          .catch(() => null);
+        // Cancel never waits on the cloud: an abort settles the wait at once (the rules stand).
+        const review = await Promise.race([
+          deps.reviewEdit({ phrases: reviewPhrases(spoken, phrases, retakes) }).catch(() => null),
+          new Promise<null>((resolve) => {
+            if (signal?.aborted) resolve(null);
+            signal?.addEventListener('abort', () => resolve(null), { once: true });
+          }),
+        ]);
         checkAbort();
         if (review) {
           retakes = applyReview(spoken, phrases, retakes, review);
@@ -361,7 +369,7 @@ export async function runPipeline(
         }
       }
       const auto = cleanupOn
-        ? planAutoCuts({ words: t.words, durationMs: audio.durationMs, speech: map, retakes })
+        ? planAutoCuts({ words: t.words, durationMs: editMs, speech: map, retakes })
         : null;
       const videoCuts: VideoCut[] = (auto?.cuts ?? [])
         .map((c) => ({

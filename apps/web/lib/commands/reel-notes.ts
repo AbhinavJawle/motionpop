@@ -126,6 +126,7 @@ export function fixReelScene(sceneId: string, fix: ReelSceneFix, label = 'Fix no
         const fixed = fixCaptionWords(p.transcript, fix.captions, {
           startMs: old.startMs - 1500,
           endMs: old.endMs + 600,
+          core: { startMs: old.startMs, endMs: old.endMs },
         });
         if (!fixed) throw new CommandRejected('That caption fix does not match the words');
         transcript = { ...p.transcript, ...fixed };

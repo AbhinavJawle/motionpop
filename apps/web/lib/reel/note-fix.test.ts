@@ -485,6 +485,32 @@ describe('runReelNoteFix: new motion graphics (spec 30)', () => {
   });
 });
 
+describe('runReelNoteFix: reads the note frame (spec 29 review)', () => {
+  it('pauses on the note time and reads the preview before anything is spent', async () => {
+    let atLook: { playing: boolean; playheadMs: number; balance: number | null } | null = null;
+    const t = setup(titleAnswer);
+    t.deps.look = async () => {
+      const st = t.store.getState();
+      atLook = { playing: st.playing, playheadMs: st.playheadMs, balance: t.credits.balance() };
+      return { target: { parts: ['graphic'], texts: ['Seamlessly and let AI'], pictures: [] } };
+    };
+    t.store.getState().setPlayhead(2500);
+    t.store.getState().setPlaying(true);
+    expect((await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD)).kind).toBe('applied');
+    // Scene r1 starts at 0 and the note sits at 1200 ms.
+    expect(atLook).toEqual({ playing: false, playheadMs: 1200, balance: 50 });
+  });
+
+  it('a capture that fails still runs the note without a picture', async () => {
+    const t = setup(titleAnswer, {
+      look: () => {
+        throw new Error('capture blew up');
+      },
+    });
+    expect((await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD)).kind).toBe('applied');
+  });
+});
+
 describe('runReelNoteFix: the custom code budget (spec 30 review)', () => {
   it('a reel without room for another graphic is told so before anything is spent on it', async () => {
     const t = composeSetup({});
@@ -525,8 +551,8 @@ describe('runReelNoteFix: the custom code budget (spec 30 review)', () => {
 describe('runReelNoteFix: credits never stick on an unexpected throw (spec 30 review)', () => {
   it('a throw after the note credit was spent refunds it', async () => {
     const t = setup(titleAnswer, {
-      look: () => {
-        throw new Error('capture blew up');
+      getRouter: () => {
+        throw new Error('router blew up');
       },
     });
     const before = t.scene();
