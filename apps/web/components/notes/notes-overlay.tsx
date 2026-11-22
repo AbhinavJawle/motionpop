@@ -101,12 +101,14 @@ export function NotesOverlay(p: NotesOverlayProps) {
       ) {
         return;
       }
+      // With the pen on, Enter belongs to the pen: it must not also press a focused button
+      // (the pen itself would toggle off when there is nothing to circle).
+      e.preventDefault();
       const f = focal();
       if (!f) {
         toast('Nothing to circle on this frame. Draw around it instead.');
         return;
       }
-      e.preventDefault();
       if (targetId) setPending({ ...ellipseAround(f), targetId });
     };
     window.addEventListener('keydown', onKey);

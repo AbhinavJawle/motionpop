@@ -98,6 +98,20 @@ test('Enter with the pen on circles the focal element', async ({ page }) => {
   await openEditor(page, '/editor/demo?t=5600&select=slot-2');
   await pen(page).click();
   await page.locator('[data-draw-layer]').hover();
+  // The focal element lives in the player's frame: wait until it is drawn before pressing Enter.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const player = document.querySelector<
+            HTMLElement & { iframeElement?: HTMLIFrameElement }
+          >('hyperframes-player');
+          const el = player?.iframeElement?.contentDocument?.querySelector('[data-focal]');
+          return (el?.getBoundingClientRect().width ?? 0) > 0;
+        }),
+      { timeout: 30_000 },
+    )
+    .toBe(true);
   await page.keyboard.press('Enter');
   await expect(page.getByLabel('What should change?')).toBeVisible();
   await page.keyboard.press('Escape');
