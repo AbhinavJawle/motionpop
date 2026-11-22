@@ -211,6 +211,32 @@ describe('retakes (spec 28 R2)', () => {
     );
   });
 
+  // Regressions from the spec 28 review: real lines that contain aside words were cut.
+  it('cuts asides to the camera, never lines that only contain those words', () => {
+    for (const line of [
+      'Take two minutes to plan your day.',
+      'Start over each Monday.',
+      'Cut this recipe in half.',
+      'Sorry, I know this sounds weird.',
+      "Let's walk through it one more time.",
+    ]) {
+      expect(findRetakes(words(`This is the hook. | ${line} | Here comes the tip.`))).toEqual([]);
+    }
+    for (const aside of ['Take two.', 'Sorry, let me start over.', 'Scratch that.']) {
+      expect(text(cutOut(words(`This is the hook. | ${aside} | Here comes the tip.`)))).toBe(
+        'This is the hook. Here comes the tip.',
+      );
+    }
+    // The closing line is never cut, even when it is an aside.
+    expect(findRetakes(words('This is the hook. | Okay let me do that again.'))).toEqual([]);
+  });
+
+  it('a restart said three times keeps one attempt', () => {
+    expect(text(cutOut(words('I use the, I use the, I use the camera every day.')))).toBe(
+      'I use the camera every day.',
+    );
+  });
+
   it('scores similarity on shared words in order', () => {
     expect(similarity(['a', 'b', 'c'], ['a', 'b', 'c'])).toBe(1);
     expect(similarity(['a', 'b'], ['c', 'd'])).toBe(0);
@@ -257,6 +283,50 @@ describe('the automatic edit (spec 28)', () => {
     }
     const removed = plan.cuts.reduce((s, c) => s + c.endMs - c.startMs, 0);
     expect(durationMs - removed).toBeLessThan(0.55 * durationMs);
+  });
+
+  // Regressions from the spec 28 review.
+  it('a whole script said twice keeps the second take (the cap counts word time only)', () => {
+    const LINES =
+      'Here are the six tools that replaced my team. | I use the recorder to train my assistants. | ' +
+      'I use the editor to write like a pro.';
+    const { words, speech } = script(`${LINES} | ${LINES}`, 3000);
+    const durationMs = speech.at(-1)!.endMs + 2000;
+    const map = speechMap(recording(durationMs, speech), SR);
+    const plan = planAutoCuts({ words, durationMs, speech: map });
+    expect(plan.stats.retakesSkipped).toBe(false);
+    expect(text(retimeWords(plan.words, plan.cuts))).toBe(LINES.replace(/ \| /g, ' '));
+  });
+
+  it('leaves retakes in, and says so, when cutting them would remove most of the speech', () => {
+    const { words } = script('one two three four five. | six seven eight nine ten.', 1000);
+    const plan = planAutoCuts({
+      words,
+      durationMs: words.at(-1)!.endMs + 1000,
+      retakes: [{ from: 0, to: 4, kind: 'retake', reason: 'x' }],
+      opts: { maxRetakeShare: 0.3 },
+    });
+    expect(plan.stats.retakesSkipped).toBe(true);
+    expect(plan.cuts.some((c) => c.kind === 'retake')).toBe(false);
+  });
+
+  it('a wordless stretch is cut as a dropped take only right before a line of its length', () => {
+    // Lines 2.4 s long; a 2.4 s wordless run sits 8 s before the next line: it stays.
+    const { words, speech } = script(
+      'one two three four five six seven eight | nine ten eleven twelve thirteen fourteen fifteen sixteen',
+      12_000,
+    );
+    const lineMs = speech[0]!.endMs - speech[0]!.startMs;
+    const run = { startMs: speech[0]!.endMs + 1500, endMs: speech[0]!.endMs + 1500 + lineMs };
+    const durationMs = speech.at(-1)!.endMs + 2000;
+    const far = speechMap(recording(durationMs, [...speech, run]), SR);
+    const keepIt = planAutoCuts({ words, durationMs, speech: far });
+    expect(keepIt.cuts.some((c) => c.kind === 'retake')).toBe(false);
+    // The same run 1 s before the next line is a take Whisper dropped.
+    const near = { startMs: speech[1]!.startMs - 1000 - lineMs, endMs: speech[1]!.startMs - 1000 };
+    const dropped = speechMap(recording(durationMs, [...speech, near]), SR);
+    const cutIt = planAutoCuts({ words, durationMs, speech: dropped });
+    expect(cutIt.cuts.some((c) => c.kind === 'retake')).toBe(true);
   });
 
   it('cuts are sorted, apart, inside the recording and never touch a kept word', () => {
@@ -328,6 +398,17 @@ describe('the cloud review (spec 28 R3)', () => {
       cut: [{ phrase: 3, kind: 'ramble', reason: 'talking to the crew' }],
     });
     expect(out.map((c) => [c.from, c.to])).toEqual([[phrases[3]!.from, phrases[3]!.to]]);
+  });
+
+  it('never lets the review cut the closing line or a line said only once', () => {
+    const out = applyReview(words, phrases, rule, {
+      keep: [],
+      cut: [
+        { phrase: 2, kind: 'retake', reason: 'weak line' },
+        { phrase: 4, kind: 'ramble', reason: 'outro' },
+      ],
+    });
+    expect(out).toEqual(rule);
   });
 
   it('ignores a runaway answer and keeps the rules', () => {

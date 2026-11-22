@@ -139,7 +139,22 @@ function isFalseStart(a: readonly string[], b: readonly string[]): boolean {
 }
 
 const ASIDE =
-  /\b(let me (start|try|do|say) (that|this|it)? ?(again|over|one more time)|one more time|take (two|2|three|3)|scratch that|start (over|again)|from the top|sorry,? (let me|i)|i messed (that|it) up|wait,? (let me|no)|cut (that|this)|do (that|it) again)\b/i;
+  /\b(let me (start|try|do|say) (that|this|it)? ?(again|over|one more time)|one more time|take (two|2|three|3)|scratch that|start (over|again)|from the top|sorry,? (let me|i)|i messed (that|it) up|wait,? (let me|no)|cut (that|this)|do (that|it) again)\b/gi;
+
+/**
+ * An aside to the camera ("okay, let me do that again"), not a line that happens to contain one
+ * of those words ("Take two minutes to plan your day", "Start over each Monday"): a short phrase
+ * that is mostly the aside itself.
+ */
+export function isAside(text: string, tokens: number): boolean {
+  if (tokens > 9) return false;
+  const letters = (t: string) => t.replace(/[^a-z0-9]/gi, '').length;
+  const total = letters(text);
+  if (total === 0) return false;
+  let matched = 0;
+  for (const m of text.matchAll(ASIDE)) matched += letters(m[0]);
+  return matched / total >= 0.5;
+}
 
 /**
  * Word ranges to cut as retakes (spec 28 R2.1–R2.4). Each phrase is compared with the next few
@@ -163,7 +178,8 @@ export function findRetakes(words: readonly Word[]): WordCut[] {
       .slice(a.from, a.to + 1)
       .map((w) => w.text)
       .join(' ');
-    if (a.tokens.length <= 9 && ASIDE.test(text)) {
+    // The closing line is never cut by the rules (R2.4).
+    if (i < phrases.length - 1 && isAside(text, a.tokens.length)) {
       add(a, 'ramble', `Aside to camera: “${clip(text)}”`);
       continue;
     }
@@ -189,15 +205,22 @@ export function findRetakes(words: readonly Word[]): WordCut[] {
     }
   }
 
-  // Restarts inside one phrase: the same 2–4 words said twice in a row.
+  // Restarts inside one phrase: the same 2–4 words said twice (or more) in a row. Every attempt
+  // but the last goes ("a b c, a b c, a b c d" keeps one "a b c"); a shorter n-gram never cuts
+  // inside a longer one already cut.
   for (const p of phrases) {
     if (cut.has(p.from)) continue;
     const toks = words.slice(p.from, p.to + 1).map((w) => normToken(w.text));
+    const taken = new Set<number>();
     for (let n = 4; n >= 2; n--) {
       for (let s = 0; s + 2 * n <= toks.length; s++) {
+        let free = true;
+        for (let k = s; k < s + 2 * n; k++) if (taken.has(k)) free = false;
+        if (!free) continue;
         const first = toks.slice(s, s + n);
         const second = toks.slice(s + n, s + 2 * n);
         if (first.every((t, k) => t.length > 0 && t === second[k])) {
+          for (let k = s; k < s + n; k++) taken.add(k);
           const from = p.from + s;
           cut.set(from, {
             from,
@@ -210,7 +233,8 @@ export function findRetakes(words: readonly Word[]): WordCut[] {
                 .join(' '),
             )}”`,
           });
-          s += 2 * n - 1;
+          // The next window starts at the second attempt: a third one is found too.
+          s += n - 1;
         }
       }
     }
@@ -275,20 +299,39 @@ export function applyReview(
   });
   const spokenMs = words.reduce((s, w) => s + (w.endMs - w.startMs), 0);
   const added: WordCut[] = [];
-  let addedMs = 0;
+  // What the review may add: a take of a line said again nearby, or a short aside. Never the
+  // closing line, and never a line said only once (the prompt asks; the code enforces it).
+  const hasTwin = (id: number) => {
+    const p = phrases[id]!;
+    return phrases.some(
+      (q, j) =>
+        j !== id &&
+        Math.abs(j < id ? p.startMs - q.endMs : q.startMs - p.endMs) <= RETAKE_WINDOW_MS &&
+        similarity(p.tokens, q.tokens) >= 0.4,
+    );
+  };
+  // A runaway answer (judged on everything it asked for) is ignored as a whole: the rules stand.
+  let askedMs = 0;
+  for (const c of review.cut) {
+    const p = phrases[c.phrase];
+    if (!p || keep.has(c.phrase) || kept.some((k) => k.from <= p.from && k.to >= p.to)) continue;
+    askedMs += p.endMs - p.startMs;
+  }
+  if (spokenMs > 0 && askedMs > maxAddShare * spokenMs) return kept;
   for (const c of review.cut) {
     const p = phrases[c.phrase];
     if (!p || keep.has(c.phrase)) continue;
+    if (c.phrase === phrases.length - 1) continue;
+    if (!hasTwin(c.phrase) && !(c.kind === 'ramble' && p.tokens.length <= 9)) continue;
     if (kept.some((k) => k.from <= p.from && k.to >= p.to)) continue;
+    if (added.some((a) => a.from === p.from)) continue;
     added.push({
       from: p.from,
       to: p.to,
       kind: c.kind,
       reason: `Editor: ${c.reason.slice(0, 100)}`,
     });
-    addedMs += p.endMs - p.startMs;
   }
-  if (spokenMs > 0 && addedMs > maxAddShare * spokenMs) return kept;
   // A whole-phrase cut replaces any partial (restart) cut inside it.
   const out = kept.filter((k) => !added.some((a) => a.from <= k.from && a.to >= k.to));
   return [...out, ...added].sort((a, b) => a.from - b.from);

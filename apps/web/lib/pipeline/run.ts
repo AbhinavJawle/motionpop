@@ -843,7 +843,11 @@ function retakeSummary(
   finalMs: number,
 ): string {
   const n = st.retakes;
-  const takes = n === 0 ? 'No retakes' : `${n} retake${n === 1 ? '' : 's'} cut`;
+  const takes = st.retakesSkipped
+    ? 'Retakes left in (too much would go)'
+    : n === 0
+      ? 'No retakes'
+      : `${n} retake${n === 1 ? '' : 's'} cut`;
   const span = `${(sourceMs / 1000).toFixed(1)} s → ${(finalMs / 1000).toFixed(1)} s`;
   return `${takes}${reviewed ? ' · checked' : ''} · ${span}`;
 }

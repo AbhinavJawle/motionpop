@@ -27,7 +27,10 @@ export interface AutoCutOptions {
   edgeMs: number;
   /** Cuts shorter than this are dropped (they would only make a click). */
   minCutMs: number;
-  /** Retake cuts that would remove more than this share of the speech are not applied. */
+  /**
+   * Retake cuts that would remove more than this share of the spoken words are not applied (a
+   * guard against a broken rule or review). A whole script said twice is about half.
+   */
   maxRetakeShare: number;
 }
 
@@ -38,7 +41,7 @@ export const REEL_AUTOCUT: AutoCutOptions = {
   leadMs: 90,
   edgeMs: 120,
   minCutMs: 60,
-  maxRetakeShare: 0.45,
+  maxRetakeShare: 0.6,
 };
 
 export interface AutoCutPlan {
@@ -53,6 +56,8 @@ export interface AutoCutPlan {
     fillers: number;
     /** True when the speech meter was trusted; false means word gaps were used instead. */
     measured: boolean;
+    /** Retakes were found but left in: cutting them would remove too much of the speech. */
+    retakesSkipped: boolean;
   };
 }
 
@@ -86,18 +91,29 @@ export function planAutoCuts(input: {
   const empty: AutoCutPlan = {
     cuts: [],
     words,
-    stats: { pauses: 0, pauseMs: 0, retakes: 0, retakeMs: 0, fillers: 0, measured: Boolean(map) },
+    stats: {
+      pauses: 0,
+      pauseMs: 0,
+      retakes: 0,
+      retakeMs: 0,
+      fillers: 0,
+      measured: Boolean(map),
+      retakesSkipped: false,
+    },
   };
   if (speech.length === 0 || durationMs <= 0) return empty;
 
   // --- Retakes (on the spoken words, fillers aside) ---------------------------------------
   let wordCuts: WordCut[] = input.retakes ? [...input.retakes] : findRetakes(speech);
-  const retakeWordMs = wordCuts.reduce(
-    (s, c) => s + (speech[c.to]!.endMs - speech[c.from]!.startMs),
-    0,
-  );
-  const spokenMs = speech.reduce((s, w) => s + (w.endMs - w.startMs), 0);
-  if (spokenMs > 0 && retakeWordMs > o.maxRetakeShare * spokenMs) wordCuts = [];
+  // Both sides in word time (the gaps inside a cut don't count), so the share is honest.
+  const inCut = new Uint8Array(speech.length);
+  for (const c of wordCuts) for (let k = c.from; k <= c.to; k++) inCut[k] = 1;
+  const wordMs = (w: Word) => w.endMs - w.startMs;
+  const retakeWordMs = speech.reduce((s, w, k) => s + (inCut[k] ? wordMs(w) : 0), 0);
+  const spokenMs = speech.reduce((s, w) => s + wordMs(w), 0);
+  const retakesSkipped =
+    wordCuts.length > 0 && spokenMs > 0 && retakeWordMs > o.maxRetakeShare * spokenMs;
+  if (retakesSkipped) wordCuts = [];
   const cutWord = new Uint8Array(speech.length);
   for (const c of wordCuts) for (let k = c.from; k <= c.to; k++) cutWord[k] = 1;
 
@@ -112,7 +128,9 @@ export function planAutoCuts(input: {
     raw.push({ startMs, endMs, kind: c.kind, reason: c.reason });
   }
 
-  // --- Untranscribed speech that duplicates a neighbouring line (a take Whisper dropped) -----
+  // --- Untranscribed speech that duplicates the next line (a take Whisper dropped) ----------
+  // Only right before a line of about the same length: a dropped take is re-said at once. A
+  // wordless run anywhere else may be a real sentence Whisper missed, so it stays.
   if (map) {
     const phrases = phrasesOf(speech);
     for (const r of map.runs) {
@@ -123,10 +141,11 @@ export function planAutoCuts(input: {
         0,
       );
       if (covered > 0.1 * len) continue;
-      const near = phrases.filter(
-        (p) => Math.abs(p.startMs - r.endMs) < 15_000 || Math.abs(r.startMs - p.endMs) < 15_000,
-      );
-      const twin = near.some((p) => Math.abs(p.endMs - p.startMs - len) <= 0.35 * len);
+      const next = phrases.find((p) => p.startMs >= r.endMs);
+      const twin =
+        next !== undefined &&
+        next.startMs - r.endMs <= 3000 &&
+        Math.abs(next.endMs - next.startMs - len) <= 0.25 * len;
       if (twin) {
         raw.push({
           startMs: r.startMs,
@@ -210,6 +229,7 @@ export function planAutoCuts(input: {
       retakeMs: sum((c) => c.kind === 'retake' || c.kind === 'ramble'),
       fillers: cuts.filter((c) => c.kind === 'filler').length,
       measured: Boolean(map),
+      retakesSkipped,
     },
   };
 }
