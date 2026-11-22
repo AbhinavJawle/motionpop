@@ -339,12 +339,17 @@ export const ReelPlanSchema = z.object({
 });
 export type ReelPlan = z.infer<typeof ReelPlanSchema>;
 
-/** Characters of AI-written code in a plan (kept under `REEL_CUSTOM_BUDGET`, spec 30). */
+const utf8 = new TextEncoder();
+
+/**
+ * UTF-8 bytes of AI-written code in a plan (kept under `REEL_CUSTOM_BUDGET`, spec 30). Bytes, not
+ * characters: the budget protects the 1 MiB project document, and non-Latin text takes 2–4 bytes.
+ */
 export function reelCustomSize(plan: Pick<ReelPlan, 'scenes'>): number {
   let n = 0;
   for (const s of plan.scenes)
     if (s.content.template === 'custom')
-      n += s.content.html.length + s.content.css.length + s.content.script.length;
+      n += utf8.encode(s.content.html + s.content.css + s.content.script).length;
   return n;
 }
 

@@ -84,6 +84,22 @@ describe('reel.compose (spec 30)', () => {
     expect(t.system).toContain('KIT');
   });
 
+  it('never accepts picture ids past the 8 a scene can hold (spec 30 review)', () => {
+    const eight = Array.from({ length: 8 }, (_, i) => ({ id: `m${i}`, shows: `picture ${i}` }));
+    const asks = out({
+      script: 'mp.image("m8", {}); return tl;',
+      newPictures: [{ kind: 'photo', query: 'a desk' }],
+    });
+    expect(checkReelCompose(asks, input({ pictures: eight }), lintCustom)).toMatch(/m8/);
+    expect(
+      checkReelCompose(
+        out({ script: 'mp.image("m7", {}); return tl;' }),
+        input({ pictures: eight }),
+        lintCustom,
+      ),
+    ).toBeNull();
+  });
+
   it('accepts clean kit code and sends every problem back', () => {
     const lint = (p: { html: string; css: string; script: string }) => lintCustom(p);
     expect(checkReelCompose(out(), input(), lint)).toBeNull();

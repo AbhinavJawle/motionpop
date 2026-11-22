@@ -3,7 +3,7 @@ import { fixtureProject } from '@motionpop/motion/testing/project-fixture';
 import { EditorProjectSchema, type ReelPlan } from '@motionpop/schemas';
 import { describe, expect, it, vi } from 'vitest';
 import type { Route } from '@/lib/ai/route';
-import { addReelNote, fixReelScene } from '@/lib/commands';
+import { addReelNote, fixReelScene, setReel } from '@/lib/commands';
 import { LocalCredits } from '@/lib/credits/local-credits';
 import { createEditorStore } from '@/lib/stores/editor';
 import type { CustomReport, ReelCustomAssets, ReelCustomScene } from '@motionpop/motion/reel';
@@ -446,5 +446,103 @@ describe('runReelNoteFix: new motion graphics (spec 30)', () => {
       current: { kind: 'custom', title: 'Snappy flow', html: '<div class="t">Heavy lifting</div>' },
     });
     expect(t.scene().content).toMatchObject({ template: 'custom', title: 'Revised' });
+  });
+
+  it('a repair that breaks a graphic which only had layout notes keeps the first graphic', async () => {
+    const t = composeSetup({
+      reports: [CROWDED, BROKEN],
+      answers: [graphic('First'), graphic('Broken repair')],
+    });
+    expect((await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD)).kind).toBe('applied');
+    expect(t.scene().content).toMatchObject({ template: 'custom', title: 'First' });
+    expect(t.credits.balance()).toBe(46);
+  });
+
+  it('marks pictures that are not fetched yet so the writer avoids them', async () => {
+    const t = composeSetup({ answers: [graphic(), graphic('Revised')] });
+    await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD);
+    // Give the AI-written scene a picture that was never fetched.
+    const s = t.scene();
+    if (s.content.template !== 'custom') throw new Error('expected a custom scene');
+    t.store.getState().exec(
+      fixReelScene('r1', {
+        scene: { ...s, content: { ...s.content, media: [{ kind: 'photo', query: 'a desk' }] } },
+      }),
+    );
+    t.store.getState().exec(
+      addReelNote('r1', {
+        id: 'n2',
+        tMs: 900,
+        shape: { kind: 'circle', points: [0.5, 0.2, 0.3, 0.06] },
+        text: 'more color',
+        status: 'open',
+      }),
+    );
+    await runReelNoteFix(t.deps, 'r1', 'n2', CLOUD);
+    expect(t.seen[3]).toMatchObject({
+      pictures: [{ id: 'm0', shows: expect.stringContaining('(not fetched: avoid)') }],
+    });
+  });
+});
+
+describe('runReelNoteFix: the custom code budget (spec 30 review)', () => {
+  it('a reel without room for another graphic is told so before anything is spent on it', async () => {
+    const t = composeSetup({});
+    // Three big AI-written scenes in CJK text (3 bytes a character) fill the 400 kB budget.
+    const big = (id: string, startMs: number) => ({
+      id,
+      startMs,
+      endMs: startMs + 1000,
+      layout: 'speaker' as const,
+      content: {
+        template: 'custom' as const,
+        title: 'Big',
+        brief: 'Big.',
+        html: '漢'.repeat(12_000),
+        css: '漢'.repeat(12_000),
+        script: '漢'.repeat(24_000),
+      },
+    });
+    const reel = t.store.getState().project!.reel!;
+    t.store.getState().exec(
+      setReel({
+        ...reel,
+        scenes: [reel.scenes[0]!, big('b1', 3000), big('b2', 4000), big('b3', 5000)],
+      }),
+    );
+    const before = t.scene();
+    expect(await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD)).toEqual({
+      kind: 'blocked',
+      reason: 'This reel holds too many new graphics. Undo one first.',
+    });
+    // Only the note model ran; the writer never did, and the note credit came back.
+    expect(t.seen).toHaveLength(1);
+    expect(t.scene()).toEqual(before);
+    expect(t.credits.balance()).toBe(50);
+  });
+});
+
+describe('runReelNoteFix: credits never stick on an unexpected throw (spec 30 review)', () => {
+  it('a throw after the note credit was spent refunds it', async () => {
+    const t = setup(titleAnswer, {
+      look: () => {
+        throw new Error('capture blew up');
+      },
+    });
+    const before = t.scene();
+    expect(await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD)).toEqual({ kind: 'cloud-failed' });
+    expect(t.scene()).toEqual(before);
+    expect(t.credits.balance()).toBe(50);
+  });
+
+  it('a throw while building the writer input refunds both spends', async () => {
+    const t = composeSetup({});
+    t.deps.customPictures = () => {
+      throw new Error('pictures blew up');
+    };
+    const before = t.scene();
+    expect(await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD)).toEqual({ kind: 'cloud-failed' });
+    expect(t.scene()).toEqual(before);
+    expect(t.credits.balance()).toBe(50);
   });
 });

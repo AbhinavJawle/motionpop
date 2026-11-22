@@ -569,6 +569,28 @@ describe('reel.note checks and prompt (spec 29 R2)', () => {
     expect(swapped.scene.content).toMatchObject({ template: 'headline', title: 'Work smarter' });
   });
 
+  it('an edit note on an AI-written speaker overlay keeps it on the speaker (spec 30 review)', () => {
+    const overlay = sceneOf(
+      {
+        template: 'custom',
+        title: 'Lower third',
+        brief: 'A name tag over the speaker.',
+        html: '<b>x</b>',
+        css: '',
+        script: 'return tl;',
+      },
+      { layout: 'speaker' },
+    );
+    const c = reelNoteContext(overlay, WORDS, 'mono');
+    for (const o of [{ bg: 'dark' }, { layout: 'speaker' }, {}] as const) {
+      const r = applyReelNote(c, edit(o));
+      expect(r.scene.layout).toBe('speaker');
+      expect(r.scene.content).toEqual(overlay.content);
+    }
+    // Asking for a graphic layout still moves it into the panel.
+    expect(applyReelNote(c, edit({ layout: 'full' })).scene.layout).toBe('full');
+  });
+
   it('runs on the strong model in the cloud (spec 30)', () => {
     const t = reelNoteTask();
     expect(t.mode(input, {} as never)).toBe('ONLY_IN_CLOUD');

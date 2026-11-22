@@ -574,11 +574,18 @@ function applyOnce(
   };
 
   let content = scene.content;
+  // An AI-written graphic already composed as a speaker overlay (spec 30) stays there, unless the
+  // answer asks for a graphic layout.
+  const onSpeaker = (template: string) =>
+    SPEAKER_TEMPLATES.has(template as never) ||
+    (template === 'custom' &&
+      scene.layout === 'speaker' &&
+      (out.layout === undefined || out.layout === 'speaker'));
   // The speaker layout shows the speaker full-frame: a graphic the answer kept there goes
   // ("remove this graphic, just show me", "make me bigger" with only a layout change).
   const graphicOut =
     out.layout === 'speaker' &&
-    !SPEAKER_TEMPLATES.has(out.graphic ? out.graphic.template : scene.content.template)
+    !onSpeaker(out.graphic ? out.graphic.template : scene.content.template)
       ? ({ template: 'none' } as Graphic)
       : out.graphic;
   if (graphicOut) {
@@ -591,7 +598,7 @@ function applyOnce(
     content = withAssets(next, assetsOf(scene.content));
   }
   let layout = out.layout ?? scene.layout;
-  if (SPEAKER_TEMPLATES.has(content.template)) layout = 'speaker';
+  if (onSpeaker(content.template)) layout = 'speaker';
   else if (layout === 'speaker') {
     // A graphic asked onto the speaker layout keeps its old graphic layout, or the look's.
     layout = scene.layout !== 'speaker' ? scene.layout : look === 'mono' ? 'split' : 'card';

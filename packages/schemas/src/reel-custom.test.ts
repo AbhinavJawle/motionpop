@@ -44,6 +44,15 @@ describe('AI-written reel scenes (spec 30)', () => {
     );
   });
 
+  it('counts the budget in UTF-8 bytes (the project document limit), not characters', () => {
+    const plan = ReelPlanSchema.parse({
+      v: 1,
+      look: 'mono',
+      scenes: [scene({ ...custom, html: '漢字', css: '', script: 'é' })],
+    });
+    expect(reelCustomSize(plan)).toBe(3 * 2 + 2);
+  });
+
   it('its pictures are fetched and attached like any scene picture', () => {
     const plan = ReelPlanSchema.parse({ v: 1, look: 'mono', scenes: [scene(custom)] });
     expect(reelMediaOf(plan)).toEqual([{ kind: 'logo', query: 'Acme|acme.example' }]);

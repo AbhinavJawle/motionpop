@@ -214,7 +214,8 @@ export function checkReelCompose(
     problems.push(
       `keyMomentMs (${out.keyMomentMs}) is after the scene's end (${input.durationMs})`,
     );
-  const max = input.pictures.length + out.newPictures.length;
+  // Ids past the scene's 8 pictures are dropped on apply: the code can't show them.
+  const max = Math.min(8, input.pictures.length + out.newPictures.length);
   for (const m of out.script.matchAll(/mp\.image\(\s*["'`]([^"'`]+)["'`]/g)) {
     const id = m[1] ?? '';
     const n = /^m(\d)$/.exec(id);

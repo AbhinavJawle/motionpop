@@ -57,6 +57,21 @@ const hasCustomScene = (reel: ReelPlan | undefined): boolean =>
  * data URLs (a sandboxed frame can't read the page's blob: URLs). `undefined` while loading;
  * `null` when the reel has none or the runtime is missing (the scenes then show their title).
  */
+function sameCustom(
+  a: { assets: ReelCustomAssets; images: Record<string, ReelImage> } | null,
+  b: { assets: ReelCustomAssets; images: Record<string, ReelImage> } | null,
+): boolean {
+  if (a === null || b === null) return a === b;
+  if (a.assets.js !== b.assets.js || a.assets.fontCss !== b.assets.fontCss) return false;
+  const ka = Object.keys(a.images);
+  if (ka.length !== Object.keys(b.images).length) return false;
+  return ka.every((k) => {
+    const x = a.images[k];
+    const y = b.images[k];
+    return !!x && !!y && x.src === y.src && x.w === y.w && x.h === y.h;
+  });
+}
+
 function useReelCustom(
   reel: ReelPlan | undefined,
   assets: readonly ImageAsset[] | undefined,
@@ -80,7 +95,13 @@ function useReelCustom(
     void (async () => {
       const runtime = await loadReelCustomAssets();
       const images = await customPictures(ids ? ids.split(',') : [], assets);
-      if (!cancelled) setState({ key, value: runtime ? { assets: runtime, images } : null });
+      if (cancelled) return;
+      const value = runtime ? { assets: runtime, images } : null;
+      // Same scenes, same pictures (an unrelated asset landed): keep the old object, or the
+      // preview would tear down and reload every AI-written frame.
+      setState((prev) =>
+        prev && prev.key === key && sameCustom(prev.value, value) ? prev : { key, value },
+      );
     })();
     return () => {
       cancelled = true;
