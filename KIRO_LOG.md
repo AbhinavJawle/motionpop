@@ -2732,15 +2732,11 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
 
 <!-- kiro-session:sess_8b974a88-5ac5-48c3-997d-b9ad40b61fab -->
 ### 2026-11-22 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
-- started: 2026-11-22T02:57:38.934Z · last stop: 2026-11-22T02:57:56.509Z · session: sess_8b974a88-5ac5-48c3-997d-b9ad40b61fab
-- commits since start: none
+- started: 2026-11-22T02:57:38.934Z · last stop: 2026-11-22T02:58:17.691Z · session: sess_8b974a88-5ac5-48c3-997d-b9ad40b61fab
+- commits since start: 
+  - 6fc8a88 test: heavy property tests and the detection perf test survive a loaded machine
 - uncommitted changes: 
-  - `M .prettierignore`
-  - ` M KIRO_LOG.md`
-  - ` M apps/web/lib/pipeline/detect-perf.test.ts`
-  - ` M packages/motion/scripts/film-lab/gemini.ts`
-  - ` M packages/motion/src/engine/stage.property.test.ts`
-  - ` M packages/motion/src/scenes/companion-layer.test.ts`
+  - `M packages/motion/scripts/film-lab/gemini.ts`
   - ` M packages/schemas/src/config.test.ts`
   - ` M packages/schemas/src/film.ts`
   - ` M packages/schemas/src/video.test.ts`
@@ -2760,4 +2756,40 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - `?? packages/motion/scripts/film-lab/raw.ts`
   - `?? packages/motion/scripts/film-lab/record.ts`
   - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
 <!-- /kiro-session:sess_8b974a88-5ac5-48c3-997d-b9ad40b61fab -->
+
+<!-- kiro-session:sess_095a46c6-6f41-496d-8632-ae1bf5f7e199 -->
+### 2026-11-22 · Kiro CLI · agent: spec-reviewer (auto-logged by Stop hook)
+- started: unknown · last stop: 2026-11-22T03:04:59.163Z · session: sess_095a46c6-6f41-496d-8632-ae1bf5f7e199
+- commits since start: unknown (no start time recorded; see git log)
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_095a46c6-6f41-496d-8632-ae1bf5f7e199 -->

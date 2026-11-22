@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { ReelPlanSchema, type ReelScene } from '@motionpop/schemas';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { compileReel } from './compile';
-import { reelCustomDoc, reelCustomScene, seedOf } from './custom';
+import { customFrame, REEL_CUSTOM_CSP, reelCustomDoc, reelCustomScene, seedOf } from './custom';
 import { mountReel } from './mount';
 
 const custom = (o: Partial<ReelScene> = {}): ReelScene => ({
@@ -181,5 +181,133 @@ describe('AI-written reel scenes (spec 30)', () => {
     const html = compileReel(base, { ...assets, reelCustomJs: '/*custom-runtime*/' });
     expect(html).toContain('custom-runtime');
     expect(html).toContain('"customSandbox":false');
+  });
+
+  it('the sandboxed document carries a no-network CSP; the export document does not need one', () => {
+    const s = reelCustomScene({ look: 'mono', scene: custom(), words, pictures: {} })!;
+    const assets = { js: '/*rt*/', fontCss: '' };
+    const sandboxed = reelCustomDoc({ ...s, token: 't' }, assets, { csp: true });
+    expect(sandboxed).toContain('http-equiv="Content-Security-Policy"');
+    expect(REEL_CUSTOM_CSP).toContain("connect-src 'none'");
+    expect(REEL_CUSTOM_CSP).toContain("default-src 'none'");
+    // The policy comes before anything that could load.
+    expect(sandboxed.indexOf('Content-Security-Policy')).toBeLessThan(sandboxed.indexOf('<style>'));
+    expect(reelCustomDoc({ ...s, token: 't' }, assets)).not.toContain('Content-Security-Policy');
+
+    const frame = (sandbox: boolean) => {
+      const f = customFrame({ doc: document, scene: s, assets, startMs: 0, sandbox });
+      const doc = f.el.querySelector('iframe')!.getAttribute('srcdoc') ?? '';
+      f.destroy();
+      return doc;
+    };
+    expect(frame(true)).toContain('Content-Security-Policy');
+    expect(frame(false)).not.toContain('Content-Security-Policy');
+  });
+});
+
+describe('custom frame lifecycle (spec 30 review)', () => {
+  const sceneOf = () => reelCustomScene({ look: 'mono', scene: custom(), words, pictures: {} })!;
+  const tokenOf = (f: ReturnType<typeof customFrame>) =>
+    /"token":"(mpr-[^"]+)"/.exec(f.el.querySelector('iframe')!.getAttribute('srcdoc') ?? '')![1]!;
+  const reply = (f: ReturnType<typeof customFrame>, data: Record<string, unknown>) => {
+    const frame = f.el.querySelector('iframe')!;
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { mpReel: tokenOf(f), ...data },
+        source: frame.contentWindow as unknown as MessageEventSource,
+      }),
+    );
+  };
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('a frame that starts after the give-up recovers instead of staying frozen', async () => {
+    const f = customFrame({
+      doc: document,
+      scene: sceneOf(),
+      assets: { js: '', fontCss: '' },
+      startMs: 0,
+      sandbox: true,
+      timeoutMs: 20,
+    });
+    document.body.append(f.el);
+    await f.ready;
+    expect(f.buildError()).toBe('the graphic did not start in time');
+    reply(f, { ready: true });
+    expect(f.buildError()).toBeNull();
+    expect(f.error()).toBeNull();
+    f.destroy();
+  });
+
+  it('a real build error stays an error, even if a ready follows', async () => {
+    const f = customFrame({
+      doc: document,
+      scene: sceneOf(),
+      assets: { js: '', fontCss: '' },
+      startMs: 0,
+      sandbox: true,
+      timeoutMs: 1000,
+    });
+    document.body.append(f.el);
+    reply(f, { error: 'boom' });
+    await f.ready;
+    reply(f, { ready: true });
+    expect(f.buildError()).toBe('boom');
+    f.destroy();
+  });
+
+  it('ignores replies from other windows or with the wrong token', async () => {
+    const f = customFrame({
+      doc: document,
+      scene: sceneOf(),
+      assets: { js: '', fontCss: '' },
+      startMs: 0,
+      sandbox: true,
+      timeoutMs: 1000,
+    });
+    document.body.append(f.el);
+    window.dispatchEvent(
+      new MessageEvent('message', { data: { mpReel: tokenOf(f), error: 'spoof' }, source: window }),
+    );
+    reply(f, { mpReel: 'other', error: 'spoof' });
+    await wait(5);
+    expect(f.buildError()).toBeNull();
+    f.destroy();
+  });
+
+  it('a reel torn down before its fonts are in builds no frames (no leaked listeners)', async () => {
+    const fonts = {
+      load: () => new Promise<FontFace[]>((r) => setTimeout(() => r([]), 20)),
+      ready: Promise.resolve(),
+    };
+    Object.defineProperty(document, 'fonts', { value: fonts, configurable: true });
+    try {
+      const host = document.createElement('div');
+      document.body.append(host);
+      const plan = ReelPlanSchema.parse({
+        v: 1,
+        look: 'mono',
+        scenes: [custom({ startMs: 0, endMs: 3000 })],
+      });
+      const reel = mountReel(
+        host,
+        {
+          plan,
+          words,
+          durationMs: 3000,
+          video: { w: 720, h: 1280 },
+          custom: { js: '/*rt*/', fontCss: '' },
+        },
+        [],
+      );
+      reel.destroy();
+      await reel.ready;
+      expect(document.querySelector('iframe')).toBeNull();
+      expect(reel.customErrors()).toEqual([]);
+    } finally {
+      delete (document as { fonts?: unknown }).fonts;
+    }
   });
 });

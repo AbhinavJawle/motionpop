@@ -17,6 +17,10 @@ if (data && stage) {
   const reel = mountReel(stage, data, videos);
   const hasCustom = data.plan.scenes.some((s) => s.content.template === 'custom');
   let ready = false;
+  const failOnCustomErrors = () => {
+    const errors = reel.customErrors();
+    if (errors.length > 0) throw new Error(`AI-written scene failed: ${errors.join('; ')}`);
+  };
   void reel.ready.then(() => {
     ready = true;
   });
@@ -24,10 +28,17 @@ if (data && stage) {
     const detail = (e as CustomEvent<{ time: number; waitUntil?: (p: Promise<unknown>) => void }>)
       .detail;
     reel.seek(Math.round(detail.time * 1000));
-    // Until fonts are in and scenes are built, the capture waits (HyperFrames 0.9.46).
-    if (!ready) detail.waitUntil?.(reel.ready.then(() => reel.drawn()));
+    // Until fonts are in and scenes are built, the capture waits (HyperFrames 0.9.46). An
+    // AI-written scene that never built fails the render (refunded) instead of exporting a blank
+    // or frozen scene: a rejected waitUntil fails the capture.
+    if (!ready) detail.waitUntil?.(reel.ready.then(failOnCustomErrors).then(() => reel.drawn()));
     // AI-written scenes draw in their own frames (spec 30): the capture waits for this frame.
-    else if (hasCustom) detail.waitUntil?.(reel.drawn());
+    else if (hasCustom)
+      detail.waitUntil?.(
+        Promise.resolve()
+          .then(failOnCustomErrors)
+          .then(() => reel.drawn()),
+      );
   });
   window.__reel = { seek: (ms) => reel.seek(ms), ready: reel.ready };
   reel.seek(0);

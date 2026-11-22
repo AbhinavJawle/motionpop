@@ -73,12 +73,32 @@ const scriptJson = (v: unknown): string =>
     .replace(/\u2029/g, '\\u2029');
 const scriptText = (js: string): string => js.replace(/<\/script/gi, '<\\/script');
 
-/** The document of one custom scene. */
-export function reelCustomDoc(scene: ReelCustomScene, assets: ReelCustomAssets): string {
+/**
+ * The sandboxed document's policy (security-and-cost.md: strict CSP, no network): inline code
+ * only (the kit runs the scene with `new Function`), fonts and pictures from data URLs, nothing
+ * fetched. The lint and the blocked globals are not a boundary; this is.
+ */
+export const REEL_CUSTOM_CSP =
+  "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; " +
+  "font-src data:; img-src data: blob:; media-src 'none'; connect-src 'none'; " +
+  "form-action 'none'; base-uri 'none'";
+
+/**
+ * The document of one custom scene. `csp` (the editor's sandboxed frames) adds the policy; the
+ * export's frames load composition-relative pictures in their own isolated container.
+ */
+export function reelCustomDoc(
+  scene: ReelCustomScene,
+  assets: ReelCustomAssets,
+  opts: { csp?: boolean } = {},
+): string {
+  const policy = opts.csp
+    ? `<meta http-equiv="Content-Security-Policy" content="${REEL_CUSTOM_CSP}">\n`
+    : '';
   return `<!doctype html>
 <html>
 <head>
-<meta charset="utf-8">
+${policy}<meta charset="utf-8">
 <style>
 ${assets.fontCss}
   html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
@@ -113,6 +133,8 @@ export interface CustomFrame extends Tpl {
   drawn(): Promise<void>;
   /** Why the graphic failed to build or answer, or the first error a seek threw; else null. */
   error(): string | null;
+  /** Why the graphic is not showing (it failed to build, or has not answered yet); else null. */
+  buildError(): string | null;
   /** Runs the film critic inside the frame (null when the frame failed or didn't answer). */
   inspect(opts?: { allowNumbers?: string[] }): Promise<CustomReport | null>;
   destroy(): void;
@@ -144,7 +166,7 @@ export function customFrame(opts: {
   frame.setAttribute('tabindex', '-1');
   frame.setAttribute('data-reel-custom', opts.scene.params.title);
   frame.style.cssText = `position:absolute;left:0;top:0;width:${opts.scene.width}px;height:${opts.scene.height}px;border:0;background:transparent;pointer-events:none;`;
-  frame.srcdoc = reelCustomDoc({ ...opts.scene, token }, opts.assets);
+  frame.srcdoc = reelCustomDoc({ ...opts.scene, token }, opts.assets, { csp: opts.sandbox });
   el.append(frame);
 
   const timeoutMs = opts.timeoutMs ?? 4000;
@@ -152,6 +174,8 @@ export function customFrame(opts: {
   let seq = 0;
   let acked = 0;
   let failed = false;
+  /** True while `failed` only means "no answer in time": a late `ready` still brings it back. */
+  let timedOut = false;
   let failure: string | null = null;
   let seekError: string | null = null;
   let isReady = false;
@@ -160,8 +184,23 @@ export function customFrame(opts: {
   const ready = new Promise<void>((r) => {
     resolveReady = r;
   });
-  const waiters: { id: number; done: () => void }[] = [];
+  const waiters: { id: number; done: () => void; timer?: number }[] = [];
   const reports = new Map<number, (r: CustomReport | null) => void>();
+  const timers = new Set<number>();
+  const later = (fn: () => void, ms: number): number | undefined => {
+    if (!view) return undefined;
+    const t = view.setTimeout(() => {
+      timers.delete(t);
+      fn();
+    }, ms);
+    timers.add(t);
+    return t;
+  };
+  const cancel = (t: number | undefined) => {
+    if (t === undefined) return;
+    view?.clearTimeout(t);
+    timers.delete(t);
+  };
   let inspectSeq = 0;
   const flushReports = () => {
     const pending = [...reports.values()];
@@ -174,6 +213,7 @@ export function customFrame(opts: {
       const w = waiters[i]!;
       if (failed || w.id <= acked) {
         waiters.splice(i, 1);
+        cancel(w.timer);
         w.done();
       }
     }
@@ -197,6 +237,7 @@ export function customFrame(opts: {
     }
     if (d.error) {
       failed = true;
+      timedOut = false;
       failure = d.error;
       isReady = true;
       resolveReady();
@@ -204,6 +245,13 @@ export function customFrame(opts: {
       return;
     }
     if (d.ready) {
+      // A slow start (a cold render container, many frames at once) recovers: the reel gave up
+      // waiting, not on the graphic.
+      if (timedOut) {
+        failed = false;
+        timedOut = false;
+        failure = null;
+      }
       isReady = true;
       resolveReady();
       if (pendingMs !== null) post(pendingMs);
@@ -215,9 +263,10 @@ export function customFrame(opts: {
   };
   view?.addEventListener('message', onMessage);
   // A frame that never answers (a hang in generated code) must not hold the reel: give up on it.
-  const giveUp = view?.setTimeout(() => {
+  const giveUp = later(() => {
     if (!isReady) {
       failed = true;
+      timedOut = true;
       failure = 'the graphic did not start in time';
       isReady = true;
       resolveReady();
@@ -238,9 +287,10 @@ export function customFrame(opts: {
       if (acked >= seq) return Promise.resolve();
       const id = seq;
       return new Promise<void>((done) => {
-        waiters.push({ id, done });
-        view?.setTimeout(() => {
-          const i = waiters.findIndex((w) => w.id === id);
+        const w: { id: number; done: () => void; timer?: number } = { id, done };
+        waiters.push(w);
+        w.timer = later(() => {
+          const i = waiters.indexOf(w);
           if (i >= 0) {
             waiters.splice(i, 1);
             done();
@@ -251,27 +301,35 @@ export function customFrame(opts: {
     error() {
       return failure ?? seekError;
     },
+    buildError() {
+      return failed ? failure : null;
+    },
     async inspect(o = {}) {
       await ready;
       const win = frame.contentWindow;
       if (failed || !win) return null;
       const id = ++inspectSeq;
       return new Promise<CustomReport | null>((done) => {
-        reports.set(id, done);
+        const t = later(() => {
+          if (reports.delete(id)) done(null);
+        }, timeoutMs * 2);
+        // The answer clears its own timer.
+        reports.set(id, (r) => {
+          cancel(t);
+          done(r);
+        });
         const msg: CustomInspectMessage = {
           mpReel: token,
           inspect: id,
           ...(o.allowNumbers ? { allowNumbers: o.allowNumbers } : {}),
         };
         win.postMessage(msg, '*');
-        view?.setTimeout(() => {
-          if (reports.delete(id)) done(null);
-        }, timeoutMs * 2);
       });
     },
     destroy() {
       view?.removeEventListener('message', onMessage);
-      if (giveUp !== undefined) view?.clearTimeout(giveUp);
+      cancel(giveUp);
+      for (const t of [...timers]) cancel(t);
       for (const w of waiters.splice(0)) w.done();
       flushReports();
       frame.remove();

@@ -50,6 +50,8 @@ export interface ReelHandle {
   ready: Promise<void>;
   /** Resolves when every AI-written scene on screen has drawn the last seek (spec 30). */
   drawn(): Promise<void>;
+  /** Why AI-written scenes are not showing (failed to build or never answered), one per scene. */
+  customErrors(): string[];
   destroy(): void;
 }
 
@@ -319,6 +321,8 @@ export function mountReel(
                   assets: customAssets,
                   startMs: s0.startMs,
                   sandbox: data.customSandbox !== false,
+                  // The export waits longer: a cold render container starts every frame at once.
+                  ...(data.customSandbox === false ? { timeoutMs: 30_000 } : {}),
                 });
                 frames.push(f);
                 return f;
@@ -677,12 +681,16 @@ export function mountReel(
     );
   };
 
+  // Torn down before the fonts were in (the preview remounts on every change): build nothing, or
+  // the frames it would make would never be destroyed.
+  let destroyed = false;
   const ready = (async () => {
     const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
     if (fonts) {
       await Promise.all(FONT_PROBES.map((f) => fonts.load(f).catch(() => [])));
       await fonts.ready;
     }
+    if (destroyed) return;
     build();
     // Every picture is decoded before the first frame is drawn (the export waits on `ready`).
     await Promise.all(
@@ -692,6 +700,7 @@ export function mountReel(
     );
     // AI-written scenes build in their own frames (spec 30); the export waits for them too.
     await Promise.all(frames.map((f) => f.ready));
+    if (destroyed) return;
     draw(lastMs);
   })();
 
@@ -707,7 +716,11 @@ export function mountReel(
         () => undefined,
       );
     },
+    customErrors() {
+      return frames.map((f) => f.buildError()).filter((e): e is string => e !== null);
+    },
     destroy() {
+      destroyed = true;
       for (const f of frames) f.destroy();
       for (const el of [bgLayer, panel, over, capLayer]) el.remove();
       if (!existing) vwrap.remove();

@@ -139,15 +139,24 @@ if (scene && root) {
     images,
     words: scene.words,
   };
-  void document.fonts.ready.then(() => {
-    try {
-      comp = buildCustom(ctx, { ...scene.params, film: { tailMs: 0, over: 'out', headMs: 0 } });
-      seekSafe(queued?.ms ?? 0);
-      reply({ ready: true });
-      if (queued) draw(queued);
-      queued = null;
-    } catch (err) {
-      reply({ error: message(err) });
-    }
-  });
+  // Faces load lazily: ask for each family first, so the first build (and the review's text
+  // measurements) use the real fonts, not the fallback (component-contract: fonts before build).
+  const style = ctx.style;
+  const faces = [style.fonts.display, style.fonts.body, style.fonts.mono].flatMap((f) => [
+    `400 32px "${f}"`,
+    `700 32px "${f}"`,
+  ]);
+  void Promise.all(faces.map((f) => document.fonts.load(f).catch(() => [])))
+    .then(() => document.fonts.ready)
+    .then(() => {
+      try {
+        comp = buildCustom(ctx, { ...scene.params, film: { tailMs: 0, over: 'out', headMs: 0 } });
+        seekSafe(queued?.ms ?? 0);
+        reply({ ready: true });
+        if (queued) draw(queued);
+        queued = null;
+      } catch (err) {
+        reply({ error: message(err) });
+      }
+    });
 }
