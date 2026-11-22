@@ -90,7 +90,12 @@ function makeFake(mode: 'offline' | 'cloud'): Fake {
     share: async () => null,
     thumbnailUrl: async () => null,
   } as unknown as RenderClient;
-  return { client, start, push: (v) => push(view(v)) };
+  // Snapshots carry the render's cost, like the server's.
+  return {
+    client,
+    start,
+    push: (v) => push(view({ costCredits: mode === 'cloud' ? 5 : 0, ...v })),
+  };
 }
 
 function setup(mode: 'offline' | 'cloud' = 'offline') {
@@ -184,6 +189,16 @@ describe('export controller: the flow of one render', () => {
     const [a, b] = [f.start.mock.calls[0]?.[0], f.start.mock.calls[1]?.[0]];
     expect(b?.options).toEqual(a?.options);
     expect(b?.requestId).not.toBe(a?.requestId);
+  });
+
+  it('a free cloud export that fails never says the credits are back (D-074: exports cost 0)', async () => {
+    const f = setup('cloud');
+    act(() => exportStore.getState().openFromButton());
+    clickExport();
+    await flush();
+    act(() => f.push({ status: 'error', progress: 20, error: 'input-missing', costCredits: 0 }));
+    expect(await screen.findByText("That one didn't make it")).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toBe('Pip lost the voiceover on the way.');
   });
 
   it('a refused request stays on the options with the reason', async () => {

@@ -33,6 +33,10 @@ const EMULATOR_WEB_CONFIG = {
   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: 'motionpop-48409.firebasestorage.app',
   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: '0',
   NEXT_PUBLIC_FIREBASE_APP_ID: '1:0:web:emulator',
+  // No App Check against the emulators (a real site key or debug token belongs to a real project).
+  NEXT_PUBLIC_RECAPTCHA_SITE_KEY: '',
+  NEXT_PUBLIC_APPCHECK_DEBUG_TOKEN: '',
+  NEXT_PUBLIC_CLOUD_PROFILE: '',
 };
 
 const desktop = { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } };
@@ -115,9 +119,11 @@ export default defineConfig({
         // Without credentials the Admin SDK probes the GCE metadata server (~5 s per first call).
         METADATA_SERVER_DETECTION: 'none',
         JUDGE_EMAILS: 'judge@example.com',
-        // CI has no `.env.local`: a placeholder web config (the emulators accept any key), so the
-        // app runs with Firebase on instead of falling back to local mode. Never a real config.
-        ...(process.env['CI'] ? EMULATOR_WEB_CONFIG : {}),
+        // Always the placeholder web config (the emulators accept any key): CI has no
+        // `.env.local`, and locally `.env.local` follows the active cloud profile, whose project
+        // id would differ from the emulators' (the client then listens to an empty project and
+        // the credits never load). Never a real config.
+        ...EMULATOR_WEB_CONFIG,
       },
       reuseExistingServer: false,
       timeout: 180_000,

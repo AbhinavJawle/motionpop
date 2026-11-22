@@ -45,14 +45,6 @@ async function uidFor(email: string): Promise<string> {
   return uid;
 }
 
-type Fields = Record<string, { integerValue?: string; stringValue?: string }>;
-
-async function readDoc(docPath: string): Promise<Fields | null> {
-  const res = await fetch(`${DOCS}/${docPath}`, { headers: OWNER });
-  if (res.status === 404) return null;
-  return ((await res.json()) as { fields: Fields }).fields;
-}
-
 /** Creates an account through the sign-in screen and lands in the demo editor with 20 credits. */
 async function signUp(page: Page, email: string): Promise<void> {
   await page.goto('/editor/demo');
@@ -82,7 +74,7 @@ function probe(file: string) {
 test.describe('Export (emulators, real job process)', () => {
   test.beforeEach(clearEmulators);
 
-  test('charges the shown cost, renders, downloads, shares, and the share page plays', async ({
+  test('exports for free (D-074), renders, downloads, shares, and the share page plays', async ({
     page,
     browser,
     context,
@@ -96,9 +88,9 @@ test.describe('Export (emulators, real job process)', () => {
 
     await page.getByRole('button', { name: 'Export' }).first().click();
     const dialog = page.getByRole('dialog', { name: 'Export video' });
-    await expect(dialog.getByText('Cost: 5 credits')).toBeVisible();
-    await expect(dialog.getByText('20 available')).toBeVisible();
-    // The cloud-mode options for the design check (the cost row the offline mode hides).
+    // Exports are free in credits (D-074): the cost row says so.
+    await expect(dialog.getByText('Free', { exact: true })).toBeVisible();
+    // The cloud-mode options for the design check.
     await page.waitForTimeout(2_000);
     mkdirSync(DESIGN_OUT, { recursive: true });
     writeFileSync(
@@ -107,8 +99,6 @@ test.describe('Export (emulators, real job process)', () => {
     );
 
     await dialog.getByRole('button', { name: 'Export video' }).click();
-    // The balance drops by the cost that was shown, in the dialog's chip and in the ledger.
-    await expect(page.getByRole('button', { name: '15 credits' })).toBeVisible({ timeout: 30_000 });
     const bar = page.getByRole('progressbar', { name: 'Export progress' });
     await expect(bar).toBeVisible({ timeout: 30_000 });
 
@@ -118,11 +108,12 @@ test.describe('Export (emulators, real job process)', () => {
     const ready = page.getByRole('dialog', { name: 'Your video is ready' });
     await expect(ready.getByText('1080p · 16:9 · 18 sec')).toBeVisible();
 
-    // The ledger holds exactly one export entry for 5 credits and no refund.
+    // Nothing was spent: the balance is untouched and the ledger has no export or refund entry.
+    await expect(page.getByRole('button', { name: '20 credits' })).toBeVisible();
     const ledger = await fetch(`${DOCS}/users/${uid}/credits`, { headers: OWNER });
     const entries = ((await ledger.json()) as { documents?: { name: string }[] }).documents ?? [];
     const ids = entries.map((d) => d.name.split('/').pop() ?? '');
-    expect(ids.filter((id) => id.startsWith('export-'))).toHaveLength(1);
+    expect(ids.filter((id) => id.startsWith('export-'))).toHaveLength(0);
     expect(ids.filter((id) => id.startsWith('refund-'))).toHaveLength(0);
 
     // Download (streamed through the route in emulator mode), then look at the file.
@@ -137,7 +128,8 @@ test.describe('Export (emulators, real job process)', () => {
     const info = probe(file);
     const video = info.streams.find((s) => s.codec_type === 'video');
     expect([video?.width, video?.height]).toEqual([1920, 1080]);
-    expect(Math.abs(Number(info.format.duration) - 18)).toBeLessThanOrEqual(0.1);
+    // 0.1 s, plus float noise (18.1 - 18 is 0.10000000000000142).
+    expect(Math.abs(Number(info.format.duration) - 18)).toBeLessThanOrEqual(0.1 + 1e-9);
 
     // Copy share link, then open it in a fresh context (no cookies, no account).
     await ready.getByRole('button', { name: 'Copy share link' }).click();
@@ -166,7 +158,7 @@ test.describe('Export (emulators, real job process)', () => {
     expect(errors).toEqual([]);
   });
 
-  test('a failed render shows the error state and the credits come back', async ({ page }) => {
+  test('a failed render shows the error state and spends nothing', async ({ page }) => {
     test.setTimeout(240_000);
     const errors = trackPageErrors(page);
     const email = 'unlucky@example.com';
@@ -175,7 +167,7 @@ test.describe('Export (emulators, real job process)', () => {
 
     // Break the voiceover: the stored project points at audio that is not audio. The export
     // uploads it, the server accepts it (a Storage object of type audio/*), and the job's
-    // ffprobe rejects it (`input-missing`), which refunds.
+    // ffprobe rejects it (`input-missing`).
     await page.getByRole('button', { name: 'Rename project, Untitled Project' }).click();
     await page.getByLabel('Project title').fill('Broken voice');
     await page.keyboard.press('Enter');
@@ -235,19 +227,13 @@ test.describe('Export (emulators, real job process)', () => {
     await dialog.getByRole('button', { name: 'Export video' }).click();
 
     await expect(dialog.getByText("That one didn't make it")).toBeVisible({ timeout: 180_000 });
-    await expect(dialog.getByRole('alert')).toHaveText(
-      'Pip lost the voiceover on the way. Your credits are back.',
-    );
-    // The balance is back, and the ledger shows one spend and one refund.
+    // A free export spent nothing, so the copy doesn't promise credits back (D-074).
+    await expect(dialog.getByRole('alert')).toHaveText('Pip lost the voiceover on the way.');
     await expect(page.getByRole('button', { name: '20 credits' })).toBeVisible({ timeout: 30_000 });
     const ledger = await fetch(`${DOCS}/users/${uid}/credits`, { headers: OWNER });
     const entries = ((await ledger.json()) as { documents?: { name: string }[] }).documents ?? [];
     const ids = entries.map((d) => d.name.split('/').pop() ?? '');
-    expect(ids.filter((id) => id.startsWith('export-'))).toHaveLength(1);
-    const refund = ids.find((id) => id.startsWith('refund-'));
-    expect(refund).toBeDefined();
-    const refundDoc = await readDoc(`users/${uid}/credits/${refund}`);
-    expect(refundDoc?.['balanceAfter']?.integerValue).toBe('20');
+    expect(ids.filter((id) => id.startsWith('export-') || id.startsWith('refund-'))).toEqual([]);
     expect(errors.filter((e) => !/voiceover/i.test(e))).toEqual([]);
   });
 });

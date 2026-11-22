@@ -65,6 +65,9 @@ export function ExportController() {
   const costOverride = useExportUi((s) => s.costOverride);
 
   const free = client.mode === 'offline';
+  // Nothing to give back when nothing was spent: offline, or a render that cost 0 credits (exports
+  // are free by default, D-074). Error copy must not say "Your credits are back" then.
+  const nothingSpent = free || view?.costCredits === 0;
   const baseOptions =
     storedOptions ??
     (project ? defaultOptions(project.format, project.captions?.enabled ?? true) : null);
@@ -164,7 +167,7 @@ export function ExportController() {
     const before = lastStatus.current;
     lastStatus.current = { id: renderId, status: view?.status ?? null };
     if (before.id !== renderId) return;
-    const t = transitionToast(before.status, view, open, free);
+    const t = transitionToast(before.status, view, open, nothingSpent);
     if (!t) return;
     if (t.kind === 'ready') {
       toast.success('Your video is ready', {
@@ -204,7 +207,7 @@ export function ExportController() {
       optionsState={optionsState}
       renderView={view}
       startError={startError}
-      free={free}
+      free={nothingSpent}
       client={client}
       onOptions={(next) => exportStore.getState().setOptions(next)}
       onExport={() => void start(options)}
