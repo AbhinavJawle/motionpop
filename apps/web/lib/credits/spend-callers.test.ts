@@ -16,6 +16,8 @@ const ALLOWED = new Set([
   'lib/slots/quick-edit.ts',
   // The frame-note flow (spec 09 task 20).
   'lib/notes/note-fix.ts',
+  // Frame notes on reels (spec 29): 1 credit on the cloud route, refunded when nothing lands.
+  'lib/reel/note-fix.ts',
   // Film mode's own spend sites: each is refunded when no beat or film comes back.
   'lib/film/film.ts',
   'lib/film/rebuild.ts',

@@ -21,6 +21,7 @@ import {
   cleanedToSourceMs,
   keptSourceSegments,
   reelMediaOf,
+  reelSceneData,
   type ImageAsset,
   type ReelPlan,
 } from '@motionpop/schemas';
@@ -206,7 +207,20 @@ function useReelBedUrl(
 export function ReelPreview() {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const reel = useEditor((s) => s.project?.reel);
+  const storedReel = useEditor((s) => s.project?.reel);
+  // The engine sees the plan without its frame notes (spec 29): adding or fixing the status of a
+  // note never remounts the stage or reloads the video; a real scene change does.
+  const engineKey = useMemo(
+    () =>
+      storedReel
+        ? JSON.stringify({ ...storedReel, scenes: storedReel.scenes.map(reelSceneData) })
+        : '',
+    [storedReel],
+  );
+  const reel = useMemo(
+    () => (engineKey ? (JSON.parse(engineKey) as ReelPlan) : undefined),
+    [engineKey],
+  );
   const video = useEditor((s) => s.project?.video);
   const words = useEditor((s) => s.project?.transcript.words);
   const durationMs = useEditor((s) => s.project?.durationMs ?? 0);
@@ -315,8 +329,7 @@ export function ReelPreview() {
       return [a];
     });
     tracksRef.current = els;
-    if (editorStore.getState().playing)
-      playTracks(els, editorStore.getState().playheadMs / 1000);
+    if (editorStore.getState().playing) playTracks(els, editorStore.getState().playheadMs / 1000);
     return () => {
       pauseTracks(els, true);
       if (tracksRef.current === els) tracksRef.current = [];
@@ -354,6 +367,7 @@ export function ReelPreview() {
     <div ref={frameRef} className="absolute inset-0 overflow-hidden bg-black">
       <div
         ref={hostRef}
+        data-reel-stage
         style={{
           position: 'absolute',
           left: 0,

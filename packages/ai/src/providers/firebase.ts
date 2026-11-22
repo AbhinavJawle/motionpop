@@ -51,8 +51,18 @@ export function firebaseProvider(getAI: () => Promise<AI>): AIProvider {
         }
       }
       const result = await model.generateContent(parts);
+      let text: string;
+      try {
+        text = result.response.text();
+      } catch (err) {
+        // A RECITATION stop is a false positive on short JSON answers ("Candidate was blocked due
+        // to RECITATION"): hand back an empty answer so the router repairs it with a fresh sample
+        // instead of failing the action outright (seen on `reel.note`, spec 29).
+        if (!/RECITATION/.test(err instanceof Error ? err.message : String(err))) throw err;
+        text = '';
+      }
       return {
-        text: result.response.text(),
+        text,
         ranOn: result.response.inferenceSource === 'on_device' ? 'device' : 'cloud',
       };
     },

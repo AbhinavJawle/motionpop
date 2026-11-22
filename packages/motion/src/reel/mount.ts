@@ -132,6 +132,8 @@ export function mountReel(
     overflow: 'hidden',
     background: '#111',
   });
+  // Hooks for frame notes (spec 29): what a circle on the preview lands on. Inert at render.
+  vwrap.setAttribute('data-reel-part', 'speaker');
   const over = h('div', {
     position: 'absolute',
     left: 0,
@@ -175,6 +177,7 @@ export function mountReel(
     whiteSpace: 'nowrap',
     visibility: 'hidden',
   });
+  cap.setAttribute('data-reel-part', 'caption');
   capLayer.append(cap);
 
   // Hook band (mono): the title over the first seconds.
@@ -202,6 +205,7 @@ export function mountReel(
       },
       [plan.hook],
     );
+    hookEl.setAttribute('data-reel-part', 'hook');
     over.append(hookEl);
   }
 
@@ -233,6 +237,7 @@ export function mountReel(
         overflow: 'hidden',
         visibility: 'hidden',
       });
+      sceneHost.setAttribute('data-reel-scene', s0.id);
       const bg = isOverlay
         ? undefined
         : h('div', {
@@ -262,6 +267,7 @@ export function mountReel(
         layout,
         img,
       });
+      cam.setAttribute('data-reel-part', 'graphic');
       cam.append(tpl.el);
       sceneHost.append(cam);
       let tag: HTMLElement | undefined;
@@ -272,6 +278,7 @@ export function mountReel(
           22,
         );
         css(tag, { position: 'absolute', left: '50%', top: 40, transform: 'translateX(-50%)' });
+        tag.setAttribute('data-reel-part', 'tag');
         const tagWrap = h('div', {
           position: 'absolute',
           left: 0,
@@ -292,6 +299,12 @@ export function mountReel(
         ...(bg ? { bg } : {}),
         ...(tag ? { tag } : {}),
       });
+    }
+    // Frame notes (spec 29) name the picture a circle lands on: tag each <img> with its asset id.
+    const bySrc = new Map(Object.entries(images).map(([id, pic]) => [pic.src, id]));
+    for (const im of host.querySelectorAll('img')) {
+      const id = bySrc.get(im.getAttribute('src') ?? '');
+      if (id) im.setAttribute('data-reel-asset', id);
     }
     // Measure with everything laid out but invisible.
     for (const v of views) {
@@ -375,7 +388,7 @@ export function mountReel(
       // Zoom in far enough that the face can sit where the box wants it (a speaker off to one
       // side of a wide shot), never more than 2.4× the plain cover crop.
       const cover = Math.max(box.w / vw, box.h / vh);
-      const needW = (box.w / 2) / Math.max(0.05, Math.min(f.x, 1 - f.x));
+      const needW = box.w / 2 / Math.max(0.05, Math.min(f.x, 1 - f.x));
       const needH = Math.max(
         (box.h * box.ay) / Math.max(0.05, f.y),
         (box.h * (1 - box.ay)) / Math.max(0.05, 1 - f.y),
@@ -550,9 +563,7 @@ export function mountReel(
       v.host.style.zIndex = z ? String(z) : '';
       if (v.bg) v.bg.style.opacity = bgOp >= 0.999 ? '' : bgOp.toFixed(3);
       v.cam.style.transform =
-        ty || scale !== 1
-          ? `translate3d(0, ${ty.toFixed(2)}px, 0) scale(${scale.toFixed(4)})`
-          : '';
+        ty || scale !== 1 ? `translate3d(0, ${ty.toFixed(2)}px, 0) scale(${scale.toFixed(4)})` : '';
       v.cam.style.opacity = op >= 0.999 ? '' : Math.max(0, op).toFixed(3);
       v.cam.style.filter = blur > 0.05 ? `blur(${blur.toFixed(2)}px)` : 'none';
       if (v.tag) {

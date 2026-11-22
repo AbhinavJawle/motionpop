@@ -767,3 +767,37 @@ Template:
   - The voiceover (non-reel) path still uses the older word-gap cleanup.
   - The Storage rule for 500 MB exports is deployed to the lab project only.
   - Commits are local, not pushed.
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) + Kiro CLI (commits only) · spec 29 frame notes on reels
+- **Founder ask:** "where did the [pen] edit button go … circle around stuff or text on the preview, make a comment in the small input … and the change would be immediately applied to the motion graphic or text? Would it work?" Then: "Implement this reliably … it should be GOOD."
+- **Why it was gone:** frame notes (spec 09) only knew slot graphics. Reels have their own engine, plan and toolbar, so the pen was never shown there, and `note.fix` patches slot params, which a reel scene (strict template, ms cues, fetched pictures) doesn't have.
+- **Built (spec 29):**
+  - Notes on reel scenes (`ReelNoteSchema`). The preview's engine key strips notes, so drawing never remounts the video.
+  - `mountReel` tags its parts (graphic, speaker, caption, tag, hook, scene, picture). `readReelTarget` reads what a circle covers (parts, visible texts, pictures). `captureReelRegion` makes a ≤ 512 px JPEG of it, video frame included.
+  - `reel.note` in `packages/ai`: the scene in the director's language with the spoken words, the circled parts and the note. The answer is mapped back in code: cues and fetched assets kept, layouts and looks enforced, new logos requested. Caption fixes go to the transcript, which the export reads. Routed like `note.fix`: free on-device, 1 credit in the cloud, refunded on any non-apply.
+  - Undoable commands (`fixReelScene` with hook and caption fixes, as one "Fix note" step). New pictures are fetched in the background after the fix lands.
+  - The notes overlay is shared with slots (`NotesOverlay`), the pen is first in the reel toolbar, and the bubble shows "✓ Fixed" with Pip's one-line message.
+- **Director bug found on the way:** `contentFor` read `.text.trim()` on `logos` items, which have no text. Any cloud plan with a logos scene threw and the reel silently fell back to the free director. The founder's reel was such a fallback, which explains part of the "5/10". Fixed, with a regression test. A fresh upload of the founder's clip now gets the `gemini-4-neon` plan (14 scenes, real logos).
+- **Lab (real cloud calls, `scripts/reel-note-lab.ts`, same parse, check and repair as the app):**
+  - 18 realistic notes on the founder's reel and 5 on the fresh one: all handled.
+  - Fonts and pixel moves are politely refused. "Make me bigger" goes to the speaker layout. "Remove this item" on a two-item list shows the last item alone.
+  - Typically 2–4 s.
+- **Fixes the lab and the real app forced:**
+  - The speaker layout drops a kept graphic, and equality ignores key order.
+  - Left-out fields are kept (`carryOver`): logos on retyped list items, a kicker next to a changed label, logos and icons on swapped compare sides. When leaving a field out is the only change, it is applied as a removal ("remove this small text").
+  - Text that would be cut mid-word goes back to the model ("Train my assista" became "Train assistant").
+  - A RECITATION stop (the SDK's `text()` throws) now gets the router's repair instead of failing the note. This was the first real-app failure.
+  - Counter prefix and suffix lose outer spaces. A director suffix of `" tools? "` made the model ramble inside the JSON for 30 s.
+- **Verified:**
+  - Real app (local dev server on the lab profile, headless Chrome, e2e user), fresh upload of the founder's clip. Pen → circle → note → fixed: label change, kicker removal, subtitle, side swap, list step, logo swap with "Picture added", and the CTA, each 4–7 s after the first call. Undo restores each one.
+  - A bogus caption note came back unapplied with Pip's reason and "Fix again", and the credit was refunded.
+  - The slot notes spec (`e2e/note-design.spec.ts`) passes 3/3.
+  - Typecheck and lint green. Tests: schemas 24, ai 35 files (500 tests), motion 67, render 26, web 142 of 143 files. `detect-perf` (a 150 ms budget) fails under parallel load and passes alone (twice).
+- **Lab spend (lower bound):** about 110 `reel.note` calls on `gemini-3.8-flash` (cents), a few director runs on `gemini-4-neon` (about $0.10–0.20), and one real-app reel (director, about 7 images, music) plus about 20 in-app note calls on the judge plan.
+- **Gaps:**
+  - The first cloud note of a browser session took 15–30 s through the Firebase AI proxy; later ones take 4–7 s, and the lab hitting the endpoint directly takes 2–4 s. Not explained yet.
+  - A reel's source video lives only on the device that uploaded it (`idb:` ref), so another browser shows an empty stage. That's pre-existing, not from this spec.
+  - Notes can't move things by pixels, change fonts or restyle captions.
+  - Name-only logos fall back to the icon set or the favicon when the model skips the domain.
+  - The on-device route (Nano) was not exercised here (headless Chrome has no model).
+  - Commits are local, not pushed.

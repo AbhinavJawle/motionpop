@@ -31,3 +31,4 @@ export * from './reel/director';
 export * from './reel/auto';
 export * from './reel/edit';
 export { REEL_DIRECT_SYSTEM_V3, reelDirectPromptV3 } from './reel/prompt';
+export * from './reel/note';

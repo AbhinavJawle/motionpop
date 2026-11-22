@@ -277,7 +277,11 @@ export async function directReelPaid(
   );
   if (!spent?.ok) return directReel(null, base);
   const r = await directReel(router, withFrames);
-  if (r.source !== 'cloud') await deps.credits.refund(spent.txId).catch(() => {});
+  if (r.source !== 'cloud') {
+    // Never silent (spec 29): a director failure used to fall back to the free plan unseen.
+    console.warn('Reel director failed; using the free director:', r.error);
+    await deps.credits.refund(spent.txId).catch(() => {});
+  }
   return r;
 }
 

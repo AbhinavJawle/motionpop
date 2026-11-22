@@ -129,6 +129,7 @@ export function NoteView({
   n,
   placement,
   fixed,
+  fixedMessage,
   busy,
   notice,
   onDelete,
@@ -141,6 +142,8 @@ export function NoteView({
   placement: BubblePlacement;
   /** Shown as fixed (for 4 s after the fix). */
   fixed: boolean;
+  /** What the fix changed, in one sentence (reel notes, spec 29). */
+  fixedMessage?: string | undefined;
   busy: boolean;
   notice: NoteNotice | null;
   onDelete: () => void;
@@ -191,6 +194,14 @@ export function NoteView({
           >
             <X className="size-3" strokeWidth={1.5} aria-hidden />
           </button>
+        </span>
+      )}
+      {fixed && !busy && fixedMessage && (
+        <span
+          className="relative basis-full pb-0.5 pl-[23px] text-[10px] leading-[13px] text-text-2"
+          data-note-fixed-message
+        >
+          {fixedMessage}
         </span>
       )}
       {!busy && !fixed && notice !== null && (

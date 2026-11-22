@@ -26,6 +26,7 @@ import { useEditor, type SaveStatus } from '@/lib/stores/editor';
 import { useUploadState, type UploadState } from '@/lib/audio/use-upload-state';
 import { audioRefsOf } from '@/lib/projects/summary';
 import { FrameNotesLayer } from '@/components/notes/frame-notes-layer';
+import { ReelNotesLayer } from '@/components/notes/reel-notes-layer';
 import { OfflineBanner } from './offline-banner';
 import { PreviewBadge } from './preview-badge';
 import { PreviewProgress } from './preview-progress';
@@ -39,11 +40,17 @@ const ASPECT: Record<Format, string> = { '16:9': '16 / 9', '9:16': '9 / 16', '1:
  * The pen (spec 09 R8.1): turns draw mode on and pauses playback; off with no slot under the
  * playhead ("Notes go on a graphic. Move the playhead onto one.").
  */
-function PenButton() {
+function PenButton({ reel = false }: { reel?: boolean }) {
   const on = useEditor((s) => s.drawMode);
   const setDrawMode = useEditor((s) => s.setDrawMode);
+  const setPlaying = useEditor((s) => s.setPlaying);
+  // A reel always has a scene under the playhead (scenes tile it, spec 29).
   const hasSlot = useEditor((s) =>
-    s.project ? slotAt(s.project.slots, s.playheadMs) !== null : false,
+    s.project
+      ? reel
+        ? Boolean(s.project.reel?.scenes.length)
+        : slotAt(s.project.slots, s.playheadMs) !== null
+      : false,
   );
   const button = (
     <button
@@ -51,8 +58,10 @@ function PenButton() {
       aria-label="Draw a note"
       aria-pressed={on}
       aria-disabled={!hasSlot}
+      title={reel ? 'Draw a note: circle anything and say what to change' : undefined}
       onClick={() => {
         if (!hasSlot) return;
+        if (!on) setPlaying(false);
         setDrawMode(!on);
       }}
       className={cn(
@@ -100,6 +109,8 @@ function ReelTools() {
   const { client: credits } = useCreditsClient();
   return (
     <>
+      <PenButton reel />
+      <ToolbarDivider />
       <div className="flex items-center gap-2 pr-3.5 pl-3.5">
         <Dropdown
           label="Reel look"
@@ -249,7 +260,7 @@ export function PreviewPane() {
           style={{ aspectRatio: ASPECT[format], height: isReel ? '100%' : 'min(405px, 100%)' }}
         >
           {isReel ? <ReelPreview /> : <PreviewPlayer />}
-          {!isReel && <FrameNotesLayer />}
+          {isReel ? <ReelNotesLayer /> : <FrameNotesLayer />}
           <PreviewProgress />
           <PreviewBadge />
           <OfflineBanner />

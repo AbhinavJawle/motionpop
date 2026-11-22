@@ -48,3 +48,10 @@ export {
   updateMediaClips,
 } from './video';
 export { setReel, setReelCaptions, setReelLook } from './reel';
+export {
+  addReelNote,
+  deleteReelNote,
+  fixReelScene,
+  setReelNoteStatus,
+  type ReelSceneFix,
+} from './reel-notes';

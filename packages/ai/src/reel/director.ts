@@ -149,7 +149,7 @@ const G = {
 
 export const REEL_TEMPLATE_IDS = Object.keys(G) as (keyof typeof G)[];
 
-const GraphicSchema = z.discriminatedUnion('template', [
+export const GraphicSchema = z.discriminatedUnion('template', [
   G.headline,
   G.list,
   G.stack,
@@ -171,7 +171,8 @@ const GraphicSchema = z.discriminatedUnion('template', [
   G.cta,
   G.none,
 ]);
-type Graphic = z.infer<typeof GraphicSchema>;
+/** One scene's graphic in the director's language (word indices, brand names, subjects). */
+export type Graphic = z.infer<typeof GraphicSchema>;
 
 const BEATS = ['hook', 'setup', 'tension', 'turn', 'proof', 'payoff', 'cta'] as const;
 const DirectedSceneSchema = z.object({
@@ -211,25 +212,27 @@ export type ReelDirectOutput = z.input<typeof ReelDirectOutputSchema>;
 type DirectedScene = z.infer<typeof DirectedSceneSchema>;
 
 /** Gemini structured-output schema: one `anyOf` branch per template, its fields required. */
-export function reelDirectJsonSchema(): Record<string, unknown> {
-  const s = { type: 'string' };
-  const n = { type: 'number' };
-  const i = { type: 'integer' };
-  const obj = (props: Record<string, unknown>, required: string[]) => ({
-    type: 'object',
-    properties: props,
-    required,
-  });
-  const arr = (items: unknown, minItems?: number, maxItems?: number) => ({
-    type: 'array',
-    items,
-    ...(minItems !== undefined ? { minItems } : {}),
-    ...(maxItems !== undefined ? { maxItems } : {}),
-  });
+const s = { type: 'string' };
+const n = { type: 'number' };
+const i = { type: 'integer' };
+const obj = (props: Record<string, unknown>, required: string[]) => ({
+  type: 'object',
+  properties: props,
+  required,
+});
+const arr = (items: unknown, minItems?: number, maxItems?: number) => ({
+  type: 'array',
+  items,
+  ...(minItems !== undefined ? { minItems } : {}),
+  ...(maxItems !== undefined ? { maxItems } : {}),
+});
+
+/** The structured-output branches of a graphic, one per template (shared with `reel.note`). */
+export function reelGraphicBranches(): Record<string, unknown>[] {
   const t = (id: string) => ({ type: 'string', enum: [id] });
   const item = (extra: Record<string, unknown> = {}, req: string[] = []) =>
     obj({ word: i, text: s, ...extra }, ['word', 'text', ...req]);
-  const branches = [
+  return [
     obj({ template: t('headline'), title: s, kicker: s, sub: s, accent: s }, ['template', 'title']),
     obj(
       { template: t('list'), title: s, kicker: s, items: arr(item({ icon: s, brand: s }), 2, 5) },
@@ -336,6 +339,10 @@ export function reelDirectJsonSchema(): Record<string, unknown> {
     obj({ template: t('cta'), verb: s, keyword: s }, ['template', 'verb', 'keyword']),
     obj({ template: t('none') }, ['template']),
   ];
+}
+
+export function reelDirectJsonSchema(): Record<string, unknown> {
+  const branches = reelGraphicBranches();
   return obj(
     {
       story: obj({ topic: s, arc: arr(s), motif: s }, ['topic', 'arc', 'motif']),
@@ -398,7 +405,7 @@ export function reelTemplateDirectTask(): TaskDef<ReelDirectInput, ReelDirectOut
 const ICONS = new Set<string>(REEL_ICONS);
 const iconOr = (name: string | undefined, dflt: string): string =>
   name && ICONS.has(name.trim()) ? name.trim() : dflt;
-const cut = (s: string | undefined, max: number): string | undefined => {
+export const cut = (s: string | undefined, max: number): string | undefined => {
   const t = (s ?? '').replace(/\s+/g, ' ').trim();
   if (!t) return undefined;
   if (t.length <= max) return t;
@@ -422,7 +429,7 @@ const DANGLING = new Set(
   ),
 );
 
-const SPEAKER_TEMPLATES = new Set(['punch', 'cta', 'none']);
+export const SPEAKER_TEMPLATES: ReadonlySet<string> = new Set(['punch', 'cta', 'none']);
 
 /** Models sometimes URL-encode symbols ("%2B" for "+"). */
 function unescape(s: string | undefined): string {
@@ -434,7 +441,8 @@ function unescape(s: string | undefined): string {
   }
 }
 
-type Brands = ReadonlyMap<string, string | undefined>;
+/** Brand name (lowercase) → domain, for logo requests. */
+export type Brands = ReadonlyMap<string, string | undefined>;
 /** A logo request for a spoken brand (its domain helps the fallback icon). */
 function logoMedia(brand: string | undefined, brands: Brands): ReelMedia | undefined {
   const name = cut(brand, 60);
@@ -444,13 +452,16 @@ function logoMedia(brand: string | undefined, brands: Brands): ReelMedia | undef
 }
 
 /** Builds the template content for one directed scene; null when it can't be made valid. */
-function contentFor(
+export function contentFor(
   g: Graphic,
   at: (word: number | undefined, i: number) => number,
   brands: Brands,
 ): ReelTemplate | null {
   const items =
-    'items' in g ? (g.items as z.infer<typeof Item>[]).filter((x) => x.text.trim().length > 0) : [];
+    'items' in g
+      ? // `logos` items carry a brand and no text: never read a missing text.
+        (g.items as z.infer<typeof Item>[]).filter((x) => (x.text ?? '').trim().length > 0)
+      : [];
   const cued = <T>(max: number, f: (x: z.infer<typeof Item>, i: number) => T) =>
     items.slice(0, max).map(f);
   let c: unknown;
@@ -526,8 +537,9 @@ function contentFor(
         template: 'counter',
         value: g.value,
         decimals: Math.max(0, Math.min(2, Math.round(g.decimals ?? 0))),
-        prefix: unescape(g.prefix).slice(0, 4),
-        suffix: unescape(g.suffix).slice(0, 8),
+        // Inner spaces matter ("$", " tools"); outer ones are noise (" tools? ").
+        prefix: unescape(g.prefix).trimStart().slice(0, 4),
+        suffix: unescape(g.suffix).trimEnd().slice(0, 8),
         label: cut(g.label, 36),
         kicker: cut(g.kicker, 36),
         icon: g.icon ? iconOr(g.icon, 'trending-up') : undefined,
@@ -670,7 +682,7 @@ function contentFor(
   return parsed.success ? parsed.data : null;
 }
 
-function stripUndefined(v: unknown): unknown {
+export function stripUndefined(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(stripUndefined);
   if (v && typeof v === 'object') {
     const out: Record<string, unknown> = {};
@@ -819,9 +831,8 @@ function footageFor(
   }
   const focus = [...byTime.values()].sort((a, b) => a.atMs - b.atMs);
   // No face anywhere means there is no talking head to crop to.
-  const kind = f.kind === 'talking-head' && focus.length === 0 && frameTimesMs.length > 0
-    ? 'scene'
-    : f.kind;
+  const kind =
+    f.kind === 'talking-head' && focus.length === 0 && frameTimesMs.length > 0 ? 'scene' : f.kind;
   return { kind, focus };
 }
 

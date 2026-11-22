@@ -221,6 +221,26 @@ export type ReelTemplateId = ReelTemplate['template'];
 
 export const REEL_SPEAKER_TEMPLATES = ['punch', 'cta', 'none'] as const;
 
+/**
+ * A note drawn on a reel scene (spec 29): the same shape as a slot's `FrameNote` (spec 09), so
+ * the note UI is shared. `tMs` is relative to the scene start. Defined here, not imported from
+ * `project.ts`, because `project.ts` imports this file. Limits are checked by the commands.
+ */
+export const ReelNoteSchema = z.object({
+  id: z.string().min(1),
+  tMs: ms,
+  shape: z.object({
+    kind: z.enum(['circle', 'path']),
+    points: z.array(z.number()),
+  }),
+  text: z.string(),
+  status: z.enum(['open', 'fixed']),
+  fixedVersionId: z.string().min(1).optional(),
+});
+export type ReelNote = z.infer<typeof ReelNoteSchema>;
+/** Most notes a scene keeps (the oldest fixed ones go first). */
+export const REEL_NOTES_PER_SCENE = 12;
+
 export const ReelSceneSchema = z
   .object({
     id: z.string().min(1).max(40),
@@ -233,9 +253,18 @@ export const ReelSceneSchema = z
     /** Continues the previous graphic across a cut (spec 26 R1.5): no entrance replay. */
     carry: z.boolean().optional(),
     content: ReelTemplateSchema,
+    /** Frame notes on this scene (spec 29). */
+    notes: z.array(ReelNoteSchema).max(40).optional(),
   })
   .refine((s) => s.endMs > s.startMs, { message: 'endMs must be > startMs', path: ['endMs'] });
 export type ReelScene = z.infer<typeof ReelSceneSchema>;
+
+/** A scene's data without its frame notes (what the engine draws; spec 29). */
+export function reelSceneData(s: ReelScene): Omit<ReelScene, 'notes'> {
+  const { notes, ...rest } = s;
+  void notes;
+  return rest;
+}
 
 export const ReelWordSchema = z.object({
   text: z.string(),

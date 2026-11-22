@@ -146,6 +146,30 @@ describe('toReelPlan', () => {
     expect(plan.scenes[1]!).toMatchObject({ layout: 'speaker', content: { template: 'none' } });
   });
 
+  // Regression (spec 29): a `logos` scene (items without text) threw, sinking the whole plan.
+  it('keeps a logos scene', () => {
+    const out: ReelDirectOutput = {
+      scenes: [
+        {
+          fromWord: 0,
+          toWord: 8,
+          layout: 'split',
+          graphic: {
+            template: 'logos',
+            title: 'Stack',
+            items: [
+              { word: 1, brand: 'Acme' },
+              { word: 3, brand: 'Beta' },
+            ],
+          },
+        },
+        { fromWord: 9, toWord: 20, layout: 'speaker', graphic: { template: 'none' } },
+      ],
+    };
+    const plan = toReelPlan(out, ws, dur, 'mono', 'test');
+    expect(plan.scenes[0]!.content).toMatchObject({ template: 'logos', title: 'Stack' });
+  });
+
   it('turns brands, sites and pictures into media requests (spec 26)', () => {
     const out: ReelDirectOutput = {
       brands: [{ name: 'Acme', domain: 'acme.test' }],

@@ -30,6 +30,27 @@ describe('firebaseProvider', () => {
     getGenerativeModel.mockClear();
   });
 
+  it('turns a RECITATION stop into an empty answer (repairable) and rethrows other blocks', async () => {
+    generateContent.mockResolvedValueOnce({
+      response: {
+        text: () => {
+          throw new Error('Candidate was blocked due to RECITATION');
+        },
+        inferenceSource: 'in_cloud',
+      },
+    });
+    const p = firebaseProvider(() => Promise.resolve(ai));
+    await expect(p.generate(REQ)).resolves.toEqual({ text: '', ranOn: 'cloud' });
+    generateContent.mockResolvedValueOnce({
+      response: {
+        text: () => {
+          throw new Error('Candidate was blocked due to SAFETY');
+        },
+      },
+    });
+    await expect(p.generate(REQ)).rejects.toThrow(/SAFETY/);
+  });
+
   it('builds hybrid params for both routes and maps the mode to the SDK value', async () => {
     generateContent.mockResolvedValue({
       response: { text: () => '{"ok":true}', inferenceSource: 'on_device' },
