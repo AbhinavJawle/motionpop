@@ -111,9 +111,12 @@ test('with the device off the quick edit shows ☁ 1', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('Generate on slot 4 takes 3 credits and adds a "Generated" version', async ({ page }) => {
+// Changed in the overnight QA pass (2026-11-22): slot 4 of the showcase is now a hook whose last
+// word leaves 0.86 s, under the hook's read-time gate, so it can't be generated; the stat punch
+// on slot 2 can.
+test('Generate on slot 2 takes 3 credits and adds a "Generated" version', async ({ page }) => {
   const errors = watch(page);
-  await openEditor(page, '/editor/demo?select=slot-4');
+  await openEditor(page, '/editor/demo?select=slot-2');
   await expect(credits(page)).toHaveAccessibleName('120 credits');
   await generate(page).click();
   await expect(page.getByText('Bringing it to life')).toBeVisible();
@@ -123,10 +126,42 @@ test('Generate on slot 4 takes 3 credits and adds a "Generated" version', async 
   expect(errors).toEqual([]);
 });
 
-test('a planned graphic (slot 1) has Generate disabled with "Coming soon"', async ({ page }) => {
+// Changed in the overnight QA pass: every fixture slot is a built scene now, so the saved demo
+// project is given one that isn't (as an older project or a model could name).
+test('a planned graphic has Generate disabled with "Coming soon"', async ({ page }) => {
   const errors = watch(page);
   await openEditor(page, '/editor/demo?select=slot-1');
-  await expect(generate(page)).toBeDisabled();
+  // The demo is saved on its first edit.
+  const line = page.getByRole('textbox', { name: 'Line', exact: true });
+  await line.fill('Look at the numbers');
+  await line.press('Enter');
+  await expect.poll(() => savedSlot(page, 'slot-1'), { timeout: 10_000 }).not.toBeNull();
+  await page.evaluate(async () => {
+    const db = await new Promise<IDBDatabase>((resolve, reject) => {
+      const r = indexedDB.open('motionpop');
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction('projects', 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      const r = tx.objectStore('projects').openCursor();
+      r.onsuccess = () => {
+        const cursor = r.result;
+        if (!cursor) return;
+        const p = cursor.value as { current: { slots: { id: string; componentId: string }[] } };
+        const slot = p.current.slots.find((x) => x.id === 'slot-1');
+        if (slot) {
+          slot.componentId = 'callout';
+          cursor.update(p);
+        }
+        cursor.continue();
+      };
+    });
+  });
+  await page.reload();
+  await expect(generate(page)).toBeDisabled({ timeout: 30_000 });
   await generate(page).locator('xpath=..').hover();
   await expect(page.getByRole('tooltip').getByText('Coming soon')).toBeVisible();
   expect(errors).toEqual([]);

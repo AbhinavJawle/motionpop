@@ -19,7 +19,6 @@ const OUT = path.resolve(HERE, '../e2e-output/export');
 const FAIL_URL = 'http://127.0.0.1:3202';
 
 const DEMO_MS = 18_000;
-const FRAME_S = 1 / 30;
 
 interface Probe {
   streams: { codec_type: string; codec_name: string; width?: number; height?: number }[];
@@ -46,7 +45,7 @@ test('export a video: options, progress, ready, download', async ({ page }) => {
   await expect(dialog).toBeVisible();
   // The project card, the free local render and 1080p preselected.
   await expect(dialog.getByText('Untitled Project', { exact: true })).toBeVisible();
-  await expect(dialog.getByText('18 sec · 2 scenes')).toBeVisible();
+  await expect(dialog.getByText('18 sec · 3 scenes')).toBeVisible();
   await expect(dialog.getByText('Local render · free')).toBeVisible();
   await expect(dialog.getByRole('radio', { name: '1080p' })).toHaveAttribute(
     'aria-checked',
@@ -97,9 +96,9 @@ test('export a video: options, progress, ready, download', async ({ page }) => {
   expect([video?.width, video?.height]).toEqual([1080, 1920]);
   expect(info.format.format_name).toContain('mp4');
   expect(info.streams.some((s) => s.codec_type === 'audio')).toBe(true);
-  expect(Math.abs(Number(info.format.duration) - DEMO_MS / 1000)).toBeLessThanOrEqual(
-    FRAME_S + 0.05,
-  );
+  // The container's duration includes the audio stream's padding: within 0.1 s, as in
+  // export-emulator.spec.ts.
+  expect(Math.abs(Number(info.format.duration) - DEMO_MS / 1000)).toBeLessThanOrEqual(0.1 + 1e-9);
 
   // Closing the finished render puts the button back to "Export".
   await ready.getByRole('button', { name: 'Close' }).click();

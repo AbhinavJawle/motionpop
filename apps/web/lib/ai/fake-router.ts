@@ -372,9 +372,23 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
       if (failsBy(sw, task.id, input) || (sw.failRate > 0 && draw() < sw.failRate)) {
         throw fail(ranOn, 'provider', 'Fake failure (?fakeFail / ?fakeFailRate)');
       }
-      const out = task.output.safeParse(output);
+      let out = task.output.safeParse(output);
       if (!out.success) throw fail(ranOn, 'invalid-output', out.error.message.slice(0, 400));
-      const problem = task.check?.(out.data, input) ?? null;
+      let problem = task.check?.(out.data, input) ?? null;
+      let attempts = 1;
+      // The real router repairs once; the fake's repair keeps the slot's current params, which
+      // the slot's own gate accepted when they were drafted (the safe line has no beats).
+      if (problem !== null && task.id === 'component.fill') {
+        const current = (input as { currentParams?: Json }).currentParams;
+        if (current && Object.keys(current).length > 0) {
+          const again = task.output.safeParse({ params: current });
+          if (again.success) {
+            attempts = 2;
+            out = again;
+            problem = task.check?.(again.data, input) ?? null;
+          }
+        }
+      }
       if (problem !== null) throw fail(ranOn, 'invalid-output', problem);
       report(ranOn, true);
       return {
@@ -383,7 +397,7 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
         model: 'fake-fast',
         costCredits: ranOn === 'cloud' ? cloudCost : 0,
         latencyMs: Math.round(clock() - started),
-        attempts: 1,
+        attempts,
         cached: false,
       };
     },

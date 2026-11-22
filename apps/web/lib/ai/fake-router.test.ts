@@ -256,6 +256,33 @@ describe('fake router: component.fill', () => {
     expect(r).toMatchObject({ ranOn: 'device', costCredits: 0 });
   });
 
+  it('repairs once like the real router: a gated-out answer keeps the current params', async () => {
+    // A gate like the scene's read-time check: an unanchored line is refused.
+    const gated = componentFillTask(schemaFor, {
+      gate: (_id: string, params: unknown) =>
+        (params as { beats?: unknown[] }).beats?.length ? null : '- line (read-time): too late',
+    });
+    const current = {
+      variant: 'center',
+      content: { line: "Let's look at the numbers" },
+      beats: [{ cue: 'line', word: 0 }],
+      images: [],
+    };
+    const input = fillInput({
+      componentId: 'hook-statement',
+      words: "Let's look at the numbers",
+      currentParams: current,
+    });
+    const r = await make().router.run(gated, input);
+    expect(r.output.params).toEqual(current);
+    expect(r.attempts).toBe(2);
+
+    const stale = { ...current, beats: [] };
+    await expect(
+      make().router.run(gated, { ...input, currentParams: stale }),
+    ).rejects.toMatchObject({ reason: 'invalid-output' });
+  });
+
   it('falls back to the current params, then the component defaults', () => {
     expect(
       fillAnswer({ componentId: 'big-number', words: 'hello there', currentParams: BIG }).params,

@@ -27,7 +27,8 @@ const READY_BOX: [number, number, number, number] = [880, 262, 1120, 1276];
  * 4.7 %; the rest is content the design cannot share (see the remaining differences in the task 18
  * note: the thumbnail frame, scene count and note, the "Soon" switches, the icons).
  */
-const MAX_DIFF_PCT = { export: 16, 'export-ready': 8 };
+// export: 17 (was 16) since the sublines and the Free row shift the lower half (overnight QA).
+const MAX_DIFF_PCT = { export: 17, 'export-ready': 8 };
 
 function crop(png: PNG, [x, y, w, h]: [number, number, number, number]): PNG {
   const out = new PNG({ width: w, height: h });
@@ -118,12 +119,13 @@ function compare(
 test('export dialog options match export.png', async ({ page }) => {
   const errors = trackPageErrors(page);
   await openExport(page);
-  // The dialog and its parts are the sizes of the design (the left-out note adds 18 px).
+  // The dialog and its parts are the sizes of the design (the left-out note adds 18 px; the
+  // captions and "music and effects" sublines and the Free chip of free exports, D-074, add 28).
   const dialog = page.getByRole('dialog');
   const box = await dialog.boundingBox();
   expect(Math.round(box?.width ?? 0)).toBe(560);
   expect(Math.round(box?.x ?? 0)).toBe(440);
-  expect(Math.round(box?.height ?? 0)).toBe(768 + 18);
+  expect(Math.round(box?.height ?? 0)).toBe(768 + 18 + 28);
   await expectSize(dialog.getByRole('radio', { name: '16:9' }), 160, 48, 'format card');
   await expectSize(dialog.getByRole('radio', { name: '1080p' }), 160, 42, 'resolution card');
   await expectSize(dialog.getByRole('button', { name: 'Export video' }), 496, 48, 'export button');

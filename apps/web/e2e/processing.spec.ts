@@ -32,13 +32,14 @@ test.describe('Processing screen', () => {
     expect(states).toEqual(['done', 'done', 'done', 'done', 'done']);
     await expect(steps).toContainText('Found 3 moments');
     // Changed by spec 07 task 27: the opening line is a hook-statement draft (suggested) and the
-    // number a ready stat-punch (was one ready big-number).
-    await expect(steps).toContainText('2 slots found');
+    // number a ready stat-punch (was one ready big-number). Since 4f59e89 (graphics cover the
+    // whole voiceover) the closing clause is a third, low-ranked hook.
+    await expect(steps).toContainText('3 slots found');
     const stripCards = page.getByTestId('strip-slots').locator('span[data-status]');
-    await expect(stripCards).toHaveCount(2);
+    await expect(stripCards).toHaveCount(3);
     await expect(stripCards.first()).toHaveAttribute('data-status', 'suggested');
     await expect(stripCards.nth(1)).toHaveAttribute('data-status', 'ready');
-    await expect(page.getByTestId('pip-bubble')).toHaveText(/2 slots ready/);
+    await expect(page.getByTestId('pip-bubble')).toHaveText(/3 slots ready/);
 
     await page.waitForURL(/\/editor\/p-[a-z0-9]+/, { timeout: 15_000 });
     console.log(`processing: editor reached after ${Date.now() - t0} ms`);
@@ -67,7 +68,7 @@ test.describe('Processing screen', () => {
 async function expectSuggestedSlot(page: Page): Promise<void> {
   await expect(page.getByText('Voiceover · 14.3s')).toBeVisible({ timeout: 30_000 });
   await expect(wordsTrack(page).getByRole('button')).toHaveCount(22);
-  await expect(page.locator('[data-slot-id]')).toHaveCount(2, { timeout: 30_000 });
+  await expect(page.locator('[data-slot-id]')).toHaveCount(3, { timeout: 30_000 });
   const ids = await page
     .locator('[data-slot-id]')
     .evaluateAll((els) => els.map((e) => e.getAttribute('data-slot-id') as string));

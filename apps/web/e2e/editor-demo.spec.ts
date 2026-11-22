@@ -56,16 +56,27 @@ test('editor demo path: play, seek, drag + undo, shift-drag create, autosave, re
     .toBeLessThan(2);
   expect(Math.abs((await boxOf(slot2)).width - start.width)).toBeLessThan(2);
 
-  // Shift-drag on a free word ("Our") adds a fifth slot.
-  const our = wordsTrack(page).getByRole('button', { name: 'Our', exact: true });
-  const ob = await boxOf(our);
-  await page.keyboard.down('Shift');
-  await page.mouse.move(ob.x + ob.width / 2, ob.y + ob.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(ob.x + ob.width / 2 + 4, ob.y + ob.height / 2, { steps: 3 });
-  await page.mouse.up();
-  await page.keyboard.up('Shift');
-  await expect(page.locator('[data-slot-id]')).toHaveCount(5);
+  // Shift-drag on "Our": the 1 s gap between slots 1 and 2 is shorter than any graphic (a hook
+  // needs 2.4 s since spec 07), so it is refused with a reason.
+  const shiftDrag = async (name: string) => {
+    const b = await boxOf(wordsTrack(page).getByRole('button', { name, exact: true }));
+    await page.keyboard.down('Shift');
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2 + 4, b.y + b.height / 2, { steps: 3 });
+    await page.mouse.up();
+    await page.keyboard.up('Shift');
+  };
+  await shiftDrag('Our');
+  await expect(page.getByText(/no room for one/)).toBeVisible();
+  await expect(page.locator('[data-slot-id]')).toHaveCount(4);
+
+  // Deleting slot 3 frees "And this is only the beginning"; shift-drag there adds a slot.
+  await slotCard(page, 'slot-3').click();
+  await page.keyboard.press('Delete');
+  await expect(page.locator('[data-slot-id]')).toHaveCount(3);
+  await shiftDrag('only');
+  await expect(page.locator('[data-slot-id]')).toHaveCount(4);
 
   // Autosave settles, and the new slot survives a reload.
   await expect(page.getByRole('status').filter({ hasText: 'All changes saved' })).toBeVisible({
@@ -75,7 +86,9 @@ test('editor demo path: play, seek, drag + undo, shift-drag create, autosave, re
   await expect(page.getByRole('status').filter({ hasText: 'All changes saved' })).toBeVisible();
   await page.reload();
   await expect(page.locator('[data-slot-id]').first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('[data-slot-id]')).toHaveCount(5);
+  await expect(page.locator('[data-slot-id]')).toHaveCount(4);
+  // The saved project, not the fixture: slot 3 is gone and the new slot is there.
+  await expect(page.locator('[data-slot-id="slot-3"]')).toHaveCount(0);
 
   expect(errors).toEqual([]);
 });
