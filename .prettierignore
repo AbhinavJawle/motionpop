@@ -14,3 +14,5 @@ design
 .kiro/skills
 # Generated sources (rewritten by their build scripts)
 *.generated.ts
+# Recorded experiment data (model outputs kept as they came back)
+docs/research/experiments

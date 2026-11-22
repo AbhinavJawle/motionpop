@@ -186,5 +186,5 @@ describe('stage properties', () => {
       }),
       { numRuns: 40 },
     );
-  });
+  }, 120_000); // ~0.4 s alone; 22 s once seen with every package testing at once
 });

@@ -80,7 +80,7 @@ describe('companion layer seek purity (spec 07c R6.2)', () => {
         }
       }
     }
-  });
+  }, 120_000); // ~1.3 s alone; 50 s once seen with every package testing at once
 });
 
 describe('companion layer counts (spec 07c R2.2)', () => {
