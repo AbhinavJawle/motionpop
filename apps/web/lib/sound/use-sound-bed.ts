@@ -64,33 +64,39 @@ export function bedRequestFor(
  * mix runs in a worker, debounced; only the latest answer is used. Effects-only beds play from
  * the first edit. `musicSynthEnabled` only hides the music picker; a project that has synthesized
  * music plays it here exactly as the render job mixes it (services/render/src/bed.ts).
+ *
+ * Spec 39 R7.1: a reel project does nothing here. The reel preview builds and plays its own bed
+ * (`reelBedSound`, reel-preview.tsx), so a second synth bed would double the music and effects.
+ * Opening a reel after a voiceover project detaches and pauses the bed of the earlier one.
  */
 export function useSoundBed(clock: PlaybackClock, voiceLevelDb: number | null): void {
   const project = useEditor((s) => s.project);
+  const isReel = !!project?.reel;
   const elRef = useRef<HTMLAudioElement | null>(null);
   const latest = useRef(0);
 
   useEffect(() => {
-    if (typeof Audio === 'undefined') return;
+    if (isReel || typeof Audio === 'undefined') return;
     const el = new Audio();
     el.preload = 'auto';
     elRef.current = el;
     return () => {
       elRef.current = null;
       clock.attachFollower(null);
+      el.pause();
       el.removeAttribute('src');
       const url = useBedState.getState().url;
       if (url) URL.revokeObjectURL(url);
       useBedState.setState({ status: 'idle', key: null, url: null, wav: null, placements: [] });
     };
-  }, [clock]);
+  }, [clock, isReel]);
 
   useEffect(() => {
     useBedState.setState({ voiceLevelDb });
   }, [voiceLevelDb]);
 
   useEffect(() => {
-    if (!project || voiceLevelDb === null) return;
+    if (!project || project.reel || voiceLevelDb === null) return;
     const req = bedRequestFor(project, voiceLevelDb);
     const n = ++latest.current;
     const timer = setTimeout(() => {

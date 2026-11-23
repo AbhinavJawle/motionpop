@@ -6,7 +6,6 @@ import {
   encodeWavStereo16,
   mixReelMusic,
   mountReel,
-  reelBed,
   REEL_STAGE_W,
   type ReelCustomAssets,
   type ReelHandle,
@@ -28,6 +27,7 @@ import {
   type ReelPlan,
 } from '@motionpop/schemas';
 import { getImage } from '@/lib/images/image-store';
+import { previewReelBed } from '@/lib/sound/reel-bed';
 import { customPictures, loadReelCustomAssets } from '@/lib/reel/custom-assets';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
@@ -253,7 +253,7 @@ function useReelBedUrl(
     let made: string | null = null;
     // Off the critical path: the picture comes first, the sound a moment later.
     const t = setTimeout(() => {
-      const samples = reelBed(reel, durationMs, { voiceLevelDb: voiceLevel, words, ...sound });
+      const samples = previewReelBed(reel, durationMs, voiceLevel, words, sound);
       made = URL.createObjectURL(
         new Blob([encodeWav16(samples, SFX_SAMPLE_RATE)], { type: 'audio/wav' }),
       );
