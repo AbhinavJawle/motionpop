@@ -33,3 +33,5 @@ export * from './reel/edit';
 export { REEL_DIRECT_SYSTEM_V3, reelDirectPromptV3 } from './reel/prompt';
 export * from './reel/note';
 export * from './reel/compose';
+export * from './skills/recipes';
+export * from './skills/registry';
