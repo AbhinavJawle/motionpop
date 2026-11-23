@@ -12,7 +12,7 @@ Commits through kiro-cli only, no Co-Authored-By trailers.
 ## Phase 2 — Engine and AI wiring
 - [x] 5. `applyEditChoices` post-pass (CTA, hook, captions, theme, look, music mood) + property test; used by `toReelPlan` callers and `autoReelPlan` path (R5.3, R5.4, R5.5, R5.7)
 - [x] 6. `reel.direct` brief: input schema, `recipeBrief()` RECIPE block in the prompt, `directReel`/`directReelPaid` pass-through; tests (R3.5)
-- [ ] 7. Reel caption styles: `chunkCaptions` per style, painter + CSS for seam/pop/editorial/boxed/clean, default-unchanged test (R5.1, R5.2)
+- [x] 7. Reel caption styles: `chunkCaptions` per style, painter + CSS for seam/pop/editorial/boxed/clean, default-unchanged test (R5.1, R5.2)
 - [ ] 8. Pipeline takes `edit` (+ `prepared`): video and voiceover mappings, `project.edit`, illustrations cap, music none, autoSfx; tests in `run.test.ts` (R2.10, R5.5)
 - [ ] 9. Reel sound guardrails: no `useSoundBed` on reels; `reelBedSound` preview/render parity test (R7)
 - [ ] 10. Styles panel for reels: recipe styles + caption styles, `setReelStyle` command with one undo (R5.6)

@@ -3,10 +3,10 @@
 // HyperFrames composition for export (frame-exact), so the preview is the export.
 import type { ReelMedia, ReelPlan, ReelScene, ReelWord } from '@motionpop/schemas';
 import { clamp, easeInOutCubic, easeOutCubic, lerp, prog, revealAt } from './anim';
-import { chunkAt, chunkCaptions, type CaptionChunk } from './captions';
+import { captionStyleOf, chunkAt, chunkCaptions, type CaptionChunk } from './captions';
 import { css, h } from './dom';
 import { graphicArea, LOOKS, STAGE_H, STAGE_W, type LookTokens, type Palette } from './looks';
-import { themedLook } from './theme';
+import { readable, themedLook } from './theme';
 import type { ReelImage } from './parts';
 import { carriedInPlace, carryOrigins } from './carry';
 import {
@@ -214,7 +214,10 @@ export function mountReel(
         )
       : plan.scenes;
   const views: SceneView[] = [];
-  const chunks: CaptionChunk[] = plan.captions ? chunkCaptions(data.words, plan.look) : [];
+  const capStyle = captionStyleOf(plan.look, plan.captionStyle);
+  const chunks: CaptionChunk[] = plan.captions
+    ? chunkCaptions(data.words, plan.look, plan.captionStyle)
+    : [];
 
   // Caption element (one, restyled per frame).
   const cap = h('div', {
@@ -505,58 +508,112 @@ export function mountReel(
       // While the layout is changing the caption waits for its new place.
       settling ||
       s.content.template === 'cta' ||
-      (look.id === 'cream' && s.content.template === 'punch');
+      (capStyle !== 'seam' && s.content.template === 'punch');
     if (hide) {
       cap.style.visibility = 'hidden';
       return;
     }
     const c = chunks[i]!;
     if (cap.textContent !== c.text) cap.textContent = c.text;
-    let y: number;
-    if (look.id === 'mono') {
-      y =
-        s.layout === 'split'
+    const onSpeaker = s.layout === 'speaker';
+    // Seam labels sit on the seam itself; the other styles sit just above it.
+    const y =
+      capStyle === 'seam'
+        ? s.layout === 'split'
           ? STAGE_H / 2
           : s.layout === 'card'
             ? look.cardTop
             : s.layout === 'full'
               ? 1133
-              : 1010;
-      css(cap, {
-        background: '#0A0A0A',
-        color: '#FFFFFF',
-        fontFamily: look.sans,
-        fontWeight: 700,
-        fontSize: 25,
-        letterSpacing: '0.01em',
-        lineHeight: 1.18,
-        padding: '5px 10px 4px',
-        textShadow: 'none',
-      });
-    } else {
-      const onSpeaker = s.layout === 'speaker';
-      y =
-        s.layout === 'split'
+              : 1010
+        : s.layout === 'split'
           ? STAGE_H / 2 - 52
           : s.layout === 'card'
             ? look.cardTop - 64
             : s.layout === 'full'
               ? 900
               : 960;
+    const lift = '0 2px 18px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.3)';
+    if (capStyle === 'seam') {
+      css(cap, {
+        background: '#0A0A0A',
+        color: '#FFFFFF',
+        fontFamily: look.sans,
+        fontStyle: 'normal',
+        fontWeight: 700,
+        fontSize: 25,
+        letterSpacing: '0.01em',
+        lineHeight: 1.18,
+        padding: '5px 10px 4px',
+        textShadow: 'none',
+        borderBottom: 'none',
+        borderRadius: '0',
+      });
+    } else if (capStyle === 'pop') {
       css(cap, {
         background: 'transparent',
         color: onSpeaker ? '#FFFFFF' : pal.ink,
         fontFamily: look.sans,
+        fontStyle: 'normal',
         fontWeight: 700,
         fontSize: 52,
         letterSpacing: '-0.045em',
         lineHeight: 1.05,
         padding: '0',
-        textShadow: onSpeaker ? '0 2px 18px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.3)' : 'none',
+        textShadow: onSpeaker ? lift : 'none',
+        borderBottom: 'none',
+        borderRadius: '0',
+      });
+    } else if (capStyle === 'editorial') {
+      css(cap, {
+        color: onSpeaker ? '#FFFFFF' : pal.ink,
+        fontFamily: look.italic,
+        fontStyle: 'italic',
+        fontWeight: 600,
+        fontSize: 48,
+        letterSpacing: '-0.01em',
+        lineHeight: 1.1,
+        padding: onSpeaker ? '6px 14px 8px' : '0 2px 6px',
+        background: onSpeaker ? 'rgba(10,10,12,0.62)' : 'transparent',
+        textShadow: 'none',
+        borderBottom: `3px solid ${onSpeaker ? '#FFFFFF' : pal.accent}`,
+        borderRadius: onSpeaker ? '6px' : '0',
+      });
+    } else if (capStyle === 'boxed') {
+      const box = pal.accent;
+      css(cap, {
+        background: box,
+        color: readable(pal.dark ? '#0B0B0C' : '#FFFFFF', box, 4.5),
+        fontFamily: look.sans,
+        fontStyle: 'normal',
+        fontWeight: 800,
+        fontSize: 38,
+        letterSpacing: '0',
+        lineHeight: 1.1,
+        padding: '8px 16px 7px',
+        textShadow: 'none',
+        borderBottom: 'none',
+        borderRadius: '8px',
+      });
+    } else {
+      // clean: small and quiet; on footage it sits on a soft dark pill so it always reads.
+      css(cap, {
+        background: onSpeaker ? 'rgba(10,10,12,0.58)' : 'transparent',
+        color: onSpeaker || pal.dark ? '#FFFFFF' : pal.ink,
+        fontFamily: look.sans,
+        fontStyle: 'normal',
+        fontWeight: 600,
+        fontSize: 38,
+        letterSpacing: '-0.01em',
+        lineHeight: 1.15,
+        padding: onSpeaker ? '8px 18px 9px' : '0',
+        textShadow: 'none',
+        borderBottom: 'none',
+        borderRadius: onSpeaker ? '999px' : '0',
       });
     }
-    // A short settle per chunk (cream only; mono labels swap hard like the reference).
-    const pIn = look.id === 'cream' ? prog(t, c.startMs, 140) : 1;
+    // A short settle per chunk (seam labels swap hard like the reference).
+    const pIn = capStyle !== 'seam' ? prog(t, c.startMs, 140) : 1;
     const e = easeOutCubic(pIn);
     cap.style.visibility = 'visible';
     cap.style.opacity = String(clamp(pIn * 2));
