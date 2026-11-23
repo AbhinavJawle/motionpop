@@ -13,6 +13,7 @@ import {
 import { noteFixTask } from './note-fix';
 import { pipPlanTask } from './pip-plan';
 import { promptPrefill } from './prompt-prefill';
+import { recipeResolveTask } from './recipe-resolve';
 import { slotsDetect } from './slots-detect';
 import { transcribeCloud } from './transcribe-cloud';
 import type { TaskDef } from '../router';
@@ -37,6 +38,7 @@ function allTasks(): TaskDef<never, unknown>[] {
     reelComposeTask(() => [], ''),
     pipPlanTask(),
     promptPrefill,
+    recipeResolveTask,
     slotsDetect,
     transcribeCloud,
   ] as unknown as TaskDef<never, unknown>[];
@@ -58,6 +60,7 @@ const EXPECTED: Record<string, number> = {
   'reel.compose': 24576,
   'pip.plan': 4096,
   'prompt.prefill': 512,
+  'recipe.resolve': 300,
   'slots.detect': 4096,
   'transcribe.cloud': 16384,
 };

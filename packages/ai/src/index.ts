@@ -16,6 +16,7 @@ export * from './direct/plan-video';
 export * from './edit/edit-doc';
 export * from './tasks/note-fix';
 export * from './tasks/prompt-prefill';
+export * from './tasks/recipe-resolve';
 export * from './tasks/pip-plan';
 export * from './tasks/custom-compose';
 export * from './tasks/film';

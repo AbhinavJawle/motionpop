@@ -4,6 +4,7 @@ import { APP_CONFIG_DEFAULTS, costOf } from '@motionpop/schemas';
 import { GENERATE_COST } from './component-fill';
 import { editPatchTask } from './edit-patch';
 import { promptPrefill } from './prompt-prefill';
+import { recipeResolveTask } from './recipe-resolve';
 import { slotsDetectCost } from './slots-detect';
 import { transcribeCloudCost } from './transcribe-cloud';
 
@@ -21,6 +22,12 @@ describe('task costs equal costOf (C8)', () => {
   it('prompt.prefill is always free', () => {
     expect(promptPrefill.cloudCost({} as never)).toBe(0);
     expect(promptPrefill.cloudFallback).toBe(false);
+  });
+
+  it('recipe.resolve is always free and never reaches the cloud (spec 39 review #1)', () => {
+    expect(recipeResolveTask.cloudCost({} as never)).toBe(0);
+    expect(recipeResolveTask.cloudFallback).toBe(false);
+    expect(recipeResolveTask.mode({} as never, {} as never)).toBe('ONLY_ON_DEVICE');
   });
 
   it('slots.detect is one credit per started 200 words', () => {
