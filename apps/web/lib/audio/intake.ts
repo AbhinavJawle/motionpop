@@ -14,7 +14,7 @@ export type IntakeResult =
   { ok: true; kind: IntakeKind } | { ok: false; reason: IntakeFailure; message: string };
 
 export const INTAKE_MESSAGES: Record<IntakeFailure, string> = {
-  'not-audio': "That doesn't look like audio or video. Try MP3, WAV, M4A, MP4 or MOV.",
+  'not-audio': "That doesn't look like audio or video. Try MP4, MOV, WebM, MP3, WAV or M4A.",
   'too-large': "That's a big one. Up to 50 MB of audio, 500 MB of video and 20 minutes for now.",
   'too-long': "That's a big one. Up to 50 MB and 20 minutes for now.",
 };

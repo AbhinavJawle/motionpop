@@ -9,7 +9,8 @@ import '@/styles/globals.css';
 
 export const metadata: Metadata = {
   title: 'motionpop',
-  description: "Bring your voice. We'll bring the motion.",
+  description:
+    'The AI video editor that follows every word. Drop a talking video, a voiceover or a script and get captions, graphics and motion.',
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

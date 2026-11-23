@@ -30,7 +30,7 @@ describe('validateIntake', () => {
     expect(r).toEqual({
       ok: false,
       reason: 'not-audio',
-      message: "That doesn't look like audio or video. Try MP3, WAV, M4A, MP4 or MOV.",
+      message: "That doesn't look like audio or video. Try MP4, MOV, WebM, MP3, WAV or M4A.",
     });
     expect(validateIntake(f('a.mp3', 'audio/mpeg', 0))).toMatchObject({
       ok: false,

@@ -5,22 +5,22 @@ export const DASHBOARD_COPY = {
   capture: {
     hold: 'Hold to record',
     release: 'Release to finish',
-    hint: '…or paste a script, or drop audio anywhere',
+    hint: '…or paste a script, or drop a video or audio anywhere',
     placeholder: 'Paste a script and press Enter',
     micDenied: "Pip can't hear you. Allow the microphone in the address bar, or upload instead.",
     uploadInstead: 'Upload instead',
   },
   empty: {
     title: 'Your first video is two minutes away',
-    body: 'Hold the mic and talk, paste a script, or drop a voiceover anywhere on this page. Pip finds the moments and puts a graphic on each one.',
+    body: 'Drop a talking video or a voiceover anywhere on this page, hold the mic and talk, or paste a script. Pip edits it, captions it and puts a graphic on every moment.',
     cta: 'Create your first project',
     sample: 'Try it with a sample',
     foot: 'No editing experience needed. Just something to say.',
   },
   drag: {
     pill: "Drop it, I'll catch it!",
-    body: 'Let go anywhere. Pip takes it from here.',
-    formats: 'MP3, WAV, M4A, MP4 or MOV',
+    body: 'Let go anywhere. Pip edits it from here.',
+    formats: 'MP4, MOV, WebM, MP3, WAV or M4A',
   },
   continue: {
     title: 'Pick up where you left off',
@@ -67,14 +67,15 @@ export const DASHBOARD_COPY = {
 
 export const START_COPY = {
   eyebrow: 'Pick a way in. I’ll catch the rest.',
-  headline: "Bring your voice. We'll bring the motion.",
-  subline: 'Record, upload or paste a script, and graphics will follow every word.',
+  headline: "Bring your video. We'll bring the motion.",
+  subline:
+    'Upload a talking video or a voiceover, record one, or paste a script. Pip edits, captions and animates every word.',
   record: { title: 'Record', body: 'Your voice, in the moment.', cta: 'Start recording' },
   upload: {
-    title: 'Upload voiceover',
-    body: 'Already have the perfect take?',
-    drop: 'Drop your audio or browse',
-    formats: 'MP3, WAV, M4A, MP4, MOV',
+    title: 'Upload video or audio',
+    body: 'A talking video or a voiceover you already have.',
+    drop: 'Drop your video or audio, or browse',
+    formats: 'MP4, MOV, WebM · MP3, WAV, M4A',
     sample: 'Try a sample',
   },
   script: {
