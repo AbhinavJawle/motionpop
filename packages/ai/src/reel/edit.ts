@@ -70,7 +70,7 @@ export const reelEditJsonSchema = (): Record<string, unknown> => ({
         properties: {
           phrase: { type: 'integer' },
           kind: { type: 'string', enum: ['retake', 'ramble'] },
-          reason: { type: 'string' },
+          reason: { type: 'string', maxLength: 120 },
         },
         required: ['phrase', 'kind', 'reason'],
       },

@@ -750,27 +750,28 @@ export function reelNotePromptV1(i: ReelNoteInput): string {
 }
 
 export function reelNoteJsonSchema(): Record<string, unknown> {
-  const s = { type: 'string' };
+  // Caps match the zod limits: an uncapped string can run away (spec 39 AI QA).
+  const sl = (maxLength: number) => ({ type: 'string', maxLength });
   return {
     type: 'object',
     properties: {
       action: { type: 'string', enum: ['edit', 'compose', 'none'] },
-      message: s,
-      compose: s,
+      message: sl(300),
+      compose: sl(1200),
       layout: { type: 'string', enum: [...LAYOUTS] },
       bg: { type: 'string', enum: ['light', 'cream', 'dark'] },
-      tag: s,
-      hook: s,
+      tag: sl(80),
+      hook: sl(120),
       graphic: { anyOf: reelGraphicBranches() },
       brands: {
         type: 'array',
-        items: { type: 'object', properties: { name: s, domain: s }, required: ['name'] },
+        items: { type: 'object', properties: { name: sl(60), domain: sl(80) }, required: ['name'] },
       },
       captions: {
         type: 'array',
         items: {
           type: 'object',
-          properties: { find: s, replace: s },
+          properties: { find: sl(80), replace: sl(80) },
           required: ['find', 'replace'],
         },
       },

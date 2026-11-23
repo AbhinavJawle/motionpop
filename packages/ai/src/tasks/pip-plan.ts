@@ -110,7 +110,8 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
   return {
     type: 'object',
     properties: {
-      reply: { type: 'string' },
+      // Caps match the zod limits: an uncapped string can run away (spec 39 AI QA).
+      reply: { type: 'string', maxLength: 240 },
       steps: {
         type: 'array',
         maxItems: PIP_MAX_STEPS,
@@ -121,8 +122,8 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
             slot: { type: 'string', enum: slots },
             choice: { type: 'string', enum: choices },
             atWord: { type: 'integer' },
-            instruction: { type: 'string' },
-            label: { type: 'string' },
+            instruction: { type: 'string', maxLength: 200 },
+            label: { type: 'string', maxLength: 120 },
           },
           required: ['action', 'slot', 'choice', 'atWord', 'instruction', 'label'],
         },

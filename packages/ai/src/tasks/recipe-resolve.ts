@@ -55,7 +55,8 @@ export function recipeResolveJsonSchema(): Record<string, unknown> {
       captionStyle: { type: 'string', enum: [...ReelCaptionStyleSchema.options] },
       hookStyle: { type: 'string', enum: [...ReelHookStyleSchema.options] },
       musicMood: { type: 'string', enum: MOODS },
-      directorNotes: { type: 'string' },
+      // Capped like the zod field: an uncapped string can run away (spec 39 AI QA).
+      directorNotes: { type: 'string', maxLength: 400 },
     },
     required: [
       'recipeId',

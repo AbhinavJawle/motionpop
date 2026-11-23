@@ -219,8 +219,14 @@ export const ReelDirectOutputSchema = z.object({
 export type ReelDirectOutput = z.input<typeof ReelDirectOutputSchema>;
 type DirectedScene = z.infer<typeof DirectedSceneSchema>;
 
-/** Gemini structured-output schema: one `anyOf` branch per template, its fields required. */
-const s = { type: 'string' };
+/**
+ * Gemini structured-output schema: one `anyOf` branch per template, its fields required.
+ * Every string has a `maxLength` (found in the spec 39 AI soak): without one the model sometimes
+ * escaped a closing quote (`"suffix": "%\\", \\"kicker\\": …`) and wrote the rest of the reel
+ * inside that one string, leaving a single scene. A length cap makes the decoder close it.
+ */
+const sl = (maxLength: number) => ({ type: 'string', maxLength });
+const s = sl(120);
 const n = { type: 'number' };
 const i = { type: 'integer' };
 const obj = (props: Record<string, unknown>, required: string[]) => ({
@@ -278,10 +284,10 @@ export function reelGraphicBranches(): Record<string, unknown>[] {
         template: t('counter'),
         value: n,
         label: s,
-        prefix: s,
-        suffix: s,
+        prefix: sl(3),
+        suffix: sl(4),
         decimals: i,
-        kicker: s,
+        kicker: sl(28),
         icon: s,
       },
       ['template', 'value', 'label'],
@@ -303,16 +309,15 @@ export function reelGraphicBranches(): Record<string, unknown>[] {
         template: t('chart'),
         kind: { type: 'string', enum: ['line', 'bars'] },
         title: s,
-        unit: s,
+        unit: sl(8),
         items: arr(obj({ text: s, value: n }, ['text', 'value']), 2, 8),
       },
       ['template', 'kind', 'title', 'items'],
     ),
-    obj({ template: t('browser'), url: s, headline: s, sub: s, button: s, strikeWord: i }, [
-      'template',
-      'url',
-      'headline',
-    ]),
+    obj(
+      { template: t('browser'), url: sl(80), headline: s, sub: s, button: sl(24), strikeWord: i },
+      ['template', 'url', 'headline'],
+    ),
     obj({ template: t('flow'), items: arr(item({ icon: s, brand: s }), 2, 4) }, [
       'template',
       'items',
@@ -334,7 +339,7 @@ export function reelGraphicBranches(): Record<string, unknown>[] {
       {
         template: t('image'),
         kind: { type: 'string', enum: ['photo', 'illustration'] },
-        subject: s,
+        subject: sl(200),
         fit: { type: 'string', enum: ['frame', 'bleed'] },
         kicker: s,
         title: s,
@@ -344,16 +349,27 @@ export function reelGraphicBranches(): Record<string, unknown>[] {
     ),
     obj({ template: t('website'), domain: s, headline: s, strikeWord: i }, ['template', 'domain']),
     obj({ template: t('punch'), text: s, top: s }, ['template', 'text']),
-    obj({ template: t('cta'), verb: s, keyword: s }, ['template', 'verb', 'keyword']),
+    obj({ template: t('cta'), verb: sl(14), keyword: sl(16) }, ['template', 'verb', 'keyword']),
     obj({ template: t('none') }, ['template']),
   ];
 }
 
+/**
+ * The director's structured-output schema. Vertex rejects it outright (400 INVALID_ARGUMENT, every
+ * Gemini model, checked live 2026-11-23) once the `scenes` or `brands` arrays carry minItems or
+ * maxItems on top of the string caps: the grammar gets too big. So the scene count is enforced by
+ * `checkReelDirect` (one repair round), not by the schema. Keep new constraints off this schema
+ * unless `scripts/schema-live-check.ts` passes against the real endpoint.
+ */
 export function reelDirectJsonSchema(): Record<string, unknown> {
   const branches = reelGraphicBranches();
   return obj(
     {
-      story: obj({ topic: s, arc: arr(s), motif: s }, ['topic', 'arc', 'motif']),
+      story: obj({ topic: sl(300), arc: arr(sl(200), undefined, 12), motif: sl(300) }, [
+        'topic',
+        'arc',
+        'motif',
+      ]),
       footage: obj(
         {
           kind: { type: 'string', enum: ['talking-head', 'screen', 'scene'] },
@@ -361,9 +377,9 @@ export function reelDirectJsonSchema(): Record<string, unknown> {
         },
         ['kind', 'faces'],
       ),
-      music: s,
-      hook: s,
-      brands: arr(obj({ name: s, domain: s }, ['name'])),
+      music: sl(300),
+      hook: sl(60),
+      brands: arr(obj({ name: sl(60), domain: sl(80) }, ['name'])),
       scenes: arr(
         obj(
           {
@@ -372,7 +388,7 @@ export function reelDirectJsonSchema(): Record<string, unknown> {
             layout: { type: 'string', enum: ['split', 'card', 'full', 'speaker'] },
             beat: { type: 'string', enum: [...BEATS] },
             carry: { type: 'boolean' },
-            tag: s,
+            tag: sl(28),
             bg: { type: 'string', enum: ['light', 'cream', 'dark'] },
             graphic: { anyOf: branches },
           },
@@ -382,6 +398,45 @@ export function reelDirectJsonSchema(): Record<string, unknown> {
     },
     ['story', 'footage', 'music', 'hook', 'brands', 'scenes'],
   );
+}
+
+/** The longest stretch one directed scene may cover on a reel under 20 s (above, 45 % of it). */
+export const REEL_SCENE_MAX_MS = 9000;
+
+/** The fewest scenes a reel of this length should get (none required for a very short one). */
+export function minReelScenes(
+  input: Pick<ReelDirectInput, 'words' | 'durationMs'>,
+): number | undefined {
+  if (input.words.length < 12 || input.durationMs < 8000) return undefined;
+  return Math.max(2, Math.ceil(input.durationMs / 7000));
+}
+
+/**
+ * Coverage check on a director answer (found in the AI soak: answers with 1–3 scenes for a 34 s
+ * reel, one graphic stretched over 28 s). The answer needs at least `minReelScenes` distinct scene
+ * starts, and no scene (measured from its first word to the next scene's first word, the last one
+ * to the end of the reel) may run longer than `REEL_SCENE_MAX_MS` or 45 % of the reel, whichever is
+ * larger. A failure triggers the router's repair with this message.
+ */
+export function checkReelDirect(out: ReelDirectOutput, input: ReelDirectInput): string | null {
+  const n = input.words.length;
+  if (n < 12 || input.durationMs < 8000) return null;
+  const starts = [...new Set(out.scenes.map((s) => Math.max(0, Math.min(n - 1, s.fromWord))))].sort(
+    (a, b) => a - b,
+  );
+  if (starts.length === 0) return 'No scenes. Direct the whole transcript.';
+  const at = (i: number) => input.words[i]![1];
+  const limit = Math.max(REEL_SCENE_MAX_MS, Math.round(input.durationMs * 0.45));
+  const minScenes = minReelScenes(input) ?? 1;
+  if (starts.length < minScenes)
+    return `Only ${starts.length} scenes for a ${Math.round(input.durationMs / 1000)} s reel: direct the whole transcript, word 0 to word ${n - 1}, in at least ${minScenes} scenes of about 1.5–5 s each.`;
+  for (let k = 0; k < starts.length; k++) {
+    const from = at(starts[k]!);
+    const to = k + 1 < starts.length ? at(starts[k + 1]!) : input.durationMs;
+    if (to - from > limit)
+      return `The scene starting at word ${starts[k]} runs ${Math.round((to - from) / 1000)} s. Split it: no scene may run longer than ${Math.round(limit / 1000)} s, and the scenes must continue to word ${n - 1}.`;
+  }
+  return null;
 }
 
 export function reelTemplateDirectTask(): TaskDef<ReelDirectInput, ReelDirectOutput> {
@@ -406,6 +461,7 @@ export function reelTemplateDirectTask(): TaskDef<ReelDirectInput, ReelDirectOut
     promptVersion: REEL_DIRECT_PROMPT_VERSION,
     thinking: 'MEDIUM',
     maxOutputTokens: 16384,
+    check: checkReelDirect,
   };
 }
 
