@@ -307,15 +307,22 @@
  * light from the top right and a warm ember glow at the bottom left. Frames keep their white fill.
  */
 .desk {
-  background-color: #fbfcfe;
+  /* A soft paper tone, not pure white: easier on the eyes on long sessions. The colour washes are
+     pinned to the viewport so every screen and scroll position keeps them. */
+  background-color: #f5f7fb;
   background-image:
-    radial-gradient(70vw 60vh at 100% 0%, rgb(141 188 235 / 0.28), transparent 70%),
-    radial-gradient(55vw 50vh at 0% 100%, rgb(255 106 61 / 0.1), transparent 70%),
-    radial-gradient(40vw 40vh at 0% 30%, rgb(139 124 255 / 0.07), transparent 70%),
-    radial-gradient(rgb(0 0 0 / 0.09) 1px, transparent 1.4px);
+    radial-gradient(70vw 60vh at 100% 0%, rgb(141 188 235 / 0.3), transparent 70%),
+    radial-gradient(55vw 55vh at 0% 100%, rgb(255 106 61 / 0.11), transparent 70%),
+    radial-gradient(45vw 45vh at 0% 25%, rgb(139 124 255 / 0.09), transparent 70%),
+    radial-gradient(50vw 40vh at 100% 85%, rgb(94 234 180 / 0.07), transparent 70%),
+    radial-gradient(rgb(0 0 0 / 0.08) 1px, transparent 1.4px),
+    linear-gradient(180deg, #f8fafd 0%, #f2f4f8 100%);
   background-size:
     auto,
     auto,
     auto,
-    22px 22px;
+    auto,
+    22px 22px,
+    auto;
+  background-attachment: fixed, fixed, fixed, fixed, scroll, fixed;
 }
