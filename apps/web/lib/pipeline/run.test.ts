@@ -1,6 +1,8 @@
 import {
+  EditConfigSchema,
   EditorProjectSchema,
   setReelMediaAssets,
+  type EditConfig,
   timelineIssues,
   type ReelPlan,
   type Word,
@@ -1149,5 +1151,386 @@ describe('runPipeline: talking-head reels (spec 25)', () => {
     const loaded = await h.repo.load(PROJECT_ID);
     if (!loaded.ok) throw new Error('not saved');
     expect(loaded.project.styleId).toBe('creator-dark');
+  });
+});
+
+// Spec 39 R2.10, R5.5, R5.7: the creator's choices from the configure screen.
+describe('spec 39 edit config', () => {
+  const editConfig = (over: Record<string, unknown> = {}): EditConfig =>
+    EditConfigSchema.parse({
+      v: 1,
+      recipeId: 'tech-explainer',
+      styleId: 'mono-grid',
+      hookStyle: 'headline',
+      captions: { enabled: true, style: 'seam' },
+      cta: { enabled: true },
+      sound: { cleanup: true, sfx: true, music: 'auto' },
+      illustrations: true,
+      ...over,
+    });
+  const video = () => new Blob(['fake mp4'], { type: 'video/mp4' });
+  const saved = async (h: Harness) => {
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    return loaded.project;
+  };
+  const ctaScenes = (p: { reel?: ReelPlan | undefined }) =>
+    (p.reel?.scenes ?? []).filter((s) => s.content.template === 'cta');
+
+  /** A director plan with a logo (pictures to fetch) and a music brief (music to compose). */
+  const directedWithMedia = (i: { look: 'mono' | 'cream'; durationMs: number }) => ({
+    plan: {
+      v: 1 as const,
+      look: i.look,
+      focus: { x: 0.5, y: 0.32 },
+      music: { brief: 'Warm lo-fi, soft piano, 90 bpm' },
+      captions: true,
+      scenes: [
+        {
+          id: 'r1',
+          startMs: 0,
+          endMs: i.durationMs,
+          layout: 'split' as const,
+          content: {
+            template: 'logo' as const,
+            media: { kind: 'logo' as const, query: 'Acme' },
+            name: 'Acme',
+          },
+        },
+      ],
+    },
+    source: 'cloud' as const,
+  });
+
+  describe('video', () => {
+    it('CTA off and boxed captions: the free director’s plan has no cta scene and the boxed style', async () => {
+      // Control: the same take with CTA on ends in a cta scene, so the test can tell.
+      const on = rawTake().h;
+      await runPipeline(
+        makeInput({ file: video(), name: 'raw.mp4', edit: editConfig() }),
+        on.deps,
+        on.onEvent,
+      );
+      expect(ctaScenes(await saved(on)).length).toBeGreaterThan(0);
+
+      const { h } = rawTake();
+      await runPipeline(
+        makeInput({
+          file: video(),
+          name: 'raw.mp4',
+          edit: editConfig({
+            cta: { enabled: false },
+            captions: { enabled: true, style: 'boxed' },
+          }),
+        }),
+        h.deps,
+        h.onEvent,
+      );
+      const p = await saved(h);
+      expect(ctaScenes(p)).toHaveLength(0);
+      expect(p.reel?.captionStyle).toBe('boxed');
+      expect(p.reel?.captions).toBe(true);
+      expect(p.reel?.hookStyle).toBe('headline');
+    });
+
+    it('captions off reach the plan, and the theme comes from the style', async () => {
+      const { h } = rawTake();
+      await runPipeline(
+        makeInput({
+          file: video(),
+          name: 'raw.mp4',
+          edit: editConfig({
+            styleId: 'warm-editorial',
+            captions: { enabled: false, style: 'pop' },
+          }),
+        }),
+        h.deps,
+        h.onEvent,
+      );
+      const p = await saved(h);
+      expect(p.reel?.captions).toBe(false);
+      expect(p.reel?.look).toBe('cream');
+      expect(p.reel?.theme).toMatchObject({ accent: '#C2552D', background: 'soft' });
+    });
+
+    it('the director gets the style’s look, the brief and the choices; its plan is not changed again', async () => {
+      const { h } = rawTake();
+      const directReel = vi.fn<NonNullable<PipelineDeps['directReel']>>(async (i) =>
+        directedWithMedia(i),
+      );
+      h.deps.directReel = directReel;
+      await runPipeline(
+        makeInput({
+          file: video(),
+          name: 'raw.mp4',
+          reelLook: 'mono',
+          edit: editConfig({
+            styleId: 'warm-editorial',
+            hookStyle: 'stat',
+            cta: { enabled: true, text: 'Comment LINK' },
+            sound: { cleanup: true, sfx: true, music: 'lofi' },
+          }),
+        }),
+        h.deps,
+        h.onEvent,
+      );
+      expect(directReel).toHaveBeenCalledOnce();
+      const call = directReel.mock.calls[0]![0];
+      // The style's look wins over `reelLook`.
+      expect(call.look).toBe('cream');
+      expect(call.brief).toMatchObject({
+        recipe: 'Tech Explainer',
+        style: 'Warm Editorial',
+        hookStyle: 'stat',
+        cta: { enabled: true, text: 'Comment LINK' },
+        captionStyle: 'seam',
+        music: 'lofi',
+      });
+      expect(call.choices).toMatchObject({
+        hookStyle: 'stat',
+        captions: { enabled: true, style: 'seam' },
+        cta: { enabled: true, text: 'Comment LINK' },
+        music: 'lofi',
+        theme: { accent: '#C2552D', background: 'soft' },
+      });
+      // The mock director ignored the choices; run.ts does not enforce a second time.
+      expect((await saved(h)).reel?.scenes).toHaveLength(1);
+    });
+
+    it('a described recipe uses its resolved look and theme', async () => {
+      const { h } = rawTake();
+      const directReel = vi.fn<NonNullable<PipelineDeps['directReel']>>(async (i) =>
+        directedWithMedia(i),
+      );
+      h.deps.directReel = directReel;
+      await runPipeline(
+        makeInput({
+          file: video(),
+          name: 'raw.mp4',
+          edit: editConfig({
+            recipeId: 'custom',
+            customRecipe: 'Loud gaming recap',
+            resolved: {
+              recipeId: 'gaming',
+              look: 'cream',
+              theme: { accent: '#FF2D95', background: 'bold' },
+              captionStyle: 'boxed',
+              hookStyle: 'headline',
+              musicMood: 'upbeat',
+              directorNotes: 'Fast and loud.',
+            },
+          }),
+        }),
+        h.deps,
+        h.onEvent,
+      );
+      const call = directReel.mock.calls[0]![0];
+      expect(call.look).toBe('cream');
+      expect(call.choices?.theme).toEqual({ accent: '#FF2D95', background: 'bold' });
+      expect(call.brief?.recipe).toBe('Gaming');
+    });
+
+    it('illustrations off asks for none; on asks for up to 3; no edit sends no limit', async () => {
+      const limits: (number | undefined)[] = [];
+      for (const edit of [
+        editConfig({ illustrations: false }),
+        editConfig({ illustrations: true }),
+        undefined,
+      ]) {
+        const h = makeHarness();
+        h.deps.directReel = async (i) => directedWithMedia(i);
+        h.deps.resolveReelMedia = vi.fn(async ({ plan, maxIllustrations }) => {
+          limits.push(maxIllustrations);
+          return { plan, assets: [] };
+        });
+        await runPipeline(
+          makeInput({ file: video(), name: 'clip.mp4', ...(edit ? { edit } : {}) }),
+          h.deps,
+          h.onEvent,
+        );
+      }
+      expect(limits).toEqual([0, 3, undefined]);
+    });
+
+    it('music none never composes music; any other mood still does', async () => {
+      const runWith = async (music: 'none' | 'auto') => {
+        const h = makeHarness();
+        h.deps.directReel = async (i) => directedWithMedia(i);
+        const resolveReelMusic = vi.fn(async ({ plan }: { plan: ReelPlan }) => plan);
+        h.deps.resolveReelMusic = resolveReelMusic;
+        await runPipeline(
+          makeInput({
+            file: video(),
+            name: 'clip.mp4',
+            edit: editConfig({ sound: { cleanup: true, sfx: true, music } }),
+          }),
+          h.deps,
+          h.onEvent,
+        );
+        return resolveReelMusic;
+      };
+      expect(await runWith('none')).not.toHaveBeenCalled();
+      expect(await runWith('auto')).toHaveBeenCalledOnce();
+    });
+
+    it('music none also drops the free director’s music brief', async () => {
+      const { h } = rawTake();
+      await runPipeline(
+        makeInput({
+          file: video(),
+          name: 'raw.mp4',
+          edit: editConfig({ sound: { cleanup: true, sfx: true, music: 'none' } }),
+        }),
+        h.deps,
+        h.onEvent,
+      );
+      expect((await saved(h)).reel?.music).toBeUndefined();
+    });
+
+    it('speech cleanup off makes no cuts (the control makes some)', async () => {
+      const on = rawTake().h;
+      await runPipeline(
+        makeInput({ file: video(), name: 'raw.mp4', edit: editConfig() }),
+        on.deps,
+        on.onEvent,
+      );
+      expect((await saved(on)).video!.cuts.length).toBeGreaterThan(0);
+
+      const { h } = rawTake();
+      await runPipeline(
+        makeInput({
+          file: video(),
+          name: 'raw.mp4',
+          edit: editConfig({ sound: { cleanup: false, sfx: true, music: 'auto' } }),
+        }),
+        h.deps,
+        h.onEvent,
+      );
+      const p = await saved(h);
+      expect(p.video!.cuts).toEqual([]);
+      expect(p.voiceover.cleanup?.enabled).toBe(false);
+    });
+
+    it('stores the edit and the sound effects switch on the project', async () => {
+      const { h } = rawTake();
+      const edit = editConfig({ sound: { cleanup: true, sfx: false, music: 'auto' } });
+      await runPipeline(makeInput({ file: video(), name: 'raw.mp4', edit }), h.deps, h.onEvent);
+      const p = await saved(h);
+      expect(p.edit).toEqual(edit);
+      expect(p.audio?.autoSfx).toBe(false);
+      // The reel's own captions and music stay off the slot-level settings.
+      expect(p.captions?.enabled).toBe(false);
+      expect(p.audio?.musicId).toBeUndefined();
+    });
+
+    it('without an edit the project has no edit and no audio settings, as before', async () => {
+      const { h } = rawTake();
+      await runPipeline(makeInput({ file: video(), name: 'raw.mp4' }), h.deps, h.onEvent);
+      const p = await saved(h);
+      expect(p.edit).toBeUndefined();
+      expect(p.audio).toBeUndefined();
+    });
+  });
+
+  describe('voiceover', () => {
+    const run = async (edit: EditConfig, over: Partial<PipelineInput> = {}) => {
+      const h = makeHarness();
+      await runPipeline(makeInput({ edit, ...over }), h.deps, h.onEvent);
+      return saved(h);
+    };
+
+    it('maps the style, captions, sound effects and edit onto the project', async () => {
+      const edit = editConfig({
+        styleId: 'creator-dark',
+        captions: { enabled: false, style: 'boxed' },
+        sound: { cleanup: true, sfx: false, music: 'lofi' },
+      });
+      const p = await run(edit);
+      expect(p.styleId).toBe('creator-dark');
+      expect(p.captions).toEqual({ enabled: false, presetId: 'boxed' });
+      expect(p.audio?.autoSfx).toBe(false);
+      expect(p.audio?.musicId).toBe('calm-pad');
+      expect(p.edit).toEqual(edit);
+      expect(p.reel).toBeUndefined();
+    });
+
+    it('a reel style id is not a voiceover look: the recipe’s own look is used', async () => {
+      // mono-grid is a reel style; Tech Explainer's voiceover look is studio-light.
+      expect((await run(editConfig())).styleId).toBe('studio-light');
+      expect(
+        (await run(editConfig({ recipeId: 'finance-business', styleId: 'market-dark' }))).styleId,
+      ).toBe('newsprint');
+    });
+
+    it('caption styles map to presets', async () => {
+      const presets: Record<string, string> = {
+        seam: 'studio',
+        pop: 'pop',
+        editorial: 'editorial',
+        boxed: 'boxed',
+        clean: 'clean',
+      };
+      for (const [style, presetId] of Object.entries(presets)) {
+        const p = await run(editConfig({ captions: { enabled: true, style } }));
+        expect(p.captions).toEqual({ enabled: true, presetId });
+      }
+    });
+
+    it('music moods map to the synthesised beds; none gives none; auto follows the recipe', async () => {
+      const musicOf = async (music: string, recipeId = 'tech-explainer') =>
+        (await run(editConfig({ recipeId, sound: { cleanup: true, sfx: true, music } }))).audio
+          ?.musicId;
+      expect(await musicOf('minimal-tech')).toBe('calm-pad');
+      expect(await musicOf('lofi')).toBe('calm-pad');
+      expect(await musicOf('upbeat')).toBe('steady-pulse');
+      expect(await musicOf('dramatic')).toBe('steady-pulse');
+      expect(await musicOf('none')).toBeUndefined();
+      // Tech Explainer's default is minimal-tech, Finance & Business's is dramatic.
+      expect(await musicOf('auto')).toBe('calm-pad');
+      expect(await musicOf('auto', 'finance-business')).toBe('steady-pulse');
+    });
+
+    it('speech cleanup follows the edit, and a generated voice never gets cleanup', async () => {
+      const edit = editConfig();
+      const upload = await run(edit);
+      expect(upload.voiceover.cleanup?.enabled).toBe(true);
+      expect(upload.durationMs).toBe(CLEANED_DURATION);
+
+      const off = await run(editConfig({ sound: { cleanup: false, sfx: true, music: 'auto' } }));
+      expect(off.voiceover.cleanup?.enabled).toBe(false);
+      expect(off.durationMs).toBe(CUT_DURATION);
+
+      const tts = await run(edit, { source: 'tts' });
+      expect(tts.voiceover.cleanup?.enabled).toBe(false);
+      expect(tts.durationMs).toBe(CUT_DURATION);
+    });
+
+    it('a single graphic ignores the edit', async () => {
+      const h = makeHarness({ decoded: pcm(6200, 0), durationMs: 6200 });
+      await runPipeline(
+        makeInput({
+          name: 'Single graphic.wav',
+          words: singleWords('Revenue grew 40% since 2020.'),
+          single: true,
+          cleanup: false,
+          edit: editConfig({ captions: { enabled: true, style: 'boxed' } }),
+        }),
+        h.deps,
+        h.onEvent,
+      );
+      const p = await saved(h);
+      expect(p.edit).toBeUndefined();
+      expect(p.captions?.enabled).toBe(false);
+      expect(p.styleId).toBe('style-test');
+    });
+
+    it('without an edit nothing changes (no edit, no audio settings)', async () => {
+      const h = makeHarness();
+      await runPipeline(makeInput(), h.deps, h.onEvent);
+      const p = await saved(h);
+      expect(p.edit).toBeUndefined();
+      expect(p.audio).toBeUndefined();
+      expect(p.styleId).toBe('style-test');
+    });
   });
 });

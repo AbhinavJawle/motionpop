@@ -1,5 +1,8 @@
 import {
+  applyEditChoices,
   autoReelPlan,
+  briefFromEdit,
+  builtInSkills,
   planVideo,
   postPass,
   tagSpans,
@@ -10,7 +13,9 @@ import {
   type ReelDirectBrief,
   type TaggedSpan,
   type ValidatedParams,
+  styleFor as recipeStyleFor,
 } from '@motionpop/ai';
+import { looks, stylePacks } from '@motionpop/motion/styles';
 import { markAutoChoreograph } from '@/lib/film/auto-choreograph';
 import {
   APP_CONFIG_DEFAULTS,
@@ -21,6 +26,8 @@ import {
   keptSourceSegments,
   sourceToCleanedMs,
   reelMediaOf,
+  type CaptionsSetting,
+  type EditConfig,
   type EditorProject,
   type ImageAsset,
   type Format,
@@ -28,8 +35,10 @@ import {
   type MediaClip,
   type OverlayAnchor,
   type PendingExtraClip,
+  type ReelCaptionStyle,
   type ReelLook,
   type ReelPlan,
+  type ReelTheme,
   type ReelWord,
   type VideoCut,
   type Slot,
@@ -100,6 +109,11 @@ export interface PipelineInput {
   single?: boolean;
   /** The reel look for video uploads (spec 25). Default `mono`. */
   reelLook?: ReelLook;
+  /**
+   * The creator's choices from the configure screen (spec 39 R2.10, R5.5). Absent: the pipeline
+   * behaves as it did before spec 39. A single graphic ignores it.
+   */
+  edit?: EditConfig;
 }
 
 export interface TranscribeOutput {
@@ -185,6 +199,8 @@ export interface PipelineDeps {
     look: ReelLook;
     projectId: string;
     onProgress?: (done: number, total: number) => void;
+    /** Most AI illustrations to make (spec 39 R2.7: 0 when the creator switched them off). */
+    maxIllustrations?: number;
   }): Promise<{ plan: ReelPlan; assets: ImageAsset[] }>;
   /** Optional extra-clip ingester for B-roll / screen-recordings / screenshots dropped on /start (spec 20). */
   ingestExtraClip?(clip: PendingExtraClip, projectId: string): Promise<MediaClip | null>;
@@ -249,6 +265,53 @@ export function singleSuggestion(words: readonly Word[]): SlotSuggestion {
   };
 }
 
+/** Reel caption style → the voiceover caption preset that looks closest (spec 39 §5.4). */
+const CAPTION_PRESET: Readonly<Record<ReelCaptionStyle, CaptionsSetting['presetId']>> = {
+  seam: 'studio',
+  pop: 'pop',
+  editorial: 'editorial',
+  boxed: 'boxed',
+  clean: 'clean',
+};
+
+/** The built-in recipe an edit stands on (a described recipe borrows its resolved base). */
+function recipeOf(edit: EditConfig) {
+  const id =
+    edit.recipeId === 'custom' ? (edit.resolved?.recipeId ?? 'tech-explainer') : edit.recipeId;
+  return builtInSkills.recipe(id);
+}
+
+/** The look and colours a reel gets from the creator's style (spec 39 review 18, 24). */
+function reelStyleOf(edit: EditConfig): { look: ReelLook; theme?: ReelTheme } {
+  if (edit.recipeId === 'custom' && edit.resolved) {
+    return {
+      look: edit.resolved.look,
+      ...(edit.resolved.theme ? { theme: edit.resolved.theme } : {}),
+    };
+  }
+  const style = recipeStyleFor(edit.recipeId, edit.styleId);
+  return { look: style.look, ...(style.theme ? { theme: style.theme } : {}) };
+}
+
+/**
+ * The voiceover look for an edit: the chosen style when it is a real voiceover look, else the
+ * recipe's own (a reel style id is not a voiceover look).
+ */
+function voiceoverLookOf(edit: EditConfig, fallback: string): string {
+  if (Object.hasOwn(looks, edit.styleId) || Object.hasOwn(stylePacks, edit.styleId))
+    return edit.styleId;
+  return recipeOf(edit)?.defaults.voiceoverLook ?? fallback;
+}
+
+/** Music mood → the synthesised bed a voiceover can play (spec 39 §5.4); `none`/unknown → none. */
+function musicIdOf(edit: EditConfig): 'calm-pad' | 'steady-pulse' | undefined {
+  const mood =
+    edit.sound.music === 'auto' ? (recipeOf(edit)?.defaults.music ?? 'none') : edit.sound.music;
+  if (mood === 'minimal-tech' || mood === 'lofi') return 'calm-pad';
+  if (mood === 'upbeat' || mood === 'dramatic') return 'steady-pulse';
+  return undefined;
+}
+
 export async function runPipeline(
   input: PipelineInput,
   deps: PipelineDeps,
@@ -270,7 +333,10 @@ export async function runPipeline(
   try {
     // The project id comes first, so every write of this run can be filed under it (design §2.4).
     const id = deps.newId();
-    const cleanupOn = input.cleanup ?? true;
+    // A single graphic has nothing to choose, so it ignores the configure choices (spec 39).
+    const edit = input.single ? undefined : input.edit;
+    // Generated voices are already clean: `tts` forces cleanup off (spec 39 review 25).
+    const cleanupOn = edit ? input.source !== 'tts' && edit.sound.cleanup : (input.cleanup ?? true);
 
     // Intake (R1).
     const intake = validateIntake({
@@ -282,7 +348,10 @@ export async function runPipeline(
     const isVideoInput = intake.kind === 'video';
     if (isVideoInput && !input.single) onEvent({ type: 'titles', titles: REEL_STEP_TITLES });
     // Video uploads default to crisp Studio Light (spec 24 R5.2) unless the creator picked another look.
-    const styleId = input.styleId ?? (isVideoInput ? 'studio-light' : deps.styleId);
+    const styleId =
+      edit && !isVideoInput
+        ? voiceoverLookOf(edit, deps.styleId)
+        : (input.styleId ?? (isVideoInput ? 'studio-light' : deps.styleId));
 
     step = 'transcribe';
     onEvent({ type: 'step', step, state: 'active' });
@@ -420,7 +489,18 @@ export async function runPipeline(
         detail: 'Writing the story',
         ...(deps.directReel ? { route: 'cloud' as const } : {}),
       });
-      const look: ReelLook = input.reelLook ?? 'mono';
+      // The creator's style decides the look before the director runs (spec 39 review 18).
+      const editStyle = edit ? reelStyleOf(edit) : null;
+      const look: ReelLook = editStyle?.look ?? input.reelLook ?? 'mono';
+      const choices: EditChoices | null = edit
+        ? {
+            hookStyle: edit.hookStyle,
+            captions: edit.captions,
+            cta: edit.cta,
+            music: edit.sound.music,
+            ...(editStyle?.theme ? { theme: editStyle.theme } : {}),
+          }
+        : null;
       const words = reelWords.map((w) => ({ text: w.text, startMs: w.startMs, endMs: w.endMs }));
       // The director sees the footage too (spec 27 R2.1): keyframes moved onto the reel clock
       // (a frame inside a removed pause is dropped).
@@ -429,10 +509,21 @@ export async function runPipeline(
         return atMs === null ? [] : [{ atMs: Math.round(atMs), base64: f.base64 }];
       });
       const directed = await (deps.directReel
-        ? deps.directReel({ look, words, durationMs: reelMs, frames }).catch(() => null)
+        ? deps
+            .directReel({
+              look,
+              words,
+              durationMs: reelMs,
+              frames,
+              ...(edit && choices ? { brief: briefFromEdit(edit) ?? undefined, choices } : {}),
+            })
+            .catch(() => null)
         : Promise.resolve(null));
       checkAbort();
-      let reel = directed?.plan ?? autoReelPlan(words, reelMs, look);
+      // A director's plan already carries the choices (directReel enforces them, spec 39 R5.7);
+      // the plan this file makes itself gets them here.
+      let reel =
+        directed?.plan ?? withChoices(autoReelPlan(words, reelMs, look), words, reelMs, choices);
       const source = directed?.source ?? 'auto';
       onEvent({
         type: 'step',
@@ -452,6 +543,7 @@ export async function runPipeline(
             plan: reel,
             look,
             projectId: id,
+            ...(edit ? { maxIllustrations: edit.illustrations === false ? 0 : 3 } : {}),
             onProgress: (done, total) =>
               onEvent({
                 type: 'step',
@@ -468,7 +560,7 @@ export async function runPipeline(
         }
       }
       // The soundtrack (spec 27 R3.2), composed from the director's brief.
-      if (deps.resolveReelMusic && reel.music && !reel.music.src) {
+      if (deps.resolveReelMusic && reel.music && !reel.music.src && edit?.sound.music !== 'none') {
         onEvent({ type: 'step', step, state: 'active', detail: 'Composing your music' });
         const scored = await deps
           .resolveReelMusic({ plan: reel, durationMs: reelMs, projectId: id })
@@ -538,6 +630,8 @@ export async function runPipeline(
           versions: [],
           // The reel draws its own captions (spec 25); the slot captions stay off.
           captions: { ...DEFAULT_CAPTIONS, enabled: false },
+          // The reel's own sound comes from `reel.music` and `reelBedSound`; no synth music here.
+          ...(edit ? { audio: { ...DEFAULT_AUDIO, autoSfx: edit.sound.sfx }, edit } : {}),
           createdAt: now,
           updatedAt: now,
         } satisfies EditorProject;
@@ -801,7 +895,21 @@ export async function runPipeline(
                   autoSfx: true,
                 },
               }
-            : {}),
+            : edit
+              ? {
+                  // A voiceover with the creator's choices (spec 39 §5.4).
+                  captions: {
+                    enabled: edit.captions.enabled,
+                    presetId: CAPTION_PRESET[edit.captions.style],
+                  },
+                  audio: {
+                    ...DEFAULT_AUDIO,
+                    autoSfx: edit.sound.sfx,
+                    ...(musicIdOf(edit) ? { musicId: musicIdOf(edit) } : {}),
+                  },
+                  edit,
+                }
+              : {}),
         createdAt: now,
         updatedAt: now,
       } satisfies EditorProject;
@@ -864,6 +972,21 @@ function retakeSummary(
       : `${n} retake${n === 1 ? '' : 's'} cut`;
   const span = `${(sourceMs / 1000).toFixed(1)} s → ${(finalMs / 1000).toFixed(1)} s`;
   return `${takes}${reviewed ? ' · checked' : ''} · ${span}`;
+}
+
+/** The creator's choices on a plan this file made itself; the plan stands if they can't apply. */
+function withChoices(
+  plan: ReelPlan,
+  words: readonly ReelWord[],
+  durationMs: number,
+  choices: EditChoices | null,
+): ReelPlan {
+  if (!choices) return plan;
+  try {
+    return applyEditChoices(plan, words, durationMs, choices);
+  } catch {
+    return plan;
+  }
 }
 
 function visualsSummary(images: number, music: boolean): string {

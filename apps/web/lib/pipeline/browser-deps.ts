@@ -70,8 +70,14 @@ export function browserPipelineDeps(opts: { credits?: CreditsClient | null } = {
       }),
     directReel: (params) => directReelPaid({ ...params, refId: 'reel' }, { credits }),
     reviewEdit: ({ phrases }) => reviewReelCuts(phrases, { credits }),
-    resolveReelMedia: ({ plan, look, projectId, onProgress }) =>
-      resolveReelMedia(plan, look, projectId, { credits }, onProgress),
+    resolveReelMedia: ({ plan, look, projectId, onProgress, maxIllustrations }) =>
+      resolveReelMedia(
+        plan,
+        look,
+        projectId,
+        { credits, ...(maxIllustrations !== undefined ? { maxIllustrations } : {}) },
+        onProgress,
+      ),
     resolveReelMusic: ({ plan, durationMs, projectId }) =>
       resolveReelMusic(plan, durationMs, projectId, { audioStore: appAudioStore() }),
     ingestExtraClip: async (clip, projectId) => {
