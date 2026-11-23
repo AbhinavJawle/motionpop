@@ -52,10 +52,13 @@ export {
   clearReelScene,
   clearReelSounds,
   setReel,
+  setReelCaptionStyle,
   setReelCaptions,
   setReelLook,
   setReelMusicBrief,
+  setReelStyle,
   setReelTheme,
+  type ReelStyleChange,
 } from './reel';
 export {
   addReelNote,

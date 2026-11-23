@@ -1,8 +1,17 @@
+import { builtInSkills } from '@motionpop/ai';
 import { fixtureProject } from '@motionpop/motion/testing/project-fixture';
-import { EditorProjectSchema, type EditorProject, type ReelPlan } from '@motionpop/schemas';
+import {
+  EditorProjectSchema,
+  ReelPlanSchema,
+  ReelCaptionStyleSchema,
+  type EditorProject,
+  type ReelPlan,
+} from '@motionpop/schemas';
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { defaultEdit } from '@/lib/configure/defaults';
 import { CommandRejected } from './command';
-import { setReel, setReelCaptions, setReelLook } from './reel';
+import { setReel, setReelCaptionStyle, setReelCaptions, setReelLook, setReelStyle } from './reel';
 
 const plan: ReelPlan = {
   v: 1,
@@ -55,5 +64,87 @@ describe('reel commands (spec 25)', () => {
   it('rejects projects without a reel and invalid plans', () => {
     expect(() => setReelLook('cream').do(project(false))).toThrow(CommandRejected);
     expect(() => setReel({ ...plan, scenes: [] }).do(project())).toThrow(CommandRejected);
+  });
+});
+
+describe('reel style commands (spec 39 R5.6)', () => {
+  const styles = builtInSkills.recipes().flatMap((r) => r.styles);
+  const withEdit = (): EditorProject =>
+    EditorProjectSchema.parse({ ...project(), edit: defaultEdit('video') });
+  const change = (st: (typeof styles)[number]) =>
+    setReelStyle({ look: st.look, theme: st.theme, captionStyle: st.captionStyle, styleId: st.id });
+
+  it('sets look, theme, caption style and project.edit in one step, and undoes exactly', () => {
+    const p = withEdit();
+    const st = styles.find((x) => x.id === 'flame-punch')!;
+    const cmd = change(st);
+    const next = cmd.do(p);
+    expect(next.reel?.look).toBe(st.look);
+    expect(next.reel?.theme).toEqual(st.theme);
+    expect(next.reel?.captionStyle).toBe(st.captionStyle);
+    expect(next.edit?.styleId).toBe('flame-punch');
+    expect(next.edit?.captions.style).toBe(st.captionStyle);
+    expect(ReelPlanSchema.safeParse(next.reel).success).toBe(true);
+    expect(cmd.undo(next)).toEqual(p);
+  });
+
+  it('removes the theme when the style has none, and restores it on undo', () => {
+    const themed = styles.find((x) => x.theme)!;
+    const plain = styles.find((x) => !x.theme)!;
+    const p = change(themed).do(withEdit());
+    expect(p.reel?.theme).toBeDefined();
+    const cmd = change(plain);
+    const next = cmd.do(p);
+    expect(next.reel && 'theme' in next.reel).toBe(false);
+    expect(cmd.undo(next)).toEqual(p);
+  });
+
+  it('follows the look for layouts (cream turns split into card)', () => {
+    const cream = styles.find((x) => x.look === 'cream')!;
+    const next = change(cream).do(withEdit());
+    expect(next.reel?.scenes[0]?.layout).toBe('card');
+  });
+
+  it('works on a reel with no project.edit and leaves edit absent', () => {
+    const p = project();
+    const cmd = change(styles[0]!);
+    const next = cmd.do(p);
+    expect(next.edit).toBeUndefined();
+    expect(cmd.undo(next)).toEqual(p);
+  });
+
+  it('changes only the caption style with setReelCaptionStyle', () => {
+    const p = withEdit();
+    const cmd = setReelCaptionStyle('boxed');
+    const next = cmd.do(p);
+    expect(next.reel?.captionStyle).toBe('boxed');
+    expect(next.edit?.captions.style).toBe('boxed');
+    expect(next.edit?.styleId).toBe(p.edit?.styleId);
+    expect(next.reel?.look).toBe(p.reel?.look);
+    expect(cmd.undo(next)).toEqual(p);
+  });
+
+  it('rejects a project without a reel', () => {
+    expect(() => change(styles[0]!).do(project(false))).toThrow(CommandRejected);
+    expect(() => setReelCaptionStyle('pop').do(project(false))).toThrow(CommandRejected);
+  });
+
+  it('property: do then undo restores the project exactly, after any starting style', () => {
+    const style = fc.constantFrom(...styles);
+    const caption = fc.constantFrom(...ReelCaptionStyleSchema.options);
+    fc.assert(
+      fc.property(fc.boolean(), style, style, caption, (hasEdit, first, second, cap) => {
+        const base = hasEdit ? withEdit() : project();
+        const start = change(first).do(base);
+        const style2 = change(second);
+        const a = style2.do(start);
+        expect(style2.undo(a)).toEqual(start);
+        const capCmd = setReelCaptionStyle(cap);
+        const b = capCmd.do(a);
+        expect(ReelPlanSchema.safeParse(b.reel).success).toBe(true);
+        expect(capCmd.undo(b)).toEqual(a);
+      }),
+      { numRuns: 60 },
+    );
   });
 });

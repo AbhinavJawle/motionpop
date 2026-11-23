@@ -15,7 +15,8 @@ Commits through kiro-cli only, no Co-Authored-By trailers.
 - [x] 7. Reel caption styles: `chunkCaptions` per style, painter + CSS for seam/pop/editorial/boxed/clean, default-unchanged test (R5.1, R5.2)
 - [x] 8. Pipeline takes `edit` (+ `prepared`): video and voiceover mappings, `project.edit`, illustrations cap, music none, autoSfx; tests in `run.test.ts` (R2.10, R5.5)
 - [x] 9. Reel sound guardrails: no `useSoundBed` on reels; `reelBedSound` preview/render parity test (R7)
-- [ ] 10. Styles panel for reels: recipe styles + caption styles, `setReelStyle` command with one undo (R5.6)
+- [x] 10. Styles panel for reels: recipe styles + caption styles, `setReelStyle` command with one undo (R5.6)
+  _Built: `setReelStyle` and `setReelCaptionStyle` (one undo, also update `project.edit`), recipe groups + caption radiogroup in the panel for reel projects, voiceover looks unchanged otherwise._
 
 ## Phase 3 — Background jobs
 - [x] 11. `eta.ts` (weights, prior, blend, `formatEta`) + property tests (R6.4)

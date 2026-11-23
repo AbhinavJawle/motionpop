@@ -1,9 +1,12 @@
 import {
+  EditConfigSchema,
   REEL_ADDED_SFX_MAX,
   ReelPlanSchema,
   restyleReelPlan,
+  type EditorProject,
   type ImageAsset,
   type ReelAddedSfx,
+  type ReelCaptionStyle,
   type ReelLook,
   type ReelPlan,
   type ReelTheme,
@@ -173,4 +176,75 @@ export function setReelMusicBrief(brief: string | null, src?: string): Command {
     const rest = omit(r, 'music');
     return brief ? { ...rest, music: { brief, ...(src ? { src } : {}) } } : rest;
   });
+}
+
+/** What a reel style pick changes (spec 39 R5.6): a recipe style, or only the caption style. */
+export interface ReelStyleChange {
+  look: ReelLook;
+  /** `undefined` (a style with no theme of its own) removes the reel's theme. */
+  theme?: ReelTheme | undefined;
+  captionStyle: ReelCaptionStyle;
+  /** The picked recipe style id; stored on `project.edit` when the project has one. */
+  styleId: string;
+}
+
+/**
+ * Changes the reel's look, theme and caption style together, and keeps `project.edit` (the
+ * configure choices) in step: validated whole, one undo step. The project is replaced as a unit
+ * because `edit` lives next to `reel`, not inside it (spec 39 design §10 #17).
+ */
+function changeReelStyle(
+  label: string,
+  change: (r: ReelPlan) => ReelPlan,
+  editOf: (e: NonNullable<EditorProject['edit']>) => NonNullable<EditorProject['edit']>,
+): Command {
+  let prev: { reel: ReelPlan; edit: EditorProject['edit'] } | undefined;
+  return {
+    label,
+    do(p) {
+      if (!p.reel) throw new CommandRejected('This project has no reel');
+      const reel = ReelPlanSchema.safeParse(change(p.reel));
+      if (!reel.success) throw new CommandRejected('That reel style is not valid');
+      let edit: EditorProject['edit'];
+      if (p.edit) {
+        const parsed = EditConfigSchema.safeParse(editOf(p.edit));
+        if (!parsed.success) throw new CommandRejected('That reel style is not valid');
+        edit = parsed.data;
+      }
+      prev = { reel: p.reel, edit: p.edit };
+      return produce(p, (d) => {
+        d.reel = reel.data;
+        if (edit) d.edit = edit;
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (!prev) return;
+        d.reel = prev.reel;
+        if (prev.edit) d.edit = prev.edit;
+        else delete d.edit;
+      });
+    },
+  };
+}
+
+/** A recipe style: its look (layouts follow), colours and caption style, in one undo step. */
+export function setReelStyle(c: ReelStyleChange): Command {
+  return changeReelStyle(
+    'Change the reel style',
+    (r) => {
+      const rest = omit(restyleReelPlan(r, c.look), 'theme');
+      return { ...rest, ...(c.theme ? { theme: c.theme } : {}), captionStyle: c.captionStyle };
+    },
+    (e) => ({ ...e, styleId: c.styleId, captions: { ...e.captions, style: c.captionStyle } }),
+  );
+}
+
+/** Only the caption style (the look, colours and picked recipe style stay). One undo step. */
+export function setReelCaptionStyle(captionStyle: ReelCaptionStyle): Command {
+  return changeReelStyle(
+    'Change the caption style',
+    (r) => ({ ...r, captionStyle }),
+    (e) => ({ ...e, captions: { ...e.captions, style: captionStyle } }),
+  );
 }
