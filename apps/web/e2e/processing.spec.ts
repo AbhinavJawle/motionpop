@@ -5,15 +5,17 @@ test.describe('Processing screen', () => {
   test('new shows the drop zone and rejects a non-audio file', async ({ page }) => {
     const errors = trackPageErrors(page);
     await page.goto('/processing/new');
+    // Nothing pending: the drop zone (a dropped file goes on to the configure screen).
     await expect(
-      page.getByRole('button', { name: /Drop a video or voiceover here/ }),
+      page.getByRole('button', { name: 'Drop a video or voiceover here, or choose a file' }),
     ).toBeVisible();
     await page.locator('input[type=file]').setInputFiles({
       name: 'notes.txt',
       mimeType: 'text/plain',
       buffer: Buffer.from('definitely not audio'),
     });
-    await expect(page.getByText(/doesn.t look like audio/)).toBeVisible();
+    // Changed by spec 39 task 1 (video first): the intake message now names video too.
+    await expect(page.getByText(/doesn.t look like audio or video/)).toBeVisible();
     expect(errors).toEqual([]);
   });
 
@@ -21,7 +23,18 @@ test.describe('Processing screen', () => {
     const errors = trackPageErrors(page);
     await page.goto('/processing/new');
     const t0 = Date.now();
+    // Changed by spec 39 task 17/19: a sample goes to the configure screen first. Wait until the
+    // free preparation is done ("Ready"), then press Create, which opens the job's page.
     await page.getByRole('button', { name: /Try a sample/ }).click();
+    await page.waitForURL('**/start/configure');
+    await expect(page.getByRole('progressbar', { name: 'Preparing your take' })).toHaveAttribute(
+      'aria-valuenow',
+      '100',
+      { timeout: 30_000 },
+    );
+    await expect(page.getByText('Ready', { exact: true }).first()).toBeVisible();
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/processing\/j-[a-z0-9]+/, { timeout: 15_000 });
 
     const steps = page.getByRole('list', { name: 'Processing steps' });
     await expect(steps).toContainText('Sample transcript · 22 words · 18.0s', { timeout: 15_000 });
@@ -68,8 +81,15 @@ test.describe('Processing screen', () => {
  * auto-fill when no device model answers) and the ready stat-punch over "revenue … percent".
  */
 async function expectSuggestedSlot(page: Page): Promise<void> {
-  await expect(page.getByText('Voiceover · 14.3s')).toBeVisible({ timeout: 30_000 });
-  await expect(wordsTrack(page).getByRole('button')).toHaveCount(22);
+  // Changed by spec 39 task 20: the timeline header hides this label (a container query, 1080 px)
+  // while the Pip panel is open on load (spec 38), so it is checked as present, not visible.
+  await expect(page.getByText('Voiceover · 14.3s')).toBeAttached({ timeout: 30_000 });
+  // Changed by spec 39 task 20: the words track only mounts the words in view, and the Pip panel
+  // (open on load since spec 38) narrows it to 18 of the 22. The strip on the processing page
+  // already checked "22 words"; here the track must show most of them.
+  await expect
+    .poll(() => wordsTrack(page).getByRole('button').count(), { timeout: 10_000 })
+    .toBeGreaterThanOrEqual(15);
   await expect(page.locator('[data-slot-id]')).toHaveCount(3, { timeout: 30_000 });
   const ids = await page
     .locator('[data-slot-id]')

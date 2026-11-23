@@ -1,12 +1,14 @@
 'use client';
 
 import { motion } from 'motion/react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { PipLoop } from '@/components/landing/pip-loop';
 import { btn, Bubble, paper, poster } from '@/components/paper/kit';
+import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/cn';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
+import { CONFIGURE, handOffSample } from '@/lib/intake/hand-off';
 import { springPop } from '@/lib/motion/presets';
 
 export type CatchState = 'idle' | 'over' | 'caught';
@@ -33,6 +35,19 @@ export function CatchPill() {
 export function EmptyCard({ drag, onWake }: { drag: CatchState; onWake: () => void }) {
   const router = useRouter();
   const catching = drag !== 'idle';
+  const [busy, setBusy] = useState(false);
+
+  // One tap: the sample goes straight to the configure screen, like Start's sample button.
+  const trySample = async () => {
+    if (busy) return;
+    setBusy(true);
+    const r = await handOffSample();
+    if (r.ok) router.push(CONFIGURE);
+    else {
+      toast.error(r.message);
+      setBusy(false);
+    }
+  };
 
   return (
     <section
@@ -64,9 +79,14 @@ export function EmptyCard({ drag, onWake }: { drag: CatchState; onWake: () => vo
               >
                 {C.empty.cta}
               </button>
-              <Link href="/processing/new" className={btn('paper', 'lg')}>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => void trySample()}
+                className={btn('paper', 'lg')}
+              >
                 {C.empty.sample}
-              </Link>
+              </button>
               <button type="button" onClick={onWake} className={paper.link}>
                 Paste a script
               </button>

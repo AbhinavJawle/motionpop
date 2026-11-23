@@ -32,7 +32,8 @@ Commits through kiro-cli only, no Co-Authored-By trailers.
 - [x] 17. Entry points go to `/start/configure`: Start upload + sample, dashboard drop, recorder, script screen (script → pending without blob, voice made after Create) (R2.1, R2.4)
 - [x] 18. `summaryRows()` pricing + tests (signed out, no credits, illustrations off, script minutes) (R2.7, R2.9)
 - [x] 19. Configure screen: layout, media card with prep bar and Pip, option cards (CSS art) for recipe/style/hook/captions/CTA/sound, custom fields with `recipe.resolve`, sticky summary + Create → `jobs.submit` (R2.2, R2.3, R2.5, R2.6, R4.3)
-- [ ] 20. e2e: sample → configure → Create → processing → editor; leave processing → dashboard Working card (R8.2)
+- [x] 20. e2e: sample → configure → Create → processing → editor; leave processing → dashboard Working card (R8.2)
+  _Built: `processing.spec.ts` updated, new `configure.spec.ts` (5 tests incl. the dashboard Working card and the empty dashboard's one-tap sample). The empty card's sample is now a button that calls `handOffSample()` and pushes `/start/configure`. 8/8 green on a hand-started dev server._
 
 ## Phase 5 — Verification and logs
 - [ ] 21. Gates across schemas, ai, motion, web, render; screenshots of configure (video, audio, script), processing, dashboard working card (R8.3)
