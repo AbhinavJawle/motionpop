@@ -14,7 +14,7 @@ import { cn } from '@/lib/cn';
 import { clock } from '@/lib/dashboard/format';
 import { useVoiceState } from '@/lib/editor/voice-state';
 import { nextTakeTitle, panelWords } from '@/lib/editor/voice-words';
-import { handOffFile, PROCESSING_NEW } from '@/lib/intake/hand-off';
+import { CONFIGURE, handOffFile } from '@/lib/intake/hand-off';
 import { writeDraft } from '@/lib/intake/pending';
 import { cleanupSummary } from '@/lib/pipeline/events';
 import { flushSave } from '@/lib/stores/autosave';
@@ -269,7 +269,7 @@ function NewTakeModal({
       return;
     }
     await flushSave();
-    router.push(PROCESSING_NEW);
+    router.push(CONFIGURE);
   };
 
   return (

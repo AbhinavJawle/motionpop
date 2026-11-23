@@ -18,7 +18,7 @@ import {
   RecorderStartError,
   type RecorderError,
 } from '@/lib/audio/recorder';
-import { PROCESSING_NEW, recordMeta } from '@/lib/intake/hand-off';
+import { CONFIGURE, recordMeta } from '@/lib/intake/hand-off';
 import { clearPending, peekPending, setPendingRef, takePending } from '@/lib/intake/pending';
 import { audioStore } from '@/lib/audio/audio-store';
 import { useStartDraft } from '@/lib/intake/use-start-draft';
@@ -259,7 +259,7 @@ export function RecordScreen() {
     return () => window.removeEventListener('keydown', onKey);
   }, [phase.kind, confirm, togglePause, stop, askDiscard]);
 
-  const useTake = () => router.push(PROCESSING_NEW);
+  const useTake = () => router.push(CONFIGURE);
   const again = async () => {
     audio.current?.pause();
     setPlaying(false);

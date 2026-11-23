@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { PipLoop } from '@/components/landing/pip-loop';
 import { toast } from '@/components/ui/toast';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
-import { handOffFile, PROCESSING_NEW } from '@/lib/intake/hand-off';
+import { CONFIGURE, handOffFile } from '@/lib/intake/hand-off';
 import { fadeIn, modal } from '@/lib/motion/presets';
 import { CatchPill, type CatchState } from './empty-card';
 
@@ -50,7 +50,7 @@ export function useFileDrop(): CatchState {
           return;
         }
         setState('caught');
-        setTimeout(() => router.push(PROCESSING_NEW), 600);
+        setTimeout(() => router.push(CONFIGURE), 600);
       });
     };
     // Escape or a drag that ends outside the window.

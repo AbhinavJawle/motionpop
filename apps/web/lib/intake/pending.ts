@@ -89,6 +89,15 @@ export async function setPending(
   return ref;
 }
 
+/** Hands a script over (no audio yet: its voice is made after Create, spec 39 R2.4). */
+export async function setPendingScript(
+  meta: Omit<PendingIntake, 'ref'>,
+  draft: StartDraft = readDraft(),
+  deps: PendingDeps = browserDeps(),
+): Promise<void> {
+  await setPendingRef(PendingIntakeSchema.parse(meta), draft, deps);
+}
+
 /**
  * The pending intake with its audio, or null (nothing pending, or the audio is gone). A typed
  * script has no audio yet (spec 39): its `blob` is null.

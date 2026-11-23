@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { IdbAudioStore } from '../audio/audio-store';
 import {
   clearPending,
+  peekPending,
   readDraft,
   setPending,
+  setPendingScript,
   takePending,
   writeDraft,
   type PendingDeps,
@@ -65,5 +67,47 @@ describe('pending intake', () => {
       title: 'Untitled Project',
       format: '9:16',
     });
+  });
+});
+
+describe('script hand-off (spec 39)', () => {
+  const tts = { voiceId: 'Kore', speed: 1, script: 'Revenue grew forty percent.' };
+  const scriptMeta = { source: 'tts' as const, name: 'Revenue grew', cleanup: false, tts };
+
+  it('stores a pending intake with no ref and the tts meta, and takePending gives a null blob', async () => {
+    const audio = new IdbAudioStore(new IDBFactory());
+    const deps: PendingDeps = { storage: memoryStorage(), audio };
+    await setPendingScript(scriptMeta, { title: 'Script', format: '9:16' }, deps);
+
+    const peeked = peekPending(deps);
+    expect(peeked?.meta.ref).toBeUndefined();
+    expect(peeked?.meta.tts).toEqual(tts);
+
+    const p = await takePending(deps);
+    expect(p?.blob).toBeNull();
+    expect(p?.meta.source).toBe('tts');
+    expect(p?.meta.tts?.script).toBe(tts.script);
+    expect(p?.draft).toEqual({ title: 'Script', format: '9:16' });
+    // taking does not consume it (a reload keeps the script)
+    expect(peekPending(deps)).not.toBeNull();
+  });
+
+  it('rejects a script meta with a blank script and keeps the older hand-off', async () => {
+    const audio = new IdbAudioStore(new IDBFactory());
+    const deps: PendingDeps = { storage: memoryStorage(), audio };
+    const ref = await setPending(take(5), meta, undefined, deps);
+    await expect(
+      setPendingScript({ ...scriptMeta, tts: { ...tts, script: '  ' } }, undefined, deps),
+    ).rejects.toThrow();
+    expect(await audio.get(ref)).not.toBeNull();
+  });
+
+  it('a script hand-off replaces an older take and deletes its audio', async () => {
+    const audio = new IdbAudioStore(new IDBFactory());
+    const deps: PendingDeps = { storage: memoryStorage(), audio };
+    const ref = await setPending(take(5), meta, undefined, deps);
+    await setPendingScript(scriptMeta, undefined, deps);
+    expect(await audio.get(ref)).toBeNull();
+    expect(peekPending(deps)?.meta.ref).toBeUndefined();
   });
 });

@@ -10,7 +10,7 @@ import { recordClock } from '@/lib/audio/level';
 import { MAX_TAKE_MS, Recorder, RecorderStartError } from '@/lib/audio/recorder';
 import { cn } from '@/lib/cn';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
-import { PROCESSING_NEW, recordMeta } from '@/lib/intake/hand-off';
+import { CONFIGURE, recordMeta } from '@/lib/intake/hand-off';
 import { setPendingRef } from '@/lib/intake/pending';
 import { StartDraftSchema } from '@motionpop/schemas';
 import { putScriptDraft } from '@/lib/script/hand-off';
@@ -88,7 +88,7 @@ export const CaptureBar = forwardRef<CaptureBarHandle, object>(function CaptureB
       // Stored at once: a reload between here and Processing keeps the take (R8.4).
       const ref = await audioStore().put(wav);
       await setPendingRef(recordMeta(ref, Date.now()), StartDraftSchema.parse({}));
-      router.push(PROCESSING_NEW);
+      router.push(CONFIGURE);
     } catch (e) {
       console.error('[capture]', e);
       toast.error("Couldn't keep that take in this browser. Try again.");

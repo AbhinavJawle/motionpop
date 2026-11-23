@@ -10,8 +10,10 @@ import { sampleInput } from '../pipeline/sample';
 import { guessMimeType, isSupportedMediaBinFile } from '../video/media-bin';
 import { readDraft, setPending } from './pending';
 
-/** Where every entry point sends the creator once the audio is stored (spec 11 §2.5). */
+/** Where the single-graphic line goes once stored (spec 11 §2.5). */
 export const PROCESSING_NEW = '/processing/new';
+/** Where every other entry point sends the creator: choose, then Create (spec 39 R2.1). */
+export const CONFIGURE = '/start/configure';
 
 export type HandOffResult = { ok: true } | { ok: false; message: string };
 

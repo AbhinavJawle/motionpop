@@ -8,7 +8,13 @@ import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'rea
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/cn';
 import { START_COPY as C } from '@/lib/dashboard/copy';
-import { handOffFile, handOffFiles, handOffSample, PROCESSING_NEW } from '@/lib/intake/hand-off';
+import {
+  CONFIGURE,
+  handOffFile,
+  handOffFiles,
+  handOffSample,
+  PROCESSING_NEW,
+} from '@/lib/intake/hand-off';
 import { handOffSingle, SINGLE_MAX_WORDS } from '@/lib/intake/single';
 import { useStartDraft } from '@/lib/intake/use-start-draft';
 import { ProjectTopBar } from './project-top-bar';
@@ -40,11 +46,14 @@ export function StartScreen() {
     if (style && style !== draft.styleId) update({ styleId: style });
   }, [style, draft.styleId, update]);
 
-  const go = async (work: () => Promise<{ ok: true } | { ok: false; message: string }>) => {
+  const go = async (
+    work: () => Promise<{ ok: true } | { ok: false; message: string }>,
+    to: string = CONFIGURE,
+  ) => {
     if (busy) return;
     setBusy(true);
     const r = await work();
-    if (r.ok) router.push(PROCESSING_NEW);
+    if (r.ok) router.push(to);
     else {
       toast.error(r.message);
       setBusy(false);
@@ -70,7 +79,10 @@ export function StartScreen() {
           <ScriptCard initial={search.get('text') ?? readScriptDraft()} />
         </div>
         <div className="mt-12 flex flex-col items-start gap-3 border-t-2 border-ink pt-8">
-          <SingleGraphic busy={busy} onMake={(line) => void go(() => handOffSingle(line, draft))} />
+          <SingleGraphic
+            busy={busy}
+            onMake={(line) => void go(() => handOffSingle(line, draft), PROCESSING_NEW)}
+          />
           <p className="text-[12px] text-black/55">{C.singleFoot}</p>
         </div>
       </main>

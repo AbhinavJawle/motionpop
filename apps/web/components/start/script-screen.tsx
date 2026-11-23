@@ -13,8 +13,8 @@ import { SegmentedPills } from '@/components/ui/segmented-pills';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/cn';
 import { useCreditsClient } from '@/lib/credits/use-credits-client';
-import { PROCESSING_NEW } from '@/lib/intake/hand-off';
-import { setPending } from '@/lib/intake/pending';
+import { CONFIGURE } from '@/lib/intake/hand-off';
+import { setPendingScript } from '@/lib/intake/pending';
 import { useStartDraft } from '@/lib/intake/use-start-draft';
 import { useAppConfig, useOnline } from '@/lib/renders/hooks';
 import {
@@ -26,7 +26,6 @@ import {
   scriptMoments,
   type SpeedId,
 } from '@/lib/script/estimate';
-import { generateVoice } from '@/lib/tts/generate-voice';
 import { clearScriptDraft, putScriptDraft, readScriptDraft } from '@/lib/script/hand-off';
 import { ProjectTopBar } from './project-top-bar';
 
@@ -64,7 +63,6 @@ export function ScriptScreen() {
   const online = useOnline();
   const { client } = useCreditsClient();
   const [text, setText] = useState(() => search.get('text') ?? readScriptDraft());
-  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const over = text.length - SCRIPT_MAX_CHARS;
   const [voice, setVoice] = useState<TtsVoiceId>('Kore');
   const [speedId, setSpeedId] = useState<SpeedId>('natural');
@@ -82,22 +80,12 @@ export function ScriptScreen() {
     signedIn: client !== null,
   });
 
+  // Spec 39 R2.1/R2.4: the script goes to Configure; its voice is made (and charged) after Create.
   const generate = async () => {
     if (busy || block) return;
     setBusy(true);
-    const out = await generateVoice(
-      { credits: client, config, onPart: (done, total) => setProgress({ done, total }) },
-      { text, voice, speed },
-    );
-    setProgress(null);
-    if (!out.ok) {
-      if (!out.noCredits) toast.error(out.reason);
-      setBusy(false);
-      return;
-    }
     try {
-      await setPending(
-        out.file,
+      await setPendingScript(
         {
           source: 'tts',
           name: text.trim().split(/\s+/).slice(0, 6).join(' ').slice(0, 60) || 'Script',
@@ -107,10 +95,9 @@ export function ScriptScreen() {
         draft,
       );
       clearScriptDraft();
-      toast.success(`Voice ready in ${(out.latencyMs / 1000).toFixed(1)}s`);
-      router.push(PROCESSING_NEW);
+      router.push(CONFIGURE);
     } catch {
-      toast.error("Couldn't keep the voice in this browser. Try again.");
+      toast.error("Couldn't keep the script in this browser. Try again.");
       setBusy(false);
     }
   };
@@ -261,11 +248,7 @@ export function ScriptScreen() {
                 disabled={block !== null || busy}
                 onClick={() => void generate()}
               >
-                {busy
-                  ? progress && progress.total > 1
-                    ? `Pip is recording… part ${Math.min(progress.done + 1, progress.total)} of ${progress.total}`
-                    : 'Pip is recording…'
-                  : 'Generate voice'}
+                {busy ? 'One moment…' : 'Continue'}
                 {!busy && (
                   <span className="ml-1 flex items-center gap-1 rounded-md border-2 border-ink bg-paper px-1.5 py-0.5 text-[11px] leading-3">
                     <Cloud className="size-3" strokeWidth={2} aria-hidden />
@@ -274,7 +257,8 @@ export function ScriptScreen() {
                 )}
               </button>
               <p className="text-[12px] text-black/60" role="status">
-                {block ?? 'Credits come back if the voice fails.'}
+                {block ??
+                  'The voice is made after you press Create. Credits come back if it fails.'}
               </p>
             </div>
           </aside>
