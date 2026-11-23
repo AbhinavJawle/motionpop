@@ -19,7 +19,13 @@ import { etaMs, jobProgress, STEP_WEIGHTS, type JobKind } from './eta';
 import type { PipelineEvent } from './events';
 import { initialProcessing, reduceProcessing, type ProcessingState } from './processing-state';
 import { sampleWords } from './sample';
-import { runPipeline, type PipelineDeps, type PipelineInput, type TranscribeOutput } from './run';
+import {
+  runPipeline,
+  type PipelineDeps,
+  type PipelineInput,
+  type PipelineReuse,
+  type TranscribeOutput,
+} from './run';
 
 /**
  * Background jobs (spec 39 R6, design §6). A job is born on the configure screen (`prepare`),
@@ -95,6 +101,11 @@ interface Runtime {
   edit?: EditConfig;
   uid?: string | null;
   voice?: File;
+  /**
+   * What this job already paid for, kept as it arrives so Retry never pays twice (spec 39 design
+   * §10 #2): the directed plan, the pictures, the soundtrack. The voice is `voice`, above.
+   */
+  reuse: PipelineReuse;
   /** The take now belongs to the job (the hand-off is cleared). */
   owned: boolean;
   startProgress: number;
@@ -209,6 +220,7 @@ export function prepare(take: PendingTake, now = Date.now()): string {
     transcriptReady: false,
     progressListeners: new Set(),
     priority: 'prep',
+    reuse: {},
     owned: false,
     startProgress: 0,
     lastProgressWrite: 0,
@@ -406,13 +418,45 @@ function pipelineInput(rt: Runtime, file: Blob, kind: JobKind): PipelineInput {
     ...(meta.extraClips?.length ? { extraClips: meta.extraClips } : {}),
     ...(meta.single ? { single: true } : {}),
     ...(rt.edit && !meta.single ? { edit: rt.edit } : {}),
+    ...(Object.keys(rt.reuse).length ? { reuse: { ...rt.reuse } } : {}),
   };
 }
 
 /** Pipeline deps that pick up what preparation already did (R2.8: nothing done twice). */
 function preparedDeps(base: PipelineDeps, rt: Runtime): PipelineDeps {
+  const { directReel, resolveReelMedia, resolveReelMusic } = base;
   return {
     ...base,
+    // Paid results are kept on the runtime the moment they arrive; a call that is cancelled or
+    // throws keeps nothing (the paid function has already handed the price back).
+    ...(directReel
+      ? {
+          directReel: async (p: Parameters<typeof directReel>[0]) => {
+            const r = await directReel(p);
+            // Only the cloud plan was paid for; the free one is made again at no cost.
+            if (r.source === 'cloud') rt.reuse.reel = r;
+            return r;
+          },
+        }
+      : {}),
+    ...(resolveReelMedia
+      ? {
+          resolveReelMedia: async (p: Parameters<typeof resolveReelMedia>[0]) => {
+            const r = await resolveReelMedia(p);
+            if (r.assets.some((a) => a.source === 'generated')) rt.reuse.media = r;
+            return r;
+          },
+        }
+      : {}),
+    ...(resolveReelMusic
+      ? {
+          resolveReelMusic: async (p: Parameters<typeof resolveReelMusic>[0]) => {
+            const r = await resolveReelMusic(p);
+            if (r.music?.src) rt.reuse.music = r;
+            return r;
+          },
+        }
+      : {}),
     decode: (file) => audioOf(rt, file, base),
     ...(base.probeVideo
       ? {
@@ -548,6 +592,7 @@ async function makeVoice(id: string, rt: Runtime, d: JobDeps): Promise<Blob | nu
         })),
     },
     { text: tts.script, voice: voiceIdOf(tts.voiceId), speed: tts.speed },
+    rt.abort.signal,
   );
   if (rt.abort.signal.aborted) return null;
   if (!out.ok) {

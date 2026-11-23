@@ -1021,6 +1021,124 @@ describe('runPipeline: talking-head reels (spec 25)', () => {
     });
   });
 
+  describe('paid steps: signal and reuse (spec 39 design §10 #2)', () => {
+    const logoPlan = (look: 'mono' | 'cream', durationMs: number, query = 'Acme'): ReelPlan => ({
+      v: 1,
+      look,
+      focus: { x: 0.5, y: 0.32 },
+      captions: true,
+      music: { brief: 'Warm lo-fi, soft piano, 90 bpm' },
+      scenes: [
+        {
+          id: 'r1',
+          startMs: 0,
+          endMs: durationMs,
+          layout: 'split',
+          content: { template: 'logo', media: { kind: 'logo', query }, name: query },
+        },
+      ],
+    });
+    const asset = {
+      id: 'a1b2c3d4e5f60718',
+      hash: 'a'.repeat(64),
+      status: 'ready' as const,
+      source: 'generated' as const,
+      subject: 'Acme',
+      keyed: false,
+      width: 8,
+      height: 8,
+      src: `media:${'a'.repeat(64)}.webp`,
+    };
+    const video = () => ({
+      file: new Blob(['fake mp4'], { type: 'video/mp4' }),
+      name: 'clip.mp4',
+    });
+
+    it('gives the job’s signal to the director, the pictures and the music', async () => {
+      const h = makeHarness();
+      const c = new AbortController();
+      const directReel = vi.fn<NonNullable<PipelineDeps['directReel']>>(async (i) => ({
+        plan: logoPlan(i.look, i.durationMs),
+        source: 'cloud' as const,
+      }));
+      const resolveReelMedia = vi.fn<NonNullable<PipelineDeps['resolveReelMedia']>>(
+        async ({ plan }) => ({ plan, assets: [] }),
+      );
+      const resolveReelMusic = vi.fn<NonNullable<PipelineDeps['resolveReelMusic']>>(
+        async ({ plan }) => plan,
+      );
+      Object.assign(h.deps, { directReel, resolveReelMedia, resolveReelMusic });
+      await runPipeline(makeInput(video()), h.deps, h.onEvent, c.signal);
+      expect(directReel.mock.calls[0]![0].signal).toBe(c.signal);
+      expect(resolveReelMedia.mock.calls[0]![0].signal).toBe(c.signal);
+      expect(resolveReelMusic.mock.calls[0]![0].signal).toBe(c.signal);
+    });
+
+    it('uses what an earlier run already paid for and calls none of the paid deps', async () => {
+      const h = makeHarness();
+      const directReel = vi.fn<NonNullable<PipelineDeps['directReel']>>(async () => {
+        throw new Error('must not be called');
+      });
+      const resolveReelMedia = vi.fn<NonNullable<PipelineDeps['resolveReelMedia']>>(async () => {
+        throw new Error('must not be called');
+      });
+      const resolveReelMusic = vi.fn<NonNullable<PipelineDeps['resolveReelMusic']>>(async () => {
+        throw new Error('must not be called');
+      });
+      Object.assign(h.deps, { directReel, resolveReelMedia, resolveReelMusic });
+      const held = logoPlan('mono', 4000);
+      const withPictures = {
+        plan: setReelMediaAssets(held, { 'logo:acme': asset.id }),
+        assets: [asset],
+      };
+      await runPipeline(
+        makeInput({
+          ...video(),
+          reuse: {
+            reel: { plan: held, source: 'cloud' },
+            media: withPictures,
+            music: {
+              ...withPictures.plan,
+              music: { brief: held.music!.brief, src: 'idb:music-9' },
+            },
+          },
+        }),
+        h.deps,
+        h.onEvent,
+      );
+      expect(directReel).not.toHaveBeenCalled();
+      expect(resolveReelMedia).not.toHaveBeenCalled();
+      expect(resolveReelMusic).not.toHaveBeenCalled();
+      const loaded = await h.repo.load(PROJECT_ID);
+      if (!loaded.ok) throw new Error('not saved');
+      expect(loaded.project.assets).toEqual([asset]);
+      expect(loaded.project.reel?.music?.src).toBe('idb:music-9');
+      expect(loaded.project.reel?.scenes[0]?.content).toMatchObject({
+        media: { kind: 'logo', query: 'Acme', asset: asset.id },
+      });
+    });
+
+    it('does not use held pictures that were found for different pictures', async () => {
+      const h = makeHarness();
+      const resolveReelMedia = vi.fn<NonNullable<PipelineDeps['resolveReelMedia']>>(
+        async ({ plan }) => ({ plan, assets: [] }),
+      );
+      h.deps.resolveReelMedia = resolveReelMedia;
+      await runPipeline(
+        makeInput({
+          ...video(),
+          reuse: {
+            reel: { plan: logoPlan('mono', 4000, 'Acme'), source: 'cloud' },
+            media: { plan: logoPlan('mono', 4000, 'Globex'), assets: [asset] },
+          },
+        }),
+        h.deps,
+        h.onEvent,
+      );
+      expect(resolveReelMedia).toHaveBeenCalledOnce();
+    });
+  });
+
   it('shows the director the footage and scores the reel (spec 27)', async () => {
     const h = makeHarness();
     h.deps.probeVideo = async () => ({

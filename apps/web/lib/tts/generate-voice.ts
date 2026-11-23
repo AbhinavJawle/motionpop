@@ -6,6 +6,7 @@ import {
   type UsageEvent,
 } from '@motionpop/ai';
 import { idbPartCache } from './part-cache';
+import { isAbortError, raceAbort, throwIfAborted } from '@/lib/abort';
 import { emitAIUsage } from '@/lib/ai/router-client';
 import { APP_CONFIG_DEFAULTS, costOf, type AppConfig } from '@motionpop/schemas';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
@@ -45,7 +46,17 @@ export function pcmToWavFile(pcm: Int16Array, sampleRate: number, name: string):
   return new File([encodeWav(f, sampleRate)], name, { type: 'audio/wav' });
 }
 
-export async function generateVoice(deps: VoiceDeps, input: SpeakInput): Promise<VoiceOutcome> {
+/**
+ * `signal` cancels the job that asked for the voice (spec 39 R6.9): nothing is spent when it has
+ * already fired, and a cancel after the spend hands the price back and throws an `AbortError`
+ * instead of returning a voice.
+ */
+export async function generateVoice(
+  deps: VoiceDeps,
+  input: SpeakInput,
+  signal?: AbortSignal,
+): Promise<VoiceOutcome> {
+  throwIfAborted(signal);
   const text = input.text.trim();
   if (!text) return { ok: false, reason: 'Write a script first' };
   if (!deps.credits) return { ok: false, reason: 'Sign in to generate a voice' };
@@ -67,14 +78,21 @@ export async function generateVoice(deps: VoiceDeps, input: SpeakInput): Promise
   const cost = costOf('tts', minutes, cfg);
   const t0 = performance.now();
   try {
-    const r = await (deps.speak ?? speakWithFirebase)(
-      getAILogic,
-      cfg.modelTts,
-      { ...input, text },
-      undefined,
-      deps.onPart,
-      deps.partCache === undefined ? idbPartCache() : (deps.partCache ?? undefined),
+    // Cancelled while the spend was in flight: hand it back before any call is made.
+    throwIfAborted(signal);
+    const r = await raceAbort(
+      (deps.speak ?? speakWithFirebase)(
+        getAILogic,
+        cfg.modelTts,
+        { ...input, text },
+        undefined,
+        deps.onPart,
+        deps.partCache === undefined ? idbPartCache() : (deps.partCache ?? undefined),
+      ),
+      signal,
     );
+    // Cancelled just as the voice arrived: it is dropped, never returned.
+    throwIfAborted(signal);
     const file = pcmToWavFile(r.pcm, r.sampleRate, 'script-voice.wav');
     report({
       task: 'tts.generate',
@@ -93,7 +111,8 @@ export async function generateVoice(deps: VoiceDeps, input: SpeakInput): Promise
       latencyMs: r.latencyMs,
     };
   } catch (err) {
-    console.warn('Voice generation failed', err);
+    const cancelled = isAbortError(err) || signal?.aborted === true;
+    if (!cancelled) console.warn('Voice generation failed', err);
     report({
       task: 'tts.generate',
       ranOn: 'cloud',
@@ -104,6 +123,7 @@ export async function generateVoice(deps: VoiceDeps, input: SpeakInput): Promise
       ok: false,
     });
     await deps.credits.refund(spent.txId).catch(() => {});
+    if (cancelled) throw isAbortError(err) ? err : new DOMException('Cancelled', 'AbortError');
     return { ok: false, reason: 'Couldn’t generate the voice. Credits returned.' };
   }
 }

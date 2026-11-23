@@ -21,6 +21,7 @@ import {
   type ReelPlan,
   type ReelWord,
 } from '@motionpop/schemas';
+import { abortError, isAbortError, raceAbort, throwIfAborted } from '@/lib/abort';
 import { emitAIUsage, getRouter } from '@/lib/ai/router-client';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
 import { spendWithUi } from '@/lib/credits/spend-with-ui';
@@ -103,23 +104,45 @@ interface Fetched {
   attribution?: string;
 }
 
-async function fetchLogo(f: typeof fetch, q: string): Promise<Fetched | null> {
-  const res = await f(`/api/reel/logo?q=${encodeURIComponent(q)}`).catch(() => null);
+/** `fetch` options carrying the signal (none when there is no signal). */
+const withSignal = (signal?: AbortSignal): RequestInit | undefined =>
+  signal ? { signal } : undefined;
+
+async function fetchLogo(
+  f: typeof fetch,
+  q: string,
+  signal?: AbortSignal,
+): Promise<Fetched | null> {
+  const res = await f(`/api/reel/logo?q=${encodeURIComponent(q)}`, withSignal(signal)).catch(
+    () => null,
+  );
   const blob = await blobFrom(res);
   if (!blob) return null;
   const png = blob.type.includes('svg') ? await rasterizeSvg(blob) : blob;
   return { blob: png, source: 'logo', maxSide: 512 };
 }
 
-async function fetchScreenshot(f: typeof fetch, q: string): Promise<Fetched | null> {
-  const res = await f(`/api/reel/screenshot?url=${encodeURIComponent(q)}`).catch(() => null);
+async function fetchScreenshot(
+  f: typeof fetch,
+  q: string,
+  signal?: AbortSignal,
+): Promise<Fetched | null> {
+  const res = await f(
+    `/api/reel/screenshot?url=${encodeURIComponent(q)}`,
+    withSignal(signal),
+  ).catch(() => null);
   const blob = await blobFrom(res);
   return blob ? { blob, source: 'screenshot', maxSide: 1800 } : null;
 }
 
-async function fetchPhoto(f: typeof fetch, q: string): Promise<Fetched | null> {
+async function fetchPhoto(
+  f: typeof fetch,
+  q: string,
+  signal?: AbortSignal,
+): Promise<Fetched | null> {
   const res = await f(
     `/api/media/stock?q=${encodeURIComponent(q)}&kind=photo&orientation=landscape&limit=3`,
+    withSignal(signal),
   ).catch(() => null);
   if (!res?.ok) return null;
   const data = (await res.json().catch(() => null)) as {
@@ -127,7 +150,10 @@ async function fetchPhoto(f: typeof fetch, q: string): Promise<Fetched | null> {
   } | null;
   for (const item of data?.items ?? []) {
     if (!item.url) continue;
-    const img = await f(`/api/media/stock?proxy=${encodeURIComponent(item.url)}`).catch(() => null);
+    const img = await f(
+      `/api/media/stock?proxy=${encodeURIComponent(item.url)}`,
+      withSignal(signal),
+    ).catch(() => null);
     const blob = await blobFrom(img);
     if (blob)
       return {
@@ -145,7 +171,10 @@ export async function resolveReelMedia(
   projectId: string,
   deps: ReelMediaDeps,
   onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal,
 ): Promise<{ plan: ReelPlan; assets: ImageAsset[] }> {
+  // Nothing is fetched or spent for a call that is already cancelled.
+  throwIfAborted(signal);
   const f = deps.fetchFn ?? fetch;
   const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
   const report = deps.onUsage ?? emitAIUsage;
@@ -157,95 +186,131 @@ export async function resolveReelMedia(
   let illustrations = 0;
   let done = 0;
   const total = unique.size;
-  for (const [key, m] of unique) {
-    done++;
-    onProgress?.(done, total);
-    // Logos and screenshots look the same in either look; drawings follow it.
-    const scope = m.kind === 'illustration' ? `${look}|${cfg.modelImage}` : m.kind;
-    const hash = await sha256Hex(`reel|${REEL_MEDIA_VERSION}|${scope}|${key}`);
-    const known = (deps.existing ?? []).find((a) => a.hash === hash && a.status === 'ready');
-    if (known && (await getImage(known.src ?? ''))) {
-      assets.push(known);
-      ids[key] = known.id;
-      continue;
+  // Illustrations paid for in this call and not yet refunded: a cancel hands them all back,
+  // because nothing was saved from this call (spec 39 R6.9).
+  const paid = new Set<string>();
+  const refundPaid = async (): Promise<void> => {
+    const txs = [...paid];
+    paid.clear();
+    await Promise.all(txs.map((tx) => deps.credits?.refund(tx).catch(() => {})));
+  };
+  try {
+    return await resolveAll();
+  } catch (e) {
+    if (isAbortError(e) || signal?.aborted) {
+      await refundPaid();
+      throw isAbortError(e) ? e : abortError();
     }
-    let got: Fetched | null = null;
-    try {
-      if (m.kind === 'logo') got = await fetchLogo(f, m.query);
-      else if (m.kind === 'screenshot') got = await fetchScreenshot(f, m.query);
-      else if (m.kind === 'photo') got = await fetchPhoto(f, m.query);
-      else got = await illustrate(m.query);
-    } catch (e) {
-      console.warn('Reel picture failed', key, e);
-      got = null;
-    }
-    if (!got) continue;
-    try {
-      const img = await processImage(got.blob, false, got.maxSide);
-      const src = await putImage(hash, img.blob);
-      const asset: ImageAsset = {
-        id: hash.slice(0, 16),
-        hash,
-        status: 'ready',
-        source: got.source,
-        subject: m.query.slice(0, 120),
-        keyed: false,
-        width: img.width,
-        height: img.height,
-        src,
-        ...(got.attribution ? { attribution: got.attribution } : {}),
-      };
-      assets.push(asset);
-      ids[key] = asset.id;
-    } catch (e) {
-      console.warn('Reel picture could not be stored', key, e);
-    }
+    throw e;
   }
-  return { plan: setReelMediaAssets(plan, ids), assets };
 
-  async function illustrate(subject: string): Promise<Fetched | null> {
-    const max = deps.maxIllustrations ?? 3;
-    const parsed = ImageSubjectSchema.safeParse(subject.slice(0, 120));
-    if (!parsed.success || illustrations >= max || cfg.killSwitch || !deps.credits) return null;
-    const spent = await spendWithUi(
-      deps.credits,
-      { action: 'image', key: newSpendKey(), refId: projectId },
-      cfg,
-    );
-    if (!spent?.ok) return null;
-    illustrations++;
-    const cost = costOf('image', 1, cfg);
-    const t0 = performance.now();
-    try {
-      const r = await (deps.generate ?? generateImageWithFirebase)(getAILogic, cfg.modelImage, {
-        subject: parsed.data,
-        recipe: reelIllustrationRecipe(look),
-        keyed: false,
-        aspect: '1:1',
-      });
-      report({
-        task: 'image.generate',
-        ranOn: 'cloud',
-        model: cfg.modelImage,
-        credits: cost,
-        cloudCost: cost,
-        latencyMs: Math.round(performance.now() - t0),
-        ok: true,
-      });
-      const raw = new Blob([r.bytes.slice().buffer], { type: r.mimeType });
-      return { blob: await trimPaper(raw).catch(() => raw), source: 'generated' };
-    } catch (e) {
-      report({
-        task: 'image.generate',
-        ranOn: 'cloud',
-        model: cfg.modelImage,
-        credits: 0,
-        cloudCost: cost,
-        latencyMs: Math.round(performance.now() - t0),
-        ok: false,
-      });
-      await deps.credits.refund(spent.txId).catch(() => {});
-      throw e;
+  async function resolveAll(): Promise<{ plan: ReelPlan; assets: ImageAsset[] }> {
+    for (const [key, m] of unique) {
+      throwIfAborted(signal);
+      done++;
+      onProgress?.(done, total);
+      // Logos and screenshots look the same in either look; drawings follow it.
+      const scope = m.kind === 'illustration' ? `${look}|${cfg.modelImage}` : m.kind;
+      const hash = await sha256Hex(`reel|${REEL_MEDIA_VERSION}|${scope}|${key}`);
+      const known = (deps.existing ?? []).find((a) => a.hash === hash && a.status === 'ready');
+      if (known && (await getImage(known.src ?? ''))) {
+        assets.push(known);
+        ids[key] = known.id;
+        continue;
+      }
+      let got: Fetched | null = null;
+      try {
+        if (m.kind === 'logo') got = await fetchLogo(f, m.query, signal);
+        else if (m.kind === 'screenshot') got = await fetchScreenshot(f, m.query, signal);
+        else if (m.kind === 'photo') got = await fetchPhoto(f, m.query, signal);
+        else got = await illustrate(m.query);
+      } catch (e) {
+        // A cancel is not a failed picture: it stops the whole call (and refunds, above).
+        if (isAbortError(e) || signal?.aborted) throw e;
+        console.warn('Reel picture failed', key, e);
+        got = null;
+      }
+      throwIfAborted(signal);
+      if (!got) continue;
+      try {
+        const img = await processImage(got.blob, false, got.maxSide);
+        const src = await putImage(hash, img.blob);
+        const asset: ImageAsset = {
+          id: hash.slice(0, 16),
+          hash,
+          status: 'ready',
+          source: got.source,
+          subject: m.query.slice(0, 120),
+          keyed: false,
+          width: img.width,
+          height: img.height,
+          src,
+          ...(got.attribution ? { attribution: got.attribution } : {}),
+        };
+        assets.push(asset);
+        ids[key] = asset.id;
+      } catch (e) {
+        console.warn('Reel picture could not be stored', key, e);
+      }
+    }
+    return { plan: setReelMediaAssets(plan, ids), assets };
+
+    async function illustrate(subject: string): Promise<Fetched | null> {
+      const max = deps.maxIllustrations ?? 3;
+      const parsed = ImageSubjectSchema.safeParse(subject.slice(0, 120));
+      if (!parsed.success || illustrations >= max || cfg.killSwitch || !deps.credits) return null;
+      // No spend for a call that is already cancelled.
+      throwIfAborted(signal);
+      const spent = await spendWithUi(
+        deps.credits,
+        { action: 'image', key: newSpendKey(), refId: projectId },
+        cfg,
+      );
+      if (!spent?.ok) return null;
+      paid.add(spent.txId);
+      illustrations++;
+      const cost = costOf('image', 1, cfg);
+      const t0 = performance.now();
+      try {
+        // Cancelled while the spend was in flight: hand it back before any call is made.
+        throwIfAborted(signal);
+        const r = await raceAbort(
+          (deps.generate ?? generateImageWithFirebase)(getAILogic, cfg.modelImage, {
+            subject: parsed.data,
+            recipe: reelIllustrationRecipe(look),
+            keyed: false,
+            aspect: '1:1',
+          }),
+          signal,
+        );
+        // Cancelled while the picture was made: it is dropped (the caller refunds every spend).
+        throwIfAborted(signal);
+        report({
+          task: 'image.generate',
+          ranOn: 'cloud',
+          model: cfg.modelImage,
+          credits: cost,
+          cloudCost: cost,
+          latencyMs: Math.round(performance.now() - t0),
+          ok: true,
+        });
+        const raw = new Blob([r.bytes.slice().buffer], { type: r.mimeType });
+        return { blob: await trimPaper(raw).catch(() => raw), source: 'generated' };
+      } catch (e) {
+        report({
+          task: 'image.generate',
+          ranOn: 'cloud',
+          model: cfg.modelImage,
+          credits: 0,
+          cloudCost: cost,
+          latencyMs: Math.round(performance.now() - t0),
+          ok: false,
+        });
+        // Out of `paid` first, so the cancel path never refunds the same spend twice.
+        paid.delete(spent.txId);
+        await deps.credits.refund(spent.txId).catch(() => {});
+        throw e;
+      }
     }
   }
 }
@@ -268,7 +333,13 @@ export async function directReelPaid(
     choices?: EditChoices;
   },
   deps: { credits: CreditsClient | null; config?: Partial<ReelCfg>; free?: boolean },
+  /**
+   * Cancels the call. Nothing is spent when it has already fired; a cancel after the spend hands
+   * the price back and throws an `AbortError` instead of returning a plan (spec 39 R6.9).
+   */
+  signal?: AbortSignal,
 ): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }> {
+  throwIfAborted(signal);
   const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
   // The choices apply to the free plan too; the brief is only text for the cloud director.
   const base = {
@@ -292,11 +363,29 @@ export async function directReelPaid(
     cfg,
   );
   if (!spent?.ok) return directReel(null, base);
-  const r = await directReel(router, withFrames);
+  const credits = deps.credits;
+  let refunded = false;
+  const refundOnce = async () => {
+    if (refunded) return;
+    refunded = true;
+    await credits.refund(spent.txId).catch(() => {});
+  };
+  let r: Awaited<ReturnType<typeof directReel>>;
+  try {
+    // Cancelled while the spend was in flight: hand it back before any call is made.
+    throwIfAborted(signal);
+    r = await raceAbort(directReel(router, withFrames), signal);
+    // Cancelled just as the plan arrived: it is dropped, never returned.
+    throwIfAborted(signal);
+  } catch (e) {
+    // Any way out without a plan hands the price back (a throw used to keep it).
+    await refundOnce();
+    throw e;
+  }
   if (r.source !== 'cloud') {
     // Never silent (spec 29): a director failure used to fall back to the free plan unseen.
     console.warn('Reel director failed; using the free director:', r.error);
-    await deps.credits.refund(spent.txId).catch(() => {});
+    await refundOnce();
   }
   return r;
 }
@@ -341,12 +430,17 @@ export async function resolveReelMusic(
   durationMs: number,
   projectId: string,
   deps: {
-    audioStore: { put(blob: Blob, place: { projectId: string; kind: 'music' }): Promise<string> };
+    audioStore: {
+      put(blob: Blob, place: { projectId: string; kind: 'music' }): Promise<string>;
+      delete?(ref: string): Promise<void>;
+    };
     fetchFn?: typeof fetch;
   },
+  signal?: AbortSignal,
 ): Promise<ReelPlan> {
   const brief = plan.music?.brief;
   if (!brief || plan.music?.src) return plan;
+  throwIfAborted(signal);
   try {
     const auth = await getAuthClient();
     const user = auth.currentUser;
@@ -358,15 +452,24 @@ export async function resolveReelMusic(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ brief, durationMs: Math.max(1000, Math.round(durationMs)) }),
+      ...(signal ? { signal } : {}),
     });
     const blob = await blobFrom(res);
     if (!blob) return plan;
+    throwIfAborted(signal);
     const src = await deps.audioStore.put(new Blob([blob], { type: 'audio/wav' }), {
       projectId,
       kind: 'music',
     });
+    if (signal?.aborted) {
+      // Cancelled while it was being stored: the file goes, and no plan comes back.
+      await deps.audioStore.delete?.(src).catch(() => undefined);
+      throw abortError();
+    }
     return { ...plan, music: { brief, src } };
   } catch (e) {
+    // A cancel stops the job; any other failure leaves the reel with its sound effects.
+    if (isAbortError(e) || signal?.aborted) throw isAbortError(e) ? e : abortError();
     console.warn('Reel music failed', e);
     return plan;
   }

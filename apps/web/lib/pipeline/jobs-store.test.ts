@@ -2,10 +2,16 @@ import { detectLocal } from '@motionpop/ai';
 import {
   APP_CONFIG_DEFAULTS,
   EditConfigSchema,
+  ReelPlanSchema,
   type EditConfig,
+  type ImageAsset,
+  type ReelPlan,
   type Word,
 } from '@motionpop/schemas';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { defaultEdit } from '../configure/defaults';
+import { LocalCredits } from '../credits/local-credits';
+import { directReelPaid } from '../reel/media';
 import { MemoryAudioStore } from '../audio/audio-store';
 import type { DecodedAudio } from '../audio/decode';
 import { INTAKE_MESSAGES } from '../audio/intake';
@@ -33,6 +39,20 @@ import {
 } from './jobs-store';
 
 const generateVoice = vi.hoisted(() => vi.fn());
+// The cloud reel director behind `directReelPaid`: the real function runs, this is its model call.
+const aiDirectReel = vi.hoisted(() => vi.fn());
+vi.mock('@motionpop/ai', async (orig) => {
+  const actual = await orig<typeof import('@motionpop/ai')>();
+  return {
+    ...actual,
+    directReel: (...a: Parameters<typeof actual.directReel>) =>
+      aiDirectReel.getMockImplementation() ? aiDirectReel(...a) : actual.directReel(...a),
+  };
+});
+vi.mock('../ai/router-client', () => ({
+  getRouter: vi.fn(async () => ({})),
+  emitAIUsage: vi.fn(),
+}));
 const clearPending = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('../tts/generate-voice', () => ({ generateVoice }));
 const peekPending = vi.hoisted(() => vi.fn<() => unknown>(() => null));
@@ -171,6 +191,7 @@ beforeEach(() => {
   ids = 0;
   setJobDepsProvider(() => ({ ...h.deps, uid: h.uid }));
   generateVoice.mockReset();
+  aiDirectReel.mockReset();
   clearPending.mockClear();
   peekPending.mockReset();
   peekPending.mockReturnValue(null);
@@ -750,5 +771,185 @@ describe('isLive', () => {
     ['cancelled', false],
   ] as const)('%s → %s', (status, live) => {
     expect(isLive({ status })).toBe(live);
+  });
+});
+
+describe('credit safety (spec 39 design §10 #2, #3)', () => {
+  const VIDEO_EDIT: EditConfig = defaultEdit('video');
+  const SIX_WORDS: Word[] = 'Revenue grew forty percent last year'.split(' ').map((text, i) => ({
+    i,
+    text,
+    startMs: i * 500,
+    endMs: i * 500 + 400,
+    conf: 1,
+    filler: false,
+  }));
+  const video = () => stash('clip.mp4', 'video/mp4');
+
+  /** A reel plan over `ms` that asks for one illustration and carries a music brief. */
+  const planOver = (ms: number, withPictures = false): ReelPlan =>
+    ReelPlanSchema.parse({
+      v: 1,
+      look: 'mono',
+      focus: { x: 0.5, y: 0.32 },
+      captions: true,
+      ...(withPictures ? { music: { brief: 'Warm lo-fi, soft piano' } } : {}),
+      scenes: [
+        withPictures
+          ? {
+              id: 'r1',
+              startMs: 0,
+              endMs: ms,
+              layout: 'full',
+              content: { template: 'image', media: { kind: 'illustration', query: 'a rocket' } },
+            }
+          : { id: 'r1', startMs: 0, endMs: ms, layout: 'speaker', content: { template: 'none' } },
+      ],
+    });
+
+  const generated = (plan: ReelPlan): { plan: ReelPlan; assets: ImageAsset[] } => ({
+    plan,
+    assets: [
+      {
+        id: 'a1',
+        hash: 'a'.repeat(64),
+        status: 'ready',
+        source: 'generated',
+        subject: 'a rocket',
+        keyed: false,
+        width: 8,
+        height: 8,
+        src: 'media:h.webp',
+      },
+    ],
+  });
+
+  it('a job that failed after directing is retried without directing again', async () => {
+    const directReel = vi.fn(async (p: { durationMs: number }) => ({
+      plan: planOver(p.durationMs),
+      source: 'cloud' as const,
+    }));
+    h.deps.pipeline.directReel = directReel;
+    h.repo.failSaves = 1;
+    const id = prepare(await video());
+    submit(id, VIDEO_EDIT);
+    await until(() => statusOf(id) === 'error');
+    expect(directReel).toHaveBeenCalledTimes(1);
+
+    expect(retry(id)).toBe(true);
+    await until(() => statusOf(id) === 'done');
+    expect(directReel).toHaveBeenCalledTimes(1);
+    const saved = await h.repo.load(job(id).projectId!);
+    expect(saved.ok && saved.project.reel?.scenes[0]?.id).toBe('r1');
+  });
+
+  it('keeps the pictures and the music too, so a retry pays for none of them again', async () => {
+    h.deps.pipeline.directReel = vi.fn(async (p: { durationMs: number }) => ({
+      plan: planOver(p.durationMs, true),
+      source: 'cloud' as const,
+    }));
+    const resolveReelMedia = vi.fn(async ({ plan }: { plan: ReelPlan }) => generated(plan));
+    const resolveReelMusic = vi.fn(async ({ plan }: { plan: ReelPlan }) => ({
+      ...plan,
+      music: { brief: plan.music!.brief, src: 'idb:music-1' },
+    }));
+    h.deps.pipeline.resolveReelMedia = resolveReelMedia;
+    h.deps.pipeline.resolveReelMusic = resolveReelMusic;
+    h.repo.failSaves = 1;
+    const id = prepare(await video());
+    submit(id, VIDEO_EDIT);
+    await until(() => statusOf(id) === 'error');
+    retry(id);
+    await until(() => statusOf(id) === 'done');
+    expect(h.deps.pipeline.directReel).toHaveBeenCalledTimes(1);
+    expect(resolveReelMedia).toHaveBeenCalledTimes(1);
+    expect(resolveReelMusic).toHaveBeenCalledTimes(1);
+    const saved = await h.repo.load(job(id).projectId!);
+    expect(saved.ok && saved.project.reel?.music?.src).toBe('idb:music-1');
+    expect(saved.ok && saved.project.assets?.map((a) => a.id)).toEqual(['a1']);
+  });
+
+  it('a free plan is not kept: a retry may try the cloud director again', async () => {
+    const directReel = vi.fn(async (p: { durationMs: number }) => ({
+      plan: planOver(p.durationMs),
+      source: 'auto' as const,
+    }));
+    h.deps.pipeline.directReel = directReel;
+    h.repo.failSaves = 1;
+    const id = prepare(await video());
+    submit(id, VIDEO_EDIT);
+    await until(() => statusOf(id) === 'error');
+    retry(id);
+    await until(() => statusOf(id) === 'done');
+    expect(directReel).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancelling while the reel is directed hands the price back and saves nothing', async () => {
+    const credits = new LocalCredits(30);
+    const refund = vi.spyOn(credits, 'refund');
+    h.transcribe.mockImplementation(async () => ({
+      words: SIX_WORDS,
+      ranOn: 'device' as const,
+      timingQuality: 'word' as const,
+    }));
+    let release!: () => void;
+    aiDirectReel.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          release = () => resolve({ plan: planOver(3000), source: 'cloud' });
+        }),
+    );
+    const directReel = vi.fn((p: Parameters<NonNullable<PipelineDeps['directReel']>>[0]) =>
+      directReelPaid(
+        { look: p.look, words: p.words, durationMs: p.durationMs, refId: 'reel' },
+        { credits },
+        p.signal,
+      ),
+    );
+    h.deps.pipeline.directReel = directReel;
+    h.deps = { ...h.deps, credits };
+    const id = prepare(await video());
+    submit(id, VIDEO_EDIT);
+    await until(() => aiDirectReel.mock.calls.length > 0);
+    expect(credits.balance()).toBeLessThan(30);
+
+    cancel(id);
+    await until(() => refund.mock.calls.length > 0);
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect(credits.balance()).toBe(30);
+    expect(statusOf(id)).toBe('cancelled');
+    release();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(statusOf(id)).toBe('cancelled');
+    expect(refund).toHaveBeenCalledTimes(1);
+    expect((await h.repo.list()).projects).toEqual([]);
+  });
+
+  it('the voice call gets the job’s signal, and a cancel while it is made ends the job quietly', async () => {
+    generateVoice.mockImplementation(
+      (_deps: unknown, _input: unknown, signal: AbortSignal) =>
+        new Promise((_resolve, reject) =>
+          signal.addEventListener('abort', () => reject(new DOMException('c', 'AbortError'))),
+        ),
+    );
+    const id = prepare({
+      blob: null,
+      meta: {
+        source: 'tts',
+        name: 'Script',
+        cleanup: false,
+        tts: { voiceId: 'kore', speed: 1, script: 'Hello world, this is a script.' },
+      },
+      draft: { title: 'Untitled Project', format: '16:9' },
+    });
+    submit(id, EDIT);
+    await until(() => generateVoice.mock.calls.length > 0);
+    const signal = generateVoice.mock.calls[0]![2] as AbortSignal;
+    expect(signal.aborted).toBe(false);
+    cancel(id);
+    expect(signal.aborted).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(statusOf(id)).toBe('cancelled');
+    expect(h.decode).not.toHaveBeenCalled();
   });
 });

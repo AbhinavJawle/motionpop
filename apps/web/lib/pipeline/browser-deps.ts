@@ -68,18 +68,20 @@ export function browserPipelineDeps(opts: { credits?: CreditsClient | null } = {
         ...params,
         model: 'gemini-3.8-flash',
       }),
-    directReel: (params) => directReelPaid({ ...params, refId: 'reel' }, { credits }),
+    directReel: ({ signal, ...params }) =>
+      directReelPaid({ ...params, refId: 'reel' }, { credits }, signal),
     reviewEdit: ({ phrases }) => reviewReelCuts(phrases, { credits }),
-    resolveReelMedia: ({ plan, look, projectId, onProgress, maxIllustrations }) =>
+    resolveReelMedia: ({ plan, look, projectId, onProgress, maxIllustrations, signal }) =>
       resolveReelMedia(
         plan,
         look,
         projectId,
         { credits, ...(maxIllustrations !== undefined ? { maxIllustrations } : {}) },
         onProgress,
+        signal,
       ),
-    resolveReelMusic: ({ plan, durationMs, projectId }) =>
-      resolveReelMusic(plan, durationMs, projectId, { audioStore: appAudioStore() }),
+    resolveReelMusic: ({ plan, durationMs, projectId, signal }) =>
+      resolveReelMusic(plan, durationMs, projectId, { audioStore: appAudioStore() }, signal),
     ingestExtraClip: async (clip, projectId) => {
       const store = appAudioStore();
       const blob = await store.get(clip.ref);

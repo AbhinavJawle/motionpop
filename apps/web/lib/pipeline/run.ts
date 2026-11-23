@@ -25,6 +25,7 @@ import {
   cleanedDurationFromSegments,
   keptSourceSegments,
   sourceToCleanedMs,
+  reelMediaKey,
   reelMediaOf,
   type CaptionsSetting,
   type EditConfig,
@@ -84,6 +85,19 @@ import {
   type PipelineStep,
 } from './events';
 
+/**
+ * Results of paid steps a failed run already holds (spec 39 design §10 #2). A retry hands them back
+ * so it never pays for the same step twice: the run uses them instead of calling the dep.
+ */
+export interface PipelineReuse {
+  /** The directed reel (cloud only: the free plan costs nothing to make again). */
+  reel?: { plan: ReelPlan; source: 'cloud' | 'auto'; error?: string };
+  /** The pictures, with the plan they were found for (used only when the plan still asks for them). */
+  media?: { plan: ReelPlan; assets: ImageAsset[] };
+  /** The generated soundtrack (its `music.src`). */
+  music?: ReelPlan;
+}
+
 export interface PipelineInput {
   file: Blob;
   /** File name, for intake checks and the project title. */
@@ -114,6 +128,8 @@ export interface PipelineInput {
    * behaves as it did before spec 39. A single graphic ignores it.
    */
   edit?: EditConfig;
+  /** Paid results from an earlier run of the same job (retry). */
+  reuse?: PipelineReuse;
 }
 
 export interface TranscribeOutput {
@@ -174,6 +190,8 @@ export interface PipelineDeps {
     brief?: ReelDirectBrief;
     /** The creator's choices, enforced on the plan from either director (spec 39 R5.7). */
     choices?: EditChoices;
+    /** Fires when the job is cancelled: a charge made by this call is handed back (R6.9). */
+    signal?: AbortSignal;
   }): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }>;
   /**
    * The cloud editor's review of the automatic retake cuts (spec 28 R3). Optional; without it
@@ -188,6 +206,7 @@ export interface PipelineDeps {
     plan: ReelPlan;
     durationMs: number;
     projectId: string;
+    signal?: AbortSignal;
   }): Promise<ReelPlan>;
   /**
    * Fetches the pictures a reel plan asks for (spec 26: logos, illustrations, photos, site
@@ -201,6 +220,8 @@ export interface PipelineDeps {
     onProgress?: (done: number, total: number) => void;
     /** Most AI illustrations to make (spec 39 R2.7: 0 when the creator switched them off). */
     maxIllustrations?: number;
+    /** Fires when the job is cancelled: illustrations charged by this call are handed back. */
+    signal?: AbortSignal;
   }): Promise<{ plan: ReelPlan; assets: ImageAsset[] }>;
   /** Optional extra-clip ingester for B-roll / screen-recordings / screenshots dropped on /start (spec 20). */
   ingestExtraClip?(clip: PendingExtraClip, projectId: string): Promise<MediaClip | null>;
@@ -310,6 +331,12 @@ function musicIdOf(edit: EditConfig): 'calm-pad' | 'steady-pulse' | undefined {
   if (mood === 'minimal-tech' || mood === 'lofi') return 'calm-pad';
   if (mood === 'upbeat' || mood === 'dramatic') return 'steady-pulse';
   return undefined;
+}
+
+/** True when both plans ask for the same pictures (a held result still fits the plan). */
+function asksForSameMedia(held: ReelPlan, now: ReelPlan): boolean {
+  const keys = (p: ReelPlan) => reelMediaOf(p).map(reelMediaKey).sort().join('\n');
+  return held.scenes.length === now.scenes.length && keys(held) === keys(now);
 }
 
 export async function runPipeline(
@@ -508,17 +535,21 @@ export async function runPipeline(
         const atMs = sourceToCleanedMs(f.atMs, kept);
         return atMs === null ? [] : [{ atMs: Math.round(atMs), base64: f.base64 }];
       });
-      const directed = await (deps.directReel
-        ? deps
-            .directReel({
-              look,
-              words,
-              durationMs: reelMs,
-              frames,
-              ...(edit && choices ? { brief: briefFromEdit(edit) ?? undefined, choices } : {}),
-            })
-            .catch(() => null)
-        : Promise.resolve(null));
+      // A paid plan from an earlier run of this job is used as it is (retry never pays twice).
+      const directed =
+        input.reuse?.reel ??
+        (await (deps.directReel
+          ? deps
+              .directReel({
+                look,
+                words,
+                durationMs: reelMs,
+                frames,
+                ...(edit && choices ? { brief: briefFromEdit(edit) ?? undefined, choices } : {}),
+                ...(signal ? { signal } : {}),
+              })
+              .catch(() => null)
+          : Promise.resolve(null)));
       checkAbort();
       // A director's plan already carries the choices (directReel enforces them, spec 39 R5.7);
       // the plan this file makes itself gets them here.
@@ -538,21 +569,26 @@ export async function runPipeline(
       let reelAssets: ImageAsset[] = [];
       if (deps.resolveReelMedia && reelMediaOf(reel).length > 0) {
         onEvent({ type: 'step', step, state: 'active', detail: 'Finding logos and pictures' });
-        const media = await deps
-          .resolveReelMedia({
-            plan: reel,
-            look,
-            projectId: id,
-            ...(edit ? { maxIllustrations: edit.illustrations === false ? 0 : 3 } : {}),
-            onProgress: (done, total) =>
-              onEvent({
-                type: 'step',
-                step: 'plan',
-                state: 'active',
-                detail: `Finding logos and pictures (${done}/${total})`,
-              }),
-          })
-          .catch(() => null);
+        const held = input.reuse?.media;
+        const media =
+          held && asksForSameMedia(held.plan, reel)
+            ? held
+            : await deps
+                .resolveReelMedia({
+                  plan: reel,
+                  look,
+                  projectId: id,
+                  ...(edit ? { maxIllustrations: edit.illustrations === false ? 0 : 3 } : {}),
+                  onProgress: (done, total) =>
+                    onEvent({
+                      type: 'step',
+                      step: 'plan',
+                      state: 'active',
+                      detail: `Finding logos and pictures (${done}/${total})`,
+                    }),
+                  ...(signal ? { signal } : {}),
+                })
+                .catch(() => null);
         checkAbort();
         if (media) {
           reel = media.plan;
@@ -562,9 +598,17 @@ export async function runPipeline(
       // The soundtrack (spec 27 R3.2), composed from the director's brief.
       if (deps.resolveReelMusic && reel.music && !reel.music.src && edit?.sound.music !== 'none') {
         onEvent({ type: 'step', step, state: 'active', detail: 'Composing your music' });
-        const scored = await deps
-          .resolveReelMusic({ plan: reel, durationMs: reelMs, projectId: id })
-          .catch(() => null);
+        const heldSrc = input.reuse?.music?.music?.src;
+        const scored = heldSrc
+          ? { ...reel, music: { ...reel.music, src: heldSrc } }
+          : await deps
+              .resolveReelMusic({
+                plan: reel,
+                durationMs: reelMs,
+                projectId: id,
+                ...(signal ? { signal } : {}),
+              })
+              .catch(() => null);
         checkAbort();
         if (scored) reel = scored;
       }
