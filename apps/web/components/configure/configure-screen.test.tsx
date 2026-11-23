@@ -52,7 +52,7 @@ vi.mock('@/lib/pipeline/jobs-store', async (orig) => ({
   submit: h.submit,
 }));
 
-import { resetJobsForTest, useJobs } from '@/lib/pipeline/jobs-store';
+import { isWatched, resetJobsForTest, useJobs } from '@/lib/pipeline/jobs-store';
 import { ConfigureScreen } from './configure-screen';
 
 const words = (n: number) => Array.from({ length: n }, (_, i) => `word${i}`).join(' ');
@@ -132,6 +132,40 @@ describe('ConfigureScreen', () => {
     expect(h.submit.mock.calls[0]![0]).toBe(id);
     expect(h.push).toHaveBeenCalledWith(`/processing/${id}`);
     expect(lastEdit().resolved).toBeUndefined();
+  });
+
+  it('watches the job from Create until the screen unmounts (fast-pipeline toast race)', async () => {
+    const { unmount } = render(<ConfigureScreen />);
+    await loaded();
+    const id = Object.keys(useJobs.getState().jobs)[0]!;
+    expect(isWatched(id)).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    expect(isWatched(id)).toBe(true);
+    unmount();
+    expect(isWatched(id)).toBe(false);
+  });
+
+  it('leaving without Create drops the preparing job but not a created one', async () => {
+    const first = render(<ConfigureScreen />);
+    await loaded();
+    expect(Object.keys(useJobs.getState().jobs)).toHaveLength(1);
+    first.unmount();
+    expect(Object.keys(useJobs.getState().jobs)).toHaveLength(0);
+  });
+
+  it('a job that reached Create stays when the screen unmounts', async () => {
+    // The real `submit` queues the job; the mock stands in for that.
+    h.submit.mockImplementationOnce((id) => {
+      useJobs.setState((s) => ({
+        jobs: { ...s.jobs, [id]: { ...s.jobs[id]!, status: 'queued' } },
+      }));
+      return true;
+    });
+    const { unmount } = render(<ConfigureScreen />);
+    await loaded();
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+    unmount();
+    expect(Object.values(useJobs.getState().jobs).map((j) => j.status)).toEqual(['queued']);
   });
 
   it('stays on the page when the store refuses the job', async () => {

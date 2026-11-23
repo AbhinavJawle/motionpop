@@ -5,7 +5,9 @@ test.describe('Processing screen', () => {
   test('new shows the drop zone and rejects a non-audio file', async ({ page }) => {
     const errors = trackPageErrors(page);
     await page.goto('/processing/new');
-    await expect(page.getByRole('button', { name: /Drop a voiceover here/ })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Drop a video or voiceover here/ }),
+    ).toBeVisible();
     await page.locator('input[type=file]').setInputFiles({
       name: 'notes.txt',
       mimeType: 'text/plain',

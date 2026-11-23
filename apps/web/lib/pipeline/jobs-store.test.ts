@@ -18,12 +18,15 @@ import {
   discard,
   dismiss,
   isLive,
+  isWatched,
   prepare,
+  release,
   resetJobsForTest,
   retry,
   setJobDepsProvider,
   submit,
   useJobs,
+  watch,
   type Job,
   type JobDeps,
   type PendingTake,
@@ -32,7 +35,8 @@ import {
 const generateVoice = vi.hoisted(() => vi.fn());
 const clearPending = vi.hoisted(() => vi.fn(async () => undefined));
 vi.mock('../tts/generate-voice', () => ({ generateVoice }));
-vi.mock('../intake/pending', () => ({ clearPending }));
+const peekPending = vi.hoisted(() => vi.fn<() => unknown>(() => null));
+vi.mock('../intake/pending', () => ({ clearPending, peekPending }));
 
 const WORDS: Word[] = [
   { i: 0, text: 'hello', startMs: 0, endMs: 500, conf: 1, filler: false },
@@ -168,6 +172,8 @@ beforeEach(() => {
   setJobDepsProvider(() => ({ ...h.deps, uid: h.uid }));
   generateVoice.mockReset();
   clearPending.mockClear();
+  peekPending.mockReset();
+  peekPending.mockReturnValue(null);
 });
 
 afterEach(() => {
@@ -388,8 +394,12 @@ describe('cancel', () => {
     expect(h.decode).toHaveBeenCalledTimes(2); // each prepared once, none for the cancelled run
   });
 
+  // Changed by spec 39 task 14 (the pending-ownership gap from review run 7): the hand-off is only
+  // cleared when it still points at this job's take, so the mock now says it does.
   it('a job still preparing drops the hand-off and its take', async () => {
-    const id = prepare(await stash());
+    const take = await stash();
+    peekPending.mockReturnValue({ meta: { ref: take.meta.ref }, draft: {} });
+    const id = prepare(take);
     cancel(id);
     expect(statusOf(id)).toBe('cancelled');
     await until(() => clearPending.mock.calls.length > 0);
@@ -572,6 +582,161 @@ describe('dismiss, discard and account changes', () => {
     expect(statusOf(c)).toBe('preparing');
     h.hold = null;
     g.release();
+  });
+});
+
+describe('pending ownership (review run 7)', () => {
+  const scriptTake = (script: string): PendingTake => ({
+    blob: null,
+    meta: {
+      source: 'tts',
+      name: 'Script',
+      cleanup: false,
+      tts: { voiceId: 'Kore', speed: 1, script },
+    },
+    draft: { title: 'Untitled Project', format: '16:9' },
+  });
+
+  it('a newer hand-off survives the cancel of an older job; only the job’s own audio goes', async () => {
+    const old = await stash('old.wav');
+    const id = prepare(old);
+    // A newer take replaced the hand-off meanwhile.
+    peekPending.mockReturnValue({ meta: { ref: 'newer-ref', source: 'upload' }, draft: {} });
+    cancel(id);
+    await vi.waitFor(async () => expect(await hasBlob(old.meta.ref!)).toBe(false));
+    expect(clearPending).not.toHaveBeenCalled();
+  });
+
+  it('clears the hand-off when it is this job’s own', async () => {
+    const mine = await stash('mine.wav');
+    const id = prepare(mine);
+    peekPending.mockReturnValue({ meta: { ref: mine.meta.ref }, draft: {} });
+    dismiss(id);
+    await until(() => clearPending.mock.calls.length > 0);
+    expect(clearPending).toHaveBeenCalledWith({ keepAudio: false });
+  });
+
+  it('clears nothing when no hand-off is left, but still deletes the job’s audio', async () => {
+    const mine = await stash('mine.wav');
+    const id = prepare(mine);
+    peekPending.mockReturnValue(null);
+    cancel(id);
+    await vi.waitFor(async () => expect(await hasBlob(mine.meta.ref!)).toBe(false));
+    expect(clearPending).not.toHaveBeenCalled();
+  });
+
+  it('a script job matches its hand-off by the script text', async () => {
+    const id = prepare(scriptTake('Revenue grew forty percent.'));
+    peekPending.mockReturnValue({
+      meta: { source: 'tts', tts: { voiceId: 'Kore', speed: 1, script: 'A different script.' } },
+      draft: {},
+    });
+    cancel(id);
+    await Promise.resolve();
+    expect(clearPending).not.toHaveBeenCalled();
+
+    const mine = prepare(scriptTake('Revenue grew forty percent.'));
+    peekPending.mockReturnValue({
+      meta: {
+        source: 'tts',
+        tts: { voiceId: 'Kore', speed: 2, script: 'Revenue grew forty percent.' },
+      },
+      draft: {},
+    });
+    cancel(mine);
+    await until(() => clearPending.mock.calls.length > 0);
+    expect(clearPending).toHaveBeenCalledWith({ keepAudio: false });
+  });
+
+  it('a script job never matches a hand-off that has a ref', async () => {
+    const id = prepare(scriptTake('Hello.'));
+    peekPending.mockReturnValue({ meta: { ref: 'x', source: 'upload' }, draft: {} });
+    cancel(id);
+    await Promise.resolve();
+    expect(clearPending).not.toHaveBeenCalled();
+  });
+
+  it('an owned job (after Create) never clears the hand-off again, even if it matches', async () => {
+    const take = await stash();
+    const id = prepare(take);
+    submit(id, EDIT);
+    await until(() => statusOf(id) === 'done');
+    clearPending.mockClear();
+    peekPending.mockReturnValue({ meta: { ref: take.meta.ref }, draft: {} });
+    dismiss(id);
+    await vi.waitFor(async () => expect(await hasBlob(take.meta.ref!)).toBe(true));
+    expect(clearPending).not.toHaveBeenCalled();
+  });
+
+  it('a failed owned job loses its audio on dismiss and leaves the hand-off alone', async () => {
+    h.repo.failSaves = 1;
+    const take = await stash();
+    const id = prepare(take);
+    submit(id, EDIT);
+    await until(() => statusOf(id) === 'error');
+    clearPending.mockClear();
+    peekPending.mockReturnValue({ meta: { ref: 'newer', source: 'upload' }, draft: {} });
+    dismiss(id);
+    await vi.waitFor(async () => expect(await hasBlob(take.meta.ref!)).toBe(false));
+    expect(clearPending).not.toHaveBeenCalled();
+  });
+});
+
+describe('release', () => {
+  it('drops a job that never reached Create without touching the take or the hand-off', async () => {
+    const take = await stash();
+    const id = prepare(take);
+    release(id);
+    expect(useJobs.getState().jobs[id]).toBeUndefined();
+    expect(useJobs.getState().order).toEqual([]);
+    await Promise.resolve();
+    expect(clearPending).not.toHaveBeenCalled();
+    expect(await hasBlob(take.meta.ref!)).toBe(true);
+    // Preparing again later starts a fresh job for the same take.
+    const again = prepare(take);
+    expect(again).not.toBe(id);
+    await until(() => job(again).prep.stage === 'ready');
+  });
+
+  it('stops the preparation: no job is left live to hold the tab open', async () => {
+    const id = prepare(await stash());
+    release(id);
+    await Promise.resolve();
+    expect(Object.values(useJobs.getState().jobs).some(isLive)).toBe(false);
+  });
+
+  it('does nothing to a job that was created, ran, or is unknown', async () => {
+    const id = prepare(await stash());
+    submit(id, EDIT);
+    release(id);
+    expect(useJobs.getState().jobs[id]).toBeDefined();
+    await until(() => statusOf(id) === 'done');
+    release(id);
+    expect(statusOf(id)).toBe('done');
+    expect(() => release('j-nope')).not.toThrow();
+  });
+});
+
+describe('watch', () => {
+  it('marks a job watched until released, and releasing twice is harmless', () => {
+    expect(isWatched('j-1')).toBe(false);
+    const stop = watch('j-1');
+    expect(isWatched('j-1')).toBe(true);
+    expect(isWatched('j-2')).toBe(false);
+    stop();
+    stop();
+    expect(isWatched('j-1')).toBe(false);
+  });
+
+  it('counts watchers: the screen that lets go first does not unwatch the other', () => {
+    const configure = watch('j-1');
+    const processing = watch('j-1');
+    configure();
+    expect(isWatched('j-1')).toBe(true);
+    configure(); // a second call of the same release must not eat the other's count
+    expect(isWatched('j-1')).toBe(true);
+    processing();
+    expect(isWatched('j-1')).toBe(false);
   });
 });
 

@@ -9,6 +9,7 @@ import { browserPipelineDeps } from '@/lib/pipeline/browser-deps';
 import {
   cancelForOtherUser,
   isLive,
+  isWatched,
   setJobDepsProvider,
   useJobs,
   type JobStatus,
@@ -18,6 +19,14 @@ import { useAppConfig } from '@/lib/renders/hooks';
 /** Paths where a finished job opens itself (the creator is watching it). */
 export const watchingJob = (pathname: string, jobId: string): boolean =>
   pathname === `/processing/${encodeURIComponent(jobId)}` || pathname === `/processing/${jobId}`;
+
+/**
+ * The creator is looking at this job: on its page, or a screen marked it watched (the configure
+ * screen does so from Create until the processing page mounts, so a fast job cannot finish in
+ * between and announce itself to someone who is watching).
+ */
+const beingWatched = (jobId: string): boolean =>
+  isWatched(jobId) || watchingJob(window.location.pathname, jobId);
 
 /**
  * Mounted once in the app layout (spec 39 R6.1, R6.5, R6.6): gives the jobs store its live deps,
@@ -79,7 +88,7 @@ export function JobsHost() {
         const before = seen.current.get(id);
         seen.current.set(id, j.status);
         if (before === j.status || before === undefined) continue;
-        if (j.status === 'done' && j.projectId && !watchingJob(window.location.pathname, id)) {
+        if (j.status === 'done' && j.projectId && !beingWatched(id)) {
           const pid = j.projectId;
           toast.success(`“${j.title}” is ready`, {
             action: {
@@ -87,7 +96,7 @@ export function JobsHost() {
               onClick: () => router.push(`/editor/${encodeURIComponent(pid)}`),
             },
           });
-        } else if (j.status === 'error' && !watchingJob(window.location.pathname, id)) {
+        } else if (j.status === 'error' && !beingWatched(id)) {
           toast.error(`“${j.title}” hit a snag`, {
             action: {
               label: 'View',

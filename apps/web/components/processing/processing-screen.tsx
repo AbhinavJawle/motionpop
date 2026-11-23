@@ -1,177 +1,138 @@
 'use client';
 
-import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import { AnimatePresence, motion } from 'motion/react';
-import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { PipLoop } from '@/components/landing/pip-loop';
 import { btn, Bubble, paper, PaperPage, PipMark, poster } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
+import { defaultEdit } from '@/lib/configure/defaults';
+import { CONFIGURE, handOffFile, handOffSample } from '@/lib/intake/hand-off';
+import { takePending } from '@/lib/intake/pending';
 import { fadeIn, springPop } from '@/lib/motion/presets';
 import { useStill } from '@/lib/motion/use-still';
-import { browserPipelineDeps } from '@/lib/pipeline/browser-deps';
+import { formatEta } from '@/lib/pipeline/eta';
 import { PIPELINE_STEPS } from '@/lib/pipeline/events';
 import {
-  initialProcessing,
-  reduceProcessing,
-  STEP_TITLES,
-  type ProcessingState,
-} from '@/lib/pipeline/processing-state';
-import { START_COPY } from '@/lib/dashboard/copy';
-import { clearPending, takePending } from '@/lib/intake/pending';
-import { runPipeline, type PipelineInput } from '@/lib/pipeline/run';
-import { sampleInput, sampleWords } from '@/lib/pipeline/sample';
+  cancel,
+  dismiss,
+  prepare,
+  retry,
+  submit,
+  useJobs,
+  watch,
+  type Job,
+} from '@/lib/pipeline/jobs-store';
+import { STEP_TITLES } from '@/lib/pipeline/processing-state';
 import { projectLibrary } from '@/lib/projects/use-project-list';
 import { DropZone } from './drop-zone';
 import { StepCard } from './step-card';
 import { WordStrip } from './word-strip';
 
-type Phase = 'checking' | 'drop' | 'running' | 'interrupted';
+type Phase = 'checking' | 'drop' | 'interrupted';
 
 /** Pip's bubble once suggestions are in: "1 slot ready" / "3 slots ready". */
 const slotsReady = (n: number) => `${n} ${n === 1 ? 'slot' : 'slots'} ready`;
 
-type Action = { type: 'reset' } | { type: 'event'; event: Parameters<typeof reduceProcessing>[1] };
-function reducer(s: ProcessingState, a: Action): ProcessingState {
-  return a.type === 'reset' ? initialProcessing() : reduceProcessing(s, a.event);
+/** The headline and strip label per kind (spec 39 R1.3). */
+const COPY = {
+  video: { title: 'Editing your video.', strip: 'Your video' },
+  voiceover: { title: 'Turning your voice into motion.', strip: 'Your voice' },
+} as const;
+
+function bubbleOf(job: Job | undefined, phase: Phase): string {
+  if (!job) return phase === 'interrupted' ? 'Hmm, that one slipped.' : 'Drop it, I’ll catch it!';
+  if (job.processing.slots.length > 0) return slotsReady(job.processing.slots.length);
+  if (job.status === 'error') return 'Hmm, that one slipped.';
+  if (job.status === 'cancelled') return 'Stopped. Nothing was saved.';
+  if (job.status === 'queued') return 'Next in line!';
+  return 'On it…';
 }
 
 /**
- * `/processing/[id]` (spec 05 R5). `new` shows the drop zone; a running pipeline shows Pip,
- * the four steps and the word strip, then opens the editor. An existing project id goes
- * straight to the editor; an unknown one was interrupted by a reload.
+ * `/processing/[jobId]` (spec 05 R5, spec 39 R6.8): a view of one background job. The job runs
+ * in the jobs store, so leaving this page (Continue in background) never stops it. `new` keeps
+ * old links working: a pending take goes to the configure screen (a single graphic starts at
+ * once with the default choices); nothing pending shows the drop zone. A project id opens the
+ * editor; any other id was lost to a reload.
  */
 export function ProcessingScreen({ id }: { id: string }) {
   const router = useRouter();
   const still = useStill();
+  const job = useJobs((s) => s.jobs[id]);
   const [phase, setPhase] = useState<Phase>('checking');
-  const [state, dispatch] = useReducer(reducer, undefined, initialProcessing);
-  const [intakeError, setIntakeError] = useState<string | null>(null);
-  const controller = useRef<AbortController | null>(null);
-  const lastInput = useRef<PipelineInput | null>(null);
-  const { client: credits } = useCreditsClient();
+  const [dropError, setDropError] = useState<string | null>(null);
 
+  // Not a job in this tab: an old `/processing/new` link, a project id, or a lost job.
   useEffect(() => {
-    if (id === 'new') return;
+    if (useJobs.getState().jobs[id]) return;
     let live = true;
-    void projectLibrary()
-      .load(id)
-      .then((r) => {
-        if (!live) return;
-        if (!r.ok) return setPhase('interrupted');
-        router.replace(`/editor/${encodeURIComponent(id)}`);
-      });
+    if (id === 'new') {
+      void takePending()
+        .catch(() => null)
+        .then((take) => {
+          if (!live) return;
+          if (!take) return setPhase('drop');
+          if (!take.meta.single) return router.replace(CONFIGURE);
+          const jobId = prepare(take);
+          const kind = useJobs.getState().jobs[jobId]?.kind ?? 'voiceover';
+          submit(jobId, defaultEdit(kind, { source: take.meta.source }));
+          router.replace(`/processing/${jobId}`);
+        });
+    } else {
+      void projectLibrary()
+        .load(id)
+        .then((r) => {
+          if (!live) return;
+          if (!r.ok) return setPhase('interrupted');
+          router.replace(`/editor/${encodeURIComponent(id)}`);
+        });
+    }
     return () => {
       live = false;
     };
   }, [id, router]);
 
-  useEffect(() => () => controller.current?.abort(), []);
+  // While this page shows the job, it is watched: its "ready" toast would only repeat the page.
+  const shownHere = job !== undefined;
+  useEffect(() => (shownHere ? watch(id) : undefined), [id, shownHere]);
 
-  const start = useCallback(
-    (input: PipelineInput) => {
-      controller.current?.abort();
-      const ac = new AbortController();
-      controller.current = ac;
-      lastInput.current = input;
-      dispatch({ type: 'reset' });
-      setIntakeError(null);
-      setPhase('running');
-      runPipeline(
-        input,
-        browserPipelineDeps({ credits }),
-        (event) => dispatch({ type: 'event', event }),
-        ac.signal,
-      )
-        .then(async ({ projectId }) => {
-          // The project owns the stored take now; only the hand-off goes.
-          if (input.storedRef) await clearPending({ keepAudio: true });
-          // Let the last check and Pip's celebration land before the editor opens.
-          setTimeout(
-            () => router.push(`/editor/${encodeURIComponent(projectId)}`),
-            still ? 250 : 1100,
-          );
-        })
-        .catch((err: unknown) => {
-          if (ac.signal.aborted) return;
-          // The card shows a friendly line; keep the real cause in the console for debugging.
-          console.error('[processing]', err, err instanceof Error ? err.cause : undefined);
-          // Problems with the file itself go back to the drop zone with the reason.
-          if (err instanceof Error && 'step' in err && err.step === 'intake') {
-            if (input.storedRef) void clearPending({ keepAudio: false });
-            setIntakeError(err.message);
-            setPhase('drop');
-          }
-        });
-    },
-    [router, still, credits],
-  );
-
-  // `/processing/new` picks up a hand-off from the dashboard, Start or the recorder (spec 11).
+  // The watched job finished: let the last check and Pip's celebration land, then open it.
+  const projectId = job?.status === 'done' ? job.projectId : undefined;
   useEffect(() => {
-    if (id !== 'new') return;
-    let live = true;
-    void takePending()
-      .catch(() => null)
-      .then((p) => {
-        if (!live) return;
-        // A script intake has no blob yet; until the configure screen exists it counts as nothing
-        // pending (spec 39 task 1).
-        if (!p?.blob) return setPhase('drop');
-        const blob = p.blob;
-        start({
-          file: blob,
-          name: p.meta.name,
-          source: p.meta.source,
-          storedRef: p.meta.ref,
-          // An untouched "Untitled Project" lets the file name title the project.
-          ...(p.draft.title !== START_COPY.untitled ? { title: p.draft.title } : {}),
-          // Let uploaded videos auto-match their native aspect ratio (9:16 / 16:9 / 1:1) unless
-          // the creator explicitly chose a format pill on Start.
-          ...(p.draft.formatChosen || !blob.type.startsWith('video/')
-            ? { format: p.draft.format }
-            : {}),
-          cleanup: p.meta.cleanup,
-          ...(p.draft.styleId ? { styleId: p.draft.styleId } : {}),
-          ...(p.meta.tts ? { tts: p.meta.tts } : {}),
-          ...(p.meta.words
-            ? { words: p.meta.words }
-            : p.meta.source === 'sample'
-              ? { words: sampleWords() }
-              : {}),
-          ...(p.meta.extraClips?.length ? { extraClips: p.meta.extraClips } : {}),
-          ...(p.meta.single ? { single: true } : {}),
-        });
-      });
-    return () => {
-      live = false;
-    };
-  }, [id, start]);
+    if (!projectId) return;
+    const t = setTimeout(
+      () => {
+        router.push(`/editor/${encodeURIComponent(projectId)}`);
+        // Seen through to the end: no "Working on it" card needed for this one.
+        dismiss(id);
+      },
+      still ? 250 : 1100,
+    );
+    return () => clearTimeout(t);
+  }, [projectId, id, router, still]);
 
-  const cancel = () => {
-    controller.current?.abort();
-    controller.current = null;
-    if (lastInput.current?.storedRef) void clearPending({ keepAudio: false });
-    setPhase('drop');
+  const pick = async (work: () => Promise<{ ok: true } | { ok: false; message: string }>) => {
+    setDropError(null);
+    const r = await work();
+    if (r.ok) router.push(CONFIGURE);
+    else setDropError(r.message);
   };
 
   const chooseAnother = () => {
-    if (lastInput.current?.storedRef) void clearPending({ keepAudio: false });
-    setPhase('drop');
+    dismiss(id);
+    router.push('/start');
   };
 
-  const done = state.projectId !== null;
-  const failed = state.error !== null && phase === 'running';
-
-  const bubble =
-    state.slots.length > 0
-      ? slotsReady(state.slots.length)
-      : failed
-        ? 'Hmm, that one slipped.'
-        : phase === 'running'
-          ? 'On it…'
-          : 'Drop it, I’ll catch it!';
+  const shown = job !== undefined;
+  const done = job?.status === 'done';
+  const failed = job?.status === 'error';
+  const waiting = job?.status === 'queued' || job?.status === 'preparing';
+  const working = job?.status === 'running' || waiting;
+  const copy = COPY[job?.kind ?? 'voiceover'];
+  const bubble = bubbleOf(shown ? job : undefined, phase);
+  const eta = job && working ? formatEta(job.etaMs) : '';
 
   return (
     <PaperPage>
@@ -187,21 +148,32 @@ export function ProcessingScreen({ id }: { id: string }) {
       </header>
       <main className="mx-auto w-full max-w-[1000px] px-6 pb-20 lg:px-10">
         <section className="flex items-end justify-between gap-6 pt-12 pb-10">
-          <div>
+          <div className="min-w-0">
             <h1 className={cn(poster, 'text-[clamp(52px,7vw,96px)]')}>
-              {done ? 'Here it comes.' : 'Turning your voice into motion.'}
+              {done ? 'Here it comes.' : copy.title}
             </h1>
             <p className="mt-4 text-[15px]">
-              {phase === 'running'
-                ? 'A few moments. A little magic.'
-                : 'Bring your voice. We’ll bring the motion.'}
+              {shown && job.title ? (
+                <>
+                  <span className="font-semibold">{job.title}</span>
+                  {job.recipeLabel && (
+                    <span className="text-black/60">
+                      {' '}
+                      · {job.recipeLabel}
+                      {job.styleLabel ? ` · ${job.styleLabel}` : ''}
+                    </span>
+                  )}
+                </>
+              ) : (
+                'Bring your voice. We’ll bring the motion.'
+              )}
             </p>
           </div>
           <div className="relative h-[170px] w-[150px] shrink-0 sm:w-[240px]">
             <AnimatePresence mode="wait">
               <motion.span
                 key={bubble}
-                data-testid={state.slots.length > 0 ? 'pip-bubble' : undefined}
+                data-testid={job && job.processing.slots.length > 0 ? 'pip-bubble' : undefined}
                 initial={still ? false : { opacity: 0, scale: 0.7, y: 6 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0 }}
@@ -212,82 +184,135 @@ export function ProcessingScreen({ id }: { id: string }) {
               </motion.span>
             </AnimatePresence>
             <PipLoop
-              name={done || state.slots.length > 0 ? 'juggle' : 'clapper'}
+              name={done || (job?.processing.slots.length ?? 0) > 0 ? 'juggle' : 'clapper'}
               className="absolute -right-3 -bottom-6 size-[150px] select-none"
             />
           </div>
         </section>
 
         <AnimatePresence mode="wait" initial={false}>
-          {phase === 'drop' && (
+          {!shown && phase === 'drop' && (
             <motion.div key="drop" {...fadeIn}>
               <DropZone
-                key={intakeError ?? 'none'}
-                initialError={intakeError}
-                onFile={(file) => start({ file, name: file.name, source: 'upload' })}
-                onSample={() => start({ ...sampleInput(), source: 'sample' })}
+                key={dropError ?? 'none'}
+                initialError={dropError}
+                onFile={(file) => void pick(() => handOffFile(file))}
+                onSample={() => void pick(() => handOffSample())}
               />
             </motion.div>
           )}
 
-          {phase === 'running' && (
-            <motion.div key="run" {...fadeIn}>
+          {shown && (
+            <motion.div key="job" {...fadeIn}>
+              {working && (
+                <div className="mb-6">
+                  <div className="mb-1.5 flex items-baseline justify-between text-[13px]">
+                    <span className="font-semibold">
+                      {waiting ? 'Waiting for the edit before this one…' : `${job.progressPct}%`}
+                    </span>
+                    <span className="text-black/60" data-testid="job-eta">
+                      {eta}
+                    </span>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-label="Edit progress"
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={job.progressPct}
+                    className="h-[12px] overflow-hidden rounded-full border-2 border-black bg-paper"
+                  >
+                    <motion.div
+                      className="h-full bg-pip"
+                      initial={false}
+                      animate={{ width: `${job.progressPct}%` }}
+                      transition={
+                        still ? { duration: 0 } : { type: 'spring', stiffness: 120, damping: 24 }
+                      }
+                    />
+                  </div>
+                </div>
+              )}
               <ol
                 className="overflow-hidden rounded-[16px] border-2 border-ink bg-paper shadow-[6px_6px_0_#000]"
                 aria-label="Processing steps"
               >
-                {PIPELINE_STEPS.map((step, k) => (
-                  <StepCard
-                    key={step}
-                    index={k + 1}
-                    title={state.steps[step].title ?? STEP_TITLES[step]}
-                    state={state.steps[step].state}
-                    detail={state.steps[step].detail}
-                    {...(state.steps[step].route ? { route: state.steps[step].route } : {})}
-                  />
-                ))}
+                {PIPELINE_STEPS.map((step, k) => {
+                  const s = job.processing.steps[step];
+                  return (
+                    <StepCard
+                      key={step}
+                      index={k + 1}
+                      title={s.title ?? STEP_TITLES[step]}
+                      state={s.state}
+                      detail={s.detail}
+                      {...(s.route ? { route: s.route } : {})}
+                    />
+                  );
+                })}
               </ol>
               <div className="mt-8">
                 <WordStrip
-                  words={state.words}
-                  keys={state.wordKeys}
-                  durationMs={state.durationMs}
-                  slots={state.slots}
+                  label={copy.strip}
+                  words={job.processing.words}
+                  keys={job.processing.wordKeys}
+                  durationMs={job.processing.durationMs}
+                  slots={job.processing.slots}
                 />
               </div>
-              <div className="mt-8 flex gap-4">
+              {failed && job.error && (
+                <p role="alert" className="mt-6 text-[14px] text-error">
+                  {job.error}
+                </p>
+              )}
+              {job.status === 'cancelled' && (
+                <p className="mt-6 text-[14px]">This edit was cancelled. Nothing was saved.</p>
+              )}
+              <div className="mt-8 flex flex-wrap items-center gap-4">
                 {failed ? (
                   <>
-                    <button
-                      type="button"
-                      className={btn('ink')}
-                      onClick={() => lastInput.current && start(lastInput.current)}
-                    >
-                      Try again
-                    </button>
+                    {!job.intakeError && (
+                      <button type="button" className={btn('ink')} onClick={() => retry(id)}>
+                        Try again
+                      </button>
+                    )}
                     <button type="button" className={btn('paper')} onClick={chooseAnother}>
                       Choose another file
                     </button>
                   </>
+                ) : job.status === 'cancelled' ? (
+                  <button type="button" className={btn('ink')} onClick={chooseAnother}>
+                    Start again
+                  </button>
                 ) : (
-                  !done && (
-                    <button type="button" className={paper.link} onClick={cancel}>
-                      Cancel
-                    </button>
+                  working && (
+                    <>
+                      <button
+                        type="button"
+                        className={btn('ink')}
+                        onClick={() => router.push('/dashboard')}
+                      >
+                        Continue in background
+                      </button>
+                      <button type="button" className={paper.link} onClick={() => cancel(id)}>
+                        Cancel
+                      </button>
+                    </>
                   )
                 )}
               </div>
+              {working && (
+                <p className="mt-3 text-[12px] text-black/55">
+                  Keep this tab open. You can use the rest of motionpop while it works.
+                </p>
+              )}
             </motion.div>
           )}
 
-          {phase === 'interrupted' && (
+          {!shown && phase === 'interrupted' && (
             <motion.div key="int" {...fadeIn} className="flex flex-col items-start gap-5">
               <p className="text-[15px]">This upload was interrupted. Nothing was saved.</p>
-              <button
-                type="button"
-                className={btn('ink')}
-                onClick={() => router.replace('/processing/new')}
-              >
+              <button type="button" className={btn('ink')} onClick={() => router.replace('/start')}>
                 Choose another file
               </button>
             </motion.div>
@@ -295,7 +320,7 @@ export function ProcessingScreen({ id }: { id: string }) {
         </AnimatePresence>
 
         <p role="status" aria-live="polite" className="sr-only">
-          {state.announcement}
+          {shown ? job.processing.announcement : ''}
         </p>
       </main>
     </PaperPage>

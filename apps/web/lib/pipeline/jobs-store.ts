@@ -11,7 +11,7 @@ import type { CreditsClient } from '../credits/client';
 import { checkDuration, validateIntake } from '../audio/intake';
 import { isSilent, type DecodedAudio } from '../audio/decode';
 import { START_COPY } from '../dashboard/copy';
-import { clearPending } from '../intake/pending';
+import { clearPending, peekPending } from '../intake/pending';
 import { generateVoice } from '../tts/generate-voice';
 import { withWhisper, type WhisperPriority } from '../transcribe/whisper-lock';
 import type { VideoProbeResult } from '../video/frames';
@@ -562,9 +562,30 @@ async function makeVoice(id: string, rt: Runtime, d: JobDeps): Promise<Blob | nu
 const voiceIdOf = (v: string): TtsVoiceId =>
   TTS_VOICES.find((x) => x.id === v)?.id ?? TTS_VOICES[0].id;
 
+/**
+ * True while the hand-off still points at this job's take. A newer drop replaces the hand-off, and
+ * clearing it then would throw the newer take away (review run 7): a ref is compared by value, a
+ * script (no ref) by its text.
+ */
+function handOffIsMine(rt: Runtime): boolean {
+  try {
+    const p = peekPending();
+    if (!p) return false;
+    const mine = rt.take.meta;
+    if (mine.ref) return p.meta.ref === mine.ref;
+    const script = mine.tts?.script;
+    return !p.meta.ref && script !== undefined && p.meta.tts?.script === script;
+  } catch {
+    return false;
+  }
+}
+
 async function dropTake(rt: Runtime): Promise<void> {
   const ref = rt.take.meta.ref;
-  if (!rt.owned) await clearPending({ keepAudio: false }).catch(() => undefined);
+  // Not yet owned and still the hand-off: clear it (and its audio). Otherwise only this job's own
+  // stored audio goes; the hand-off belongs to someone else now.
+  if (!rt.owned && handOffIsMine(rt))
+    await clearPending({ keepAudio: false }).catch(() => undefined);
   else if (ref) {
     try {
       await deps().pipeline.audioStore.delete(ref);
@@ -619,6 +640,24 @@ export function dismiss(id: string): void {
   });
 }
 
+/**
+ * Drops a job that never reached Create (the creator left the configure screen). Its preparation
+ * stops; the stored take and the hand-off stay, so coming back (or a reload) prepares it again
+ * and an abandoned job never holds the tab open. Does nothing to a job past `preparing`.
+ */
+export function release(id: string): void {
+  const rt = runtimes.get(id);
+  const j = useJobs.getState().jobs[id];
+  if (!rt || !j || j.status !== 'preparing') return;
+  rt.abort.abort();
+  runtimes.delete(id);
+  useJobs.setState((s) => {
+    const jobs = { ...s.jobs };
+    delete jobs[id];
+    return { jobs, order: s.order.filter((x) => x !== id) };
+  });
+}
+
 /** The configure screen's Remove: the take goes, and the job with it. */
 export function discard(id: string): void {
   dismiss(id);
@@ -633,10 +672,34 @@ export function cancelForOtherUser(uid: string | null): void {
   }
 }
 
+/**
+ * Jobs somebody is looking at, with how many screens look. A finished watched job opens by itself
+ * and gets no "ready" toast (R6.6). Counted, not a plain set: the configure screen watches a job
+ * across the route change while the processing screen takes over, and the first to let go must not
+ * unwatch the second.
+ */
+const watched = new Map<string, number>();
+
+/** Marks a job as watched until the returned function is called (idempotent). */
+export function watch(id: string): () => void {
+  watched.set(id, (watched.get(id) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const n = (watched.get(id) ?? 1) - 1;
+    if (n <= 0) watched.delete(id);
+    else watched.set(id, n);
+  };
+}
+
+export const isWatched = (id: string): boolean => watched.has(id);
+
 /** Test hook. */
 export function resetJobsForTest(): void {
   for (const rt of runtimes.values()) rt.abort.abort();
   runtimes.clear();
+  watched.clear();
   runningId = null;
   useJobs.setState({ jobs: {}, order: [] });
 }

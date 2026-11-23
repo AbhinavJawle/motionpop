@@ -22,7 +22,10 @@ export function WordStrip({
   keys,
   durationMs,
   slots = [],
+  label = 'Your voice',
 }: {
+  /** The strip's heading: "Your video" for a video job (spec 39 R1.3). */
+  label?: string;
   words: Word[];
   keys: number[];
   durationMs: number;
@@ -40,7 +43,7 @@ export function WordStrip({
 
   return (
     <div className="relative h-[112px] overflow-hidden rounded-[16px] border-2 border-ink bg-paper">
-      <span className="absolute top-2.5 left-4 text-[11px] font-semibold">Your voice</span>
+      <span className="absolute top-2.5 left-4 text-[11px] font-semibold">{label}</span>
       {durationMs > 0 && (
         <span className="absolute top-2.5 right-4 text-[11px] tabular">
           {(durationMs / 1000).toFixed(1)}s

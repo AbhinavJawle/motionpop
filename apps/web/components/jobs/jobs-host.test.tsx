@@ -3,7 +3,13 @@ import { act, cleanup, render } from '@testing-library/react';
 import { APP_CONFIG_DEFAULTS } from '@motionpop/schemas';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initialProcessing } from '@/lib/pipeline/processing-state';
-import { resetJobsForTest, useJobs, type Job, type JobStatus } from '@/lib/pipeline/jobs-store';
+import {
+  resetJobsForTest,
+  useJobs,
+  watch,
+  type Job,
+  type JobStatus,
+} from '@/lib/pipeline/jobs-store';
 import { JobsHost, watchingJob } from './jobs-host';
 
 const mocks = vi.hoisted(() => ({
@@ -23,7 +29,10 @@ vi.mock('@/lib/credits/use-credits-client', () => ({ useCreditsClient: () => ({ 
 vi.mock('@/lib/renders/hooks', () => ({ useAppConfig: () => APP_CONFIG_DEFAULTS }));
 vi.mock('@/lib/pipeline/browser-deps', () => ({ browserPipelineDeps: () => ({}) }));
 vi.mock('@/lib/tts/generate-voice', () => ({ generateVoice: vi.fn() }));
-vi.mock('@/lib/intake/pending', () => ({ clearPending: vi.fn(async () => undefined) }));
+vi.mock('@/lib/intake/pending', () => ({
+  clearPending: vi.fn(async () => undefined),
+  peekPending: vi.fn(() => null),
+}));
 
 function mkJob(id: string, status: JobStatus, extra: Partial<Job> = {}): Job {
   return {
@@ -145,6 +154,27 @@ describe('done toast (spec 39 R6.6)', () => {
     expect(mocks.success).not.toHaveBeenCalled();
   });
 
+  it('says nothing for a job marked watched, even before its page is open (fast pipeline race)', () => {
+    // The configure screen watches from Create; the router has not reached /processing/j-1 yet.
+    render(<JobsHost />);
+    setJob(mkJob('j-1', 'preparing'));
+    const stop = watch('j-1');
+    setJob(mkJob('j-1', 'running'));
+    setJob(mkJob('j-1', 'done', { projectId: 'p-1' }));
+    expect(window.location.pathname).toBe('/dashboard');
+    expect(mocks.success).not.toHaveBeenCalled();
+    stop();
+  });
+
+  it('speaks again once nobody watches the job any more', () => {
+    render(<JobsHost />);
+    const stop = watch('j-1');
+    setJob(mkJob('j-1', 'running'));
+    stop();
+    setJob(mkJob('j-1', 'done', { projectId: 'p-1' }));
+    expect(mocks.success).toHaveBeenCalledTimes(1);
+  });
+
   it('still says it when the creator is watching a different job', () => {
     window.history.pushState({}, '', '/processing/j-2');
     render(<JobsHost />);
@@ -199,6 +229,15 @@ describe('error toast', () => {
     expect(title).toBe('“Video j-1” hit a snag');
     opts.action.onClick();
     expect(mocks.push).toHaveBeenCalledWith('/processing/j-1');
+  });
+
+  it('stays quiet for a watched job', () => {
+    render(<JobsHost />);
+    setJob(mkJob('j-1', 'running'));
+    const stop = watch('j-1');
+    setJob(mkJob('j-1', 'error', { error: 'boom' }));
+    expect(mocks.error).not.toHaveBeenCalled();
+    stop();
   });
 
   it('stays quiet when the creator is looking at that job', () => {

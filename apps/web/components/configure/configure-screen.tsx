@@ -26,7 +26,7 @@ import { getRouter } from '@/lib/ai/router-client';
 import { useCreditsBalance, useCreditsClient } from '@/lib/credits/use-credits-client';
 import { LOOK_STILLS } from '@/lib/editor/look-stills';
 import { takePending } from '@/lib/intake/pending';
-import { discard, prepare, submit, useJobs } from '@/lib/pipeline/jobs-store';
+import { discard, prepare, release, submit, useJobs, watch } from '@/lib/pipeline/jobs-store';
 import { useAppConfig, useOnline } from '@/lib/renders/hooks';
 
 import { CaptionArt, HookArt, LookArt, MoodArt, RecipeArt, StyleArt } from './art';
@@ -98,6 +98,18 @@ export function ConfigureScreen() {
     },
     [],
   );
+  /** The job this screen prepared, and the watch it holds from Create until Processing takes over. */
+  const jobIdRef = useRef<string | null>(null);
+  const unwatch = useRef<(() => void) | null>(null);
+  useEffect(
+    () => () => {
+      unwatch.current?.();
+      unwatch.current = null;
+      // Leaving without Create: the preparation stops, the take stays for the next visit.
+      if (jobIdRef.current) release(jobIdRef.current);
+    },
+    [],
+  );
   /** The speed the script screen chose: the voice is priced (and made) at this pace. */
   const [ttsSpeed, setTtsSpeed] = useState(1);
 
@@ -110,6 +122,7 @@ export function ConfigureScreen() {
         if (!live) return;
         if (!take) return router.replace('/start');
         const id = prepare(take);
+        jobIdRef.current = id;
         setTtsSpeed(take.meta.tts?.speed ?? 1);
         setJobId(id);
         const kind = useJobs.getState().jobs[id]?.kind ?? 'voiceover';
@@ -255,6 +268,7 @@ export function ConfigureScreen() {
           : 'Pip reads this when you click away.';
 
   const remove = () => {
+    jobIdRef.current = null;
     discard(job.id);
     router.replace('/start');
   };
@@ -278,8 +292,12 @@ export function ConfigureScreen() {
                 ...(styleText ? { styleText } : {}),
               }),
             };
-    if (submit(job.id, final)) router.push(`/processing/${encodeURIComponent(job.id)}`);
-    else setCreating(false);
+    if (submit(job.id, final)) {
+      // A fast job can finish before the router reaches its page: it counts as watched from now
+      // until this screen unmounts (the processing page watches it from its own mount).
+      unwatch.current ??= watch(job.id);
+      router.push(`/processing/${encodeURIComponent(job.id)}`);
+    } else setCreating(false);
   };
 
   return (

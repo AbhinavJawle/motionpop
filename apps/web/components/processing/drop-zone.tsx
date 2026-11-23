@@ -12,8 +12,9 @@ const ACCEPT =
   'audio/*,video/mp4,video/quicktime,video/webm,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus,.mp4,.mov';
 
 /**
- * Minimal entry for spec 05 (the designed Start screen is spec 11): drop or pick a voiceover,
- * or try the sample. The intake check runs here first, so a wrong file never starts a step.
+ * Minimal entry for spec 05 (the designed Start screen is spec 11): drop or pick a video or
+ * voiceover, or try the sample. The intake check runs here first, so a wrong file never starts a
+ * step.
  */
 export function DropZone({
   onFile,
@@ -46,7 +47,7 @@ export function DropZone({
     <div className="flex flex-col items-center">
       <motion.button
         type="button"
-        aria-label="Drop a voiceover here, or choose a file"
+        aria-label="Drop a video or voiceover here, or choose a file"
         onClick={() => input.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
@@ -63,12 +64,13 @@ export function DropZone({
       >
         <Upload className="size-9" strokeWidth={1.75} aria-hidden />
         <span className="mt-5 font-poster text-[44px] leading-[0.9] uppercase">
-          {over ? 'Drop it, I’ll catch it!' : 'Drop your voiceover or video'}
+          {over ? 'Drop it, I’ll catch it!' : 'Drop your video or voiceover'}
         </span>
         <span className="mt-3 text-[14px]">or click to choose a file</span>
         <span className="mt-5 text-[12px] text-black/55">
-          MP3, WAV or M4A, or MP4 and MOV up to {INTAKE_LIMITS.maxVideoBytes / 1024 / 1024} MB, at
-          most {INTAKE_LIMITS.maxDurationMs / 60_000} minutes
+          MP4, MOV or WebM up to {INTAKE_LIMITS.maxVideoBytes / 1024 / 1024} MB, or MP3, WAV, M4A up
+          to {INTAKE_LIMITS.maxBytes / 1024 / 1024} MB, at most{' '}
+          {INTAKE_LIMITS.maxDurationMs / 60_000} minutes
         </span>
       </motion.button>
       <input
