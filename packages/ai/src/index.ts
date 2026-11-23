@@ -35,3 +35,4 @@ export * from './reel/note';
 export * from './reel/compose';
 export * from './skills/recipes';
 export * from './skills/registry';
+export * from './skills/slot-sequences';

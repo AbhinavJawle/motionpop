@@ -1,4 +1,4 @@
-import { skillEntry, type ComponentFillInput } from '@motionpop/ai';
+import { shotSequenceOf, skillEntry, type ComponentFillInput } from '@motionpop/ai';
 import type { EditorProject, Slot } from '@motionpop/schemas';
 import { spokenText } from '@/lib/editor/slot-display';
 
@@ -19,6 +19,9 @@ export function componentFillInput(
     prompt: slot.prompt || slot.reason,
     currentParams: slot.params,
     styleId: project.styleId,
-    skill: { shotSequence: '', emphasis: skillEntry(slot.skillId)?.useWhen ?? '' },
+    skill: {
+      shotSequence: shotSequenceOf(slot.skillId),
+      emphasis: skillEntry(slot.skillId)?.useWhen ?? '',
+    },
   };
 }

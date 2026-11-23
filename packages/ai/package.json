@@ -11,7 +11,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p .",
     "lint": "eslint .",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "skills:build": "node scripts/build-slot-sequences.ts"
   },
   "dependencies": {
     "@motionpop/schemas": "workspace:*",

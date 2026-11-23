@@ -1,4 +1,4 @@
-import { skillEntry, type ComponentFillInput } from '@motionpop/ai';
+import { shotSequenceOf, skillEntry, type ComponentFillInput } from '@motionpop/ai';
 import {
   CATALOGUE_KEY,
   catalogueSummary,
@@ -95,7 +95,10 @@ export function sceneFillInput(
     prompt: (slot.prompt || slot.reason).slice(0, 500),
     currentParams: slot.params,
     styleId: project.styleId,
-    skill: { shotSequence: '', emphasis: (skillEntry(slot.skillId)?.useWhen ?? '').slice(0, 600) },
+    skill: {
+      shotSequence: shotSequenceOf(slot.skillId),
+      emphasis: (skillEntry(slot.skillId)?.useWhen ?? '').slice(0, 600),
+    },
   };
 }
 
