@@ -49,3 +49,4 @@ Information/
 
 # Playwright e2e output (apps/web)
 e2e-output/
+apps/web/rive/*/build/
