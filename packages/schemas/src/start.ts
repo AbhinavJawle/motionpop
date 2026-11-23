@@ -29,26 +29,38 @@ export const PendingExtraClipSchema = z.object({
 });
 export type PendingExtraClip = z.infer<typeof PendingExtraClipSchema>;
 
-export const PendingIntakeSchema = z.object({
-  ref: z.string().min(1),
-  source: z.enum(['upload', 'record', 'sample', 'tts']),
-  name: z.string().min(1),
-  /** False for generated voices (spec 05 R6.1). */
-  cleanup: z.boolean(),
-  /** Optional extra B-roll, screen recordings, or screenshots dropped alongside the main file (spec 20). */
-  extraClips: z.array(PendingExtraClipSchema).max(20).optional(),
-  tts: z
-    .object({
-      voiceId: z.string().min(1),
-      speed: z.number().positive(),
-      script: z.string().max(SCRIPT_MAX_CHARS),
-    })
-    .optional(),
-  /**
-   * A single graphic (no voice): the typed line's words with their timings on a silent track.
-   * The project gets one slot over the whole line and no captions.
-   */
-  single: z.boolean().optional(),
-  words: z.array(WordSchema).max(60).optional(),
-});
+export const PendingIntakeSchema = z
+  .object({
+    /** Absent only for a typed script (spec 39): the voice is made after Create. */
+    ref: z.string().min(1).optional(),
+    source: z.enum(['upload', 'record', 'sample', 'tts']),
+    name: z.string().min(1),
+    /** False for generated voices (spec 05 R6.1). */
+    cleanup: z.boolean(),
+    /** Optional extra B-roll, screen recordings, or screenshots dropped alongside the main file (spec 20). */
+    extraClips: z.array(PendingExtraClipSchema).max(20).optional(),
+    tts: z
+      .object({
+        voiceId: z.string().min(1),
+        speed: z.number().positive(),
+        script: z.string().max(SCRIPT_MAX_CHARS),
+      })
+      .optional(),
+    /**
+     * A single graphic (no voice): the typed line's words with their timings on a silent track.
+     * The project gets one slot over the whole line and no captions.
+     */
+    single: z.boolean().optional(),
+    words: z.array(WordSchema).max(60).optional(),
+  })
+  .superRefine((p, ctx) => {
+    const isScript = p.source === 'tts' && !!p.tts && p.tts.script.trim().length > 0;
+    if (!p.ref && !isScript) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'ref is required unless the intake is a script',
+        path: ['ref'],
+      });
+    }
+  });
 export type PendingIntake = z.infer<typeof PendingIntakeSchema>;

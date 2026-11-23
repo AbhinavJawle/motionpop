@@ -323,6 +323,14 @@ export const ReelAddedSfxSchema = z.object({
 });
 export type ReelAddedSfx = z.infer<typeof ReelAddedSfxSchema>;
 
+/** How a reel's captions look (spec 39 R5.1). Absent on a plan: the look's own style. */
+export const ReelCaptionStyleSchema = z.enum(['seam', 'pop', 'editorial', 'boxed', 'clean']);
+export type ReelCaptionStyle = z.infer<typeof ReelCaptionStyleSchema>;
+
+/** How a reel opens (spec 39 R5.3). */
+export const ReelHookStyleSchema = z.enum(['headline', 'stat', 'visual', 'cold-open']);
+export type ReelHookStyle = z.infer<typeof ReelHookStyleSchema>;
+
 export const ReelPlanSchema = z.object({
   v: z.literal(1),
   look: ReelLookSchema,
@@ -358,6 +366,10 @@ export const ReelPlanSchema = z.object({
     })
     .optional(),
   captions: z.boolean().default(true),
+  /** Caption style (spec 39). Absent: the look's own (mono → seam, cream → pop). */
+  captionStyle: ReelCaptionStyleSchema.optional(),
+  /** How the hook was built (spec 39). */
+  hookStyle: ReelHookStyleSchema.optional(),
   /** Colours and a gradient over the look (spec 37). Absent: the look's own colours. */
   theme: ReelThemeSchema.optional(),
   /** Hits added on top of the ones the scenes make (spec 37 R3.3), on the reel timeline. */

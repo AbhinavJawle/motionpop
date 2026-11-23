@@ -4,7 +4,7 @@ Executed one task at a time, mostly by kiro-cli (`motionpop-builder`), reviewed 
 Commits through kiro-cli only, no Co-Authored-By trailers.
 
 ## Phase 1 — Schemas, recipes, skill library
-- [ ] 1. `edit-config.ts` schemas (EditConfig, ResolvedRecipe, RecipeId, ReelCaptionStyle, ReelHookStyle, MusicMood); `project.edit`; `ReelPlan.captionStyle/hookStyle`; script pending intake without a ref; tests (R2.10, R5.1, R8.1)
+- [x] 1. `edit-config.ts` schemas (EditConfig, ResolvedRecipe, RecipeId, ReelCaptionStyle, ReelHookStyle, MusicMood); `project.edit`; `ReelPlan.captionStyle/hookStyle`; script pending intake without a ref; tests (R2.10, R5.1, R8.1)
 - [ ] 2. Recipe + director skill registry in `packages/ai/src/skills/` (5 recipes × 2–3 styles, `SkillRegistry`, `builtInSkills`), `skills/recipes/*.md` and the sync test (R3.1–R3.4)
 - [ ] 3. Slot shot sequences: generated `slot-sequences.ts` from `skills/*.md` + sync test; fill `shotSequence` in `scene-fill.ts` and `component-fill-input.ts` (R3.6)
 - [ ] 4. `recipe.resolve` task (ONLY_ON_DEVICE, free, jsonSchema), prompt v1, keyword fallback, tests (R4.1, R4.2)

@@ -1,5 +1,6 @@
 import { ImageAssetSchema } from './asset';
 import { BrandSchema } from './brand';
+import { EditConfigSchema } from './edit-config';
 import { ProjectFilmSchema } from './film';
 import { z } from 'zod';
 import { FormatSchema } from './format';
@@ -369,6 +370,8 @@ export const EditorProjectBaseSchema = z.object({
    * When present with `video`, the preview and the export use the reel engine, not the slots.
    */
   reel: ReelPlanSchema.optional(),
+  /** What the creator chose on the configure screen (spec 39 R2.10). Absent on older projects. */
+  edit: EditConfigSchema.optional(),
 });
 
 export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) => {

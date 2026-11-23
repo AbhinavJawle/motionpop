@@ -145,7 +145,7 @@ export function RecordScreen() {
       const p = peekPending();
       const waiting = p?.meta.source === 'record' ? await takePending().catch(() => null) : null;
       if (!live) return;
-      if (waiting) {
+      if (waiting?.blob) {
         const ms = Math.round((Math.max(0, waiting.blob.size - 44) / 2 / 24_000) * 1000);
         await showTake(waiting.blob, ms);
       } else {

@@ -116,9 +116,12 @@ export function ProcessingScreen({ id }: { id: string }) {
       .catch(() => null)
       .then((p) => {
         if (!live) return;
-        if (!p) return setPhase('drop');
+        // A script intake has no blob yet; until the configure screen exists it counts as nothing
+        // pending (spec 39 task 1).
+        if (!p?.blob) return setPhase('drop');
+        const blob = p.blob;
         start({
-          file: p.blob,
+          file: blob,
           name: p.meta.name,
           source: p.meta.source,
           storedRef: p.meta.ref,
@@ -126,7 +129,7 @@ export function ProcessingScreen({ id }: { id: string }) {
           ...(p.draft.title !== START_COPY.untitled ? { title: p.draft.title } : {}),
           // Let uploaded videos auto-match their native aspect ratio (9:16 / 16:9 / 1:1) unless
           // the creator explicitly chose a format pill on Start.
-          ...(p.draft.formatChosen || !p.blob.type.startsWith('video/')
+          ...(p.draft.formatChosen || !blob.type.startsWith('video/')
             ? { format: p.draft.format }
             : {}),
           cleanup: p.meta.cleanup,

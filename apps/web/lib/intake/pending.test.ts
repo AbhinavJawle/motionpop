@@ -39,7 +39,7 @@ describe('pending intake', () => {
     const p = await takePending(after);
     expect(p?.meta).toMatchObject(meta);
     expect(p?.draft).toEqual({ title: 'Take one', format: '1:1' });
-    expect([...new Uint8Array(await p!.blob.arrayBuffer())]).toEqual([7, 7]);
+    expect([...new Uint8Array(await p!.blob!.arrayBuffer())]).toEqual([7, 7]);
   });
 
   it('a newer hand-off deletes the older take; clearing keeps or deletes the audio as asked', async () => {

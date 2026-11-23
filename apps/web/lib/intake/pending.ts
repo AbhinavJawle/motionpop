@@ -72,7 +72,9 @@ export async function setPendingRef(
   const prev = peekPending(deps);
   deps.storage?.setItem(PENDING_KEY, JSON.stringify({ meta, draft }));
   // A newer hand-off replaces an older one that never reached Processing.
-  if (prev && prev.meta.ref !== meta.ref) await deps.audio.delete(prev.meta.ref).catch(() => {});
+  if (prev?.meta.ref && prev.meta.ref !== meta.ref) {
+    await deps.audio.delete(prev.meta.ref).catch(() => {});
+  }
 }
 
 /** Stores the blob locally, then hands its ref over. Returns the ref. */
@@ -87,12 +89,16 @@ export async function setPending(
   return ref;
 }
 
-/** The pending intake with its audio, or null (nothing pending, or the audio is gone). */
+/**
+ * The pending intake with its audio, or null (nothing pending, or the audio is gone). A typed
+ * script has no audio yet (spec 39): its `blob` is null.
+ */
 export async function takePending(
   deps: PendingDeps = browserDeps(),
-): Promise<{ blob: Blob; meta: PendingIntake; draft: StartDraft } | null> {
+): Promise<{ blob: Blob | null; meta: PendingIntake; draft: StartDraft } | null> {
   const p = peekPending(deps);
   if (!p) return null;
+  if (!p.meta.ref) return { blob: null, ...p };
   const blob = await deps.audio.get(p.meta.ref);
   if (!blob) {
     deps.storage?.removeItem(PENDING_KEY);
@@ -111,5 +117,5 @@ export async function clearPending(
 ): Promise<void> {
   const p = peekPending(deps);
   deps.storage?.removeItem(PENDING_KEY);
-  if (p && !opts.keepAudio) await deps.audio.delete(p.meta.ref).catch(() => {});
+  if (p?.meta.ref && !opts.keepAudio) await deps.audio.delete(p.meta.ref).catch(() => {});
 }
