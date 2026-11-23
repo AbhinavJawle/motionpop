@@ -3,6 +3,8 @@ import {
   directReel,
   generateImageWithFirebase,
   reviewReelEdit,
+  type EditChoices,
+  type ReelDirectBrief,
   type UsageEvent,
 } from '@motionpop/ai';
 import type { EditReview } from '@/lib/audio/retakes';
@@ -260,12 +262,26 @@ export async function directReelPaid(
     durationMs: number;
     refId: string;
     frames?: readonly { atMs: number; base64: string }[];
+    /** The creator's recipe and choices as text for the director (spec 39 R3.5). */
+    brief?: ReelDirectBrief;
+    /** The creator's choices, enforced on the plan from either director (spec 39 R5.7). */
+    choices?: EditChoices;
   },
   deps: { credits: CreditsClient | null; config?: Partial<ReelCfg>; free?: boolean },
 ): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }> {
   const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
-  const base = { look: params.look, words: params.words, durationMs: params.durationMs };
-  const withFrames = { ...base, ...(params.frames?.length ? { frames: params.frames } : {}) };
+  // The choices apply to the free plan too; the brief is only text for the cloud director.
+  const base = {
+    look: params.look,
+    words: params.words,
+    durationMs: params.durationMs,
+    ...(params.choices ? { choices: params.choices } : {}),
+  };
+  const withFrames = {
+    ...base,
+    ...(params.frames?.length ? { frames: params.frames } : {}),
+    ...(params.brief ? { brief: params.brief } : {}),
+  };
   if (deps.free || !deps.credits || cfg.killSwitch || params.words.length < 4)
     return directReel(null, base);
   const router = await getRouter().catch(() => null);

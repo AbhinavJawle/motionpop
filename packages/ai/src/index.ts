@@ -31,6 +31,12 @@ export * from './reel/director';
 export * from './reel/auto';
 export * from './reel/edit';
 export { applyEditChoices, ctaParts, MOOD_BRIEFS, type EditChoices } from './reel/edit-choices';
+export {
+  ReelDirectBriefSchema,
+  briefFromEdit,
+  recipeBlock,
+  type ReelDirectBrief,
+} from './reel/brief';
 export { REEL_DIRECT_SYSTEM_V3, reelDirectPromptV3 } from './reel/prompt';
 export * from './reel/note';
 export * from './reel/compose';

@@ -21,6 +21,7 @@ import { z } from 'zod';
 import type { Router, TaskDef } from '../router';
 import { autoReelPlan } from './auto';
 import { cut } from './text';
+import { ReelDirectBriefSchema, type ReelDirectBrief } from './brief';
 import { applyEditChoices, type EditChoices } from './edit-choices';
 
 // `cut` lives in ./text (so edit-choices does not import this file); re-exported for callers.
@@ -40,6 +41,8 @@ export const ReelDirectInputSchema = z.object({
     .array(z.object({ atMs: z.number().int().nonnegative(), base64: z.string().min(16) }))
     .max(6)
     .default([]),
+  /** The creator's recipe and choices (spec 39 R3.5); absent = the director's own taste. */
+  brief: ReelDirectBriefSchema.optional(),
 });
 export type ReelDirectInput = z.infer<typeof ReelDirectInputSchema>;
 
@@ -390,7 +393,8 @@ export function reelTemplateDirectTask(): TaskDef<ReelDirectInput, ReelDirectOut
     // The strongest model (spec 27 R4.1): it writes the story and reads the keyframes.
     model: (cfg) => cfg.modelStrong || APP_CONFIG_DEFAULTS.modelStrong,
     system: REEL_DIRECT_SYSTEM_V3,
-    prompt: (i) => reelDirectPromptV3({ ...i, frameTimesMs: i.frames.map((f) => f.atMs) }),
+    prompt: (i) =>
+      reelDirectPromptV3({ ...i, frameTimesMs: i.frames.map((f) => f.atMs), brief: i.brief }),
     mediaList: (i) =>
       i.frames.length > 0
         ? i.frames.map((f) => ({ mimeType: 'image/jpeg' as const, base64: f.base64 }))
@@ -836,6 +840,8 @@ export async function directReel(
     model?: string;
     /** Keyframes of the footage on the reel clock (spec 27 R2.1). */
     frames?: readonly { atMs: number; base64: string }[];
+    /** The creator's recipe and choices, as text for the director (spec 39 R3.5). */
+    brief?: ReelDirectBrief;
     /** The creator's choices, enforced on the plan from either director (spec 39 R5.7). */
     choices?: EditChoices;
   },
@@ -852,6 +858,7 @@ export async function directReel(
       durationMs,
       words: words.slice(0, 2500).map((w, i) => [i, w.startMs, w.text] as [number, number, string]),
       frames: frames.map((f) => ({ atMs: Math.max(0, Math.round(f.atMs)), base64: f.base64 })),
+      ...(params.brief ? { brief: params.brief } : {}),
     };
     const res = await router.run(reelTemplateDirectTask(), input, {
       mode: 'ONLY_IN_CLOUD',

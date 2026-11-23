@@ -1,9 +1,10 @@
 // `reel.direct` prompt (spec 26). The director writes the story first, then picks a template per
 // scene and fills it, asking for real pictures (logos, sites, illustrations, photos) wherever the
-// speaker names or describes something concrete. The engine does all of the craft. Version: v3.
+// speaker names or describes something concrete. The engine does all of the craft. Version: v4 (v3 + the optional RECIPE block).
 import { REEL_ICONS, type ReelLook } from '@motionpop/schemas';
+import { recipeBlock, type ReelDirectBrief } from './brief';
 
-export const REEL_DIRECT_PROMPT_VERSION = 'v3';
+export const REEL_DIRECT_PROMPT_VERSION = 'v4';
 
 /** Layouts and templates in the director's language (shared with `reel.note`, spec 29). */
 export const REEL_LAYOUTS_AND_TEMPLATES = `LAYOUTS
@@ -120,6 +121,8 @@ export function reelDirectPromptV3(i: {
   durationMs: number;
   words: readonly (readonly [number, number, string])[];
   frameTimesMs?: readonly number[];
+  /** The creator's recipe and choices (spec 39 R3.5). */
+  brief?: ReelDirectBrief | undefined;
 }): string {
   const lines = i.words.map(([idx, ms, text]) => `${idx}@${(ms / 1000).toFixed(2)} ${text}`);
   const frames = i.frameTimesMs ?? [];
@@ -131,7 +134,7 @@ export function reelDirectPromptV3(i: {
   return `Look: ${i.look} (default layout: ${i.look === 'mono' ? 'split' : 'card'}).
 Duration: ${(i.durationMs / 1000).toFixed(1)} s.${seen}
 Words: ${i.words.length} (index@seconds word):
-${lines.join('\n')}
+${lines.join('\n')}${i.brief ? `\n\n${recipeBlock(i.brief)}` : ''}
 
 Write the story, then plan the reel.`;
 }

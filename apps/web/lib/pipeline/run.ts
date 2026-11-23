@@ -4,8 +4,10 @@ import {
   postPass,
   tagSpans,
   type AudioEdlCutInput,
+  type EditChoices,
   type EnforcedVideoPlan,
   type PlannedVideo,
+  type ReelDirectBrief,
   type TaggedSpan,
   type ValidatedParams,
 } from '@motionpop/ai';
@@ -154,6 +156,10 @@ export interface PipelineDeps {
     durationMs: number;
     /** Keyframes of the footage on the reel clock (spec 27 R2.1). */
     frames?: readonly { atMs: number; base64: string }[];
+    /** The creator's recipe and choices as text for the director (spec 39 R3.5). */
+    brief?: ReelDirectBrief;
+    /** The creator's choices, enforced on the plan from either director (spec 39 R5.7). */
+    choices?: EditChoices;
   }): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }>;
   /**
    * The cloud editor's review of the automatic retake cuts (spec 28 R3). Optional; without it
