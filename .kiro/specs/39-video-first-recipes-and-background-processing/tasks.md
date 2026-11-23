@@ -10,7 +10,7 @@ Commits through kiro-cli only, no Co-Authored-By trailers.
 - [ ] 4. `recipe.resolve` task (ONLY_ON_DEVICE, free, jsonSchema), prompt v1, keyword fallback, tests (R4.1, R4.2)
 
 ## Phase 2 — Engine and AI wiring
-- [ ] 5. `applyEditChoices` post-pass (CTA, hook, captions, theme, look, music mood) + property test; used by `toReelPlan` callers and `autoReelPlan` path (R5.3, R5.4, R5.5, R5.7)
+- [x] 5. `applyEditChoices` post-pass (CTA, hook, captions, theme, look, music mood) + property test; used by `toReelPlan` callers and `autoReelPlan` path (R5.3, R5.4, R5.5, R5.7)
 - [ ] 6. `reel.direct` brief: input schema, `recipeBrief()` RECIPE block in the prompt, `directReel`/`directReelPaid` pass-through; tests (R3.5)
 - [ ] 7. Reel caption styles: `chunkCaptions` per style, painter + CSS for seam/pop/editorial/boxed/clean, default-unchanged test (R5.1, R5.2)
 - [ ] 8. Pipeline takes `edit` (+ `prepared`): video and voiceover mappings, `project.edit`, illustrations cap, music none, autoSfx; tests in `run.test.ts` (R2.10, R5.5)

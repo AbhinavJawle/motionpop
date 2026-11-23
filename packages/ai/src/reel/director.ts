@@ -20,6 +20,11 @@ import {
 import { z } from 'zod';
 import type { Router, TaskDef } from '../router';
 import { autoReelPlan } from './auto';
+import { cut } from './text';
+import { applyEditChoices, type EditChoices } from './edit-choices';
+
+// `cut` lives in ./text (so edit-choices does not import this file); re-exported for callers.
+export { cut };
 import { REEL_DIRECT_PROMPT_VERSION, REEL_DIRECT_SYSTEM_V3, reelDirectPromptV3 } from './prompt';
 
 export const ReelDirectInputSchema = z.object({
@@ -405,30 +410,6 @@ export function reelTemplateDirectTask(): TaskDef<ReelDirectInput, ReelDirectOut
 const ICONS = new Set<string>(REEL_ICONS);
 const iconOr = (name: string | undefined, dflt: string): string =>
   name && ICONS.has(name.trim()) ? name.trim() : dflt;
-export const cut = (s: string | undefined, max: number): string | undefined => {
-  const t = (s ?? '').replace(/\s+/g, ' ').trim();
-  if (!t) return undefined;
-  if (t.length <= max) return t;
-  // Drop leading filler first ("What you complete" → "Complete"): the content word survives.
-  const lead = t.split(' ');
-  while (lead.length > 1 && DANGLING.has(lead[0]!.toLowerCase())) lead.shift();
-  const core = lead.join(' ');
-  if (core.length <= max && core.length < t.length) return core[0]!.toUpperCase() + core.slice(1);
-  // Cut on a word boundary.
-  const sliced = t.slice(0, max + 1);
-  const sp = sliced.lastIndexOf(' ');
-  if (sp <= max * 0.5) return t.slice(0, max).trim();
-  // Never end on a dangling little word ("What you", "Speed and").
-  const words = sliced.slice(0, sp).trim().split(' ');
-  while (words.length > 1 && DANGLING.has(words[words.length - 1]!.toLowerCase())) words.pop();
-  return words.join(' ');
-};
-const DANGLING = new Set(
-  'a an the and or but of to for in on at by with from you your my our their what that this is are was'.split(
-    ' ',
-  ),
-);
-
 export const SPEAKER_TEMPLATES: ReadonlySet<string> = new Set(['punch', 'cta', 'none']);
 
 /** Models sometimes URL-encode symbols ("%2B" for "+"). */
@@ -855,12 +836,16 @@ export async function directReel(
     model?: string;
     /** Keyframes of the footage on the reel clock (spec 27 R2.1). */
     frames?: readonly { atMs: number; base64: string }[];
+    /** The creator's choices, enforced on the plan from either director (spec 39 R5.7). */
+    choices?: EditChoices;
   },
 ): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }> {
-  const { look, words, durationMs } = params;
+  const { look, words, durationMs, choices } = params;
   const frames = (params.frames ?? []).slice(0, 6);
-  if (!router || words.length < 4)
-    return { plan: autoReelPlan(words, durationMs, look), source: 'auto' };
+  const enforce = (plan: ReelPlan): ReelPlan =>
+    choices ? applyEditChoices(plan, words, durationMs, choices) : plan;
+  const auto = (): ReelPlan => enforce(autoReelPlan(words, durationMs, look));
+  if (!router || words.length < 4) return { plan: auto(), source: 'auto' };
   try {
     const input: ReelDirectInput = {
       look,
@@ -873,19 +858,21 @@ export async function directReel(
       ...(params.model ? { model: params.model } : {}),
     });
     return {
-      plan: toReelPlan(
-        res.output,
-        words,
-        durationMs,
-        look,
-        res.model,
-        input.frames.map((f) => f.atMs),
+      plan: enforce(
+        toReelPlan(
+          res.output,
+          words,
+          durationMs,
+          look,
+          res.model,
+          input.frames.map((f) => f.atMs),
+        ),
       ),
       source: 'cloud',
     };
   } catch (e) {
     return {
-      plan: autoReelPlan(words, durationMs, look),
+      plan: auto(),
       source: 'auto',
       error: e instanceof Error ? e.message : String(e),
     };
