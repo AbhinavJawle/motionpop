@@ -5,6 +5,7 @@ import { appAudioStore } from '../audio/app-audio-store';
 import { useAuth } from '../auth/auth-provider';
 import { authSettled, currentUid } from '../auth/auth-store';
 import { firebaseEnabled } from '../firebase/client';
+import { useJobs } from '../pipeline/jobs-store';
 import { firestoreCloud } from './firestore-cloud';
 import { IdbProjectRepository } from './idb-repository';
 import type { ProjectLibrary, ProjectListing } from './repository';
@@ -60,6 +61,24 @@ export function useProjectList(): { list: ProjectList; reload: () => Promise<voi
       live = false;
     };
   }, [uid]);
+
+  // A background job that finishes has just saved a project: show it without a manual refresh
+  // (spec 39 R6.6). Jobs already done when the list mounts were loaded with it.
+  useEffect(() => {
+    const done = new Set<string>();
+    const first = useJobs.getState();
+    for (const id of first.order) if (first.jobs[id]?.status === 'done') done.add(id);
+    return useJobs.subscribe((s) => {
+      let fresh = false;
+      for (const id of s.order) {
+        if (s.jobs[id]?.status === 'done' && !done.has(id)) {
+          done.add(id);
+          fresh = true;
+        }
+      }
+      if (fresh) void reload();
+    });
+  }, [reload]);
 
   return { list, reload };
 }

@@ -3,8 +3,12 @@ import { CreditsTestHooks } from '@/components/credits/credits-test-hooks';
 import { UsageReporterHost } from '@/components/credits/usage-reporter-host';
 import { OutOfCreditsHost } from '@/components/credits/out-of-credits-modal';
 import { AuthGate } from '@/lib/auth/auth-gate';
+import { JobsHost } from '@/components/jobs/jobs-host';
 
-/** Every `(app)` route needs an account when Firebase is configured (spec 01 R4.2). */
+/**
+ * Every `(app)` route needs an account when Firebase is configured (spec 01 R4.2). Background
+ * jobs live here, so moving between app pages never stops them (spec 39 R6.1).
+ */
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <Suspense>
@@ -12,6 +16,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
       <OutOfCreditsHost />
       <UsageReporterHost />
       <CreditsTestHooks />
+      <JobsHost />
     </Suspense>
   );
 }
