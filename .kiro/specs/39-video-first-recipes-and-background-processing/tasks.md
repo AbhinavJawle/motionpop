@@ -18,7 +18,7 @@ Commits through kiro-cli only, no Co-Authored-By trailers.
 - [ ] 10. Styles panel for reels: recipe styles + caption styles, `setReelStyle` command with one undo (R5.6)
 
 ## Phase 3 — Background jobs
-- [ ] 11. `eta.ts` (weights, prior, blend, `formatEta`) + property tests (R6.4)
+- [x] 11. `eta.ts` (weights, prior, blend, `formatEta`) + property tests (R6.4)
 - [ ] 11b. Credit safety: AbortSignal + refund-on-abort in `directReelPaid`, `resolveReelMedia`, `generateVoice`; `PipelineInput.reuse` for paid results; Whisper FIFO lock (R6.9, R6.3)
 - [ ] 12. `jobs-store.ts` (prepare, submit, queue, cancel, retry, dismiss; runtime map; prepared-media wrappers) + deps provider + uid capture + pending ownership + tests: survives without a mounted screen, one at a time, cancel aborts only that job, idempotent submit, refund property, completion sets projectId (R6.1–R6.3, R6.9, R6.10, R2.8, R2.12)
 - [ ] 13. `<JobsHost/>` in the app layout: beforeunload while live, done toast with Open, project list refresh (R6.5, R6.6)
