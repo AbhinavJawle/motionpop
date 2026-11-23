@@ -17,6 +17,7 @@ import { GreetingHeader } from './greeting-header';
 import { HelpSheet } from './help-sheet';
 import { ProjectsSection } from './projects-section';
 import { TryAStyle } from './try-a-style';
+import { WorkingSection } from './working-section';
 
 export const WRAP = 'mx-auto w-full max-w-[1240px] px-6 lg:px-10';
 
@@ -54,6 +55,7 @@ export function DashboardScreen() {
           {stats ? C.week(stats.videos, stats.graphics, formatSavedWords(stats.savedMin)) : ''}
         </p>
         <div className="mt-14">
+          <WorkingSection />
           {list.kind === 'loading' && <LoadingBody />}
           {list.kind === 'error' && (
             <p className="rounded-xl border-2 border-ink px-6 py-8 text-sm">

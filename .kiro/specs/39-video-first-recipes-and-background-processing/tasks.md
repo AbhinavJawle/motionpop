@@ -23,7 +23,7 @@ Commits through kiro-cli only, no Co-Authored-By trailers.
 - [x] 12. `jobs-store.ts` (prepare, submit, queue, cancel, retry, dismiss; runtime map; prepared-media wrappers) + deps provider + uid capture + pending ownership + tests: survives without a mounted screen, one at a time, cancel aborts only that job, idempotent submit, refund property, completion sets projectId (R6.1–R6.3, R6.9, R6.10, R2.8, R2.12)
 - [x] 13. `<JobsHost/>` in the app layout: beforeunload while live, done toast with Open, project list refresh (R6.5, R6.6)
 - [x] 14. `/processing/[jobId]` on the store: live view, "Continue in background", interrupted state, `/processing/new` redirect, video/voice headline and strip copy (R6.8, R1.3)
-- [ ] 15. Dashboard "Working on it" section: cards with step, bar, ETA, View progress, Cancel / Retry / Open (R6.7)
+- [x] 15. Dashboard "Working on it" section: cards with step, bar, ETA, View progress, Cancel / Retry / Open (R6.7)
 
 ## Phase 4 — Video first and the configure screen
 - [ ] 16. Copy: `/start`, dashboard empty + drag, `layout.tsx` metadata (R1.1, R1.2)
