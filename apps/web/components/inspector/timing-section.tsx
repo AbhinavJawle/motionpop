@@ -47,8 +47,8 @@ function DurationRow({ slot }: { slot: Slot }) {
   };
 
   return (
-    <div className="mt-[13px] flex h-[14px] items-center">
-      <SectionLabel className="w-[63px]">Timing</SectionLabel>
+    <div className="mt-3 flex h-8 items-center">
+      <SectionLabel className="w-16 shrink-0">Timing</SectionLabel>
       <Slider
         label="Duration"
         value={draft / 1000}
@@ -57,9 +57,9 @@ function DurationRow({ slot }: { slot: Slot }) {
         step={0.1}
         onChange={onChange}
         format={(v) => `${v.toFixed(1)}s`}
-        className="w-[190px]"
+        className="w-[184px]"
       />
-      <span className="tabular ml-6 font-mono text-[11px] leading-[14px] text-text">
+      <span className="tabular ml-auto font-mono text-[12px] leading-4 text-text">
         {(draft / 1000).toFixed(1)}s
       </span>
     </div>
@@ -76,13 +76,13 @@ function EaseFadeRow({ slot }: { slot: Slot }) {
     editorStore.getState().exec(setSlotTiming(slot.id, patch));
 
   return (
-    <div className="mt-[9px] flex h-[25px] items-center">
+    <div className="mt-2 flex h-8 items-center pl-16">
       <EasePicker
         value={ease}
         own={slot.timing?.ease !== undefined}
         onChange={(next) => run({ ease: next })}
       />
-      <span className="ml-5 text-[10px] leading-[13px] text-text-2">Fade</span>
+      <span className="ml-auto text-[12px] leading-4 text-text-2">Fade</span>
       <Tooltip
         content={scene ? 'Off holds the last frame and cuts' : 'This graphic always fades out'}
         side="top"

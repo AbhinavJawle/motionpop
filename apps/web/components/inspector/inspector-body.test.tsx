@@ -37,15 +37,7 @@ describe('InspectorBody (R1.1)', () => {
     errors.mockRestore();
 
     const text = container.textContent ?? '';
-    const order = [
-      'GRAPHIC',
-      'Slot 2 · Big number',
-      'You said',
-      'Content',
-      'Style',
-      'Timing',
-      'Versions',
-    ];
+    const order = ['Graphic 2', 'Big number', 'You said', 'Content', 'Style', 'Timing', 'Versions'];
     let at = -1;
     for (const label of order) {
       const i = text.toLowerCase().indexOf(label.toLowerCase(), at + 1);

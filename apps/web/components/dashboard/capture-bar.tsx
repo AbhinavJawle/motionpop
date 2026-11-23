@@ -15,6 +15,7 @@ import { setPendingRef } from '@/lib/intake/pending';
 import { StartDraftSchema } from '@motionpop/schemas';
 import { putScriptDraft } from '@/lib/script/hand-off';
 import { buttonMotion } from '@/lib/motion/presets';
+import { btn } from '@/components/paper/kit';
 
 export interface CaptureBarHandle {
   focus(): void;
@@ -35,8 +36,7 @@ type Mode =
   | { kind: 'error'; message: string };
 
 /**
- * The capture bar (projects.png, design §5 and §11): 1296×64, card colour, r32, violet inner
- * glow. Press and hold the mic (300 ms) to record inline, release to hand the take to
+ * The capture bar (design §5 and §11, drawn as an ink frame in spec 35). Press and hold the mic (300 ms) to record inline, release to hand the take to
  * Processing; a short press opens `/start/record`. Keyboard: Space on the mic toggles. Paste
  * or type a script and press Enter to take it to Start. ⌘K focuses the bar.
  */
@@ -179,8 +179,8 @@ export const CaptureBar = forwardRef<CaptureBarHandle, object>(function CaptureB
     <div
       data-testid="capture-bar"
       className={cn(
-        'flex h-16 items-center rounded-[32px] bg-card pr-8 pl-3 shadow-[inset_0_1px_0_rgb(255_255_255/0.05),inset_0_0_24px_1px_rgb(139_124_255/0.12)] outline outline-1 -outline-offset-1 transition-[outline-color] duration-200',
-        live ? 'outline-ember/40' : 'outline-violet/15',
+        'flex h-[84px] items-center rounded-[16px] border-2 border-ink bg-paper pr-5 pl-4 shadow-[6px_6px_0_#000] transition-colors duration-200',
+        live && 'bg-[#fff4ef]',
       )}
     >
       <motion.button
@@ -194,35 +194,33 @@ export const CaptureBar = forwardRef<CaptureBarHandle, object>(function CaptureB
         onKeyDown={onKeyMic}
         onClick={(e) => e.preventDefault()}
         className={cn(
-          'flex size-11 touch-none items-center justify-center rounded-full border text-ember',
-          live
-            ? 'border-ember bg-ember/25 shadow-[0_0_22px_rgb(255_122_61/0.4)]'
-            : 'border-ember/70 bg-[radial-gradient(closest-side,rgb(255_122_61/0.18),rgb(255_122_61/0.06))] shadow-[0_0_16px_rgb(255_122_61/0.18)]',
+          'flex size-[54px] shrink-0 touch-none items-center justify-center rounded-full border-2 border-ink bg-flame text-ink shadow-[3px_3px_0_#000] transition-[transform,box-shadow] duration-150',
+          live && 'translate-x-[2px] translate-y-[2px] shadow-[1px_1px_0_#000]',
           mode.kind === 'arming' && 'scale-95',
         )}
       >
         {live ? (
-          <Square className="size-3.5 fill-ember" strokeWidth={0} aria-hidden />
+          <Square className="size-4 fill-ink" strokeWidth={0} aria-hidden />
         ) : (
-          <Mic className="size-[18px]" strokeWidth={1.5} aria-hidden />
+          <Mic className="size-[22px]" strokeWidth={2} aria-hidden />
         )}
       </motion.button>
 
       {live ? (
         <>
-          <span className="ml-4 w-[90px] font-mono text-sm leading-[18px] tabular text-text">
+          <span className="ml-5 w-[110px] font-poster text-[40px] leading-none tabular">
             {recordClock(elapsed)}
           </span>
-          <span aria-hidden className="flex h-6 items-center gap-[3px]">
+          <span aria-hidden className="flex h-9 items-center gap-[3px]">
             {meter.map((v, i) => (
               <span
                 key={i}
-                className="w-[3px] rounded-full bg-ember"
-                style={{ height: `${Math.max(3, v * 24)}px`, opacity: 0.35 + v * 0.65 }}
+                className="w-[4px] rounded-full bg-ink"
+                style={{ height: `${Math.max(4, v * 36)}px` }}
               />
             ))}
           </span>
-          <span className="ml-6 text-sm leading-[18px] text-text-2" role="status">
+          <span className="ml-6 text-[14px]" role="status">
             {mode.kind === 'starting'
               ? 'Waiting for your microphone…'
               : mode.kind === 'saving'
@@ -233,30 +231,28 @@ export const CaptureBar = forwardRef<CaptureBarHandle, object>(function CaptureB
         </>
       ) : mode.kind === 'error' ? (
         <>
-          <span className="ml-4 flex-1 text-[13px] leading-4 text-warn" role="alert">
+          <span className="ml-5 flex-1 text-[13px] text-error" role="alert">
             {mode.message}
           </span>
           <button
             type="button"
             onClick={() => router.push('/start')}
-            className="mr-4 rounded-lg bg-white/8 px-3 py-1.5 text-xs leading-4 font-medium text-text hover:bg-white/12"
+            className={btn('paper', 'sm', false, 'mr-3')}
           >
             {C.capture.uploadInstead}
           </button>
           <button
             type="button"
             onClick={() => setMode({ kind: 'idle' })}
-            className="text-xs leading-4 text-text-2 hover:text-text"
+            className="text-[12px] underline underline-offset-4"
           >
             Dismiss
           </button>
         </>
       ) : (
         <>
-          <span className="ml-4 text-sm leading-[18px] font-medium text-text">
-            {C.capture.hold}
-          </span>
-          <span aria-hidden className="mx-[23px] h-6 w-px bg-line-strong" />
+          <span className="ml-5 shrink-0 text-[15px] font-semibold">{C.capture.hold}</span>
+          <span aria-hidden className="mx-6 h-9 w-[2px] shrink-0 bg-ink" />
           <input
             ref={input}
             value={text}
@@ -271,14 +267,17 @@ export const CaptureBar = forwardRef<CaptureBarHandle, object>(function CaptureB
             maxLength={3000}
             aria-label="Paste a script"
             placeholder={C.capture.hint}
-            className="h-full min-w-0 flex-1 bg-transparent text-sm leading-[18px] text-text outline-none placeholder:text-text-2"
+            className="h-full min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-black/45"
           />
-          <span className="ml-6 font-mono text-[10px] leading-[13px] tracking-[0.4px] text-text-3">
-            {C.capture.formats}
-          </span>
-          <kbd className="ml-[86px] inline-flex h-[22px] w-12 items-center justify-center rounded-md border border-line bg-card-2 font-mono text-[10px] leading-none text-text-2">
-            ⌘K
-          </kbd>
+          {text.trim() ? (
+            <button type="button" onClick={submit} className={btn('ink', 'sm', false, 'ml-4')}>
+              Use this script
+            </button>
+          ) : (
+            <kbd className="ml-4 hidden h-7 items-center rounded-md border-2 border-ink px-2 font-mono text-[11px] leading-none sm:inline-flex">
+              ⌘K
+            </kbd>
+          )}
         </>
       )}
     </div>

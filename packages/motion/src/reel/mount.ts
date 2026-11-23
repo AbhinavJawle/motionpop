@@ -6,6 +6,7 @@ import { clamp, easeInOutCubic, easeOutCubic, lerp, prog, revealAt } from './ani
 import { chunkAt, chunkCaptions, type CaptionChunk } from './captions';
 import { css, h } from './dom';
 import { graphicArea, LOOKS, STAGE_H, STAGE_W, type LookTokens, type Palette } from './looks';
+import { themedLook } from './theme';
 import type { ReelImage } from './parts';
 import { carriedInPlace, carryOrigins } from './carry';
 import {
@@ -109,12 +110,20 @@ function sceneBg(look: LookTokens, s: ReelScene): Palette {
 }
 
 function gridCss(pal: Palette): Record<string, string> {
-  if (!pal.grid) return { background: pal.bg };
+  const wash = pal.bgLayers ?? [];
+  if (!pal.grid && !wash.length) return { background: pal.bg };
+  const grid = pal.grid
+    ? [
+        `linear-gradient(to right, ${pal.grid} 1px, transparent 1px)`,
+        `linear-gradient(to bottom, ${pal.grid} 1px, transparent 1px)`,
+      ]
+    : [];
+  // The grid lines sit over the theme's wash.
   return {
     backgroundColor: pal.bg,
-    backgroundImage: `linear-gradient(to right, ${pal.grid} 1px, transparent 1px), linear-gradient(to bottom, ${pal.grid} 1px, transparent 1px)`,
-    backgroundSize: '36px 36px',
-    backgroundPosition: '-1px -1px',
+    backgroundImage: [...grid, ...wash].join(', '),
+    backgroundSize: [...grid.map(() => '36px 36px'), ...wash.map(() => '100% 100%')].join(', '),
+    backgroundPosition: [...grid.map(() => '-1px -1px'), ...wash.map(() => '0 0')].join(', '),
   };
 }
 
@@ -129,7 +138,7 @@ export function mountReel(
   videos: HTMLVideoElement[],
 ): ReelHandle {
   const { plan } = data;
-  const look = LOOKS[plan.look];
+  const look = themedLook(LOOKS[plan.look], plan.theme);
   css(host, {
     position: 'relative',
     width: STAGE_W,
@@ -311,6 +320,7 @@ export function mountReel(
                 // `p` is a custom template, so the scene always comes back.
                 const scene = reelCustomScene({
                   look: plan.look,
+                  theme: plan.theme,
                   scene: { ...s0, content: p },
                   words: data.words,
                   pictures: data.customImages ?? data.images ?? {},

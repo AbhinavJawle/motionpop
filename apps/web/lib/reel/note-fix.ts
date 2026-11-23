@@ -435,8 +435,10 @@ async function composeScene(
           .filter((m) => m.asset)
           .slice(0, 6);
   const target: ReelScene = { ...scene, layout: p.layout };
+  const theme = deps.store.getState().project?.reel?.theme;
   const probe = reelCustomScene({
     look,
+    theme,
     scene: {
       ...target,
       content: {
@@ -546,7 +548,7 @@ async function composeScene(
       const out: ReelComposeOutput = run.output;
       const next = applyReelCompose(target, look, out, pictures);
       deps.onStage?.('check');
-      const sc = reelCustomScene({ look, scene: next, words, pictures: pics });
+      const sc = reelCustomScene({ look, theme, scene: next, words, pictures: pics });
       const report = sc
         ? await inspect(sc, assets, allow)
         : { summary: null, errors: ['no scene'] };

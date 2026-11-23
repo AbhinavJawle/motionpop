@@ -46,9 +46,9 @@ export function ProjectsPanelBody() {
   };
 
   return (
-    <div className="flex h-full flex-col px-5 pt-4 pb-4">
-      <header className="flex h-10 shrink-0 items-center justify-between border-b border-white/6 pb-3">
-        <h2 className="text-[17px] leading-[22px] font-semibold text-text">Projects</h2>
+    <div className="flex h-full flex-col px-4 pb-4">
+      <header className="-mx-4 flex h-12 shrink-0 items-center justify-between border-b border-line px-4">
+        <h2 className="text-[14px] leading-5 font-semibold text-text">Projects</h2>
         <Tooltip content="New project" side="bottom">
           <button
             type="button"
@@ -126,7 +126,7 @@ function ProjectPanelRow({
       className={cn(
         'flex h-16 w-full items-center gap-3 rounded-card border bg-card px-3 text-left shadow-quiet transition-colors outline-none focus-visible:ring-2 focus-visible:ring-violet',
         current
-          ? 'border-violet/60 shadow-[0_0_18px_rgba(139,124,255,0.12)]'
+          ? 'border-edge shadow-[3px_3px_0_var(--color-hard)]'
           : 'border-line hover:bg-card-2',
       )}
     >

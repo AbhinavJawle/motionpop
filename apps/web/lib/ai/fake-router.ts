@@ -240,7 +240,74 @@ function failsBy(sw: FakeSwitches, taskId: string, input: unknown): boolean {
 }
 
 /** A keyword planner standing in for `pip.plan` (dev and e2e only). */
+/** The quick planner for a video reel (spec 37): colour, sound, music, captions, look, edits. */
+function reelAnswer(i: PipPlanInput): PipModelOutput {
+  const r = i.project.reel!;
+  const m = i.message.toLowerCase();
+  const none = { slot: 'none', choice: 'none', atWord: -1, instruction: '' };
+  const steps: PipModelOutput['steps'] = [];
+  if (/colou?r|gradient|black and white|vibrant|brand|warm/.test(m))
+    steps.push({
+      ...none,
+      action: 'setReelTheme',
+      choice: /bold|lots|vivid|vibrant|more/.test(m) ? 'bold' : 'soft',
+      instruction: '#FF5A36 #7C5CFF',
+      label: 'Ember and violet gradient',
+    });
+  if (/caption/.test(m))
+    steps.push({
+      ...none,
+      action: 'setCaptions',
+      choice: /\boff\b|remove|hide/.test(m) ? 'off' : 'on',
+      label: 'Update captions',
+    });
+  if (/sound|sfx|effect/.test(m)) {
+    const choice = /\boff\b|remove|no /.test(m)
+      ? 'off'
+      : /louder|more|up/.test(m)
+        ? 'louder'
+        : /quieter|softer|less|down/.test(m)
+          ? 'quieter'
+          : 'on';
+    steps.push({ ...none, action: 'setSound', choice, label: `Sound effects ${choice}` });
+  }
+  if (/music/.test(m))
+    steps.push({
+      ...none,
+      action: 'setMusic',
+      choice: /\boff\b|remove|no /.test(m)
+        ? 'none'
+        : /upbeat|energ|pulse/.test(m)
+          ? 'steady-pulse'
+          : 'calm-pad',
+      label: 'Change the music',
+    });
+  if (/cream|editorial/.test(m))
+    steps.push({ ...none, action: 'setReelLook', choice: 'cream', label: 'Switch to cream' });
+  if (/\bmono\b|minimal/.test(m))
+    steps.push({ ...none, action: 'setReelLook', choice: 'mono', label: 'Switch to mono' });
+  if (/animation|graphic|better|redesign|improve/.test(m)) {
+    const targets =
+      i.scope !== 'video'
+        ? r.scenes.filter((s) => s.ref === i.scope)
+        : r.scenes.filter((s) => s.template !== 'none');
+    for (const s of targets.slice(0, 12 - steps.length))
+      steps.push({
+        ...none,
+        action: 'editScene',
+        slot: s.ref,
+        instruction: i.message.slice(0, 200),
+        label: `Improve ${s.template} scene`,
+      });
+  }
+  return {
+    reply: steps.length ? 'Here’s the plan' : 'Ask me for colours, sound, music or a scene change',
+    steps: steps.slice(0, 12),
+  };
+}
+
 export function pipAnswer(i: PipPlanInput): PipModelOutput {
+  if (i.project.reel && i.project.slots.length === 0) return reelAnswer(i);
   const m = i.message.toLowerCase();
   const none = { slot: 'none', choice: 'none', atWord: -1, instruction: '' };
   const steps: PipModelOutput['steps'] = [];

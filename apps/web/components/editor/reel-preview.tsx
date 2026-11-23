@@ -21,6 +21,7 @@ import {
 import {
   cleanedToSourceMs,
   keptSourceSegments,
+  reelBedSound,
   reelMediaOf,
   reelSceneData,
   type ImageAsset,
@@ -242,14 +243,17 @@ function useReelBedUrl(
   words: readonly { startMs: number; endMs: number }[] | undefined,
   durationMs: number,
   voiceLevel: number | null,
+  /** The project's sound settings (spec 37 R3.4), as `reelBedSound` JSON so it compares by value. */
+  soundKey: string,
 ): string | null {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     if (!reel || !words || durationMs <= 0 || voiceLevel === null) return;
+    const sound = JSON.parse(soundKey) as ReturnType<typeof reelBedSound>;
     let made: string | null = null;
     // Off the critical path: the picture comes first, the sound a moment later.
     const t = setTimeout(() => {
-      const samples = reelBed(reel, durationMs, { voiceLevelDb: voiceLevel, words });
+      const samples = reelBed(reel, durationMs, { voiceLevelDb: voiceLevel, words, ...sound });
       made = URL.createObjectURL(
         new Blob([encodeWav16(samples, SFX_SAMPLE_RATE)], { type: 'audio/wav' }),
       );
@@ -259,7 +263,7 @@ function useReelBedUrl(
       clearTimeout(t);
       if (made) URL.revokeObjectURL(made);
     };
-  }, [reel, words, durationMs, voiceLevel]);
+  }, [reel, words, durationMs, voiceLevel, soundKey]);
   return url;
 }
 
@@ -294,7 +298,10 @@ export function ReelPreview() {
   const custom = useReelCustom(reel, assets);
   const voiceSrc = useEditor((s) => s.project?.voiceover.src);
   const voiceLevel = useVoiceLevel(voiceSrc, words);
-  const bedUrl = useReelBedUrl(reel, words, durationMs, voiceLevel);
+  const soundKey = useEditor((s) =>
+    s.project ? JSON.stringify(reelBedSound(s.project)) : '{"sfx":true,"sfxGainDb":0,"music":null}',
+  );
+  const bedUrl = useReelBedUrl(reel, words, durationMs, voiceLevel, soundKey);
   const musicUrl = useReelMusicUrl(reel?.music?.src, words, voiceLevel);
   // The sound tracks under the voice (effects bed, music), all following the editor clock.
   const tracksRef = useRef<HTMLAudioElement[]>([]);

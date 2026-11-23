@@ -109,3 +109,25 @@ describe('reelSfx', () => {
     );
   });
 });
+
+describe('added sounds (spec 37 R3.3)', () => {
+  it('plays every added hit, even close together, sorted with the derived ones', () => {
+    const withAdded = reelSfx(
+      {
+        ...plan,
+        sfx: [
+          { kind: 'pop', atMs: 5000, gainDb: -2 },
+          { kind: 'pop', atMs: 5050, gainDb: -2 },
+          { kind: 'impact', atMs: 25_000, gainDb: 0 },
+        ],
+      },
+      20_000,
+    );
+    const added = withAdded.filter((h) => h.atMs === 5000 || h.atMs === 5050);
+    expect(added).toHaveLength(2);
+    // Out of range hits are dropped like derived ones.
+    expect(withAdded.some((h) => h.atMs >= 20_000)).toBe(false);
+    const times = withAdded.map((h) => h.atMs);
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
+  });
+});

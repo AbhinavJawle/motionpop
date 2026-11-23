@@ -48,15 +48,15 @@ export function VoicePanelBody() {
   const voiceLabel = v.tts ? TTS_VOICES.find((x) => x.id === v.tts?.voiceId)?.label : undefined;
 
   return (
-    <div className="flex h-full flex-col px-5 pt-4 pb-4">
-      <header className="flex h-10 shrink-0 items-center border-b border-white/6 pb-3">
-        <h2 className="text-[17px] leading-[22px] font-semibold text-text">Voice</h2>
+    <div className="flex h-full flex-col px-4 pb-4">
+      <header className="-mx-4 flex h-12 shrink-0 items-center border-b border-line px-4">
+        <h2 className="text-[14px] leading-5 font-semibold text-text">Voice</h2>
       </header>
 
       <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pt-3 pb-6">
         <section className="rounded-card border border-line bg-card p-3 shadow-quiet">
           <div className="flex items-center justify-between">
-            <Chip tone={v.source === 'tts' ? 'violet' : 'ember'}>{source}</Chip>
+            <Chip tone="neutral">{source}</Chip>
             <span className="font-mono text-[11px] leading-[14px] text-text-2 tabular">
               {clock(v.durationMs)}
             </span>
@@ -88,7 +88,7 @@ export function VoicePanelBody() {
 
         {v.tts && (
           <section className="mt-4">
-            <h3 className="text-[10px] leading-[13px] font-medium tracking-[0.9px] text-text-3 uppercase">
+            <h3 className="text-[12px] leading-4 font-semibold text-text-2">
               Script{voiceLabel ? ` · ${voiceLabel} voice` : ''}
             </h3>
             <p className="mt-2 rounded-card border border-line-soft bg-card/60 p-3 text-[12px] leading-[18px] whitespace-pre-wrap text-text-2">
@@ -120,7 +120,7 @@ function CleanupLine({ project }: { project: EditorProject }) {
   const good = c.enabled && (c.fillersRemoved > 0 || c.pausesShortened > 0);
   return (
     <section className="mt-4">
-      <h3 className="text-[10px] leading-[13px] font-medium tracking-[0.9px] text-text-3 uppercase">
+      <h3 className="text-[12px] leading-4 font-semibold text-text-2">
         Clean up fillers and pauses
       </h3>
       <p className={cn('mt-1.5 text-[12px] leading-4', good ? 'text-mint' : 'text-text-2')}>
@@ -143,9 +143,7 @@ function Transcript({ project }: { project: EditorProject }) {
   );
   return (
     <section className="mt-4">
-      <h3 className="text-[10px] leading-[13px] font-medium tracking-[0.9px] text-text-3 uppercase">
-        Transcript
-      </h3>
+      <h3 className="text-[12px] leading-4 font-semibold text-text-2">Transcript</h3>
       <p className="mt-2 flex flex-wrap gap-x-1 gap-y-0.5 text-[13px] leading-[20px]">
         {words.map(({ word, atMs }, i) =>
           atMs === null ? (
@@ -202,8 +200,9 @@ function Waveform({ durationMs }: { durationMs: number }) {
     let peak = 0;
     for (let i = 0; i < agg.length; i++) peak = Math.max(peak, Math.abs(agg[i] ?? 0));
     if (peak === 0) return;
+    ctx.globalAlpha = 0.72;
     ctx.fillStyle =
-      getComputedStyle(document.documentElement).getPropertyValue('--color-ember').trim() ||
+      getComputedStyle(document.documentElement).getPropertyValue('--color-text').trim() ||
       'orange';
     for (let c = 0; c < cols; c++) {
       const amp = Math.max(Math.abs(agg[c * 2] ?? 0), Math.abs(agg[c * 2 + 1] ?? 0)) / peak;
@@ -215,7 +214,7 @@ function Waveform({ durationMs }: { durationMs: number }) {
   }, [peaks, bucketMs, durationMs, width]);
 
   return (
-    <div className="mt-3 rounded-lg bg-ember/6 px-2">
+    <div className="mt-3 rounded-lg bg-white/[0.03] px-2 shadow-quiet">
       <canvas
         ref={ref}
         aria-label="Voiceover waveform"
@@ -285,7 +284,7 @@ function NewTakeModal({
         <Button variant="ghost" size="lg" onClick={onClose}>
           Cancel
         </Button>
-        <Button variant="primary" size="lg" disabled={busy} onClick={() => void confirm()}>
+        <Button variant="solid" size="lg" disabled={busy} onClick={() => void confirm()}>
           {kind === 'replace' ? 'Choose a file' : 'Record a new take'}
         </Button>
       </div>

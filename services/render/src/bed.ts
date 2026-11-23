@@ -17,7 +17,7 @@ import {
   mixReelMusic,
   reelBed,
 } from '@motionpop/motion/reel';
-import { audioOf, type EditorProject } from '@motionpop/schemas';
+import { audioOf, reelBedSound, type EditorProject } from '@motionpop/schemas';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -59,14 +59,12 @@ export async function prepareReelBed(
   compDir: string,
 ): Promise<string | null> {
   if (!project.reel) return null;
-  const audio = audioOf(project);
   const voice = decodeWav16(await readFile(join(compDir, 'assets', 'voice.wav')));
   if (!voice) throw new Error('the re-encoded voice is not a 16-bit WAV');
   const samples = reelBed(project.reel, project.durationMs, {
     voiceLevelDb: voiceLevelDb(voice.samples, voice.sampleRate, project.transcript.words),
     words: project.transcript.words,
-    sfx: audio.autoSfx !== false,
-    music: isSynth(audio.musicId) ? audio.musicId : null,
+    ...reelBedSound(project),
   });
   await writeFile(join(compDir, BED_ASSET), encodeWav16(samples, SFX_SAMPLE_RATE));
   return BED_ASSET;

@@ -1,6 +1,7 @@
 'use client';
 
-import { ArrowRight, Mic, Type, Upload } from 'lucide-react';
+import { Mic, Upload } from 'lucide-react';
+import { btn, paper, PaperPage, poster } from '@/components/paper/kit';
 import { motion } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
@@ -10,7 +11,6 @@ import { START_COPY as C } from '@/lib/dashboard/copy';
 import { handOffFile, handOffFiles, handOffSample, PROCESSING_NEW } from '@/lib/intake/hand-off';
 import { handOffSingle, SINGLE_MAX_WORDS } from '@/lib/intake/single';
 import { useStartDraft } from '@/lib/intake/use-start-draft';
-import { hoverLift } from '@/lib/motion/presets';
 import { ProjectTopBar } from './project-top-bar';
 import { putScriptDraft, readScriptDraft } from '@/lib/script/hand-off';
 import { StartHero } from './start-hero';
@@ -18,15 +18,15 @@ import { StartHero } from './start-hero';
 const ACCEPT =
   'audio/*,video/mp4,video/quicktime,video/webm,image/png,image/jpeg,image/webp,.mp3,.wav,.m4a,.aac,.webm,.ogg,.opus,.mp4,.mov,.png,.jpg,.jpeg,.webp';
 
-/** Static ember waveform of the Record card (start.png). Deterministic heights. */
+/** Static waveform of the Record panel. Deterministic heights. */
 const WAVE = Array.from({ length: 60 }, (_, i) => {
   const v = Math.abs(Math.sin(i * 1.7) * 0.6 + Math.sin(i * 0.43) * 0.4);
   return Math.max(0.12, Math.min(1, v));
 });
 
 /**
- * `/start` (start.png, R7): the project top bar, Pip with arcs, the headline and three ways
- * in. Every path stores the audio and hands it to `/processing/new` (design §2.5).
+ * `/start` (spec 11 R7, redrawn in spec 35): the project bar, a poster headline with Pip, and
+ * three ways in as storyboard panels. Every path stores the audio and hands it to `/processing/new` (design §2.5).
  */
 export function StartScreen() {
   const router = useRouter();
@@ -52,11 +52,11 @@ export function StartScreen() {
   };
 
   return (
-    <div className="min-h-dvh min-w-[1280px] bg-bg text-text">
+    <PaperPage>
       <ProjectTopBar />
-      <main className="flex flex-col items-center pb-16">
-        <StartHero eyebrow={C.eyebrow} headline={C.headline} subline={C.subline} />
-        <div className="mt-[62px] flex gap-[25px]">
+      <main className="mx-auto w-full max-w-[1240px] px-6 pb-20 lg:px-10">
+        <StartHero bubble={C.eyebrow} headline={C.headline} subline={C.subline} />
+        <div className="grid grid-cols-[minmax(0,1fr)] gap-5 md:grid-cols-3 md:gap-0">
           <RecordCard onStart={() => router.push('/start/record')} />
           <UploadCard
             busy={busy}
@@ -69,49 +69,50 @@ export function StartScreen() {
           />
           <ScriptCard initial={search.get('text') ?? readScriptDraft()} />
         </div>
-        <SingleGraphic busy={busy} onMake={(line) => void go(() => handOffSingle(line, draft))} />
-        <p className="mt-8 text-[11px] leading-[14px] text-text-2">{C.singleFoot}</p>
+        <div className="mt-12 flex flex-col items-start gap-3 border-t-2 border-ink pt-8">
+          <SingleGraphic busy={busy} onMake={(line) => void go(() => handOffSingle(line, draft))} />
+          <p className="text-[12px] text-black/55">{C.singleFoot}</p>
+        </div>
       </main>
-    </div>
+    </PaperPage>
   );
 }
 
+const SLANT = { first: paper.slantFirst, mid: paper.slantMid, last: paper.slantLast } as const;
+
+/** One way in, as a storyboard panel leaning into its neighbours (md and up). */
 function Card({
-  tone,
-  icon,
+  slant,
+  className,
   title,
   body,
   children,
   testId,
 }: {
-  tone: 'ember' | 'violet';
-  icon: ReactNode;
+  slant: keyof typeof SLANT;
+  className: string;
   title: string;
   body: string;
   children: ReactNode;
   testId: string;
 }) {
   return (
-    <motion.section
-      {...hoverLift}
-      data-testid={testId}
-      className={cn(
-        'flex h-[257px] w-[323px] flex-col rounded-2xl border bg-[linear-gradient(180deg,#121219,#0C0C11)] px-[23px] pt-[23px] pb-[23px] shadow-glass',
-        tone === 'ember' ? 'border-ember/40' : 'border-line-strong',
-      )}
-    >
-      <span
+    <div className={cn(paper.outline, 'md:-mx-[2px]')}>
+      <section
+        data-testid={testId}
         className={cn(
-          'flex size-[42px] items-center justify-center rounded-chip [&_svg]:size-[18px]',
-          tone === 'ember' ? 'bg-ember/14 text-ember' : 'bg-violet/14 text-violet-ink',
+          SLANT[slant],
+          'flex h-full min-h-[380px] flex-col rounded-xl px-8 pt-8 pb-8 md:rounded-none',
+          slant !== 'first' && 'md:pl-12',
+          slant !== 'last' && 'md:pr-12',
+          className,
         )}
       >
-        {icon}
-      </span>
-      <h2 className="mt-[22px] text-xl leading-6 font-semibold tracking-[-0.2px]">{title}</h2>
-      <p className="mt-[5px] text-[13px] leading-4 text-text-2">{body}</p>
-      <div className="mt-auto">{children}</div>
-    </motion.section>
+        <h2 className={cn(poster, 'text-[56px]')}>{title}</h2>
+        <p className="mt-2 text-[14px]">{body}</p>
+        <div className="mt-auto pt-8">{children}</div>
+      </section>
+    </div>
   );
 }
 
@@ -119,30 +120,23 @@ function RecordCard({ onStart }: { onStart: () => void }) {
   return (
     <Card
       testId="start-record"
-      tone="ember"
-      icon={<Mic strokeWidth={1.5} aria-hidden />}
+      slant="first"
+      className="bg-flame"
       title={C.record.title}
       body={C.record.body}
     >
-      <div aria-hidden className="mb-[30px] flex h-8 items-center gap-[3px]">
+      <div aria-hidden className="mb-7 flex h-12 items-center gap-[3px] overflow-hidden">
         {WAVE.map((v, i) => (
           <span
             key={i}
-            className="w-[1.5px] rounded-full"
-            style={{
-              height: `${Math.round(v * 30)}px`,
-              background: i > 48 ? 'rgb(255 122 61 / 0.45)' : 'var(--color-ember)',
-            }}
+            className="w-[3px] rounded-full bg-ink"
+            style={{ height: `${Math.round(v * 46)}px`, opacity: i > 44 ? 0.3 : 1 }}
           />
         ))}
       </div>
-      <button
-        type="button"
-        onClick={onStart}
-        className="flex w-full items-center justify-between text-xs leading-4 font-medium text-ember-ink outline-none hover:text-ember focus-visible:underline"
-      >
+      <button type="button" onClick={onStart} className={btn('ink', 'lg')}>
+        <Mic className="size-4" strokeWidth={2} aria-hidden />
         {C.record.cta}
-        <ArrowRight className="size-4 text-ember" strokeWidth={1.75} aria-hidden />
       </button>
     </Card>
   );
@@ -168,8 +162,8 @@ function UploadCard({
   return (
     <Card
       testId="start-upload"
-      tone="violet"
-      icon={<Upload strokeWidth={1.5} aria-hidden />}
+      slant="mid"
+      className="bg-paper"
       title={C.upload.title}
       body={C.upload.body}
     >
@@ -181,28 +175,21 @@ function UploadCard({
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
         className={cn(
-          'flex h-[84px] flex-col items-center justify-center rounded-chip border border-dashed transition-colors',
-          over ? 'border-violet/70 bg-violet/8' : 'border-white/16 bg-black/20',
+          'flex h-[120px] flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-ink transition-colors',
+          over ? 'bg-[#eef5fc]' : 'bg-mist',
         )}
       >
         <button
           type="button"
           disabled={busy}
           onClick={() => input.current?.click()}
-          className="text-xs leading-4 font-medium text-text outline-none hover:text-violet-ink focus-visible:underline disabled:opacity-50"
+          className={btn('paper', 'md')}
         >
+          <Upload className="size-4" strokeWidth={2} aria-hidden />
           {C.upload.drop}
         </button>
-        <p className="mt-[9px] text-[9px] leading-3 text-text-2">
-          A-roll + B-roll / screenshots ·{' '}
-          <button
-            type="button"
-            disabled={busy}
-            onClick={onSample}
-            className="text-violet-ink-2 underline-offset-2 outline-none hover:underline focus-visible:underline disabled:opacity-50"
-          >
-            {C.upload.sample}
-          </button>
+        <p className="px-4 text-center text-[11px] text-black/60">
+          {C.upload.formats}, plus B-roll and screenshots
         </p>
         <input
           ref={input}
@@ -217,6 +204,14 @@ function UploadCard({
           }}
         />
       </div>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onSample}
+        className={cn(paper.link, 'mt-4 disabled:opacity-50')}
+      >
+        {C.upload.sample}
+      </button>
     </Card>
   );
 }
@@ -232,8 +227,8 @@ function ScriptCard({ initial }: { initial: string }) {
   return (
     <Card
       testId="start-script"
-      tone="violet"
-      icon={<Type strokeWidth={1.5} aria-hidden />}
+      slant="last"
+      className="bg-ink text-paper"
       title={C.script.title}
       body={C.script.body}
     >
@@ -246,22 +241,13 @@ function ScriptCard({ initial }: { initial: string }) {
             open();
           }
         }}
-        rows={2}
+        rows={3}
         aria-label="Script"
         placeholder={C.script.placeholder}
-        className="mb-[22px] h-[46px] w-full resize-none rounded-chip bg-transparent px-[13px] pt-[15px] text-xs leading-4 text-text outline-none placeholder:text-text-body focus:bg-black/20"
+        className="mb-5 h-[92px] w-full resize-none rounded-[10px] border-2 border-paper/40 bg-transparent px-3.5 py-3 text-[14px] text-paper outline-none placeholder:text-paper/50 focus:border-paper"
       />
-      <button
-        type="button"
-        onClick={open}
-        className="group flex w-full items-center justify-between text-xs leading-4 font-medium text-violet-ink-2"
-      >
+      <button type="button" onClick={open} className={btn('paper', 'lg', true)}>
         {C.script.cta}
-        <ArrowRight
-          className="size-4 text-violet transition-transform group-hover:translate-x-0.5"
-          strokeWidth={1.75}
-          aria-hidden
-        />
       </button>
     </Card>
   );
@@ -278,12 +264,8 @@ function SingleGraphic({ busy, onMake }: { busy: boolean; onMake: (line: string)
   const tooLong = words > SINGLE_MAX_WORDS;
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-[34px] text-[13px] leading-4 text-text-body transition-colors hover:text-text"
-      >
-        {C.single} →
+      <button type="button" onClick={() => setOpen(true)} className={paper.link}>
+        {C.single}
       </button>
     );
   }
@@ -299,9 +281,9 @@ function SingleGraphic({ busy, onMake }: { busy: boolean; onMake: (line: string)
         e.preventDefault();
         submit();
       }}
-      className="mt-[30px] flex w-[560px] flex-col items-center gap-2"
+      className="flex w-full max-w-[620px] flex-col items-start gap-2"
     >
-      <div className="flex w-full items-center gap-2 rounded-chip border border-line bg-card p-1.5 pl-4 shadow-glass">
+      <div className={cn(paper.field, 'flex w-full items-center gap-2 p-1.5 pl-4')}>
         <input
           autoFocus
           value={line}
@@ -312,18 +294,17 @@ function SingleGraphic({ busy, onMake }: { busy: boolean; onMake: (line: string)
           aria-label="Line for a single graphic"
           placeholder="Revenue grew 40% since 2020"
           maxLength={200}
-          className="h-9 flex-1 bg-transparent text-[14px] text-text outline-none placeholder:text-text-3"
+          className="h-9 flex-1 bg-transparent text-[14px] outline-none placeholder:text-black/45"
         />
         <button
           type="submit"
           disabled={busy || words === 0 || tooLong}
-          className="inline-flex h-9 items-center gap-1.5 rounded-chip bg-[linear-gradient(180deg,#FF975C,#FF7A3D)] px-4 text-[13px] font-semibold text-[#2A1308] disabled:opacity-50"
+          className={btn('ink', 'sm')}
         >
           Make it
-          <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
         </button>
       </div>
-      <p className={cn('text-[11px] leading-[14px]', tooLong ? 'text-error' : 'text-text-3')}>
+      <p className={cn('text-[11px] leading-[14px]', tooLong ? 'text-error' : 'text-black/55')}>
         {tooLong
           ? `Keep it to ${SINGLE_MAX_WORDS} words for one graphic.`
           : 'One line, one graphic. Numbers, places and comparisons each get their own kind.'}

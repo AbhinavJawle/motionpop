@@ -1,6 +1,6 @@
 'use client';
 
-import { AudioLines, Film, Music } from 'lucide-react';
+import { AudioLines, Film, Music, Sparkles, Type } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PlaybackClock } from '@/lib/editor/playback';
 import { cn } from '@/lib/cn';
@@ -31,11 +31,13 @@ const BASE_ROWS: readonly {
   label: string;
   surface: string;
   icon: typeof AudioLines | null;
+  /** The track's colour on its label icon (spec 38 R8). */
+  tone?: string;
 }[] = [
-  { id: 'slots', label: 'SLOTS', surface: 'bg-track-b', icon: null },
-  { id: 'words', label: 'WORDS', surface: 'bg-track-a', icon: null },
-  { id: 'voice', label: 'VOICE', surface: 'bg-track-b', icon: AudioLines },
-  { id: 'audio', label: 'AUDIO', surface: 'bg-track-a', icon: Music },
+  { id: 'slots', label: 'Graphics', surface: 'bg-track-b', icon: Sparkles, tone: 'text-violet' },
+  { id: 'words', label: 'Words', surface: 'bg-track-a', icon: Type },
+  { id: 'voice', label: 'Voice', surface: 'bg-track-b', icon: AudioLines, tone: 'text-voice' },
+  { id: 'audio', label: 'Sound', surface: 'bg-track-a', icon: Music, tone: 'text-sound' },
 ];
 
 const VIDEO_ROWS: readonly {
@@ -43,17 +45,19 @@ const VIDEO_ROWS: readonly {
   label: string;
   surface: string;
   icon: typeof AudioLines | null;
+  /** The track's colour on its label icon (spec 38 R8). */
+  tone?: string;
 }[] = [
-  { id: 'slots', label: 'SLOTS', surface: 'bg-track-b', icon: null },
-  { id: 'video', label: 'VIDEO', surface: 'bg-track-a', icon: Film },
-  { id: 'words', label: 'WORDS', surface: 'bg-track-b', icon: null },
-  { id: 'voice', label: 'VOICE', surface: 'bg-track-a', icon: AudioLines },
-  { id: 'audio', label: 'AUDIO', surface: 'bg-track-b', icon: Music },
+  { id: 'slots', label: 'Graphics', surface: 'bg-track-b', icon: Sparkles, tone: 'text-violet' },
+  { id: 'video', label: 'Video', surface: 'bg-track-a', icon: Film, tone: 'text-flame' },
+  { id: 'words', label: 'Words', surface: 'bg-track-b', icon: Type },
+  { id: 'voice', label: 'Voice', surface: 'bg-track-a', icon: AudioLines, tone: 'text-voice' },
+  { id: 'audio', label: 'Sound', surface: 'bg-track-b', icon: Music, tone: 'text-sound' },
 ];
 
 /**
- * The transcript-first timeline (spec 04 R4, R5): 300 px, full width. Tracks are absolute
- * rows; the time area starts after the 152 px label column.
+ * The transcript-first timeline (spec 04 R4, R5; spec 38 R7: 244 px, under the preview). Tracks are absolute
+ * rows; the time area starts after the label column.
  */
 export function Timeline({
   clock,
@@ -110,6 +114,15 @@ export function Timeline({
     return () => section.removeEventListener('wheel', onWheel);
   }, []);
 
+  // Toasts sit above the timeline, never over the tracks (spec 32).
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty('--toast-bottom', `${layout.height + 16}px`);
+    return () => {
+      root.style.removeProperty('--toast-bottom');
+    };
+  }, [layout.height]);
+
   // Fit to width unless the user zoomed (spec 04 design: window resize keeps fit).
   useEffect(() => {
     if (storeView.fit && widthPx > 0) {
@@ -134,7 +147,7 @@ export function Timeline({
       <section
         ref={sectionRef}
         aria-label="Timeline"
-        className="relative shrink-0 border-t border-white/10 bg-panel select-none"
+        className="relative shrink-0 border-t-2 border-rule bg-paper font-mono select-none"
         style={{ height: layout.height }}
       >
         <TimelineHeader />
@@ -149,29 +162,13 @@ export function Timeline({
               style={{ top: r.top, height: r.height }}
             >
               <span className="absolute right-6 bottom-0 left-6 h-px bg-track-hair" />
-              <span
-                className="absolute left-6 text-[9px] leading-3 font-medium tracking-[1.1px] text-text-3"
-                style={{
-                  top:
-                    row.id === 'slots'
-                      ? 26
-                      : row.id === 'video'
-                        ? 22
-                        : row.id === 'words'
-                          ? 19
-                          : 17,
-                }}
-              >
+              {/* Spec 32 R3.1: sentence-case labels, centred in their row, icon beside. */}
+              <span className="absolute inset-y-0 left-6 flex items-center gap-2 text-[11px] leading-[14px] text-text-2">
+                {Icon && (
+                  <Icon className={cn('size-3.5', row.tone)} strokeWidth={1.75} aria-hidden />
+                )}
                 {row.label}
               </span>
-              {Icon && (
-                <Icon
-                  className="absolute left-[102px] size-3.5 text-text-3"
-                  style={{ top: row.id === 'video' ? 20 : row.id === 'voice' ? 16 : 13 }}
-                  strokeWidth={1.5}
-                  aria-hidden
-                />
-              )}
             </div>
           );
         })}
@@ -183,7 +180,7 @@ export function Timeline({
           hasVideo={hasVideo}
           layout={layout}
         />
-        <p className="absolute bottom-[3px] left-6 text-[9px] leading-3 text-text-3">
+        <p className="absolute bottom-[3px] left-6 text-[10px] leading-3 text-text-3">
           Space play · ⌘G generate · Drag slot to retime
         </p>
       </section>
@@ -208,7 +205,7 @@ function TimeArea({
 }) {
   usePlayheadVar(areaRef);
   const { view } = useTimeline();
-  const gridHeight = layout.height - layout.rows.slots.top - 18;
+  const gridHeight = layout.height - layout.rows.slots.top - 14;
   return (
     <div
       ref={areaRef}

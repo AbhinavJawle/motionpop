@@ -1,70 +1,72 @@
 'use client';
 
 import type { ProjectSummary } from '@motionpop/schemas';
-import { ArrowRight } from 'lucide-react';
-import { motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
-import { Pip } from '@/components/pip/pip';
-import { SlotDots } from '@/components/ui/slot-dots';
+import { btn, paper, poster, Sprockets } from '@/components/paper/kit';
+import { cn } from '@/lib/cn';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
-import { relativeTime } from '@/lib/dashboard/format';
-import { buttonMotion } from '@/lib/motion/presets';
-import { posterKindFor, StylePoster } from './style-poster';
+import { clock, relativeTime } from '@/lib/dashboard/format';
+import { ProjectPoster, SlotTicks } from './project-poster';
 
 /**
- * "Continue where you left off" (projects.png: title at y 414, card 1296×320 at y 448 with a
- * 768 px preview half; Pip with popcorn on the card's top edge). Static poster for now (task 12).
+ * "Pick up where you left off" (spec 35): the last opened project as the lead frame, its
+ * picture on a strip of film, its graphics as storyboard ticks, and Resume.
  */
 export function ContinueCard({ project, now }: { project: ProjectSummary; now: number | null }) {
   const router = useRouter();
   const open = () => router.push(`/editor/${encodeURIComponent(project.id)}`);
   return (
-    <section aria-labelledby="continue-title" className="relative">
-      <h2 id="continue-title" className="text-xl leading-[26px] font-semibold tracking-[-0.2px]">
+    <section aria-labelledby="continue-title">
+      <h2 id="continue-title" className={cn(poster, 'text-[44px]')}>
         {C.continue.title}
       </h2>
-      <div className="pointer-events-none absolute top-[-52px] right-[60px] z-10" aria-hidden>
-        <Pip size={96} props={['popcorn']} decorative seed={9} look="cursor" />
-      </div>
-      <div className="mt-[22px] flex h-80 overflow-hidden rounded-[20px] border border-line bg-panel shadow-quiet">
+      <div
+        className={cn(
+          paper.frame,
+          'mt-5 grid overflow-hidden md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]',
+        )}
+      >
         <button
           type="button"
           onClick={open}
           aria-label={`Open ${project.title}`}
-          className="h-full w-[768px] shrink-0 overflow-hidden rounded-[20px] outline-none focus-visible:ring-2 focus-visible:ring-violet"
+          className="group flex flex-col bg-ink outline-none focus-visible:ring-4 focus-visible:ring-flame focus-visible:ring-inset md:border-r-2 md:border-ink"
         >
-          <StylePoster
-            kind={posterKindFor(project.styleId)}
-            headline={project.title}
-            loop={null}
-            className="h-full w-full"
-          />
+          <Sprockets />
+          <span className="relative block aspect-video w-full overflow-hidden">
+            <ProjectPoster
+              styleId={project.styleId}
+              title={project.title}
+              className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+            />
+          </span>
+          <Sprockets />
         </button>
-        <div className="flex flex-1 flex-col px-10 pt-[37px]">
-          <p className="label-caps text-[10px] leading-[13px] tracking-[1.2px] text-ember">
-            {C.continue.eyebrow}
-          </p>
-          <h3 className="mt-[13px] line-clamp-2 text-[26px] leading-[33px] font-semibold tracking-[-0.3px]">
-            {project.title}
-          </h3>
-          <div className="mt-[22px] flex items-center justify-between pr-[128px]">
-            <span className="text-xs leading-4 text-text-2">
-              {project.readySlotCount} of {project.slotCount} slots ready
-            </span>
-            <SlotDots states={project.slotStates} tone="mint" />
+        <div className="flex flex-col p-7 lg:p-9">
+          <h3 className={cn(poster, 'line-clamp-3 text-[52px]')}>{project.title}</h3>
+          <dl className="mt-5 flex gap-10 text-[13px]">
+            <div>
+              <dt className="text-black/55">Length</dt>
+              <dd className="tabular">{clock(project.durationMs)}</dd>
+            </div>
+            <div>
+              <dt className="text-black/55">Edited</dt>
+              <dd>{now === null ? '\u00a0' : relativeTime(project.updatedAt, now)}</dd>
+            </div>
+          </dl>
+          <div className="mt-7">
+            <SlotTicks states={project.slotStates} size="lg" />
+            <p className="mt-2.5 text-[13px]">
+              {C.continue.ready(project.readySlotCount, project.slotCount)}
+            </p>
           </div>
-          <p className="mt-4 font-mono text-[11px] leading-[14px] text-text-2">
-            Edited {now === null ? '' : relativeTime(project.updatedAt, now)}
-          </p>
-          <motion.button
+          <button
             type="button"
-            {...buttonMotion}
             onClick={open}
-            className="mt-auto mb-10 inline-flex h-10 w-[148px] items-center justify-between rounded-chip bg-[linear-gradient(180deg,#FF975C,#FF7A3D)] pr-4 pl-6 text-[13px] leading-4 font-semibold text-[#2A1308] shadow-[0_4px_16px_rgb(255_122_61/0.12),inset_0_1px_0_rgb(255_255_255/0.25)] hover:brightness-105"
+            className={btn('ink', 'lg', false, 'mt-9 self-start md:mt-auto')}
           >
             {C.continue.resume}
-            <ArrowRight className="size-4" strokeWidth={1.75} aria-hidden />
-          </motion.button>
+          </button>
         </div>
       </div>
     </section>

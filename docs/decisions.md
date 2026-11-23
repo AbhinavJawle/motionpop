@@ -312,3 +312,123 @@ Spec 11 R1 asked for projects in the account; design §2.1 stored each field as 
   - A reel's custom code is capped at 400 000 characters (the project is one Firestore document).
   - Custom scenes have no sound of their own.
   - `mp.image` with a parent now sizes relative to that parent. The critic reads badge text against its own fill. Both changes also affect film mode.
+
+## D-079 · 2026-11-22 · decided (founder brief, Claude Code `claude-opus-5-5`); amended the same day — sign-up CTA mascot: built in Rive, shipped with `motion`
+- **Context:** the founder asked for an animated sign-up CTA where the plush Pip (a rendered, fuzzy character, not the SVG Pip) peeks over the button, animated with Rive and kept exactly as drawn. Steering said "no Rive" (tech.md) and "no image files" for Pip (pip-mascot.md).
+- **Decision (spec 31):**
+  - Rive is allowed for this one component: `@rive-app/react-canvas-lite`, loaded client-only after the page, with the wasm served from our origin.
+  - The `.riv` holds only the mascot, as two artboards (body behind the button face, paws in front of the border). The button, text and arrow are HTML and CSS.
+  - Everywhere else Pip stays SVG + `motion`, and video compositions stay on our own motion core.
+- **Consequences:**
+  - The Rive workspace used for publishing is on a plan with the splash watermark: the published file opens with about 2.3 s of opaque black. The animation is therefore off (`PIP_CTA_RIVE_ENABLED = false`) and the CTA shows the still pose until the file is republished from a plan without the splash.
+  - Adds about 850 KB of wasm and 540 KB of runtime JS, loaded only when the animation is on and the visitor doesn't prefer reduced motion.
+- **Amendment (founder: "just make it work somehow", no paid Rive plan):** the page no longer uses Rive. The same five layers (body, two eye sockets, two paws) are animated with `motion` in the same rig (Bounce > Perk > Float per layer box), with the same idle curves, blink, hover perk and press hop. `@rive-app/react-canvas-lite`, the `.riv`, the wasm and the stills are removed; `apps/web/rive/pip-cta` stays as the source of the art layers and the Rive version of the animation. No splash, no runtime download; visitors who prefer reduced motion see Pip still.
+
+## D-080 · 2026-11-22 · decided (founder ask, Claude Code `claude-opus-5-5`) — Editor "calm studio" pass supersedes `design/screens/editor.png` for the editor
+- **Context:** the founder compared our editor with a competitor's calm editor ("theirs looks so much better") and asked for a designer's pass, noting the design PNGs are old ("you will have to take screenshots yourself"). Screenshots showed a preview capped at 405 px, about eight competing accent colours, letter-spaced caps track labels, two controls that only toasted "on its way", a blank first frame and slot clicks that didn't move the preview.
+- **Decision (spec 32):**
+  - The preview is the largest aspect-correct box that fits its workspace; the footer under it is gone (save status beside the title, style name in the preview toolbar, scene counter removed); ambient colour blobs replaced by a neutral spotlight.
+  - Colour roles: ember = Export + playhead; violet = AI + selection (secondary AI buttons tinted, not solid); mint = on-device chips only; tracks, slot cards, picture buttons and statuses neutral.
+  - Sentence-case track labels (Graphics, Video, Words, Voice, Sound); dead controls removed.
+  - The editor opens on the first ready graphic's hero frame; clicking a slot while paused seeks there. Toasts sit above the timeline.
+- **Consequences:** `design/screens/editor.png` stays as history; new editor references are the spec 32 screenshots. The editor design check still passes within its tolerances, so it was not re-baselined.
+
+## D-081 · 2026-11-22 · decided (founder ask, Claude Code `claude-opus-5-5`) — Whole-editor studio system; the editor design check uses a studio baseline
+- **Context:** after spec 32 the founder said only the timeline had changed ("do a complete overhaul and make the ui as masterclass").
+- **Decision (spec 33):** one neutral graphite token ramp with no purple-tinted surfaces; radii 8/10/18 and hairline rings; sentence-case labels; a 48 px top bar with a breadcrumb; a 64 px neutral rail; shared panel headers; a Styles gallery; a quieter Pip panel and composer; a white `solid` button for panel actions (ember only for Export and the playhead, violet for AI and focus); a restructured inspector; neutral export option cards.
+- **Consequences:** `design/screens/editor.png` no longer matches the editor (the top bar alone differs by about 10 %). `e2e/editor-design.spec.ts` now compares against `apps/web/e2e/baselines/editor-studio.png`, captured from this build, with tighter thresholds (2/2/4 %). The export dialog's size assertions follow the new 44/40/44 px cards and button; its pixel check against `export.png` still passes (16.6 % ≤ 17 %).
+
+## D-082 · 2026-11-22 · decided (founder ask, Claude Code `claude-opus-5-5`) — Marketing site in capy.ai's comic-panel style; Pip loops rendered from Rive to transparent WebM
+- **Context:** the founder asked for new marketing copy relevant to both hackathons and a site "heavily inspired by capy.ai", using the animated Pip Rive projects and the Pip sign-up button in the hero.
+- **Decision (spec 34):**
+  - **Look:** a white storyboard in black ink. Bebas Neue caps headlines, Geist Mono body, hand-lettered speech bubbles, hard-shadow buttons, slanted panels, halftone, and a film-strip nav. Pip breaks out of the frames.
+  - **Copy:** all of it lives in `components/landing/copy.ts`. It names Firebase AI Logic / Gemini Nano (hybrid AI) and Kiro (build story) for the hackathons.
+  - **Rive:** the `.riv` files are still not played on the page (D-079 splash). The clapperboard and juggling loops are rendered headlessly from `~/Developer/pip-rive` with the Rive CLI, on white and on black. Alpha comes from the difference between the two. They ship as VP9 alpha WebM plus a WebP still.
+  - **Fallback:** Safari gets the still, because alpha HEVC couldn't be verified here. Reduced motion also gets the still.
+- **Consequences:** the landing test now expects two "Sign up & create" links (hero and closing call). New OFL fonts are listed in `docs/third-party.md`.
+
+## D-083 · 2026-11-22 · decided (founder ask, Claude Code `claude-opus-5-5`) — Everything outside the editor moves to the marketing site's paper-and-ink look
+- **Context:** the founder called the dashboard "absolutely terrible" and asked for a complete redesign of it, the onboarding and everything else outside the editor.
+- **Decision (spec 35):**
+  - **Scope:** dashboard, sign-in, Start, Record, Script, Processing, Styles, Settings, Share and the legal pages are drawn in the spec 34 language: white paper, black ink, 2 px rules, hard ink shadows, Bebas Neue titles, Geist Mono body, Patrick Hand only for Pip's bubbles, and Pip's crayon loops. The editor stays the dark studio (spec 33).
+  - **Mechanism:** each of these screens mounts `[data-paper]`. `html:has([data-paper])` then remaps the shared tokens to paper values, including `--color-white` to ink so `white/x` tints stay visible. Shared menus, modals, toasts and portals follow without forks. An unlayered rule gives dialogs and menus an ink frame, because Tailwind bakes shadow values in at build time.
+  - **Dashboard:**
+    - A poster greeting with Pip.
+    - The capture bar as the one bold frame.
+    - The last project as a film-strip lead frame.
+    - A one-sentence week line, which replaces the three stat tiles.
+    - Projects as frames that use real look stills.
+    - A "Try a look" strip of real looks, which replaces the placeholder styles that only showed "on its way" toasts.
+    - The always-empty "Shared with me" tab is gone.
+  - **Stills:** four new look stills (editorial-cream, studio-light, creator-dark, keynote-clean) were captured from the demo editor, so every look on `/styles` and in the editor's Styles panel shows a real frame.
+- **Consequences:**
+  - `design/screens/projects*.png`, `start.png`, `recording.png` and the settings frames no longer match these screens.
+  - `e2e/credits-design.spec.ts` now expects the 760 px Settings column and the 200 px index.
+  - The editor design checks are unchanged and still pass.
+
+## D-084 · 2026-11-22 · decided (founder ask, Claude Code `claude-opus-5-5`) — Depth and colour: lit paper and a breathing voice, not a night sky
+- **Context:**
+  - The founder found the white pages flat. They shared a night-sky reference with a halftone horizon as inspiration, and asked for more originality against capy.ai.
+  - A first pass put the hero on a night sky with a halftone dome and changed its layout. The founder rejected both: keep the hero layout, don't copy the reference, go subtle and lightly animated.
+- **Decision (spec 36):**
+  - The hero keeps its spec 34 layout. It sits on storyboard paper lit by three slowly drifting brand-colour lights.
+  - The voice is drawn as a seeded, breathing colour waveform behind the top edge of the editor. The real editor screenshot now sits in the hero, with about 25 % above the fold at 1440 × 900.
+  - Below the hero, each band takes its marker's colour as a pale wash or dot texture.
+  - The capy-style round spot icons became timeline-clip cues with timecodes, and the nav shows a scroll playhead.
+  - Pips sit where their action means something: clapper on How, juggler on Features, plush on Stitched, plane over the closing sunset.
+  - The sign-up Pip waits visibly (looks left and right, drums its paws) and faces you on hover.
+  - The paper app screens get a subtle desk: a dot grid and soft colour light.
+- **Consequences:**
+  - The motion is CSS and motion transforms only, and stops under reduced motion.
+  - The night-sky files were deleted.
+
+## D-085 · 2026-11-22 · decided (founder ask, Claude Code `claude-opus-5-5`) — Pip works on video reels: scenes, colours, sound and music
+- **Context:**
+  - On a video reel, Pip answered "there aren't any motion graphics on your video yet" to a request for more colour and better animation.
+  - Pip's input, prompt and actions only knew voiceover slots. Reel scenes, the reel look, reel colours and reel sound were invisible to it.
+  - The founder: the note and the Pip chat are the most important features, and Pip should do everything a user asks, sound effects included.
+- **Decision (spec 37):**
+  - Pip gets every reel scene (refs r1..rN) and the reel's state, with a v2 prompt that says reels are motion graphics.
+  - New actions:
+    - `editScene`: runs as a whole-frame reel note on the strong model, reviewed in a sandbox.
+    - `clearScene`, `setReelTheme`, `setReelLook` and `regenerateReel`.
+    - Sound and music: `setSound`, `setMusic` (synth beds or AI music from a brief) and `addSound` (a hit on a word).
+  - A plan can hold up to 12 steps.
+  - `ReelPlan.theme` (accent, second colour, plain / soft / bold gradient) is applied in the engine by `themedLook`, so the preview, the export and AI-written scenes all wear it. Colours are pushed to 3:1 contrast in code.
+  - Mono templates now draw `pal.accent`. On the house mono palettes that equals the ink, so unthemed reels render as before.
+  - `ReelPlan.sfx` holds added hits.
+  - The reel preview and the export both mix the project's sound settings through `reelBedSound`: effects on/off and level, synth music and its level. Until now the preview ignored them.
+- **Consequences:**
+  - Reel projects get their own Pip chips: colour, effects, music, captions and look.
+  - The quick planner (no cloud) handles reel requests too.
+  - A scene edit costs the note price, plus the custom price when Pip writes a new graphic. The plan card says so.
+  - The reel runtime bundle (`dist/reel-runtime.js`) must be rebuilt for the export to show themes. The build already does this.
+
+## D-086 · 2026-11-22 · decided (founder ask, Claude Code `claude-opus-5-5`) — The editor joins the paper, and Pip leads it
+- **Context:** "the ui outside the editor is now so good … when i open the editor it feels like i opened something completely new and different unrelated … our editor should be agent native … see that glowing orb? i want that too, but it will be glowing pip". This reverses D-083's "the editor stays the dark studio".
+- **Decision (spec 38):**
+  - **Paper:** the editor root mounts `[data-paper][data-editor]`, so the spec 35 paper tokens apply. `html:has([data-editor])` gives the editor-only tokens (track, slot, rail, zoom, sound) paper values. Unlayered `[data-editor] .shadow-*` rules give dense controls hairlines and keep 2 px ink with hard shadows for the frames you press or open.
+  - **Chrome:** the top bar is the dashboard's black film-strip bar (poster breadcrumb, white format tiles, ember Export). The rail, left panel, inspector and timeline are paper sheets edged in 2 px ink. The clock is in Bebas, and the playhead and play button are ember.
+  - **The video stays on black:** the preview frame is a black screen in an ink frame with a 6 px hard shadow, sitting on the lit desk.
+  - **Pip-first:** Pip leads the rail, and its panel opens when a project opens.
+  - **The glowing Pip:** the empty conversation centres on a glowing Pip (`PipOrb`): the code-drawn mascot in a pearl core with Pip-blue, violet and ember lights. The lights speed up and brighten when Pip listens (typing) and thinks (a plan is being made), and one ring goes out when a plan is applied. A small orb stays in the header once messages exist.
+  - **Composer:** the composer is the capture bar's twin, an ink frame with a hard shadow.
+  - **Type:** body text is Geist Mono, like the dashboard. Transcript words and slot titles stay Geist Sans, because they are placed by time and mono is too wide for them.
+- **Consequences:**
+  - `e2e/baselines/editor-studio.png` and the other editor design baselines no longer match.
+  - `design/screens/editor*.png` describe the old dark studio.
+  - The dark token set in `globals.css` now only applies where no screen marks itself paper.
+
+## D-087 · 2026-11-23 · decided (founder review, Claude Code `claude-opus-5-5`) — The editor opens on a night desk; the paper is one click away
+- **Context:** the founder found the all-paper editor "very harsh on the eyes" and asked for dark mode "without losing the feel". They also asked for a full-height sidebar, a shorter timeline, an always-visible glowing Pip and coloured track gradients (green voice, cyan-blue sound).
+- **Decision (spec 38, R5–R9):**
+  - **Theme:** the editor is dark by default, with a sun/moon toggle in the top bar (`lib/editor/theme.ts`, saved in localStorage). Dark drops `[data-paper]`, so the studio's dark tokens return. `html:has([data-editor][data-theme='dark'])` then redefines `paper`, `ink`, `mist` and four new tokens (`edge`, `rule`, `hard`, `tile`), so the paper markup reads as chalk on a night desk. The paper kit buttons read `--btn-*` variables, with paper fallbacks for the screens outside. The black bar resets them with `[data-ink-bar]`.
+  - **Layout:** the rail and panel run the full height, and the timeline sits under the preview and inspector only.
+  - **Timeline:** 300 → 244 px, label column 152 → 112 px. The header is a three-part flex, and its meta line hides below 1080 px (container query).
+  - **Tracks:**
+    - Voice: a green gradient band, with green gradient bars where it has played.
+    - Sound: a cyan-to-blue band with cyan hit pills.
+    - Graphics: a violet-to-Pip-blue sheen.
+    - Video label: ember.
+    - Each track's colours are tuned per theme.
+  - **Pip:** the orb is one shared element (`layoutId`). It is 150 px in an empty chat and 38 px in the header after a message, or when the big orb scrolls out of view. It moves on a spring (instant under reduced motion), and a soft halo now surrounds it.

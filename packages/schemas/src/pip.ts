@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { BrandSchema } from './brand';
 import { FormatSchema } from './format';
+import { ReelLookSchema, ReelSfxKindSchema, ReelThemeSchema } from './reel';
 import { OverlayAnchorSchema, SlotPlacementSchema, VideoStageModeSchema } from './video';
 
 /**
@@ -21,7 +22,18 @@ export const PIP_ACTIONS = [
   'toggleCuts',
   'addPunchIn',
   'cutRange',
+  // Video reels (spec 37): scenes are "rK" refs.
+  'editScene',
+  'clearScene',
+  'setReelTheme',
+  'setReelLook',
+  'regenerateReel',
+  'setSound',
+  'setMusic',
+  'addSound',
 ] as const;
+/** Most steps in one plan (spec 37 R2.7: a reel edit may touch every scene). */
+export const PIP_MAX_STEPS = 12;
 export const PipActionSchema = z.enum(PIP_ACTIONS);
 export type PipAction = z.infer<typeof PipActionSchema>;
 
@@ -36,7 +48,7 @@ export const PipModelStepSchema = z.object({
 });
 export const PipModelOutputSchema = z.object({
   reply: z.string().min(1).max(240),
-  steps: z.array(PipModelStepSchema).max(8),
+  steps: z.array(PipModelStepSchema).max(PIP_MAX_STEPS),
 });
 export type PipModelOutput = z.infer<typeof PipModelOutputSchema>;
 
@@ -68,6 +80,13 @@ export const PipStepSchema = z.object({
   atWord: z.number().int().nonnegative().optional(),
   wordEnd: z.number().int().nonnegative().optional(),
   instruction: z.string().max(200).optional(),
+  /** Reel steps (spec 37). */
+  sceneId: z.string().max(40).optional(),
+  theme: ReelThemeSchema.optional(),
+  look: ReelLookSchema.optional(),
+  sound: z.enum(['on', 'off', 'louder', 'quieter', 'clear']).optional(),
+  music: z.enum(['none', 'calm-pad', 'steady-pulse', 'ai']).optional(),
+  sfxKind: ReelSfxKindSchema.optional(),
   label: z.string().min(1).max(60),
   /** Credits this step spends when applied (code-computed, never from the model). */
   credits: z.number().int().nonnegative(),
@@ -77,8 +96,8 @@ export type PipStep = z.infer<typeof PipStepSchema>;
 
 export const PipPlanSchema = z.object({
   reply: z.string().max(240),
-  steps: z.array(PipStepSchema).max(8),
-  dropped: z.array(z.object({ label: z.string(), reason: z.string() })).max(8),
+  steps: z.array(PipStepSchema).max(PIP_MAX_STEPS),
+  dropped: z.array(z.object({ label: z.string(), reason: z.string() })).max(PIP_MAX_STEPS),
   source: z.enum(['device', 'cloud', 'code']),
 });
 export type PipPlan = z.infer<typeof PipPlanSchema>;

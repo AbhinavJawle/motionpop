@@ -118,7 +118,7 @@ export function StylePoster({
         <span
           className={cn(
             'absolute flex items-center rounded-full font-mono',
-            dark ? 'bg-[#1F2A24]/90 text-[#cfe3c4]' : 'bg-white text-[#3a3530]',
+            dark ? 'bg-[#1F2A24]/90 text-[#cfe3c4]' : 'bg-[#fff] text-[#3a3530]',
             kind === 'neon-data' && 'bg-[#2a2142]/90 text-[#ddd3ff]',
           )}
           style={{

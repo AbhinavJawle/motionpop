@@ -29,9 +29,7 @@ export function GeneratingPanel({ slot }: { slot: Slot }) {
   return (
     <div role="status" aria-label="Generating this graphic">
       <div className="relative -mx-5 px-5">
-        <p className="pt-4 text-[10px] leading-[13px] font-medium tracking-[1.1px] text-section uppercase">
-          Motion in the making
-        </p>
+        <p className="pt-4 text-[12px] leading-4 font-semibold text-text-2">Motion in the making</p>
         <h2 className="mt-[11px] text-[19px] leading-6 font-semibold tracking-[-0.2px]">
           Bringing it to life
         </h2>
@@ -49,9 +47,7 @@ export function GeneratingPanel({ slot }: { slot: Slot }) {
       <Divider className="mt-8" soft />
       {next && (
         <div className="mt-[22px]">
-          <p className="text-[10px] leading-[13px] font-medium tracking-[1.1px] text-section uppercase">
-            Your next moment
-          </p>
+          <p className="text-[12px] leading-4 font-semibold text-text-2">Your next moment</p>
           <p className="mt-[10px] text-sm leading-[18px] font-medium text-text">
             Slot {next.number} · {slotCardText(next.slot).title.replace(/…$/, '')}
           </p>

@@ -20,11 +20,17 @@ export function LiveWaveform({
   live,
   width = 568,
   height = 70,
+  color = EMBER,
+  tail = VIOLET,
 }: {
   peaks: { current: number[] };
   live: boolean;
   width?: number;
   height?: number;
+  /** Recorded bars. */
+  color?: string;
+  /** The newest bars while live. */
+  tail?: string;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
 
@@ -50,9 +56,9 @@ export function LiveWaveform({
       if (live) {
         const room = slots - FADE_TAIL;
         const shown = all.slice(-room);
-        shown.forEach((v, i) => bar(i, v, i >= shown.length - LIVE_TAIL ? VIOLET : EMBER));
+        shown.forEach((v, i) => bar(i, v, i >= shown.length - LIVE_TAIL ? tail : color));
         for (let k = 0; k < FADE_TAIL; k++)
-          bar(shown.length + k, 0.02 + 0.03 * (FADE_TAIL - k), VIOLET, 0.5 - k * 0.07);
+          bar(shown.length + k, 0.02 + 0.03 * (FADE_TAIL - k), tail, 0.5 - k * 0.07);
         raf = requestAnimationFrame(draw);
       } else {
         // The whole take, one bar per slot (max of its frames).
@@ -61,14 +67,14 @@ export function LiveWaveform({
           let m = 0;
           for (let j = Math.floor(i * per); j < Math.floor((i + 1) * per); j++)
             m = Math.max(m, all[j] ?? 0);
-          bar(i, m, EMBER);
+          bar(i, m, color);
         }
       }
       ctx.globalAlpha = 1;
     };
     draw();
     return () => cancelAnimationFrame(raf);
-  }, [peaks, live, width, height]);
+  }, [peaks, live, width, height, color, tail]);
 
   return <canvas ref={canvas} aria-hidden style={{ width, height }} className="block" />;
 }

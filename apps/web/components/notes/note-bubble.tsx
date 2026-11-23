@@ -21,7 +21,7 @@ export function NumberDisc({ n }: { n: number }) {
   return (
     <span
       aria-hidden
-      className="flex size-[15px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(180deg,#8070DA,#554496)] text-[9px] leading-none font-medium text-white"
+      className="flex size-[15px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(180deg,#8070DA,#554496)] text-[9px] leading-none font-medium text-[#fff]"
     >
       {n}
     </span>
@@ -53,7 +53,7 @@ export function BubbleShell({
       aria-busy={busy}
       data-note-bubble
       className={cn(
-        'pointer-events-auto absolute z-30 flex min-h-[28px] items-center gap-2 overflow-hidden rounded-[10px] bg-[rgb(21_21_29/0.92)] px-2 py-[5px] text-[13px] leading-[17px] text-text shadow-glass backdrop-blur-[16px]',
+        'pointer-events-auto absolute z-30 flex min-h-[28px] items-center gap-2 overflow-hidden rounded-[10px] bg-paper px-2 py-[5px] text-[13px] leading-[17px] text-ink shadow-glass',
         className,
       )}
       style={{

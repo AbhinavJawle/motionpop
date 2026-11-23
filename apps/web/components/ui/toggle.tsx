@@ -54,7 +54,7 @@ export function Toggle({
       <motion.span
         layout
         transition={spring}
-        className={cn('block rounded-full bg-white', size === 'lg' ? 'size-4' : 'size-3')}
+        className={cn('block rounded-full bg-knob', size === 'lg' ? 'size-4' : 'size-3')}
       />
     </button>
   );

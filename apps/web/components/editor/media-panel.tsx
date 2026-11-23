@@ -259,9 +259,9 @@ export function MediaPanelBody() {
   const unindexedCount = mediaBin.filter((c) => !c.indexedAt).length;
 
   return (
-    <div className="flex h-full flex-col px-5 pt-4 pb-4" data-testid="media-panel">
-      <header className="flex h-10 shrink-0 items-center justify-between border-b border-white/6 pb-3">
-        <h2 className="text-[17px] leading-[22px] font-semibold text-text">Media</h2>
+    <div className="flex h-full flex-col px-4 pb-4" data-testid="media-panel">
+      <header className="-mx-4 flex h-12 shrink-0 items-center justify-between border-b border-line px-4">
+        <h2 className="text-[14px] leading-5 font-semibold text-text">Media</h2>
         <Button
           variant="secondary"
           size="sm"
@@ -379,7 +379,7 @@ export function MediaPanelBody() {
                     <div className="flex gap-2.5 p-2">
                       <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-black/40">
                         <ClipThumb clip={clip} />
-                        <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1 py-0.5 font-mono text-[9px] text-white/90">
+                        <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1 py-0.5 font-mono text-[9px] text-[#fff]/90">
                           {KIND_LABEL[clip.kind]}
                         </span>
                       </div>
@@ -504,7 +504,7 @@ export function MediaPanelBody() {
                         loading="lazy"
                         className="size-full object-cover transition-transform group-hover:scale-105"
                       />
-                      <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1.5 py-0.5 text-left text-[9px] text-white/85">
+                      <span className="absolute inset-x-0 bottom-0 truncate bg-black/55 px-1.5 py-0.5 text-left text-[9px] text-[#fff]/85">
                         {adding === h.id ? 'Adding…' : h.license === 'cc0' ? 'CC0' : 'CC BY'} ·{' '}
                         {h.title}
                       </span>

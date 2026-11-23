@@ -4,7 +4,7 @@ import { Pause, Play, Square } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Pip } from '@/components/pip/pip';
+import { btn, paper, PaperPage } from '@/components/paper/kit';
 import { Button } from '@/components/ui/button';
 import { Dropdown } from '@/components/ui/dropdown';
 import { Modal } from '@/components/ui/modal';
@@ -80,6 +80,16 @@ export function RecordScreen() {
   const frames = useRef<LevelFrame[]>([]);
   const peaks = useRef<number[]>([]);
   const audio = useRef<HTMLAudioElement | null>(null);
+  // The waveform fills the recorder's width.
+  const waveBox = useRef<HTMLDivElement>(null);
+  const [waveWidth, setWaveWidth] = useState(0);
+  useEffect(() => {
+    const el = waveBox.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setWaveWidth(Math.floor(e?.contentRect.width ?? 0)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [phase.kind]);
   const warned = useRef(false);
   const stopping = useRef(false);
 
@@ -269,25 +279,19 @@ export function RecordScreen() {
           : C.quiet;
 
   return (
-    <div className="min-h-dvh min-w-[1280px] bg-bg text-text">
+    <PaperPage>
       <ProjectTopBar />
-      <main className="flex flex-col items-center pb-16">
+      <main className="mx-auto w-full max-w-[1240px] px-6 pb-20 lg:px-10">
         <StartHero
-          eyebrow={phase.kind === 'review' ? C.reviewEyebrow : C.eyebrow}
+          bubble={phase.kind === 'review' ? C.reviewEyebrow : C.eyebrow}
           headline={phase.kind === 'review' ? C.reviewHeadline : C.headline}
           subline={phase.kind === 'review' ? C.reviewSubline : C.subline}
-          pipSlot={
-            phase.kind === 'review' ? (
-              <Pip state="waving" size={150} decorative seed={6} />
-            ) : (
-              <Pip state="listening" size={150} props={['arcs']} decorative seed={6} />
-            )
-          }
+          pip={phase.kind === 'review' ? 'juggle' : 'clapper'}
         />
 
         <section
           aria-label="Recorder"
-          className="mt-[62px] h-[257px] w-[840px] rounded-2xl border border-line-strong bg-[linear-gradient(180deg,#121219,#0C0C11)] px-[28px] pt-[24px] shadow-glass"
+          className="min-h-[400px] rounded-[16px] border-2 border-ink bg-paper px-6 pt-6 pb-7 shadow-[6px_6px_0_#000] sm:px-9"
         >
           {phase.kind === 'error' ? (
             <ErrorBody
@@ -297,17 +301,12 @@ export function RecordScreen() {
             />
           ) : (
             <>
-              <div className="flex h-5 items-center justify-between">
-                <p
-                  className={cn(
-                    'flex items-center gap-[11px] text-[10px] leading-[13px] font-medium tracking-[1.6px]',
-                    phase.kind === 'review' ? 'text-mint' : 'text-ember',
-                  )}
-                >
+              <div className="flex h-8 items-center justify-between gap-4">
+                <p className="flex items-center gap-2.5 text-[13px] font-semibold">
                   <span
                     className={cn(
-                      'size-[5px] rounded-full',
-                      phase.kind === 'review' ? 'bg-mint' : 'bg-ember',
+                      'size-3 rounded-full border-2 border-ink',
+                      phase.kind === 'review' ? 'bg-mint' : paused ? 'bg-paper' : 'bg-flame',
                       recording && !paused && !still && 'animate-pulse',
                     )}
                   />
@@ -329,117 +328,111 @@ export function RecordScreen() {
                         })
                         .catch(() => toast.error(C.noDevice));
                     }}
-                    className="mr-[62px] w-[180px] [&>button]:justify-end [&>button]:text-text-2"
+                    className="w-[220px] [&>button]:justify-end [&>button]:text-[12px]"
                     menuClassName="left-auto w-[260px]"
                   />
                 )}
-                {phase.kind === 'asking' && (
-                  <span className="text-[11px] leading-[14px] text-text-2">{C.waiting}</span>
+                {phase.kind === 'asking' && <span className="text-[13px]">{C.waiting}</span>}
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-x-10 gap-y-4">
+                <p
+                  className="font-poster text-[clamp(96px,13vw,168px)] leading-[0.85] tabular"
+                  aria-live="off"
+                >
+                  {recordClock(phase.kind === 'review' ? phase.durationMs : elapsed)}
+                </p>
+                {phase.kind === 'review' ? (
+                  <BigButton
+                    label={playing ? 'Pause take' : 'Play take'}
+                    onClick={() => {
+                      const a = (audio.current ??= new Audio(phase.url));
+                      a.onended = () => setPlaying(false);
+                      if (a.paused) void a.play().then(() => setPlaying(true));
+                      else {
+                        a.pause();
+                        setPlaying(false);
+                      }
+                    }}
+                  >
+                    {playing ? (
+                      <Pause className="size-7 fill-ink" strokeWidth={0} />
+                    ) : (
+                      <Play className="ml-1 size-7 fill-ink" strokeWidth={0} />
+                    )}
+                  </BigButton>
+                ) : (
+                  <BigButton
+                    label="Stop recording"
+                    disabled={phase.kind !== 'recording'}
+                    onClick={() => void stop()}
+                  >
+                    <Square className="size-6 fill-ink" strokeWidth={0} />
+                  </BigButton>
                 )}
               </div>
 
-              <div className="mt-[32px] flex">
-                <div className="flex w-[164px] flex-col items-center">
-                  {phase.kind === 'review' ? (
-                    <BigButton
-                      label={playing ? 'Pause take' : 'Play take'}
-                      onClick={() => {
-                        const a = (audio.current ??= new Audio(phase.url));
-                        a.onended = () => setPlaying(false);
-                        if (a.paused) void a.play().then(() => setPlaying(true));
-                        else {
-                          a.pause();
-                          setPlaying(false);
-                        }
-                      }}
-                    >
-                      {playing ? (
-                        <Pause className="size-6 fill-white text-white" strokeWidth={1.5} />
-                      ) : (
-                        <Play className="ml-1 size-6 fill-white text-white" strokeWidth={1.5} />
-                      )}
-                    </BigButton>
-                  ) : (
-                    <BigButton
-                      label="Stop recording"
-                      disabled={phase.kind !== 'recording'}
-                      onClick={() => void stop()}
-                    >
-                      <Square className="size-[22px] fill-white text-white" strokeWidth={0} />
-                    </BigButton>
-                  )}
-                  <p className="mt-[14px] text-[11px] leading-[14px] text-text-2">
-                    {phase.kind === 'review' ? (playing ? 'Playing' : 'Play your take') : C.stop}
-                  </p>
-                </div>
-                <div className="ml-[28px] flex flex-1 flex-col pt-[3px]">
+              <div ref={waveBox} className="mt-6 h-[84px] w-full overflow-hidden">
+                {waveWidth > 0 && (
                   <LiveWaveform
                     key={phase.kind === 'review' ? 'take' : 'live'}
                     peaks={peaks}
                     live={phase.kind !== 'review'}
+                    width={waveWidth}
+                    height={84}
+                    color="#000000"
+                    tail="#ff6a3d"
                   />
-                  <div className="mt-[22px] flex items-start">
-                    <div>
-                      <p className="font-mono text-[28px] leading-[34px] tabular" aria-live="off">
-                        {recordClock(phase.kind === 'review' ? phase.durationMs : elapsed)}
-                      </p>
-                      <p
-                        className={cn(
-                          'mt-[3px] text-[11px] leading-[14px]',
-                          phase.kind === 'review'
-                            ? 'text-text-2'
-                            : level === 'quiet' || unplugged
-                              ? 'text-warn'
-                              : 'text-text-2',
-                        )}
-                        role="status"
+                )}
+              </div>
+
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-4 border-t-2 border-ink pt-5">
+                <p
+                  className={cn(
+                    'text-[14px]',
+                    phase.kind !== 'review' && (level === 'quiet' || unplugged) && 'text-warn',
+                  )}
+                  role="status"
+                >
+                  {phase.kind === 'review'
+                    ? 'Happy with it? Pip will take it from here.'
+                    : phase.kind === 'saving'
+                      ? 'Keeping your take…'
+                      : line}
+                </p>
+                <div className="flex items-center gap-4">
+                  {phase.kind === 'review' ? (
+                    <>
+                      <button type="button" className={btn('paper')} onClick={() => void again()}>
+                        {C.again}
+                      </button>
+                      <button type="button" className={btn('ink')} onClick={useTake}>
+                        {C.useTake}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        disabled={phase.kind !== 'recording' || unplugged}
+                        onClick={togglePause}
+                        className={btn('paper', 'sm', false, 'w-[96px]')}
                       >
-                        {phase.kind === 'review'
-                          ? 'Happy with it? Pip will take it from here.'
-                          : phase.kind === 'saving'
-                            ? 'Keeping your take…'
-                            : line}
-                      </p>
-                    </div>
-                    <div className="ml-auto flex items-center gap-6 pt-[1px] pr-[22px]">
-                      {phase.kind === 'review' ? (
-                        <>
-                          <Button variant="secondary" size="lg" onClick={() => void again()}>
-                            {C.again}
-                          </Button>
-                          <Button variant="primary" size="lg" onClick={useTake}>
-                            {C.useTake}
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button
-                            variant="secondary"
-                            disabled={phase.kind !== 'recording' || unplugged}
-                            onClick={togglePause}
-                            className="h-[34px] w-[86px] border border-line-strong text-xs"
-                          >
-                            {paused ? C.resume : C.pause}
-                          </Button>
-                          <button
-                            type="button"
-                            onClick={askDiscard}
-                            className="text-xs leading-4 text-text-2 transition-colors hover:text-text"
-                          >
-                            {C.discard}
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
+                        {paused ? C.resume : C.pause}
+                      </button>
+                      <button type="button" onClick={askDiscard} className={paper.link}>
+                        {C.discard}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </>
           )}
         </section>
 
-        <p className="mt-[36px] text-[13px] leading-4 text-text-2">{C.footLine}</p>
-        <p className="mt-8 text-[11px] leading-[14px] text-text-2">{C.footNote}</p>
+        <p className="mt-8 text-[13px]">{C.footLine}</p>
+        <p className="mt-1 text-[12px] text-black/55">{C.footNote}</p>
       </main>
 
       <Modal
@@ -463,11 +456,11 @@ export function RecordScreen() {
           </Button>
         </div>
       </Modal>
-    </div>
+    </PaperPage>
   );
 }
 
-/** Stop / play button (recording.png: ring 116, fill 84 ember-fill, white square 22). */
+/** Stop / play: a big ember button that presses into its shadow. */
 function BigButton({
   label,
   onClick,
@@ -486,11 +479,9 @@ function BigButton({
       disabled={disabled}
       {...(disabled ? {} : buttonMotion)}
       onClick={onClick}
-      className="flex size-[116px] items-center justify-center rounded-full border-2 border-ember/45 bg-ember/8 shadow-[0_0_28px_rgb(255_122_61/0.18)] disabled:opacity-60"
+      className="flex size-[104px] items-center justify-center rounded-full border-2 border-ink bg-flame shadow-[4px_4px_0_#000] disabled:opacity-50"
     >
-      <span className="flex size-[84px] items-center justify-center rounded-full bg-[linear-gradient(180deg,#FF7A55,#FF4D6D)] shadow-[0_4px_20px_rgb(255_90_80/0.35)]">
-        {children}
-      </span>
+      {children}
     </motion.button>
   );
 }
@@ -505,24 +496,24 @@ function ErrorBody({
   onUpload: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 pb-6 text-center">
-      <Pip state="empty-pockets" size={64} decorative seed={2} />
-      <p className="max-w-[440px] text-[13px] leading-[18px] text-text-2" role="alert">
+    <div className="flex min-h-[340px] flex-col items-start justify-center gap-5">
+      <p className="font-poster text-[56px] leading-[0.9] uppercase">No microphone, no problem.</p>
+      <p className="max-w-[520px] text-[14px] leading-[1.6]" role="alert">
         {reason === 'no-device'
           ? C.noDevice
           : reason === 'unsupported'
             ? 'This browser can’t record here. Upload a file instead.'
             : C.denied}
       </p>
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         {reason !== 'unsupported' && (
-          <Button variant="secondary" size="lg" onClick={onRetry}>
+          <button type="button" className={btn('paper')} onClick={onRetry}>
             {C.tryAgain}
-          </Button>
+          </button>
         )}
-        <Button variant="primary" size="lg" onClick={onUpload}>
+        <button type="button" className={btn('ink')} onClick={onUpload}>
           {C.uploadInstead}
-        </Button>
+        </button>
       </div>
     </div>
   );

@@ -184,7 +184,7 @@ export function VideoCutsBar() {
               type="button"
               onClick={() => exec(removeVideoPunchIn(p.id))}
               title="Click to remove punch-in"
-              className="rounded-full border border-white/10 bg-card-2 px-2 py-0.5 text-text-2 hover:border-ember/40 hover:text-text"
+              className="rounded-full border border-white/10 bg-card-2 px-2 py-0.5 text-text-2 hover:border-white/20 hover:text-text"
             >
               {p.scale}× @ {fmtSec(p.startMs)} ×
             </button>

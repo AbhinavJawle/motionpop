@@ -1,0 +1,226 @@
+/* The hero's backdrop (spec 36): storyboard paper, drifting light, and the voice. */
+
+.light {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #fff;
+  pointer-events: none;
+}
+
+/* storyboard paper, fading out before it reaches the editor */
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(141 188 235 / 0.3) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(141 188 235 / 0.3) 1px, transparent 1px);
+  background-size: 40px 40px;
+  background-position: center -1px;
+  mask-image: linear-gradient(180deg, #000 0%, rgb(0 0 0 / 0.6) 45%, transparent 80%);
+}
+
+/* soft coloured light that drifts, so the paper never sits still */
+.glow {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  animation: drift 26s ease-in-out infinite alternate;
+}
+
+.glowPip {
+  top: -18%;
+  right: -8%;
+  width: 52vw;
+  height: 46vw;
+  max-width: 900px;
+  max-height: 780px;
+  background: radial-gradient(closest-side, rgb(141 188 235 / 0.55), transparent);
+}
+
+.glowEmber {
+  top: 38%;
+  left: -12%;
+  width: 40vw;
+  height: 34vw;
+  max-width: 680px;
+  max-height: 580px;
+  background: radial-gradient(closest-side, rgb(255 106 61 / 0.22), transparent);
+  animation-duration: 31s;
+  animation-delay: -9s;
+}
+
+.glowViolet {
+  top: 52%;
+  right: 4%;
+  width: 44vw;
+  height: 30vw;
+  max-width: 760px;
+  max-height: 520px;
+  background: radial-gradient(closest-side, rgb(139 124 255 / 0.28), transparent);
+  animation-duration: 23s;
+  animation-delay: -14s;
+}
+
+@keyframes drift {
+  0% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(-4vw, 3vw) scale(1.08);
+  }
+  100% {
+    transform: translate(3vw, -2vw) scale(0.94);
+  }
+}
+
+/* ------------------------------------------------------------------ the voice */
+.voice {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 100vw;
+  height: 150px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  overflow: hidden;
+  pointer-events: none;
+  /* quieter at the far edges */
+  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.voiceBottom {
+  top: auto;
+  bottom: 0;
+  transform: translate(-50%, 50%);
+}
+
+.bar {
+  flex: none;
+  width: 4px;
+  border-radius: 2px;
+  opacity: 0.7;
+  transform-origin: 50% 50%;
+  animation: speak 2.4s ease-in-out infinite alternate;
+}
+
+@keyframes speak {
+  from {
+    transform: scaleY(1);
+  }
+  to {
+    transform: scaleY(0.42);
+  }
+}
+
+/* ------------------------------------------------------------------ the editor */
+.frame {
+  position: relative;
+  overflow: hidden;
+  border: 2px solid #000;
+  border-radius: 14px;
+  background: #000;
+  box-shadow: 10px 10px 0 #000;
+}
+
+/* ------------------------------------------------------------------ the projector on Pip */
+.projector {
+  position: absolute;
+  left: -230px;
+  top: -230px;
+  max-width: none;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.flicker {
+  animation: flicker 1.7s steps(1, end) infinite;
+}
+
+@keyframes flicker {
+  0% {
+    opacity: 1;
+  }
+  12% {
+    opacity: 0.86;
+  }
+  18% {
+    opacity: 1;
+  }
+  46% {
+    opacity: 0.93;
+  }
+  52% {
+    opacity: 1;
+  }
+  71% {
+    opacity: 0.82;
+  }
+  75% {
+    opacity: 0.97;
+  }
+  90% {
+    opacity: 0.9;
+  }
+}
+
+/* dust drifting down the beam, about 120 px along it */
+.mote {
+  animation: mote 5.2s linear infinite;
+}
+
+@keyframes mote {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: translate(var(--mx), var(--my));
+    opacity: 0;
+  }
+}
+
+/* the film running through */
+.film {
+  animation: film 0.5s linear infinite;
+}
+
+@keyframes film {
+  to {
+    stroke-dashoffset: -6;
+  }
+}
+
+/* the motor's hum */
+.hum {
+  animation: hum 0.16s steps(2, end) infinite;
+}
+
+@keyframes hum {
+  to {
+    transform: translateY(0.7px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flicker,
+  .mote,
+  .film,
+  .hum {
+    animation: none;
+  }
+
+  .glow,
+  .bar {
+    animation: none;
+  }
+}

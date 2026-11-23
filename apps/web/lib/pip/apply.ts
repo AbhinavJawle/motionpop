@@ -1,10 +1,19 @@
-import type { PipPlan, PipStep, StepState } from '@motionpop/schemas';
+import { audioOf, type PipPlan, type PipStep, type StepState } from '@motionpop/schemas';
 import type { Command } from '@/lib/commands/command';
 import {
+  addReelNote,
+  addReelSound,
   addVideoCut,
   addVideoPunchIn,
+  clearReelScene,
+  clearReelSounds,
   composite,
   deleteSlot,
+  setAudio,
+  setReelCaptions,
+  setReelLook,
+  setReelMusicBrief,
+  setReelTheme,
   setAllSlotsPlacement,
   setAllSlotsVideoStage,
   setAllVideoCutsEnabled,
@@ -24,6 +33,8 @@ import { generateSlotImage, imageRoleOf } from '@/lib/images/generate';
 import { runQuickEdit, type QuickEditDeps } from '@/lib/slots/quick-edit';
 import { slotForWords } from '@/lib/timeline/create';
 import type { EditorStore } from '@/lib/stores/editor';
+import type { ReelNoteOutcome } from '@/lib/reel/note-fix';
+import type { ReelNote } from '@motionpop/schemas';
 
 /**
  * Apply all (spec 10 design §7), lean: every instant step (style, format, captions, add, remove)
@@ -36,6 +47,28 @@ export interface ApplyDeps extends QuickEditDeps, GenerateDeps {
   editRoute: Route;
   generateRoute: Route;
   newId?: () => string;
+  /** Video reels (spec 37): runs a scene's note through the reel note fix. */
+  reelNote?: (sceneId: string, noteId: string) => Promise<ReelNoteOutcome>;
+  /** Directs the reel again (charged by the director flow). */
+  regenerateReel?: () => Promise<unknown>;
+  /** Writes new music from a brief and puts it on the reel; false when none came back. */
+  reelMusic?: (brief: string) => Promise<boolean>;
+}
+
+/** Why a reel note didn't land, in the plan card's words. */
+function reelNoteReason(o: ReelNoteOutcome): string {
+  switch (o.kind) {
+    case 'no-credits':
+      return 'Out of credits';
+    case 'blocked':
+      return o.reason;
+    case 'escalate':
+      return o.message;
+    case 'changed':
+      return 'The scene changed meanwhile';
+    default:
+      return 'Couldn’t change that scene. The note stays on it to try again.';
+  }
 }
 
 export interface ApplyResult {
@@ -59,7 +92,16 @@ const INSTANT = new Set<PipStep['action']>([
   'toggleCuts',
   'addPunchIn',
   'cutRange',
+  'setReelTheme',
+  'setReelLook',
+  'clearScene',
+  'setSound',
+  'addSound',
 ]);
+
+/** Instant steps; generated music runs after them like the other model steps. */
+const isInstant = (s: PipStep) =>
+  INSTANT.has(s.action) || (s.action === 'setMusic' && s.music !== 'ai');
 
 function instantCommand(
   step: PipStep,
@@ -76,6 +118,8 @@ function instantCommand(
     case 'setCaptions': {
       const c = step.captions;
       if (!c) return 'No caption choice';
+      if (project.reel && project.slots.length === 0)
+        return c === 'off' ? { cmd: setReelCaptions(false) } : { cmd: setReelCaptions(true) };
       if (c === 'on' || c === 'off') return { cmd: setCaptions({ enabled: c === 'on' }) };
       return { cmd: setCaptions({ enabled: true, presetId: c }) };
     }
@@ -164,9 +208,70 @@ function instantCommand(
         }),
       };
     }
+    case 'setReelTheme':
+      return { cmd: setReelTheme(step.theme ?? null) };
+    case 'setReelLook':
+      return step.look ? { cmd: setReelLook(step.look) } : 'No look';
+    case 'clearScene':
+      return step.sceneId ? { cmd: clearReelScene(step.sceneId) } : 'That scene is gone';
+    case 'setSound': {
+      const a = audioOf(project);
+      switch (step.sound) {
+        case 'on':
+        case 'off':
+          return { cmd: setAudio({ autoSfx: step.sound === 'on' }) };
+        case 'louder':
+        case 'quieter': {
+          const next = Math.min(6, Math.max(-24, a.sfxGainDb + (step.sound === 'louder' ? 4 : -5)));
+          if (next === a.sfxGainDb && a.autoSfx) return 'Already as far as it goes';
+          return { cmd: setAudio({ autoSfx: true, sfxGainDb: next }) };
+        }
+        case 'clear':
+          return { cmd: clearReelSounds() };
+        default:
+          return 'No sound choice';
+      }
+    }
+    case 'addSound': {
+      const w = step.atWord === undefined ? undefined : project.transcript.words[step.atWord];
+      if (!w || !step.sfxKind) return 'No word to put it on';
+      return { cmd: addReelSound({ kind: step.sfxKind, atMs: w.startMs, gainDb: -2 }) };
+    }
+    case 'setMusic': {
+      const cmds: Command[] = [];
+      // A generated track would play over the bed: the choice replaces it.
+      if (project.reel?.music) cmds.push(setReelMusicBrief(null));
+      if (step.music === 'none') cmds.push(setAudio({ musicId: undefined }));
+      else if (step.music === 'calm-pad' || step.music === 'steady-pulse')
+        cmds.push(setAudio({ musicId: step.music }));
+      else return 'No music choice';
+      return { cmd: cmds.length === 1 ? cmds[0]! : composite('Change music', cmds) };
+    }
     default:
       return 'Not an instant step';
   }
+}
+
+/** A note over the whole frame that carries Pip's brief for one scene (spec 37 R2.1). */
+function sceneNote(
+  project: NonNullable<ReturnType<EditorStore['getState']>['project']>,
+  sceneId: string,
+  text: string,
+  id: string,
+): ReelNote | null {
+  const scene = project.reel?.scenes.find((s) => s.id === sceneId);
+  if (!scene) return null;
+  // The graphic's key moment: past the entrance, before the exit.
+  const tMs = Math.round(
+    Math.min(scene.endMs - scene.startMs - 1, (scene.endMs - scene.startMs) * 0.6),
+  );
+  return {
+    id,
+    tMs: Math.max(0, tMs),
+    shape: { kind: 'circle', points: [0.5, 0.5, 0.5, 0.5] },
+    text: text.slice(0, 300),
+    status: 'open',
+  };
 }
 
 export async function applyPlan(
@@ -185,7 +290,7 @@ export async function applyPlan(
   for (const s of plan.steps) if (!s.include) set(s.id, 'skipped', 'Left out');
 
   // 1. Instant steps, one undo entry. Each is tried on the project as it stands after the earlier ones.
-  const instant = steps.filter((s) => INSTANT.has(s.action));
+  const instant = steps.filter(isInstant);
   if (instant.length) {
     const cmds: Command[] = [];
     let project = deps.store.getState().project;
@@ -214,56 +319,17 @@ export async function applyPlan(
   }
 
   // 2. Model steps, one by one.
-  for (const s of steps.filter((x) => !INSTANT.has(x.action))) {
+  for (const s of steps.filter((x) => !isInstant(x))) {
     const before = deps.store.getState().history.past.length;
-    if (!s.slotId || !deps.store.getState().project?.slots.some((x) => x.id === s.slotId)) {
-      set(s.id, 'skipped', 'That graphic is gone');
-      continue;
-    }
     set(s.id, 'running');
     try {
-      if (s.action === 'addImage') {
-        const slot = deps.store.getState().project?.slots.find((x) => x.id === s.slotId);
-        const role = slot ? imageRoleOf(slot.componentId) : null;
-        if (!role) set(s.id, 'skipped', 'That graphic doesn’t take a picture');
-        else {
-          const r = await generateSlotImage(
-            {
-              credits: deps.credits,
-              ...(deps.config ? { config: deps.config } : {}),
-              getProject: () => deps.store.getState().project,
-              exec: (c) => deps.store.getState().exec(c),
-            },
-            { slotId: s.slotId, role, subject: s.instruction ?? '' },
-          );
-          if (r.ok) set(s.id, 'done');
-          else set(s.id, 'skipped', r.noCredits ? 'Out of credits' : r.reason);
-        }
-      } else if (s.action === 'updateSlot') {
-        const out = await runQuickEdit(deps, s.slotId, s.instruction ?? '', deps.editRoute);
-        if (out.kind === 'applied') set(s.id, 'done');
-        else
-          set(
-            s.id,
-            'skipped',
-            out.kind === 'blocked'
-              ? out.reason
-              : out.kind === 'no-credits'
-                ? 'Out of credits'
-                : out.kind === 'escalate'
-                  ? out.message
-                  : 'Couldn’t change it',
-          );
-      } else {
-        const r = await generateSlot(deps, s.slotId, deps.generateRoute);
-        if (r.outcome === 'ready') set(s.id, 'done');
-        else
-          set(s.id, 'skipped', r.outcome === 'no-credits' ? 'Out of credits' : 'Couldn’t generate');
-      }
+      const reason = await runModelStep(deps, s);
+      if (reason === null) set(s.id, 'done');
+      else set(s.id, 'skipped', reason);
     } catch {
       set(s.id, 'skipped', 'Couldn’t change it');
     }
-    if (states[s.id]?.state === 'done') slotIds.add(s.slotId);
+    if (states[s.id]?.state === 'done' && s.slotId) slotIds.add(s.slotId);
     entries.push(...deps.store.getState().history.past.slice(before));
   }
 
@@ -273,6 +339,71 @@ export async function applyPlan(
     changes: Object.values(states).filter((x) => x.state === 'done').length,
     entries,
   };
+}
+
+/** Runs one step that calls a model. Null when it landed, else why it was skipped. */
+async function runModelStep(deps: ApplyDeps, s: PipStep): Promise<string | null> {
+  const project = deps.store.getState().project;
+  if (!project) return 'The project closed';
+  switch (s.action) {
+    case 'editScene': {
+      if (!s.sceneId || !project.reel?.scenes.some((x) => x.id === s.sceneId))
+        return 'That scene is gone';
+      if (!deps.reelNote) return 'Scene edits need cloud AI';
+      const noteId = `pip-${(deps.newId ?? (() => crypto.randomUUID().slice(0, 8)))()}`;
+      const note = sceneNote(project, s.sceneId, s.instruction ?? s.label, noteId);
+      if (!note) return 'That scene is gone';
+      if (!deps.store.getState().exec(addReelNote(s.sceneId, note))) return 'Couldn’t add the note';
+      const out = await deps.reelNote(s.sceneId, noteId);
+      return out.kind === 'applied' ? null : reelNoteReason(out);
+    }
+    case 'regenerateReel':
+      if (!project.reel) return 'This project has no reel';
+      if (!deps.regenerateReel) return 'Needs cloud AI';
+      await deps.regenerateReel();
+      return null;
+    case 'setMusic': {
+      if (!project.reel) return 'This project has no reel';
+      if (!deps.reelMusic) return 'Needs cloud AI';
+      return (await deps.reelMusic(s.instruction ?? '')) ? null : 'Couldn’t write that music';
+    }
+    case 'addImage': {
+      const slot = s.slotId ? project.slots.find((x) => x.id === s.slotId) : undefined;
+      if (!slot || !s.slotId) return 'That graphic is gone';
+      const role = imageRoleOf(slot.componentId);
+      if (!role) return 'That graphic doesn’t take a picture';
+      const r = await generateSlotImage(
+        {
+          credits: deps.credits,
+          ...(deps.config ? { config: deps.config } : {}),
+          getProject: () => deps.store.getState().project,
+          exec: (c) => deps.store.getState().exec(c),
+        },
+        { slotId: s.slotId, role, subject: s.instruction ?? '' },
+      );
+      return r.ok ? null : r.noCredits ? 'Out of credits' : r.reason;
+    }
+    case 'updateSlot': {
+      if (!s.slotId || !project.slots.some((x) => x.id === s.slotId)) return 'That graphic is gone';
+      const out = await runQuickEdit(deps, s.slotId, s.instruction ?? '', deps.editRoute);
+      if (out.kind === 'applied') return null;
+      return out.kind === 'blocked'
+        ? out.reason
+        : out.kind === 'no-credits'
+          ? 'Out of credits'
+          : out.kind === 'escalate'
+            ? out.message
+            : 'Couldn’t change it';
+    }
+    case 'generateSlot': {
+      if (!s.slotId || !project.slots.some((x) => x.id === s.slotId)) return 'That graphic is gone';
+      const r = await generateSlot(deps, s.slotId, deps.generateRoute);
+      if (r.outcome === 'ready') return null;
+      return r.outcome === 'no-credits' ? 'Out of credits' : 'Couldn’t generate';
+    }
+    default:
+      return 'Not a step Pip can run';
+  }
 }
 
 /** Undo what a plan run added, newest first, stopping at anything the user did since. */

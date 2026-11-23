@@ -111,9 +111,7 @@ export function PlacementSection({ slot }: { slot: Slot }) {
       className="mt-5 border-t border-white/6 pt-4"
     >
       <div className="flex items-center justify-between">
-        <p className="font-mono text-[10px] leading-[13px] tracking-[1px] text-text-3 uppercase">
-          VIDEO STAGE
-        </p>
+        <p className="text-[12px] leading-4 font-semibold text-text-2">VIDEO STAGE</p>
         {slot.archetype && (
           <span className="rounded-full bg-white/6 px-2 py-0.5 font-mono text-[9.5px] text-text-2">
             {slot.archetype}
@@ -156,7 +154,7 @@ export function PlacementSection({ slot }: { slot: Slot }) {
 
       {showMediaControls && (
         <div className="mt-3 border-t border-white/6 pt-3">
-          <p className="font-mono text-[10px] leading-[13px] tracking-[1px] text-text-3 uppercase">
+          <p className="text-[12px] leading-4 font-semibold text-text-2">
             B-ROLL &amp; SCREEN STAGE
           </p>
           <div
@@ -197,7 +195,7 @@ export function PlacementSection({ slot }: { slot: Slot }) {
 
           {mediaBin.length > 0 && (
             <label className="mt-2.5 block">
-              <span className="font-mono text-[10px] tracking-[0.8px] text-text-3 uppercase">
+              <span className="text-[11px] leading-[14px] font-medium text-text-3">
                 Clip on this beat
               </span>
               <select

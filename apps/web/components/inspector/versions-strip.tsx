@@ -52,11 +52,9 @@ export function VersionsStrip({ slot }: { slot: Slot }) {
 
   return (
     <section aria-label="Versions" data-inspector-versions>
-      <Divider soft className="mt-2" />
-      <div className="relative mt-[6px] h-8">
-        <SectionLabel className="absolute top-[11px] left-0 text-[9px] leading-[12px]">
-          Versions
-        </SectionLabel>
+      <Divider className="mt-4" />
+      <div className="relative mt-3 h-8">
+        <SectionLabel className="absolute top-[8px] left-0">Versions</SectionLabel>
         <PageButton
           dir="older"
           disabled={!older}
@@ -77,7 +75,7 @@ export function VersionsStrip({ slot }: { slot: Slot }) {
         {label && (
           <span
             aria-label={`Current version ${label}`}
-            className="tabular absolute top-[14px] left-[303px] font-mono text-[9px] leading-[12px] text-violet-ink-2"
+            className="tabular absolute top-[10px] right-0 font-mono text-[11px] leading-[14px] text-text-3"
           >
             {label}
           </span>
@@ -140,9 +138,7 @@ function Tile({
         onClick={() => editorStore.getState().exec(restoreVersion(slot.id, version.id))}
         className={cn(
           'block h-8 w-[58px] rounded-md p-px transition-transform enabled:hover:-translate-y-px',
-          current
-            ? 'bg-[linear-gradient(90deg,var(--color-violet),var(--color-ember-pink)_70%,var(--color-ember))] shadow-[0_0_12px_rgb(139_124_255/0.15)]'
-            : 'bg-transparent',
+          current ? 'bg-violet' : 'bg-transparent',
           other && 'opacity-40',
           !can && !current && 'cursor-not-allowed',
         )}

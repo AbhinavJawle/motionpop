@@ -196,14 +196,14 @@ export function WordsTrack() {
       <span
         ref={band}
         aria-hidden
-        className="absolute top-1.5 hidden h-8 rounded-md bg-violet/12"
+        className="absolute top-1 hidden h-[26px] rounded-md bg-violet/12"
       />
       <span
         ref={createBand}
         aria-hidden
-        className="pointer-events-none absolute top-1.5 z-[1] hidden h-8 rounded-md border border-dashed border-violet/70 bg-violet/10"
+        className="pointer-events-none absolute top-1 z-[1] hidden h-[26px] rounded-md border border-dashed border-violet/70 bg-violet/10"
       >
-        <span className="absolute -top-[19px] left-0 rounded-full bg-violet px-2 py-px text-[9px] leading-3 font-medium whitespace-nowrap text-white shadow-violet-glow">
+        <span className="absolute -top-[19px] left-0 rounded-full bg-violet px-2 py-px text-[9px] leading-3 font-medium whitespace-nowrap text-[#fff] shadow-violet-glow">
           ✦ Add graphic here
         </span>
       </span>
@@ -223,7 +223,7 @@ export function WordsTrack() {
           onClick={() => {
             if (!suppressClick.current) clock.seek(w.startMs);
           }}
-          className="absolute top-[15px] text-[13px] leading-[17px] whitespace-nowrap text-text-3 transition-colors duration-150 hover:text-text data-[state=current]:text-text data-[state=spoken]:text-text-2"
+          className="absolute top-[8px] font-sans text-[13px] leading-[17px] whitespace-nowrap text-text-3 transition-colors duration-150 hover:text-text data-[state=current]:text-text data-[state=spoken]:text-text-2"
           style={{ left: msToX(w.startMs, view) }}
         >
           {w.text}
@@ -232,7 +232,7 @@ export function WordsTrack() {
       <span
         ref={underline}
         aria-hidden
-        className="pointer-events-none absolute top-[35px] h-0.5 rounded-full bg-ember/90 opacity-0 shadow-[0_0_7px_rgb(255_122_61/0.4)] transition-[left,width] duration-100"
+        className="pointer-events-none absolute top-[27px] h-0.5 rounded-full bg-ember/90 opacity-0 transition-[left,width] duration-100"
       />
     </>
   );

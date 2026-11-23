@@ -293,6 +293,31 @@ export function audioOf(p: { audio?: AudioSetting | undefined }): AudioSetting {
 }
 
 /**
+ * The sound a reel's effects bed mixes (spec 37 R3.4), the same in the preview and the export:
+ * effects on/off and their level, and the synthesised music when one is chosen and no generated
+ * track replaces it.
+ */
+export function reelBedSound(p: {
+  audio?: AudioSetting | undefined;
+  reel?: { music?: { src?: string | undefined } | undefined } | undefined;
+}): {
+  sfx: boolean;
+  sfxGainDb: number;
+  music: 'calm-pad' | 'steady-pulse' | null;
+  musicGainDb?: number;
+} {
+  const a = audioOf(p);
+  const synth = a.musicId === 'calm-pad' || a.musicId === 'steady-pulse' ? a.musicId : null;
+  const music = p.reel?.music?.src ? null : synth;
+  return {
+    sfx: a.autoSfx !== false,
+    sfxGainDb: a.sfxGainDb,
+    music,
+    ...(p.audio && music ? { musicGainDb: a.musicGainDb } : {}),
+  };
+}
+
+/**
  * The project object before the timeline refinement (spec 11 task 1). Exported so document
  * schemas can `.omit`/`.extend` it (`.omit` does not exist on the refined schema).
  */

@@ -26,9 +26,9 @@ export function Inspector() {
           animate={{ width: 360, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={springSoft}
-          className="shrink-0 overflow-hidden border-l border-white/6 bg-panel"
+          className="shrink-0 overflow-hidden border-l-2 border-rule bg-paper"
         >
-          <div className="h-full w-[359px] overflow-y-auto pr-5 pb-5 pl-[19px]">
+          <div className="h-full w-[359px] overflow-y-auto px-4 pb-6">
             {generatingHere ? <GeneratingPanel slot={slot} /> : <InspectorBody slot={slot} />}
           </div>
         </motion.aside>

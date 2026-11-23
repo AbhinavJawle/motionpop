@@ -80,17 +80,17 @@ export function ContentSection({ slot }: { slot: Slot }) {
 
   return (
     <section aria-label="Content">
-      <Divider className="mt-2.5" />
+      <Divider className="mt-4" />
       <button
         type="button"
         aria-expanded={!collapsed}
         aria-controls="inspector-content-body"
         onClick={toggle}
-        className="mt-[6px] flex h-[13px] w-full items-center justify-between"
+        className="mt-2 flex h-8 w-full items-center justify-between"
       >
         <SectionLabel>Content</SectionLabel>
         <ChevronDown
-          className={cn('size-3 text-text-2 transition-transform', collapsed && '-rotate-90')}
+          className={cn('size-3.5 text-text-3 transition-transform', collapsed && '-rotate-90')}
           strokeWidth={1.5}
           aria-hidden
         />
@@ -105,11 +105,11 @@ export function ContentSection({ slot }: { slot: Slot }) {
         inert={collapsed}
       >
         {!schema ? (
-          <p className="mt-[7px] text-[11px] leading-4 text-text-3">
+          <p className="mt-1 text-[12px] leading-4 text-text-3">
             This graphic isn’t available yet.
           </p>
         ) : fields.length === 0 ? (
-          <p className="mt-[7px] text-[11px] leading-4 text-text-3">Nothing to edit here.</p>
+          <p className="mt-1 text-[12px] leading-4 text-text-3">Nothing to edit here.</p>
         ) : (
           <VisibleBlocks
             fields={visible}
@@ -129,7 +129,7 @@ export function ContentSection({ slot }: { slot: Slot }) {
         {warning && (
           <p
             role="status"
-            className="mt-2 flex items-center gap-1.5 text-[10px] leading-[13px] text-warn"
+            className="mt-2 flex items-center gap-1.5 text-[11px] leading-[14px] text-warn"
           >
             <StatusDot tone="warn" className="size-[5px]" />
             {warning}
@@ -171,7 +171,7 @@ function VisibleBlocks({
         </Fragment>
       ))}
       {more && !inTable && (
-        <div className="mt-2 overflow-hidden rounded-lg bg-card shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]">
+        <div className="mt-2 overflow-hidden rounded-lg bg-card shadow-[inset_0_0_0_1px_rgb(0_0_0/0.12)]">
           {more}
         </div>
       )}

@@ -1,113 +1,83 @@
 'use client';
 
-import { Plus } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { motion } from 'motion/react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { Pip } from '@/components/pip/pip';
-import type { PipState } from '@/components/pip/states';
+import { PipLoop } from '@/components/landing/pip-loop';
+import { btn, Bubble, paper, poster } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
-import { buttonMotion, fadeIn, springPop } from '@/lib/motion/presets';
+import { springPop } from '@/lib/motion/presets';
 
 export type CatchState = 'idle' | 'over' | 'caught';
 
-/** The "Drop it, I'll catch it!" pill (projects-drag-over.png: 248×48, ember tint). */
+/** Pip's "Drop it, I'll catch it!" bubble while files are over the page. */
 export function CatchPill() {
   return (
-    <motion.p
+    <motion.span
       initial={{ opacity: 0, scale: 0.85, y: 6 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       transition={springPop}
-      className="flex h-12 w-[248px] items-center justify-center rounded-[24px] border border-ember/35 bg-ember/14 text-[15px] leading-5 font-medium text-ember-ink"
+      className="inline-block"
     >
-      {C.drag.pill}
-    </motion.p>
+      <Bubble>{C.drag.pill}</Bubble>
+    </motion.span>
   );
 }
 
 /**
- * The empty state (projects-empty.png: 1296×536 at y 400, panel colour, r20) and, while files
- * are dragged over the page, its catching variant (projects-drag-over.png) in place (R4.1–R4.3).
+ * The empty dashboard (spec 35): Pip juggling beside an invitation to make the first video, and
+ * the same frame catching files while they are dragged over the page (spec 11 R4.1–R4.3).
+ * `onWake` focuses the capture bar, for the "paste a script" path.
  */
 export function EmptyCard({ drag, onWake }: { drag: CatchState; onWake: () => void }) {
   const router = useRouter();
-  const [pip, setPip] = useState<'asleep' | 'peek' | 'awake'>('asleep');
   const catching = drag !== 'idle';
-  const state: PipState = catching
-    ? drag === 'caught'
-      ? 'caught'
-      : 'catching'
-    : pip === 'asleep'
-      ? 'sleeping'
-      : pip === 'peek'
-        ? 'waking'
-        : 'waving';
 
   return (
     <section
       aria-label="No projects yet"
       className={cn(
-        'relative flex h-[536px] flex-col items-center rounded-[20px] border transition-colors duration-200',
-        catching
-          ? 'border-ember/35 bg-[linear-gradient(180deg,rgb(255_122_61/0.12),rgb(255_122_61/0.04))]'
-          : 'border-line bg-panel shadow-quiet',
+        paper.frame,
+        'relative grid items-center gap-8 overflow-hidden px-8 py-12 transition-colors duration-200 md:grid-cols-[minmax(0,1fr)_320px] md:px-14',
+        catching && 'border-dashed bg-[#eef5fc]',
       )}
     >
-      <AnimatePresence mode="wait" initial={false}>
+      <div>
         {catching ? (
-          <motion.div key="catch" {...fadeIn} className="flex flex-col items-center pt-6">
+          <>
             <CatchPill />
-            <div className="mt-6 h-[160px]">
-              <Pip state={state} size={150} glow decorative seed={8} props={['nightcap']} />
-            </div>
-            <h2 className="mt-[34px] text-[28px] leading-9 font-semibold tracking-[-0.4px]">
-              {C.empty.title}
-            </h2>
-            <p className="mt-4 text-[15px] leading-5 text-text-2">{C.drag.body}</p>
-            <p className="mt-[42px] font-mono text-[11px] leading-[14px] tracking-[0.6px] text-text-3">
-              {C.drag.formats}
-            </p>
-          </motion.div>
+            <p className={cn(poster, 'mt-8 text-[56px]')}>{C.drag.body}</p>
+            <p className="mt-4 text-[13px] text-black/60">{C.drag.formats}</p>
+          </>
         ) : (
-          <motion.div key="empty" {...fadeIn} className="flex flex-col items-center pt-[56px]">
-            <button
-              type="button"
-              aria-label="Wake Pip up"
-              onPointerEnter={() => setPip((p) => (p === 'asleep' ? 'peek' : p))}
-              onPointerLeave={() => setPip((p) => (p === 'peek' ? 'asleep' : p))}
-              onClick={() => {
-                setPip('awake');
-                onWake();
-              }}
-              className="rounded-full outline-none focus-visible:ring-2 focus-visible:ring-violet"
-            >
-              <Pip
-                state={state}
-                size={170}
-                glow
-                decorative
-                seed={4}
-                props={['nightcap', ...(pip === 'asleep' ? (['cloud'] as const) : [])]}
-              />
-            </button>
-            <h2 className="mt-[30px] text-[28px] leading-9 font-semibold tracking-[-0.4px]">
+          <>
+            <h2 className={cn(poster, 'max-w-[620px] text-[clamp(48px,6vw,76px)]')}>
               {C.empty.title}
             </h2>
-            <p className="mt-4 text-[15px] leading-5 text-text-2">{C.empty.body}</p>
-            <motion.button
-              type="button"
-              {...buttonMotion}
-              onClick={() => router.push('/start')}
-              className="mt-[34px] inline-flex h-12 w-60 items-center justify-center gap-3 rounded-[12px] bg-[linear-gradient(180deg,#FF975C,#FF7A3D)] text-sm leading-[18px] font-semibold text-[#2A1308] shadow-[0_4px_20px_rgb(255_122_61/0.18),inset_0_1px_0_rgb(255_255_255/0.25)] hover:brightness-105"
-            >
-              <Plus className="size-4" strokeWidth={1.75} aria-hidden />
-              {C.empty.cta}
-            </motion.button>
-            <p className="mt-[34px] text-xs leading-4 text-text-2">{C.empty.foot}</p>
-          </motion.div>
+            <p className="mt-5 max-w-[540px] text-[15px] leading-[1.65]">{C.empty.body}</p>
+            <div className="mt-8 flex flex-wrap items-center gap-4">
+              <button
+                type="button"
+                onClick={() => router.push('/start')}
+                className={btn('ink', 'lg')}
+              >
+                {C.empty.cta}
+              </button>
+              <Link href="/processing/new" className={btn('paper', 'lg')}>
+                {C.empty.sample}
+              </Link>
+              <button type="button" onClick={onWake} className={paper.link}>
+                Paste a script
+              </button>
+            </div>
+            <p className="mt-8 text-[12px] text-black/55">{C.empty.foot}</p>
+          </>
         )}
-      </AnimatePresence>
+      </div>
+      <div className="hidden justify-center md:flex" aria-hidden>
+        <PipLoop name="juggle" className="size-[300px] select-none" />
+      </div>
     </section>
   );
 }

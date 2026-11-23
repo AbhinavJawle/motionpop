@@ -27,6 +27,8 @@ interface Hit {
   kind: SfxKind;
   atMs: number;
   gainDb: number;
+  /** Placed by the creator or Pip (spec 37 R3.3): never thinned out. */
+  added?: boolean;
 }
 
 const cues = (c: ReelScene['content']): number[] => {
@@ -129,7 +131,10 @@ function sceneHits(s: ReelScene, origin: number, inPlace: boolean): Hit[] {
  * Every effect in a reel, sorted, inside [0, durationMs), with takes rotating per kind so
  * repeated hits never sound identical.
  */
-export function reelSfx(plan: Pick<ReelPlan, 'scenes'>, durationMs: number): BedSfx[] {
+export function reelSfx(
+  plan: Pick<ReelPlan, 'scenes'> & Partial<Pick<ReelPlan, 'sfx'>>,
+  durationMs: number,
+): BedSfx[] {
   const hits: Hit[] = [];
   const origins = carryOrigins(plan.scenes);
   plan.scenes.forEach((s, i) => {
@@ -140,6 +145,7 @@ export function reelSfx(plan: Pick<ReelPlan, 'scenes'>, durationMs: number): Bed
       hits.push({ ...h, atMs: Math.max(i === 0 ? 0 : s.startMs, at) });
     }
   });
+  for (const a of plan.sfx ?? []) hits.push({ ...a, added: true });
   hits.sort((a, b) => a.atMs - b.atMs);
   const out: BedSfx[] = [];
   const takes: Record<string, number> = {};
@@ -147,7 +153,7 @@ export function reelSfx(plan: Pick<ReelPlan, 'scenes'>, durationMs: number): Bed
   for (const h of hits) {
     if (h.atMs < 0 || h.atMs >= durationMs) continue;
     const soft = h.kind === 'tick' || h.kind === 'pop';
-    if (soft && h.atMs - last < MIN_GAP_MS) continue;
+    if (soft && !h.added && h.atMs - last < MIN_GAP_MS) continue;
     const take = (takes[h.kind] = (takes[h.kind] ?? -1) + 1) % SFX_TAKES[h.kind];
     out.push({ kind: h.kind, take, atMs: Math.round(h.atMs), gainDb: h.gainDb });
     last = h.atMs;
@@ -167,7 +173,7 @@ export interface ReelBedOptions {
 
 /** The reel's whole sound bed (effects + optional music, ducked under speech) at 24 kHz. */
 export function reelBed(
-  plan: Pick<ReelPlan, 'scenes'>,
+  plan: Pick<ReelPlan, 'scenes'> & Partial<Pick<ReelPlan, 'sfx'>>,
   durationMs: number,
   o: ReelBedOptions,
 ): Float32Array {

@@ -3,8 +3,9 @@
 // document (this module builds it) inside an <iframe>, sandboxed (`allow-scripts`, an opaque
 // origin) in the editor, and seeked from the reel clock by message. The export runs the very same
 // document, so the preview is the export. Browser-safe; this module never runs generated code.
-import type { ReelLook, ReelScene, ReelTemplate } from '@motionpop/schemas';
+import type { ReelLook, ReelScene, ReelTemplate, ReelTheme } from '@motionpop/schemas';
 import { LOOKS, graphicArea, type LookTokens, type Palette } from './looks';
+import { themedLook } from './theme';
 import type { CriticSummary } from '../film/critic';
 import type { ReelImage, Tpl } from './parts';
 
@@ -350,13 +351,15 @@ export function customLook(look: LookTokens): ReelCustomScene['look'] {
  */
 export function reelCustomScene(o: {
   look: ReelLook;
+  /** The reel's colour theme (spec 37), so a new graphic wears it too. */
+  theme?: ReelTheme | undefined;
   scene: ReelScene;
   words: readonly { text: string; startMs: number; endMs: number }[];
   pictures: Readonly<Record<string, ReelImage>>;
 }): Omit<ReelCustomScene, 'token'> | null {
   const s = o.scene;
   if (s.content.template !== 'custom') return null;
-  const look = LOOKS[o.look];
+  const look = themedLook(LOOKS[o.look], o.theme);
   const area = graphicArea(look, s.layout);
   const images: Record<string, ReelImage> = {};
   (s.content.media ?? []).forEach((m, i) => {

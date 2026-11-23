@@ -111,3 +111,13 @@ export function formatSaved(min: number): string {
   const m = min % 60;
   return h > 0 ? `~${h}h${m > 0 ? ` ${m}m` : ''}` : `~${m}m`;
 }
+
+/** "about 30 minutes", "about 1 hour 10 minutes", "no time yet" (spec 35 week line). */
+export function formatSavedWords(min: number): string {
+  if (min <= 0) return 'no time yet';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  const hours = h > 0 ? `${h} ${h === 1 ? 'hour' : 'hours'}` : '';
+  const mins = m > 0 ? `${m} ${m === 1 ? 'minute' : 'minutes'}` : '';
+  return `about ${[hours, mins].filter(Boolean).join(' ')}`;
+}

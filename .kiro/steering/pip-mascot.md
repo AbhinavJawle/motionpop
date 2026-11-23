@@ -5,7 +5,7 @@ fileMatchPattern: ["apps/web/components/pip/**", "apps/web/components/**/pip*"]
 
 # Pip (mascot)
 
-Pip is Motionpop's original ghost and the face of the AI: friendly, minimal, a little cheeky, never scary. Built **in code** as SVG and animated with `motion` (UI only). No Rive, no image files.
+Pip is Motionpop's original ghost and the face of the AI: friendly, minimal, a little cheeky, never scary. Built **in code** as SVG and animated with `motion` (UI only). No Rive, no image files. One exception (D-079): the landing sign-up CTA uses the plush Pip as matted image layers, animated with `motion` (`components/landing/pip-cta-mascot.tsx`, spec 31).
 
 ## Look (match the designs)
 - Soft bean/ghost body, slightly tilted, rounded top, with a wavy bottom edge of 2–3 soft lobes (one trailing lobe gives a sense of drift).

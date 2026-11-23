@@ -88,11 +88,11 @@ test('/settings page: each section', async ({ page }) => {
   await expect(page.getByTestId('usage-chart')).toBeVisible();
   await page.waitForTimeout(900); // bars grow in
 
-  // Layout: the 720 px column and the 180 px nav at 1440.
+  // Layout (spec 35): the 760 px column and the 200 px index at 1440.
   const column = await page.getByTestId('settings-column').boundingBox();
-  expect(Math.round(column?.width ?? 0)).toBe(720);
+  expect(Math.round(column?.width ?? 0)).toBe(760);
   const nav = await page.getByRole('navigation', { name: 'Settings sections' }).boundingBox();
-  expect(Math.round(nav?.width ?? 0)).toBe(180);
+  expect(Math.round(nav?.width ?? 0)).toBe(200);
   await expect(page.getByRole('link', { name: 'Account', exact: true })).toHaveAttribute(
     'aria-current',
     'true',

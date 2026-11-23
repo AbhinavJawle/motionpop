@@ -1,18 +1,8 @@
 'use client';
 
-import {
-  Maximize,
-  Pause,
-  Play,
-  Plus,
-  SkipBack,
-  SkipForward,
-  SlidersHorizontal,
-} from 'lucide-react';
+import { Maximize, Pause, Play, Plus, SkipBack, SkipForward } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useRef } from 'react';
-import { toast } from 'sonner';
-import { SyncedChip } from '@/components/ui/chip';
 import { Slider } from '@/components/ui/slider';
 import { Tooltip } from '@/components/ui/tooltip';
 import { formatTimecode } from '@/lib/editor/slot-display';
@@ -74,30 +64,28 @@ export function TimelineHeader() {
   };
 
   return (
-    <div className="relative flex h-12 items-center border-b border-white/6 pt-2 pr-[31px] pl-6">
-      <div className="relative flex h-full items-center">
-        <span className="text-[13px] leading-[17px] font-medium">Transcript</span>
-        <span aria-hidden className="absolute bottom-0 left-0 h-0.5 w-16 rounded-full bg-violet" />
+    <div className="@container relative flex h-11 items-center gap-4 border-b border-line pr-6 pl-6">
+      <div className="flex min-w-0 flex-1 items-center">
+        <span className="relative top-[1px] font-poster text-[24px] leading-none tracking-[0.02em] uppercase">
+          Transcript
+        </span>
+        <span className="ml-3 hidden truncate text-[11px] leading-4 text-text-3 @min-[1080px]:inline">
+          Voiceover · {(durationMs / 1000).toFixed(1)}s · synced
+        </span>
+        <Tooltip content="Add a graphic at the playhead (or shift-drag across words)">
+          <motion.button
+            type="button"
+            {...buttonMotion}
+            onClick={() => addGraphicHere(clock.currentMs)}
+            className="ml-4 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border-[1.5px] border-edge bg-paper px-2.5 text-[12px] leading-4 font-medium text-ink shadow-[2px_2px_0_var(--color-hard)] transition hover:bg-mist"
+          >
+            <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
+            Add graphic
+          </motion.button>
+        </Tooltip>
       </div>
-      <span className="ml-[25px] text-[11px] leading-[14px] text-text-2">
-        Voiceover · {(durationMs / 1000).toFixed(1)}s
-      </span>
-      <span className="ml-[39px]">
-        <SyncedChip />
-      </span>
-      <Tooltip content="Add a graphic at the playhead (or shift-drag across words)">
-        <motion.button
-          type="button"
-          {...buttonMotion}
-          onClick={() => addGraphicHere(clock.currentMs)}
-          className="ml-4 inline-flex h-7 items-center gap-1.5 rounded-chip border border-violet/40 bg-violet/12 px-2.5 text-[12px] leading-4 font-medium text-violet-ink transition-colors hover:bg-violet/20"
-        >
-          <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
-          Add graphic
-        </motion.button>
-      </Tooltip>
 
-      <div className="absolute left-[calc(50%-165px)] flex items-center">
+      <div className="flex shrink-0 items-center">
         <TransportButton
           label="Previous frame"
           onClick={() => clock.seek(clock.currentMs - FRAME_MS)}
@@ -109,7 +97,7 @@ export function TimelineHeader() {
           {...buttonMotion}
           aria-label={playing ? 'Pause' : 'Play voiceover'}
           onClick={() => clock.toggle()}
-          className="mx-[19px] flex size-[38px] items-center justify-center rounded-full bg-text text-bg shadow-violet-glow"
+          className="mx-4 flex size-[36px] items-center justify-center rounded-full border-2 border-black bg-flame text-black shadow-[2px_2px_0_var(--color-hard)]"
         >
           {playing ? (
             <Pause className="size-[18px]" strokeWidth={1.5} fill="currentColor" />
@@ -123,37 +111,27 @@ export function TimelineHeader() {
         <span
           ref={timecode}
           aria-label="Current time"
-          className="tabular ml-[27px] w-[55px] font-mono text-[13px] leading-[17px] text-text"
+          className="tabular relative top-[2px] ml-5 w-[70px] font-poster text-[26px] leading-none tracking-[0.03em] text-ink"
         >
           {formatTimecode(clock.currentMs)}
         </span>
-        <span className="tabular ml-[23px] font-mono text-[11px] leading-[14px] text-time-dim">
+        <span className="tabular relative top-[2px] ml-[10px] font-poster text-[18px] leading-none tracking-[0.03em] text-time-dim">
           / {formatTimecode(durationMs)}
         </span>
       </div>
 
-      <div className="ml-auto flex items-center">
+      <div className="flex min-w-0 flex-1 items-center justify-end">
         {/* Film mode (spec 07b; not in the designs): right of the transport, where there is room. */}
         {!isReel && (
           <span className="mr-5">
             <FilmButton />
           </span>
         )}
-        <Tooltip content="Timeline settings">
-          <button
-            type="button"
-            aria-label="Timeline settings"
-            onClick={() => toast('Timeline settings are on their way.')}
-            className="text-text-2 hover:text-text"
-          >
-            <SlidersHorizontal className="size-[17px]" strokeWidth={1.5} />
-          </button>
-        </Tooltip>
         <button
           type="button"
           aria-label="Zoom out"
           onClick={() => setZoom(zoom - 10)}
-          className="ml-[22px] text-base leading-[21px] text-text-2 hover:text-text"
+          className="text-base leading-[21px] text-text-2 hover:text-text"
         >
           −
         </button>
@@ -178,7 +156,7 @@ export function TimelineHeader() {
             type="button"
             aria-label="Fit timeline"
             onClick={() => setView({ ...fit, fit: true })}
-            className="ml-[31px] text-text-2 hover:text-text"
+            className="ml-5 text-text-2 hover:text-text"
           >
             <Maximize className="size-4" strokeWidth={1.5} />
           </button>
@@ -202,7 +180,7 @@ function TransportButton({
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="text-text-2 hover:text-text"
+      className="text-ink/70 hover:text-ink"
     >
       {children}
     </button>

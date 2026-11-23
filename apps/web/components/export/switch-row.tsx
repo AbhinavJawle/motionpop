@@ -32,11 +32,16 @@ export function SwitchRow({
   return (
     <div className={cn('flex items-start justify-between', className)}>
       <div>
-        <div className={cn('text-sm leading-[18px]', disabled ? 'text-text-4' : 'text-text')}>
+        <div
+          className={cn(
+            'text-[13px] leading-[18px] font-medium',
+            disabled ? 'text-text-4' : 'text-text',
+          )}
+        >
           {label}
           {soon && <SoonPill />}
         </div>
-        {hint && <div className="mt-[3px] text-[11px] leading-[14px] text-text-2">{hint}</div>}
+        {hint && <div className="mt-[3px] text-[12px] leading-4 text-text-3">{hint}</div>}
       </div>
       <div className="-mt-[2px]">
         {soon ? (

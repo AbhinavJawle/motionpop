@@ -4,6 +4,8 @@ import { INSPECTOR_PROMPT_ID } from '@/components/editor/inspector';
 import { msToX } from '@/lib/timeline/geometry';
 import { selectSlots, useEditor } from '@/lib/stores/editor';
 import { useStill } from '@/lib/motion/use-still';
+import type { Slot } from '@motionpop/schemas';
+import { slotHeroMs } from '@/lib/editor/key-moment';
 import { SlotCard } from './slot-card';
 import { useTimeline } from './timeline-context';
 import { startSlotDrag } from './slot-drag';
@@ -15,7 +17,8 @@ const SETTLE =
 
 /** SLOTS track: one card per slot, positioned by time; drag to move, edges to resize. */
 export function SlotsTrack() {
-  const { view } = useTimeline();
+  const { view, clock } = useTimeline();
+  const playing = useEditor((s) => s.playing);
   const slots = useEditor(selectSlots);
   const selectedId = useEditor((s) => s.selectedSlotId);
   const select = useEditor((s) => s.select);
@@ -24,6 +27,11 @@ export function SlotsTrack() {
   const generating = useEditor((s) => s.generating);
   const still = useStill();
   const isReel = useEditor((s) => Boolean(s.project?.reel && s.project?.video));
+  // Spec 32 R4.2: picking a graphic while paused shows it (its key moment) in the preview.
+  const pick = (slot: Slot) => {
+    select(slot.id);
+    if (!playing) clock.seek(slotHeroMs(slot));
+  };
 
   if (isReel && slots.length === 0) return <ReelScenesTrack />;
   if (slots.length === 0) {
@@ -55,7 +63,14 @@ export function SlotsTrack() {
             className={dragged ? 'z-[3]' : 'z-[2]'}
             style={{ left, transition: dragged?.snapped && !still ? SETTLE : 'none' }}
             onPointerDown={(e) => startSlotDrag(e, slot.id)}
-            onClick={() => select(slot.id)}
+            onClick={(e) => {
+              // A drag ends in a click too; only a press that stayed put picks.
+              if (e.currentTarget.dataset.dragged === '1') {
+                delete e.currentTarget.dataset.dragged;
+                return;
+              }
+              pick(slot);
+            }}
             onDoubleClick={() => {
               select(slot.id);
               requestAnimationFrame(() => document.getElementById(INSPECTOR_PROMPT_ID)?.focus());
@@ -63,7 +78,7 @@ export function SlotsTrack() {
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
-                select(slot.id);
+                pick(slot);
               }
             }}
           />

@@ -2,13 +2,13 @@
 
 import { TTS_VOICES, type TtsVoiceId } from '@motionpop/ai';
 import { costOf } from '@motionpop/schemas';
-import { ChevronLeft, Cloud, Sparkles } from 'lucide-react';
+import { ChevronLeft, Cloud } from 'lucide-react';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { Pip } from '@/components/pip/pip';
-import { Button } from '@/components/ui/button';
+import { PipLoop } from '@/components/landing/pip-loop';
+import { btn, Bubble, paper, PaperPage, poster } from '@/components/paper/kit';
 import { SegmentedPills } from '@/components/ui/segmented-pills';
 import { toast } from '@/components/ui/toast';
 import { cn } from '@/lib/cn';
@@ -52,7 +52,7 @@ export function generateBlock(i: {
 }
 
 /**
- * `/start/script` (spec 11 task 18, R9; not designed, so it borrows the Start cards' surface):
+ * `/start/script` (spec 11 task 18, R9; a ruled writing sheet in spec 35):
  * the script with its counts and the moments Pip will animate, five original voices, a speed,
  * the price before the click, then Generate → the voice is stored like an upload → Processing.
  */
@@ -116,30 +116,37 @@ export function ScriptScreen() {
   };
 
   return (
-    <div className="min-h-dvh min-w-[1280px] bg-bg text-text">
+    <PaperPage>
       <ProjectTopBar />
-      <main className="mx-auto flex w-[1040px] flex-col pt-10 pb-16">
+      <main className="mx-auto w-full max-w-[1240px] px-6 pb-20 lg:px-10">
         <Link
           href="/start"
-          className="flex w-fit items-center gap-1 text-xs leading-4 text-text-2 transition-colors hover:text-text"
+          className="mt-8 flex w-fit items-center gap-1 text-[13px] underline-offset-4 hover:underline"
         >
-          <ChevronLeft className="size-3.5" strokeWidth={1.75} aria-hidden />
+          <ChevronLeft className="size-4" strokeWidth={2} aria-hidden />
           Start
         </Link>
-        <div className="mt-5 flex items-end justify-between">
+        <div className="flex items-end justify-between gap-8 pt-6 pb-10">
           <div>
-            <h1 className="text-[30px] leading-9 font-semibold tracking-[-0.6px]">
-              Write it. Pip voices it.
-            </h1>
-            <p className="mt-1.5 text-[13px] leading-[18px] text-text-2">
+            <h1 className={cn(poster, 'text-[clamp(56px,7vw,96px)]')}>Write it. Pip voices it.</h1>
+            <p className="mt-4 max-w-[560px] text-[15px] leading-[1.65]">
               Paste your script, pick a voice, and the graphics follow every word.
             </p>
           </div>
-          <Pip state={busy ? 'thinking' : 'idle'} size={56} decorative />
+          <div className="relative hidden h-[190px] w-[260px] shrink-0 md:block" aria-hidden>
+            <Bubble right className="absolute top-0 right-[40px] whitespace-nowrap">
+              {busy
+                ? 'Recording…'
+                : moments.length
+                  ? `${moments.length} moment${moments.length === 1 ? '' : 's'} spotted!`
+                  : 'Numbers make great graphics.'}
+            </Bubble>
+            <PipLoop name="clapper" className="absolute -right-4 -bottom-8 size-[180px]" />
+          </div>
         </div>
 
-        <div className="mt-8 flex gap-6">
-          <section className="flex min-w-0 flex-1 flex-col rounded-2xl border border-line-strong bg-[linear-gradient(180deg,#121219,#0C0C11)] p-5 shadow-glass">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
+          <section className="flex min-w-0 flex-col overflow-hidden rounded-[16px] border-2 border-ink bg-paper shadow-[6px_6px_0_#000]">
             <textarea
               value={text}
               onChange={(e) => {
@@ -148,44 +155,49 @@ export function ScriptScreen() {
               }}
               aria-label="Script"
               placeholder="Paste or write your script. Numbers, places and dates become graphics."
-              className="h-[340px] w-full resize-none bg-transparent text-[15px] leading-6 text-text outline-none placeholder:text-text-3"
+              className={cn(
+                paper.ruled,
+                'h-[416px] w-full resize-none bg-transparent px-7 pt-[5px] text-[16px] leading-[32px] outline-none placeholder:text-black/40',
+              )}
             />
-            <div className="mt-3 flex items-center justify-between border-t border-white/6 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t-2 border-ink px-7 py-3">
               <p
                 className={cn(
-                  'tabular font-mono text-[11px] leading-[14px]',
-                  over > 0 ? 'text-error' : 'text-text-2',
+                  'flex flex-wrap gap-x-6 text-[12px] tabular',
+                  over > 0 && 'text-error',
                 )}
                 data-testid="script-counts"
               >
-                {words} words · {formatLength(estimateMs(text, speed))} ·{' '}
-                {text.length.toLocaleString('en-US')}/{SCRIPT_MAX_CHARS.toLocaleString('en-US')}
-                {over > 0 && ` · ${over.toLocaleString('en-US')} over`}
+                <span>{words} words</span>
+                <span>{formatLength(estimateMs(text, speed))}</span>
+                <span>
+                  {text.length.toLocaleString('en-US')}/{SCRIPT_MAX_CHARS.toLocaleString('en-US')}
+                </span>
+                {over > 0 && <span>{over.toLocaleString('en-US')} over</span>}
               </p>
               {words === 0 && (
-                <button
-                  type="button"
-                  onClick={() => setText(EXAMPLE)}
-                  className="text-[11px] leading-[14px] text-violet-ink hover:underline"
-                >
+                <button type="button" onClick={() => setText(EXAMPLE)} className={paper.link}>
                   Try an example
                 </button>
               )}
             </div>
-            <div className="mt-4 min-h-[52px]" data-testid="script-moments">
-              <p className="text-[11px] leading-[14px] text-text-3">
+            <div
+              className="min-h-[76px] flex-1 border-t-2 border-ink bg-mist px-7 py-4"
+              data-testid="script-moments"
+            >
+              <p className="text-[12px] text-black/65">
                 {moments.length
                   ? `Pip spotted ${moments.length} moment${moments.length === 1 ? '' : 's'} to animate`
                   : 'Numbers, places, years and names become graphics.'}
               </p>
-              <div className="mt-2 flex flex-wrap gap-1.5">
+              <div className="mt-2 flex flex-wrap gap-2">
                 {moments.map((m) => (
                   <motion.span
                     key={`${m.kind}-${m.text}`}
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ type: 'spring', stiffness: 420, damping: 26 }}
-                    className="rounded-md bg-ember/12 px-2 py-0.5 text-[11px] leading-4 text-ember"
+                    className="rounded-md border-2 border-ink bg-flame px-2 py-0.5 text-[12px]"
                   >
                     {m.text}
                   </motion.span>
@@ -194,11 +206,9 @@ export function ScriptScreen() {
             </div>
           </section>
 
-          <aside className="flex w-[320px] shrink-0 flex-col gap-5">
+          <aside className="flex flex-col gap-7">
             <div role="radiogroup" aria-label="Voice" className="flex flex-col gap-2">
-              <p className="text-[11px] leading-[14px] font-medium tracking-[0.4px] text-text-3 uppercase">
-                Voice
-              </p>
+              <p className={cn(poster, 'mb-1 text-[30px]')}>Voice</p>
               {TTS_VOICES.map((v) => (
                 <button
                   key={v.id}
@@ -207,23 +217,26 @@ export function ScriptScreen() {
                   aria-checked={voice === v.id}
                   onClick={() => setVoice(v.id)}
                   className={cn(
-                    'flex items-center justify-between rounded-chip border px-3.5 py-2.5 text-left transition-colors',
-                    voice === v.id
-                      ? 'border-violet/60 bg-violet/10'
-                      : 'border-line-strong bg-card hover:bg-card-2',
+                    'flex items-center justify-between rounded-[10px] border-2 border-ink px-4 py-2.5 text-left transition-[background-color,box-shadow]',
+                    voice === v.id ? 'bg-ink text-paper' : 'bg-paper hover:bg-mist',
                   )}
                 >
                   <span>
-                    <span className="block text-[13px] leading-4 font-medium">{v.label}</span>
-                    <span className="mt-0.5 block text-[11px] leading-[14px] text-text-2">
+                    <span className="block text-[14px] font-semibold">{v.label}</span>
+                    <span
+                      className={cn(
+                        'mt-0.5 block text-[12px]',
+                        voice === v.id ? 'text-paper/70' : 'text-black/60',
+                      )}
+                    >
                       {v.about}
                     </span>
                   </span>
                   <span
                     aria-hidden
                     className={cn(
-                      'size-3 rounded-full border',
-                      voice === v.id ? 'border-violet bg-violet' : 'border-text-3',
+                      'size-3.5 rounded-full border-2',
+                      voice === v.id ? 'border-paper bg-flame' : 'border-ink',
                     )}
                   />
                 </button>
@@ -231,9 +244,7 @@ export function ScriptScreen() {
             </div>
 
             <div className="flex flex-col gap-2">
-              <p className="text-[11px] leading-[14px] font-medium tracking-[0.4px] text-text-3 uppercase">
-                Pace
-              </p>
+              <p className={cn(poster, 'mb-1 text-[30px]')}>Pace</p>
               <SegmentedPills
                 label="Pace"
                 options={SPEEDS.map((s) => ({ value: s.id, label: s.label }))}
@@ -243,34 +254,32 @@ export function ScriptScreen() {
               />
             </div>
 
-            <div className="mt-1 flex flex-col gap-2">
-              <Button
-                variant="primary"
-                size="lg"
-                className="h-11 w-full"
+            <div className="flex flex-col gap-3">
+              <button
+                type="button"
+                className={btn('flame', 'lg', false, 'w-full')}
                 disabled={block !== null || busy}
                 onClick={() => void generate()}
               >
-                <Sparkles strokeWidth={1.75} aria-hidden />
                 {busy
                   ? progress && progress.total > 1
                     ? `Pip is recording… part ${Math.min(progress.done + 1, progress.total)} of ${progress.total}`
                     : 'Pip is recording…'
                   : 'Generate voice'}
                 {!busy && (
-                  <span className="ml-1 flex items-center gap-1 rounded-md bg-black/20 px-1.5 py-0.5 text-[10px] leading-3">
-                    <Cloud className="!size-3" strokeWidth={1.75} aria-hidden />
+                  <span className="ml-1 flex items-center gap-1 rounded-md border-2 border-ink bg-paper px-1.5 py-0.5 text-[11px] leading-3">
+                    <Cloud className="size-3" strokeWidth={2} aria-hidden />
                     {cost}
                   </span>
                 )}
-              </Button>
-              <p className="text-center text-[11px] leading-[14px] text-text-3" role="status">
+              </button>
+              <p className="text-[12px] text-black/60" role="status">
                 {block ?? 'Credits come back if the voice fails.'}
               </p>
             </div>
           </aside>
         </div>
       </main>
-    </div>
+    </PaperPage>
   );
 }

@@ -1,0 +1,17 @@
+# Spec 38 tasks: the paper editor
+
+- [x] 1. Editor paper tokens: mark the editor `[data-paper]`; give the editor-only tokens paper values (R1.1, R1.3)
+- [x] 2. Top bar as the black film-strip bar (R1.2)
+- [x] 3. Rail with Pip first; Pip panel open on load (R2.1)
+- [x] 4. The glowing Pip orb and its moods (R2.2, R2.3, R2.4)
+- [x] 5. Pip panel: header, empty state, messages, plan cards, ink composer (R2.2, R2.5)
+- [x] 6. Preview: black screen in an ink frame on the desk; paper toolbar (R1.4)
+- [x] 7. Timeline in paper (R3.1)
+- [x] 8. Inspector, rail panels, export, dock: remove dark leftovers (R3.2)
+- [x] 9. Tests, gates, screenshots at 1440×900 and 1920×1080; DEV_LOG and decision (R3.3, R4)
+- [x] 10. Night desk: theme store, toggle, `[data-theme]` tokens (edge, rule, hard, tile), button variables, eased switch (R5)
+- [x] 11. Full-height sidebar layout (R6)
+- [x] 12. Timeline squeeze to 244 px and a responsive header (R7)
+- [x] 13. Track gradients and coloured label icons (R8)
+- [x] 14. Shared-layout orb: big when empty, small in the header after (R9)
+- [x] 15. Tests, gates and screenshots in both themes (R5–R9)

@@ -2,23 +2,28 @@
 
 import type { ProjectSummary } from '@motionpop/schemas';
 import { useRef, useState } from 'react';
+import { AppBar } from '@/components/paper/app-bar';
+import { PaperPage } from '@/components/paper/kit';
 import { Shimmer } from '@/components/ui/shimmer';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
-import { dashboardStats, formatSaved } from '@/lib/dashboard/format';
+import { dashboardStats, formatSavedWords } from '@/lib/dashboard/format';
 import { useNow } from '@/lib/dashboard/use-now';
 import { useProjectList } from '@/lib/projects/use-project-list';
 import { CaptureBar, type CaptureBarHandle } from './capture-bar';
 import { ContinueCard } from './continue-card';
-import { DashboardTopBar } from './dashboard-top-bar';
 import { DropOverlay, useFileDrop } from './drop-layer';
 import { EmptyCard } from './empty-card';
 import { GreetingHeader } from './greeting-header';
 import { HelpSheet } from './help-sheet';
 import { ProjectsSection } from './projects-section';
-import { StatTile } from './stat-tile';
 import { TryAStyle } from './try-a-style';
 
-/** `/dashboard` (spec 11 R2–R6): top bar, greeting, capture bar, body, footer. */
+export const WRAP = 'mx-auto w-full max-w-[1240px] px-6 lg:px-10';
+
+/**
+ * `/dashboard` (spec 11, redrawn in spec 35): the film-strip bar, a poster greeting with the
+ * capture bar under it, the project you left, every project as a frame, and a strip of looks.
+ */
 export function DashboardScreen() {
   const now = useNow();
   const capture = useRef<CaptureBarHandle>(null);
@@ -40,15 +45,18 @@ export function DashboardScreen() {
       : null;
 
   return (
-    <div className="relative min-h-dvh min-w-[1280px] bg-bg text-text">
-      <DashboardTopBar />
-      <main className="mx-auto max-w-[1440px] px-[72px]">
+    <PaperPage className="relative">
+      <AppBar active="projects" />
+      <main className={WRAP}>
         <GreetingHeader now={now} />
         <CaptureBar ref={capture} />
+        <p className="mt-5 min-h-[21px] text-[13px] text-black/60">
+          {stats ? C.week(stats.videos, stats.graphics, formatSavedWords(stats.savedMin)) : ''}
+        </p>
         <div className="mt-14">
           {list.kind === 'loading' && <LoadingBody />}
           {list.kind === 'error' && (
-            <p className="rounded-card bg-panel px-6 py-8 text-sm text-text-2">
+            <p className="rounded-xl border-2 border-ink px-6 py-8 text-sm">
               Pip couldn&apos;t read your projects in this browser. Reload to try again.
             </p>
           )}
@@ -56,47 +64,27 @@ export function DashboardScreen() {
           {listing && (
             <>
               {last && <ContinueCard project={last} now={now} />}
-              {stats && (
-                <div className="mt-8 grid grid-cols-3 gap-6">
-                  <StatTile
-                    value={stats.videos}
-                    label="videos this week"
-                    spark={stats.spark.videos}
-                    color="var(--color-ember)"
-                  />
-                  <StatTile
-                    value={stats.graphics}
-                    label="graphics generated"
-                    spark={stats.spark.graphics}
-                    color="var(--color-violet)"
-                  />
-                  <StatTile
-                    text={formatSaved(stats.savedMin)}
-                    label="saved"
-                    spark={stats.spark.saved}
-                    color="var(--color-ember)"
-                  />
-                </div>
-              )}
               <ProjectsSection listing={listing} now={now} onChanged={() => void reload()} />
             </>
           )}
         </div>
         <TryAStyle />
       </main>
-      <footer className="mx-auto flex max-w-[1440px] items-center justify-between px-[72px] pt-[60px] pb-[26px] text-[11px] leading-[14px] text-text-3">
-        <span>{C.footer.line}</span>
-        <button
-          type="button"
-          onClick={() => setHelp(true)}
-          className="mr-[13px] transition-colors hover:text-text"
-        >
-          {C.footer.help}
-        </button>
+      <footer className={`${WRAP} mt-24`}>
+        <div className="flex items-center justify-between border-t-2 border-ink py-6 text-[12px]">
+          <span>{C.footer.line}</span>
+          <button
+            type="button"
+            onClick={() => setHelp(true)}
+            className="underline decoration-[1.5px] underline-offset-4 hover:decoration-flame"
+          >
+            {C.footer.help}
+          </button>
+        </div>
       </footer>
       <HelpSheet open={help} onClose={() => setHelp(false)} />
       <DropOverlay state={drag} floating={!empty} />
-    </div>
+    </PaperPage>
   );
 }
 
@@ -104,12 +92,12 @@ export function DashboardScreen() {
 function LoadingBody() {
   return (
     <div aria-busy="true" aria-label="Loading projects" className="flex flex-col gap-6">
-      <div className="relative h-[320px] overflow-hidden rounded-[20px] bg-panel">
+      <div className="relative h-[360px] overflow-hidden rounded-xl bg-mist">
         <Shimmer tone="neutral" />
       </div>
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="relative h-[88px] overflow-hidden rounded-card bg-panel">
+          <div key={i} className="relative h-[260px] overflow-hidden rounded-xl bg-mist">
             <Shimmer tone="neutral" />
           </div>
         ))}

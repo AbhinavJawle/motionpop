@@ -60,7 +60,7 @@ function useDraft(field: Field, commit: Commit, report?: (message: string | null
 function ErrorText({ id, message }: { id: string; message: string | null }) {
   if (!message) return null;
   return (
-    <p id={id} role="alert" className="mt-1 px-1 text-[10px] leading-[13px] text-error">
+    <p id={id} role="alert" className="mt-1 px-1 text-[11px] leading-[14px] text-error">
       {message}
     </p>
   );
@@ -88,7 +88,7 @@ export function TitleField({
         onBlur={run}
         onKeyDown={onKeyDown}
         className={cn(
-          'h-7 w-full rounded-lg bg-card px-[11px] text-xs leading-4 text-field-ink outline-none transition-shadow focus:shadow-violet-glow',
+          'h-9 w-full rounded-lg bg-card px-3 text-[13px] leading-[18px] text-field-ink outline-none transition-shadow focus:shadow-violet-glow',
           error ? ERROR_RING : FIELD_SHADOW,
         )}
       />
@@ -111,11 +111,11 @@ export function CompactField({
     <div className="mt-2">
       <label
         className={cn(
-          'flex h-7 items-center gap-2 rounded-lg bg-card px-[11px] transition-shadow focus-within:shadow-violet-glow',
+          'flex h-8 items-center gap-2 rounded-lg bg-card px-3 transition-shadow focus-within:shadow-violet-glow',
           error ? ERROR_RING : FIELD_SHADOW,
         )}
       >
-        <span className="w-[70px] shrink-0 truncate text-[10px] leading-[13px] text-section">
+        <span className="w-[84px] shrink-0 truncate text-[11px] leading-[14px] text-text-3">
           {field.label}
         </span>
         <input
@@ -126,7 +126,7 @@ export function CompactField({
           onChange={(e) => setDraft(e.target.value)}
           onBlur={run}
           onKeyDown={onKeyDown}
-          className="min-w-0 flex-1 bg-transparent text-[11px] leading-4 text-field-ink outline-none"
+          className="min-w-0 flex-1 bg-transparent text-[12px] leading-4 text-field-ink outline-none"
         />
       </label>
       <ErrorText id={errId} message={error} />
@@ -134,7 +134,7 @@ export function CompactField({
   );
 }
 
-/** One table row: mono label, mono value (an input), a 5 px colour dot (ember for the focal number). */
+/** One table row (spec 33): label left, value right in a quiet field; the focal number's label is bright. */
 function TableRow({
   field,
   commit,
@@ -149,8 +149,13 @@ function TableRow({
   );
   const focal = field.kind === 'number' && field.focal;
   return (
-    <div className="flex h-5 items-center pl-[11px]">
-      <span className="w-[187px] shrink-0 truncate font-mono text-[10px] leading-[13px] text-text-2">
+    <div className="flex h-8 items-center gap-2 border-b border-white/[0.05] pr-1.5 pl-3 last:border-b-0">
+      <span
+        className={cn(
+          'min-w-0 flex-1 truncate text-[12px] leading-4',
+          focal ? 'font-medium text-text' : 'text-text-2',
+        )}
+      >
         {field.label}
       </span>
       <input
@@ -163,13 +168,9 @@ function TableRow({
         onBlur={run}
         onKeyDown={onKeyDown}
         className={cn(
-          'tabular h-4 w-20 rounded bg-transparent font-mono text-[10px] leading-[13px] text-cell-ink outline-none placeholder:text-text-4 focus:bg-card-3',
+          'tabular h-6 w-24 rounded-md bg-white/[0.04] px-2 text-right text-[12px] leading-4 text-cell-ink outline-none placeholder:text-text-4 hover:bg-white/[0.07] focus:bg-white/[0.08] focus:shadow-violet-glow',
           error && 'text-error',
         )}
-      />
-      <span
-        aria-hidden
-        className={cn('ml-4 size-[5px] rounded-full', focal ? 'bg-ember' : 'bg-violet')}
       />
     </div>
   );
@@ -200,7 +201,7 @@ export function DataTable({
       <div
         role="group"
         aria-label="Values"
-        className="overflow-hidden rounded-lg bg-card shadow-[inset_0_0_0_1px_rgb(255_255_255/0.08)]"
+        className="overflow-hidden rounded-lg bg-card shadow-[inset_0_0_0_1px_rgb(0_0_0/0.12)]"
       >
         {fields.map((f) => (
           <TableRow
@@ -239,15 +240,15 @@ export function MoreRow({
       aria-expanded={open}
       aria-controls={controls}
       onClick={onToggle}
-      className="flex h-5 w-full items-center pl-[11px] text-left outline-none hover:bg-card-3 focus-visible:bg-card-3 focus-visible:shadow-violet-glow"
+      className="flex h-8 w-full items-center pl-3 text-left outline-none hover:bg-white/[0.04] focus-visible:bg-white/[0.04] focus-visible:shadow-violet-glow"
     >
-      <span className="w-[187px] shrink-0 font-mono text-[10px] leading-[13px] text-text-2">
+      <span className="shrink-0 text-[12px] leading-4 text-text-2">
         {open ? 'Less' : 'More'}
         {!open && count > 0 && <span className="ml-1.5 text-text-3">{count} optional</span>}
       </span>
       <span className="flex-1" />
       <ChevronDown
-        className={cn('mr-[9px] size-3 text-text-2 transition-transform', open && 'rotate-180')}
+        className={cn('mr-3 size-3.5 text-text-3 transition-transform', open && 'rotate-180')}
         strokeWidth={1.5}
         aria-hidden
       />
@@ -276,7 +277,7 @@ export function EnumField({
           error ? ERROR_RING : FIELD_SHADOW,
         )}
       >
-        <span className="w-[70px] shrink-0 truncate text-[10px] leading-[13px] text-section">
+        <span className="w-[84px] shrink-0 truncate text-[11px] leading-[14px] text-text-3">
           {field.label}
         </span>
         <Dropdown
@@ -309,7 +310,7 @@ export function BoolField({
           FIELD_SHADOW,
         )}
       >
-        <span className="text-[10px] leading-[13px] text-section">{field.label}</span>
+        <span className="text-[11px] leading-[14px] text-text-3">{field.label}</span>
         <Toggle
           label={field.label}
           checked={field.value === true}

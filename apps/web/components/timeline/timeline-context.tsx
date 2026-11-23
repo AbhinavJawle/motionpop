@@ -7,7 +7,7 @@ import type { View } from '@/lib/timeline/geometry';
 export interface TimelineCtx {
   clock: PlaybackClock;
   view: View;
-  /** Width of the time area (right of the 152 px label column), in px. */
+  /** Width of the time area (right of the label column), in px. */
   widthPx: number;
   durationMs: number;
 }
@@ -37,22 +37,22 @@ export function useFrame(onFrame: (ms: number, view: View) => void): void {
   useEffect(() => cb.current(clock.currentMs, view), [clock, view]);
 }
 
-/** Layout constants measured from the editor frame in design/figma-export.css. */
+/** Layout constants (spec 38 R7: squeezed from the 300 px Figma frame to 244 px). */
 export const TL = {
-  height: 300,
-  header: 48,
-  labelCol: 152,
+  height: 244,
+  header: 44,
+  labelCol: 112,
   rightPad: 64,
   rows: {
-    ruler: { top: 48, height: 38 },
-    slots: { top: 86, height: 62 },
-    words: { top: 148, height: 46 },
-    voice: { top: 194, height: 46 },
-    audio: { top: 240, height: 42 },
+    ruler: { top: 44, height: 26 },
+    slots: { top: 70, height: 52 },
+    words: { top: 122, height: 34 },
+    voice: { top: 156, height: 38 },
+    audio: { top: 194, height: 34 },
   },
 } as const;
 
-export const VIDEO_ROW_HEIGHT = 56;
+export const VIDEO_ROW_HEIGHT = 48;
 
 export interface TimelineRowGeometry {
   top: number;

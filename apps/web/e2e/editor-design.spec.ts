@@ -7,14 +7,15 @@ import { PNG } from 'pngjs';
 import { openEditor, trackPageErrors } from './helpers';
 
 /**
- * Design check: `/editor/demo?t=5600&select=slot-2` at 1440×900 (scale 2) against
- * `design/screens/editor.png`, region by region. The preview and inspector hold live content
+ * Design check: `/editor/demo?t=5600&select=slot-2` at 1440×900 (scale 2) against the studio
+ * baseline `e2e/baselines/editor-studio.png` (spec 33, D-081: the editor redesign supersedes
+ * `design/screens/editor.png`), region by region. The preview and inspector hold live content
  * that the static design only approximates, so only the chrome regions are asserted.
  */
 test.use({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DESIGN = path.resolve(HERE, '../../../design/screens/editor.png');
+const DESIGN = path.resolve(HERE, 'baselines/editor-studio.png');
 const OUT = path.resolve(HERE, '../e2e-output/design');
 
 /** Regions in 2× pixels: [x, y, width, height]. */
@@ -26,10 +27,11 @@ const REGIONS: Record<string, [number, number, number, number]> = {
 
 /** Max share of differing pixels per region (pixelmatch threshold 0.1), from measured runs. */
 const MAX_DIFF_PCT: Record<string, number> = {
-  // Measured 2.54 / 2.47 / 9.11 %; about 1.5× headroom for font and compositing noise.
-  'top-bar': 4,
-  'tool-rail': 4,
-  timeline: 14,
+  // Against the studio baseline: measured 0.00 / 0.04 / 0.00 %; headroom for font and
+  // compositing noise and the live waveform.
+  'top-bar': 2,
+  'tool-rail': 2,
+  timeline: 4,
 };
 
 function crop(png: PNG, [x, y, w, h]: [number, number, number, number]): PNG {

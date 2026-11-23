@@ -1,38 +1,42 @@
-/** Every exact user-facing string of the dashboard and Start (spec 11, from the PNGs and screens.md). */
+/** Every user-facing string of the dashboard and Start (spec 11, rewritten for spec 35). */
 export const DASHBOARD_COPY = {
-  eyebrow: 'YOUR CREATIVE SPACE',
   nav: { projects: 'Projects', styles: 'Styles' },
   newProject: 'New project',
   capture: {
     hold: 'Hold to record',
     release: 'Release to finish',
     hint: '…or paste a script, or drop audio anywhere',
-    formats: 'MP3 · WAV · M4A · MP4 · MOV',
     placeholder: 'Paste a script and press Enter',
     micDenied: "Pip can't hear you. Allow the microphone in the address bar, or upload instead.",
     uploadInstead: 'Upload instead',
   },
   empty: {
-    title: 'Your first video is 2 minutes away',
-    body: 'Hold the mic, paste a script, or just drop your audio here.',
+    title: 'Your first video is two minutes away',
+    body: 'Hold the mic and talk, paste a script, or drop a voiceover anywhere on this page. Pip finds the moments and puts a graphic on each one.',
     cta: 'Create your first project',
+    sample: 'Try it with a sample',
     foot: 'No editing experience needed. Just something to say.',
   },
   drag: {
     pill: "Drop it, I'll catch it!",
-    body: 'Release your audio anywhere. Pip will take it from here.',
-    formats: 'MP3 · WAV · M4A · MP4 · MOV',
+    body: 'Let go anywhere. Pip takes it from here.',
+    formats: 'MP3, WAV, M4A, MP4 or MOV',
   },
   continue: {
-    title: 'Continue where you left off',
-    eyebrow: 'LAST OPENED',
+    title: 'Pick up where you left off',
     resume: 'Resume',
+    ready: (ready: number, total: number) =>
+      total === 0
+        ? 'No graphics yet'
+        : ready === total
+          ? `All ${total} graphics ready`
+          : `${ready} of ${total} graphics ready`,
   },
+  week: (videos: number, graphics: number, saved: string) =>
+    `This week: ${videos} ${videos === 1 ? 'video' : 'videos'}, ${graphics} ${graphics === 1 ? 'graphic' : 'graphics'}, ${saved} of editing saved.`,
   projects: {
-    title: 'Your projects',
+    title: 'Projects',
     search: 'Search projects',
-    tabs: { all: 'All projects', shared: 'Shared with me' },
-    sharedEmpty: 'Nothing shared with you yet.',
     noMatch: (q: string) => `No projects match “${q}”.`,
     sort: { edited: 'Last edited', created: 'Created', name: 'Name' },
     damaged: 'This save looks damaged',
@@ -54,15 +58,15 @@ export const DASHBOARD_COPY = {
     brandKit: 'Brand kit is on its way.',
   },
   styles: {
-    title: 'Try a style',
-    subline: 'A new point of view for your next story.',
-    explore: 'Explore styles',
+    title: 'Try a look',
+    subline: 'Same voice, different clothes. Start your next video in one of these.',
+    explore: 'All looks',
   },
   footer: { line: 'Made for the stories only you can tell.', help: 'Help & shortcuts' },
 } as const;
 
 export const START_COPY = {
-  eyebrow: 'A LITTLE VOICE. A LOT OF POSSIBILITY.',
+  eyebrow: 'Pick a way in. I’ll catch the rest.',
   headline: "Bring your voice. We'll bring the motion.",
   subline: 'Record, upload or paste a script, and graphics will follow every word.',
   record: { title: 'Record', body: 'Your voice, in the moment.', cta: 'Start recording' },
@@ -85,13 +89,13 @@ export const START_COPY = {
 } as const;
 
 export const RECORD_COPY = {
-  eyebrow: 'PIP IS LISTENING',
+  eyebrow: 'I’m listening…',
   headline: 'Your voice is the starting point.',
   subline: 'Keep talking. Pip is catching every word.',
-  recording: 'RECORDING',
-  paused: 'PAUSED',
-  review: 'YOUR TAKE',
-  reviewEyebrow: 'PIP CAUGHT EVERY WORD',
+  recording: 'Recording',
+  paused: 'Paused',
+  review: 'Your take',
+  reviewEyebrow: 'Caught every word!',
   reviewHeadline: 'Nice take.',
   reviewSubline: 'Listen back, or let Pip get to work.',
   stop: 'Click to stop',

@@ -1,0 +1,182 @@
+/*
+ * Sign-up CTA with Pip peeking over the top edge.
+ *
+ * Everything is sized from the button's own width (container query units on .stage), so the
+ * composition holds at any width. Pip's two rigs (pip-cta-mascot.tsx) share one 800 x 760 space whose
+ * button edge sits at y = 640; one unit there is 0.054224cqi.
+ *
+ * Stacking inside the button (isolated): glow, then body (0) < surface (1) < label + arrow (2) < hands (3).
+ */
+
+.stage {
+  container-type: inline-size;
+  width: min(100%, 620px);
+  /* headroom for Pip's head, including the hover perk and the press hop */
+  padding-top: 33cqi;
+}
+
+.button {
+  --btn-bg: #090a10;
+  --btn-text: #f3f1ec;
+  --glow-opacity: 0.8;
+  --lift: 0px;
+  --press: 1;
+
+  position: relative;
+  isolation: isolate;
+  display: block;
+  width: 100%;
+  height: 18.84cqi;
+  border-radius: 3.1cqi;
+  color: var(--btn-text);
+  text-decoration: none;
+  outline: none;
+  transform: translateY(var(--lift)) scale(var(--press));
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.button:hover,
+.button[data-hover='true'] {
+  --lift: -2px;
+  --glow-opacity: 1;
+}
+
+.button:active,
+.button[data-pressed='true'] {
+  --lift: 0px;
+  --press: 0.985;
+  transition-duration: 90ms;
+}
+
+/* the dark face with its thin pink-to-blue border */
+.surface {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  border: max(1.5px, 0.42cqi) solid transparent;
+  background:
+    linear-gradient(var(--btn-bg), var(--btn-bg)) padding-box,
+    conic-gradient(
+        from 0deg,
+        #b4c8f6 0deg,
+        #cfe8f8 70deg,
+        #e2f3fb 95deg,
+        #a9b8f0 150deg,
+        #a58cf0 195deg,
+        #d29ae6 245deg,
+        #ecc3ef 275deg,
+        #cdbdf1 320deg,
+        #b4c8f6 360deg
+      )
+      border-box;
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 0.05),
+    inset 0 0 1.6cqi rgb(170 160 255 / 0.14),
+    0 1.6cqi 4cqi rgb(0 0 0 / 0.55);
+}
+
+/* the coloured glow: a blurred copy of the border behind everything, so hover only animates opacity */
+.glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    #8fb2ff 0deg,
+    #9fd6ff 90deg,
+    #9d8cff 180deg,
+    #e08fd8 260deg,
+    #b8a8ff 320deg,
+    #8fb2ff 360deg
+  );
+  filter: blur(1.7cqi);
+  opacity: var(--glow-opacity);
+  transition: opacity 260ms ease;
+}
+
+.label {
+  position: absolute;
+  z-index: 2;
+  left: 8.76cqi;
+  top: 50%;
+  transform: translateY(-50%);
+  font-family: var(--font-mono);
+  font-size: 6.5cqi;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.arrow {
+  position: absolute;
+  z-index: 2;
+  right: 8.4cqi;
+  top: 50%;
+  width: 6cqi;
+  height: 6cqi;
+  transform: translateY(-50%);
+  pointer-events: none;
+  transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.button:hover .arrow,
+.button[data-hover='true'] .arrow {
+  transform: translate(0.35cqi, calc(-50% - 0.35cqi));
+}
+
+/* Pip: body and hands rigs over one shared box, positioned on the button's top edge */
+.art {
+  position: absolute;
+  left: 42.883cqi;
+  top: -34.703cqi;
+  width: 43.379cqi;
+  height: 41.21cqi;
+  pointer-events: none;
+}
+
+.body {
+  z-index: 0;
+}
+
+.hands {
+  z-index: 3;
+}
+
+.rig {
+  position: absolute;
+  inset: 0;
+  display: block;
+}
+
+.layer {
+  position: absolute;
+  display: block;
+  max-width: none;
+  user-select: none;
+}
+
+.button:focus-visible .surface {
+  box-shadow:
+    0 0 0 2px var(--btn-bg),
+    0 0 0 4px #c6e3f3,
+    0 1.6cqi 4cqi rgb(0 0 0 / 0.55);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button,
+  .arrow,
+  .glow {
+    transition: none;
+  }
+
+  .button:hover,
+  .button[data-hover='true'] {
+    --lift: 0px;
+  }
+}

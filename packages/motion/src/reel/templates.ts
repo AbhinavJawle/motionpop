@@ -87,12 +87,7 @@ function list(p: Of<'list'>, ctx: TplCtx): Tpl {
   const items = p.items.map((it) => {
     const ic = it.media
       ? logoTile(ctx, it.media, it.text, ctx.look.upper ? 64 : 58)
-      : icon(
-          it.icon,
-          ctx.look.upper ? 58 : 50,
-          ctx.look.upper ? ctx.pal.ink : ctx.pal.accent,
-          ctx.look.upper ? 1.8 : 1.7,
-        );
+      : icon(it.icon, ctx.look.upper ? 58 : 50, ctx.pal.accent, ctx.look.upper ? 1.8 : 1.7);
     const label = h(
       'div',
       ctx.look.upper
@@ -261,7 +256,7 @@ function checklist(p: Of<'checklist'>, ctx: TplCtx): Tpl {
       },
       [r.value ?? ''],
     );
-    const ck = check(ctx.look.upper ? 34 : 44, ctx.look.upper ? ctx.pal.ink : ctx.pal.accent);
+    const ck = check(ctx.look.upper ? 34 : 44, ctx.pal.accent);
     const row = h(
       'div',
       {
@@ -427,7 +422,7 @@ function compare(p: Of<'compare'>, ctx: TplCtx): Tpl {
       },
       [r.text],
     );
-    const ck = check(34, ctx.look.upper ? ctx.pal.ink : ctx.pal.accent);
+    const ck = check(34, ctx.pal.accent);
     const row = h('div', { display: 'flex', alignItems: 'center', gap: 26 }, [lab, ck.el]);
     rows.append(row);
     return { lab, ck, at: r.at };
@@ -457,7 +452,7 @@ function statement(p: Of<'statement'>, ctx: TplCtx): Tpl {
   let strike: SVGElement | null = null;
   let iconWrap: HTMLElement | null = null;
   if (p.icon) {
-    ic = icon(p.icon, 108, ctx.look.upper ? ctx.pal.ink : ctx.pal.accent, 1.6);
+    ic = icon(p.icon, 108, ctx.pal.accent, 1.6);
     iconWrap = h('div', { position: 'relative', width: 108, height: 108, marginBottom: 14 }, [
       ic.el,
     ]);
@@ -515,7 +510,7 @@ function statement(p: Of<'statement'>, ctx: TplCtx): Tpl {
 function counter(p: Of<'counter'>, ctx: TplCtx): Tpl {
   const col = column(ctx, 10);
   const kick = p.kicker ? kickerEl(ctx, p.kicker) : null;
-  const ic = p.icon ? icon(p.icon, 64, ctx.look.upper ? ctx.pal.ink : ctx.pal.accent, 1.8) : null;
+  const ic = p.icon ? icon(p.icon, 64, ctx.pal.accent, 1.8) : null;
   if (ic) {
     css(ic.el, { marginBottom: 14 });
     col.append(ic.el);
@@ -592,12 +587,7 @@ function progress(p: Of<'progress'>, ctx: TplCtx): Tpl {
     flexDirection: 'column',
     alignItems: 'center',
   });
-  const ic = icon(
-    p.icon ?? 'download',
-    ctx.look.upper ? 92 : 112,
-    ctx.look.upper ? ctx.pal.ink : ctx.pal.accent,
-    1.7,
-  );
+  const ic = icon(p.icon ?? 'download', ctx.look.upper ? 92 : 112, ctx.pal.accent, 1.7);
   const ink = ctx.look.upper ? ctx.pal.ink : ctx.pal.cardInk;
   const titleA = h(
     'div',
@@ -648,7 +638,7 @@ function progress(p: Of<'progress'>, ctx: TplCtx): Tpl {
     bottom: 0,
     width: '0%',
     borderRadius: 4,
-    background: ctx.look.upper ? ctx.pal.ink : ctx.pal.accent,
+    background: ctx.pal.accent,
   });
   const track = h(
     'div',
@@ -847,7 +837,7 @@ function chart(p: Of<'chart'>, ctx: TplCtx): Tpl {
   const max = Math.max(...vals, 0) || 1;
   const min = Math.min(0, ...vals);
   const yOf = (v: number) => padT + (1 - (v - min) / (max - min)) * (H - padT - padB);
-  const lineCol = ctx.look.upper ? ctx.pal.ink : ctx.pal.accent;
+  const lineCol = ctx.pal.accent;
   for (let g = 0; g <= 3; g++) {
     const y = padT + (g / 3) * (H - padT - padB);
     s.append(
@@ -949,13 +939,8 @@ function chart(p: Of<'chart'>, ctx: TplCtx): Tpl {
     const bars = p.points.map((q, i) => {
       const x = i * (bw + gap);
       const hi = i === maxIdx;
-      const fill = ctx.look.upper
-        ? hi
-          ? ctx.pal.ink
-          : ctx.pal.faint
-        : hi
-          ? ctx.pal.accent
-          : ctx.pal.faint;
+      // Mono's house accent is its ink, so one rule serves both looks and a theme.
+      const fill = hi ? ctx.pal.accent : ctx.pal.faint;
       const r = svg('rect', { x, width: bw, y: H - padB, height: 0, rx: 8, fill });
       const v = svg('text', {
         ...fontAttrs,

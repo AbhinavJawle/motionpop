@@ -7,7 +7,7 @@ import {
   type CaptionsSetting,
   type Format,
 } from '@motionpop/schemas';
-import { ChevronDown, PenLine, RefreshCw, Scan } from 'lucide-react';
+import { Palette, PenLine, RefreshCw, Scan } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassToolbar, ToolbarDivider } from '@/components/ui/glass-toolbar';
 import { StatusDot } from '@/components/ui/status-dot';
@@ -20,10 +20,11 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { slotAt } from '@/lib/notes/active-slot';
 import { styleFor } from '@/lib/composition/project-to-compile';
 import { cn } from '@/lib/cn';
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import type { ReelLook } from '@motionpop/schemas';
-import { useEditor, type SaveStatus } from '@/lib/stores/editor';
-import { useUploadState, type UploadState } from '@/lib/audio/use-upload-state';
+import { useEditor } from '@/lib/stores/editor';
+import { openRailPanel } from '@/lib/editor/rail-panel';
+import { useUploadState } from '@/lib/audio/use-upload-state';
 import { audioRefsOf } from '@/lib/projects/summary';
 import { FrameNotesLayer } from '@/components/notes/frame-notes-layer';
 import { ReelNotesLayer } from '@/components/notes/reel-notes-layer';
@@ -162,7 +163,35 @@ function ReelTools() {
   );
 }
 
-/** Preview workspace ("Preview workspace" in design/figma-export.css): toolbar, frame, footer. */
+/** Largest box of `aspect` (w / h) that fits inside `el` minus `pad` on every side (spec 32 R1.1). */
+function useFitBox(aspect: number, pad: number) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const aw = Math.max(0, r.width - pad * 2);
+      const ah = Math.max(0, r.height - pad * 2);
+      const w = Math.min(aw, ah * aspect);
+      setBox({ w: Math.floor(w), h: Math.floor(w / aspect) });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [aspect, pad]);
+  return { ref, box };
+}
+
+const ASPECT_NUM: Record<Format, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:1': 1 };
+
+/**
+ * Preview workspace (spec 32): the toolbar on top and the frame as large as the workspace
+ * allows at the project's aspect ratio. Save status lives by the title; the style name sits in
+ * the toolbar.
+ */
 export function PreviewPane() {
   const isReel = useEditor((s) => Boolean(s.project?.reel && s.project?.video));
   const projectFormat = useEditor((s) => s.project?.format ?? '16:9');
@@ -172,41 +201,36 @@ export function PreviewPane() {
   const exec = useEditor((s) => s.exec);
   const safeZone = useEditor((s) => s.safeZone);
   const toggleSafeZone = useEditor((s) => s.toggleSafeZone);
-  const saveStatus = useEditor((s) => s.saveStatus);
-  const voiceover = useEditor((s) => s.project?.voiceover);
-  const uploads = useUploadState(voiceover ? audioRefsOf({ voiceover }) : undefined);
-  const generating = useEditor((s) => s.generating !== null);
-  const sceneTotal = useEditor(
-    (s) => s.project?.reel?.scenes.length ?? s.project?.slots.length ?? 0,
-  );
-  const sceneIndex = useEditor((s) => {
-    if (!s.project) return 0;
-    if (s.project.reel) {
-      const t = s.playheadMs;
-      return s.project.reel.scenes.filter((x) => x.startMs <= t).length;
-    }
-    const active =
-      s.project.slots.find((x) => x.id === s.selectedSlotId) ??
-      slotAt(s.project.slots, s.playheadMs);
-    if (!active) return 0;
-    return s.project.slots.filter((x) => x.startMs <= active.startMs).length;
-  });
+  const setRail = useEditor((s) => s.setRail);
+  const { ref: stageRef, box } = useFitBox(ASPECT_NUM[format], 20);
 
   return (
     <section
       aria-label="Preview"
-      className="relative flex min-w-0 flex-1 flex-col items-center overflow-hidden bg-bg"
+      className="relative flex min-w-0 flex-1 flex-col items-center overflow-hidden bg-stage"
     >
-      <Ambient />
-      <GlassToolbar label="Preview tools" className="relative z-10 mt-5 gap-0 px-0">
+      <GlassToolbar label="Preview tools" className="relative z-10 mt-4 gap-0 px-0">
         {isReel ? (
           <ReelTools />
         ) : (
           <>
             <PenButton />
             <ToolbarDivider />
+            <button
+              type="button"
+              onClick={() => {
+                openRailPanel('styles');
+                setRail('styles');
+              }}
+              className="flex items-center gap-2 px-3.5 text-text-2 transition-colors hover:text-text"
+              aria-label={`Style: ${styleName}. Change style`}
+            >
+              <Palette className="size-[16px]" strokeWidth={1.5} aria-hidden />
+              <span className="max-w-40 truncate">{styleName}</span>
+            </button>
+            <ToolbarDivider />
             <div className="flex items-center gap-2 pr-3.5 pl-3.5">
-              <span className="text-[11px] leading-[14px] font-semibold text-text">CC</span>
+              <span className="text-[11px] leading-[14px] font-semibold text-text-2">CC</span>
               <Dropdown
                 label="Caption style"
                 value={captions.presetId}
@@ -234,30 +258,23 @@ export function PreviewPane() {
                 safeZone ? 'text-text' : 'text-text-2 hover:text-text',
               )}
             >
-              <Scan
-                className={cn('size-[18px]', safeZone && 'text-violet')}
-                strokeWidth={1.5}
-                aria-hidden
-              />
+              <Scan className="size-[16px]" strokeWidth={1.5} aria-hidden />
               Safe zone
-            </button>
-            <ToolbarDivider />
-            <button
-              type="button"
-              className="flex items-center gap-[27px] pr-4 pl-[18px] text-text-2 hover:text-text"
-              onClick={() => toast('Preview zoom is on its way.')}
-            >
-              <span className="tabular">Fit</span>
-              <ChevronDown className="size-[13px]" strokeWidth={1.5} aria-hidden />
             </button>
           </>
         )}
       </GlassToolbar>
 
-      <div className="relative z-10 flex min-h-0 w-full flex-1 flex-col items-center justify-center px-6 pt-5 pb-4">
+      <div
+        ref={stageRef}
+        className="relative z-10 flex min-h-0 w-full flex-1 items-center justify-center"
+      >
         <div
-          className="relative max-h-full max-w-full overflow-hidden rounded-card bg-frame shadow-glass"
-          style={{ aspectRatio: ASPECT[format], height: isReel ? '100%' : 'min(405px, 100%)' }}
+          data-preview-frame
+          className="relative overflow-hidden rounded-[10px] bg-frame shadow-frame"
+          style={
+            box ? { width: box.w, height: box.h } : { aspectRatio: ASPECT[format], height: '60%' }
+          }
         >
           {isReel ? <ReelPreview /> : <PreviewPlayer />}
           {isReel ? <ReelNotesLayer /> : <FrameNotesLayer />}
@@ -269,26 +286,17 @@ export function PreviewPane() {
       </div>
 
       {!isReel && <VideoCutsBar />}
-      <footer className="relative z-10 mb-[19px] flex w-[720px] max-w-[calc(100%-48px)] items-center justify-between text-[11px] leading-[14px]">
-        <span className="font-mono text-[10px] leading-[13px] tracking-[0.5px] text-text-3">
-          SCENE {String(sceneIndex).padStart(2, '0')} / {String(sceneTotal).padStart(2, '0')}
-        </span>
-        <span className="text-text-2">{isReel ? 'Talking-head reel' : styleName}</span>
-        <SaveIndicator status={saveStatus} uploads={uploads} generating={generating} />
-      </footer>
+      <div className="h-3 shrink-0" />
     </section>
   );
 }
 
-function SaveIndicator({
-  status,
-  uploads,
-  generating,
-}: {
-  status: SaveStatus;
-  uploads: UploadState;
-  generating: boolean;
-}) {
+/** Save status (spec 32 R1.2): quiet text beside the project title. */
+export function SaveIndicator({ onInk = false }: { onInk?: boolean } = {}) {
+  const status = useEditor((s) => s.saveStatus);
+  const voiceover = useEditor((s) => s.project?.voiceover);
+  const uploads = useUploadState(voiceover ? audioRefsOf({ voiceover }) : undefined);
+  const generating = useEditor((s) => s.generating !== null);
   // Audio still uploading to the account counts as unsaved (spec 11 design §10).
   const text = generating
     ? 'Generating motion…'
@@ -299,29 +307,19 @@ function SaveIndicator({
         : status === 'saving' || uploads === 'uploading'
           ? 'Saving…'
           : 'All changes saved';
-  const tone = generating
-    ? 'mint'
-    : status === 'error'
-      ? 'error'
-      : uploads !== 'idle' || status === 'saving'
-        ? 'warn'
-        : 'mint';
+  const problem = status === 'error' || uploads === 'failing';
   return (
-    <span role="status" className="flex items-center gap-2 text-text-2">
-      <StatusDot tone={tone} className="size-[5px]" />
+    <span
+      role="status"
+      className={cn(
+        'flex items-center gap-1.5 text-[12px] leading-4 whitespace-nowrap',
+        onInk && 'font-mono text-[11px]',
+        problem ? (onInk ? 'text-flame' : 'text-error') : onInk ? 'text-paper/50' : 'text-text-3',
+      )}
+    >
+      {problem && <StatusDot tone="error" className="size-[5px]" />}
       {text}
     </span>
-  );
-}
-
-/** Ambient spotlights + edge vignette from the design (6 % violet and ember, blurred). */
-function Ambient() {
-  return (
-    <div aria-hidden className="pointer-events-none absolute inset-0">
-      <div className="absolute top-10 left-6 h-[450px] w-[820px] rounded-full bg-violet/6 blur-[90px]" />
-      <div className="absolute top-[172px] left-[228px] h-[350px] w-[580px] rounded-full bg-ember/6 blur-[90px]" />
-      <div className="absolute inset-0 bg-[radial-gradient(50%_50%_at_50%_50%,transparent_0%,rgb(0_0_0/0.24)_100%)]" />
-    </div>
   );
 }
 

@@ -3,16 +3,17 @@
 import { useEffect, useRef } from 'react';
 import { peaksForRange } from '@/lib/audio/peaks';
 import { msToX } from '@/lib/timeline/geometry';
+import { useEditorTheme } from '@/lib/editor/theme';
 import { useTimeline } from './timeline-context';
 
 const PITCH = 4; // px between bars
 const BAR = 2; // bar width
 const MIN_H = 4;
-const MAX_H = 31;
+const MAX_H = 26;
 
 /**
  * VOICE track (spec 04 R4.4): waveform bars from worker-computed peaks. Two canvases: a dim
- * base and an ember copy clipped at `--playhead-x`, so playback never redraws.
+ * base and a bright copy clipped at `--playhead-x`, so playback never redraws.
  */
 export function VoiceTrack({ peaks, bucketMs }: { peaks: Float32Array | null; bucketMs: number }) {
   const { view, widthPx, durationMs } = useTimeline();
@@ -20,9 +21,10 @@ export function VoiceTrack({ peaks, bucketMs }: { peaks: Float32Array | null; bu
   const bandWidth = msToX(durationMs, view) - bandLeft;
   const base = useRef<HTMLCanvasElement>(null);
   const played = useRef<HTMLCanvasElement>(null);
+  const theme = useEditorTheme((s) => s.theme);
 
   useEffect(() => {
-    const height = 46;
+    const height = 38;
     const dpr = window.devicePixelRatio || 1;
     const cols = Math.floor(widthPx / PITCH);
     const startMs = view.scrollMs;
@@ -31,7 +33,7 @@ export function VoiceTrack({ peaks, bucketMs }: { peaks: Float32Array | null; bu
     let peak = 0;
     if (agg) for (let i = 0; i < agg.length; i++) peak = Math.max(peak, Math.abs(agg[i] ?? 0));
 
-    const paint = (canvas: HTMLCanvasElement | null, color: string) => {
+    const paint = (canvas: HTMLCanvasElement | null, color: string | [string, string]) => {
       if (!canvas) return;
       canvas.width = Math.round(widthPx * dpr);
       canvas.height = Math.round(height * dpr);
@@ -41,7 +43,13 @@ export function VoiceTrack({ peaks, bucketMs }: { peaks: Float32Array | null; bu
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, widthPx, height);
-      ctx.fillStyle = color;
+      if (typeof color === 'string') ctx.fillStyle = color;
+      else {
+        const g = ctx.createLinearGradient(0, height / 2 - MAX_H / 2, 0, height / 2 + MAX_H / 2);
+        g.addColorStop(0, color[0]);
+        g.addColorStop(1, color[1]);
+        ctx.fillStyle = g;
+      }
       if (!agg || peak === 0) return;
       for (let c = 0; c < cols; c++) {
         const amp = Math.max(Math.abs(agg[c * 2] ?? 0), Math.abs(agg[c * 2 + 1] ?? 0)) / peak;
@@ -52,38 +60,36 @@ export function VoiceTrack({ peaks, bucketMs }: { peaks: Float32Array | null; bu
         ctx.fill();
       }
     };
-    const css = getComputedStyle(document.documentElement);
-    paint(base.current, css.getPropertyValue('--color-text').trim() || 'white');
-    paint(played.current, css.getPropertyValue('--color-ember').trim() || 'orange');
-  }, [peaks, bucketMs, view, widthPx]);
+    // Read the colours where the track lives, so the editor's theme applies (spec 38 R8).
+    const css = getComputedStyle(base.current ?? document.documentElement);
+    const voice = css.getPropertyValue('--color-voice').trim() || '#34d399';
+    const voice2 = css.getPropertyValue('--color-voice-2').trim() || '#059669';
+    paint(base.current, css.getPropertyValue('--color-text-3').trim() || 'grey');
+    paint(played.current, [voice, voice2]);
+  }, [peaks, bucketMs, view, widthPx, theme]);
 
   return (
     <>
-      {/* The voiceover band: dim ember, brighter where it has played. */}
+      {/* The voiceover band (spec 38 R8): a green wash, brighter where it has played. */}
       <span
         aria-hidden
-        className="absolute top-1 h-[38px] rounded-[7px] border border-ember/25 bg-ember/5"
+        className="absolute top-1 h-[30px] rounded-[7px] border border-voice/25 bg-linear-to-r from-voice/[0.06] to-voice-2/[0.1]"
         style={{ left: bandLeft, width: bandWidth }}
       />
       <span
         aria-hidden
-        className="absolute top-1 h-[38px] rounded-[7px] bg-[linear-gradient(90deg,rgb(255_122_61/0.14),rgb(255_122_61/0.22))]"
+        className="absolute top-1 h-[30px] rounded-[7px] bg-linear-to-r from-voice-2/[0.14] to-voice/[0.26]"
         style={{
           left: bandLeft,
           width: bandWidth,
           clipPath: `inset(0 calc(100% - (var(--playhead-x) - ${bandLeft}px)) 0 0)`,
         }}
       />
-      <span
-        aria-hidden
-        className="absolute top-2.5 h-6 w-16 -translate-x-1/2 rounded-full bg-ember/7 blur-[2px]"
-        style={{ left: 'var(--playhead-x)' }}
-      />
-      <canvas ref={base} aria-hidden className="absolute top-0 left-0 opacity-35" />
+      <canvas ref={base} aria-hidden className="absolute top-0 left-0 opacity-40" />
       <canvas
         ref={played}
         aria-label="Voiceover waveform"
-        className="absolute top-0 left-0 opacity-80"
+        className="absolute top-0 left-0"
         style={{ clipPath: 'inset(0 calc(100% - var(--playhead-x)) 0 0)' }}
       />
     </>

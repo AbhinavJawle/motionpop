@@ -54,8 +54,8 @@ export function StyleRow() {
   // A project saved with a look we no longer ship still shows the look it renders with.
   const value = options.some((o) => o.value === styleId) ? styleId : (current?.id ?? styleId);
   return (
-    <div className="mt-5 flex h-6 items-center">
-      <SectionLabel className="w-14 shrink-0">Style</SectionLabel>
+    <div className="mt-4 flex h-8 items-center">
+      <SectionLabel className="w-16 shrink-0">Style</SectionLabel>
       <Tooltip content="Applies to the whole video" side="top" className="min-w-0 flex-1">
         <Dropdown
           label="Style"

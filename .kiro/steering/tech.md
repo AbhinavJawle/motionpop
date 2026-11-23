@@ -46,7 +46,7 @@ const model = getGenerativeModel(ai, { mode: InferenceMode.PREFER_ON_DEVICE });
 transformers.js Whisper in a Web Worker (WebGPU, WASM fallback) for word timings · Web Audio / OfflineAudioContext for cleanup, peaks, synthesized SFX and ducking.
 
 ## Explicit non-choices
-No GSAP, no Remotion, no Rive, no ElevenLabs, no AWS services, no stock sound libraries.
+No GSAP, no Remotion, no Rive at runtime, no ElevenLabs, no AWS services, no stock sound libraries. (The sign-up CTA's Rive project in `apps/web/rive/pip-cta` is only the source of its art layers, D-079.)
 
 ## Environments
 - **Local:** `pnpm dev` + Firebase Emulator Suite (Auth, Firestore, Storage); App Check debug token in `.env.local` (never committed).

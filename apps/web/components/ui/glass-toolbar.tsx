@@ -21,7 +21,7 @@ export function GlassToolbar({
       role="toolbar"
       aria-label={label}
       className={cn(
-        'inline-flex h-10 items-center gap-3 rounded-card bg-glass px-3 text-xs leading-4 shadow-glass backdrop-blur-[16px]',
+        'inline-flex h-9 items-center gap-3 rounded-[10px] bg-glass px-3 text-xs leading-4 shadow-pop backdrop-blur-[16px]',
         className,
       )}
     >
@@ -31,5 +31,5 @@ export function GlassToolbar({
 }
 
 export function ToolbarDivider() {
-  return <span aria-hidden className="h-[18px] w-px bg-white/10" />;
+  return <span aria-hidden className="h-4 w-px bg-white/[0.09]" />;
 }

@@ -104,7 +104,7 @@ export function ProjectMenu({
           e.stopPropagation();
           setOpen((o) => !o);
         }}
-        className="flex size-7 items-center justify-center rounded-lg text-text-2 transition-colors hover:bg-white/8 hover:text-text"
+        className="flex size-7 items-center justify-center rounded-lg text-text-2 transition-colors hover:bg-card-3 hover:text-text"
       >
         <MoreHorizontal className="size-4" strokeWidth={1.5} aria-hidden />
       </button>

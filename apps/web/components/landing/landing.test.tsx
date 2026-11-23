@@ -7,6 +7,8 @@ delete (Element.prototype as any).animate;
 
 const h = vi.hoisted(() => ({ auth: { status: 'signed-out' } as { status: string } }));
 vi.mock('@/lib/auth/auth-provider', () => ({ useAuth: () => h.auth }));
+// next/font is a build-time loader; the page only needs the class names.
+vi.mock('./fonts', () => ({ display: { variable: '' }, hand: { variable: '' } }));
 
 import { Landing } from './landing';
 
@@ -20,6 +22,10 @@ describe('Landing', () => {
     expect(ctas.length).toBeGreaterThanOrEqual(3);
     for (const a of ctas) expect(a.getAttribute('href')).toBe('/sign-in?next=/start');
     expect(screen.getByRole('link', { name: 'Sign in' })).toBeTruthy();
+    // Pip's sign-up button opens the page and closes it (spec 34).
+    const signups = screen.getAllByRole('link', { name: 'Sign up & create' });
+    expect(signups.length).toBe(2);
+    for (const a of signups) expect(a.getAttribute('href')).toBe('/sign-in?next=/start');
   });
 
   it('signed in: the calls to action open the projects and Sign in is gone', () => {
@@ -28,6 +34,7 @@ describe('Landing', () => {
     for (const a of screen.getAllByRole('link', { name: /Open (app|your projects)/ }))
       expect(a.getAttribute('href')).toBe('/dashboard');
     expect(screen.queryByRole('link', { name: 'Sign in' })).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Sign up & create' })).toBeNull();
   });
 
   it('prices come from the config defaults, with on-device marked free', () => {

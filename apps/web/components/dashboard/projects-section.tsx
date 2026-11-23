@@ -2,9 +2,8 @@
 
 import { LayoutGrid, List, Search } from 'lucide-react';
 import { useMemo, useState, useSyncExternalStore } from 'react';
-import { Pip } from '@/components/pip/pip';
+import { paper, poster } from '@/components/paper/kit';
 import { Dropdown } from '@/components/ui/dropdown';
-import { Tabs } from '@/components/ui/tabs';
 import { cn } from '@/lib/cn';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
 import { matchesSearch, sortSummaries, type SortKey } from '@/lib/dashboard/format';
@@ -42,10 +41,7 @@ const SORTS: readonly { value: SortKey; label: string }[] = [
   { value: 'name', label: C.projects.sort.name },
 ];
 
-/**
- * "Your projects" (projects.png: title at y 960 with the count badge, search 284×38, sort
- * 202×38, view toggle, tabs at y 1001, 3-column grid of 416×312 cards with 24 px gaps).
- */
+/** Every project (spec 35): poster title with the count, search, sort, grid or list. */
 export function ProjectsSection({
   listing,
   now,
@@ -57,7 +53,6 @@ export function ProjectsSection({
 }) {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<SortKey>('edited');
-  const [tab, setTab] = useState<'all' | 'shared'>('all');
   const view = useSyncExternalStore(subscribeView, readView, () => 'grid' as const);
 
   const shown = useMemo(
@@ -68,80 +63,70 @@ export function ProjectsSection({
   const count = listing.projects.length + listing.damaged.length;
 
   return (
-    <section aria-labelledby="projects-title" className="mt-[54px]">
-      <div className="flex items-center">
-        <h2 id="projects-title" className="text-xl leading-[26px] font-semibold tracking-[-0.2px]">
+    <section aria-labelledby="projects-title" className="mt-20">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-b-2 border-ink pb-4">
+        <h2 id="projects-title" className={cn(poster, 'flex items-center gap-3 text-[44px]')}>
           {C.projects.title}
+          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border-2 border-ink px-1.5 font-mono text-[13px] leading-none font-semibold tracking-normal tabular">
+            {count}
+          </span>
         </h2>
-        <span className="ml-3.5 inline-flex h-[22px] min-w-[26px] items-center justify-center rounded-md bg-card-2 px-1.5 font-mono text-[11px] leading-none text-text-2">
-          {count}
-        </span>
-        <label className="ml-auto flex h-[38px] w-[284px] items-center gap-2.5 rounded-chip border border-line bg-panel px-3 text-text-2 focus-within:border-violet/50">
-          <Search className="size-4 shrink-0" strokeWidth={1.5} aria-hidden />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={C.projects.search}
-            aria-label={C.projects.search}
-            className="h-full min-w-0 flex-1 bg-transparent text-xs leading-4 text-text outline-none placeholder:text-text-2"
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <label className={cn(paper.field, 'flex h-10 w-[260px] items-center gap-2.5 px-3')}>
+            <Search className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={C.projects.search}
+              aria-label={C.projects.search}
+              className="h-full min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-black/45"
+            />
+          </label>
+          <Dropdown
+            label="Sort projects"
+            options={SORTS}
+            value={sort}
+            onChange={setSort}
+            className={cn(
+              paper.field,
+              'flex h-10 w-[170px] items-center px-1.5 [&>button]:text-[13px]',
+            )}
           />
-        </label>
-        <Dropdown
-          label="Sort projects"
-          options={SORTS}
-          value={sort}
-          onChange={setSort}
-          className="ml-[13px] flex h-[38px] w-[202px] items-center rounded-chip border border-line bg-panel px-2"
-        />
-        <div
-          role="radiogroup"
-          aria-label="View"
-          className="ml-[13px] flex h-[38px] items-center gap-1 rounded-chip border border-line bg-panel p-1"
-        >
-          {(
-            [
-              ['grid', LayoutGrid, 'Grid view'],
-              ['list', List, 'List view'],
-            ] as const
-          ).map(([v, Icon, label]) => (
-            <button
-              key={v}
-              type="button"
-              role="radio"
-              aria-checked={view === v}
-              aria-label={label}
-              onClick={() => writeView(v)}
-              className={cn(
-                'flex h-[28px] w-10 items-center justify-center rounded-lg transition-colors',
-                view === v ? 'bg-card-3 text-text' : 'text-text-2 hover:text-text',
-              )}
-            >
-              <Icon className="size-4" strokeWidth={1.5} aria-hidden />
-            </button>
-          ))}
+          <div
+            role="radiogroup"
+            aria-label="View"
+            className={cn(paper.field, 'flex h-10 items-center gap-1 p-1')}
+          >
+            {(
+              [
+                ['grid', LayoutGrid, 'Grid view'],
+                ['list', List, 'List view'],
+              ] as const
+            ).map(([v, Icon, label]) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={view === v}
+                aria-label={label}
+                onClick={() => writeView(v)}
+                className={cn(
+                  'flex h-7 w-9 items-center justify-center rounded-[5px] transition-colors',
+                  view === v ? 'bg-ink text-paper' : 'hover:bg-mist',
+                )}
+              >
+                <Icon className="size-4" strokeWidth={2} aria-hidden />
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
-      <div className="mt-[18px] border-b border-line">
-        <Tabs
-          label="Projects"
-          value={tab}
-          onChange={setTab}
-          tabs={[
-            { value: 'all', label: C.projects.tabs.all },
-            { value: 'shared', label: C.projects.tabs.shared },
-          ]}
-          className="gap-[43px] [&_button]:text-xs"
-        />
-      </div>
-
-      {tab === 'shared' ? (
-        <QuietEmpty text={C.projects.sharedEmpty} />
-      ) : shown.length === 0 && damaged.length === 0 ? (
-        <QuietEmpty text={C.projects.noMatch(query.trim())} />
+      {shown.length === 0 && damaged.length === 0 ? (
+        <p className="py-16 text-center text-[14px]">{C.projects.noMatch(query.trim())}</p>
       ) : view === 'grid' ? (
-        <div className="mt-6 grid grid-cols-3 gap-6">
+        <div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((p) => (
             <ProjectCard key={p.id} project={p} now={now} onChanged={onChanged} />
           ))}
@@ -150,21 +135,12 @@ export function ProjectsSection({
           ))}
         </div>
       ) : (
-        <div className="mt-6 flex flex-col gap-2">
+        <div className="mt-2 flex flex-col">
           {shown.map((p) => (
             <ProjectRow key={p.id} project={p} now={now} onChanged={onChanged} />
           ))}
         </div>
       )}
     </section>
-  );
-}
-
-function QuietEmpty({ text }: { text: string }) {
-  return (
-    <div className="mt-6 flex h-[220px] flex-col items-center justify-center gap-3 rounded-card border border-line bg-panel">
-      <Pip state="idle" size={56} decorative seed={12} />
-      <p className="text-[13px] leading-4 text-text-2">{text}</p>
-    </div>
   );
 }

@@ -95,10 +95,10 @@ export function ReelScenesTrack() {
             title={`${NAMES[s.content.template]}${text ? ` · ${text}` : ''}`}
             onClick={() => clock.seek(s.startMs)}
             className={cn(
-              'absolute top-1/2 z-[2] flex h-[42px] -translate-y-1/2 flex-col justify-center overflow-hidden rounded-[10px] border px-2 text-left',
+              'absolute top-1/2 z-[2] flex h-[38px] -translate-y-1/2 flex-col justify-center overflow-hidden rounded-[10px] border px-2 text-left',
               speaker
                 ? 'border-line bg-card text-text-3'
-                : 'border-violet/40 bg-violet/14 text-violet-ink',
+                : 'border-violet/45 bg-linear-to-r from-violet/22 to-pip/18 text-violet-ink',
             )}
             style={{ left, width }}
           >

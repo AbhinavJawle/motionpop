@@ -70,3 +70,22 @@ Format switcher pills · Brand kit chip (star + three colour dots) · Credits ch
 
 ## Copy rules
 Short, warm, confident. Use the exact strings from the designs. No third-party brand or creator names anywhere.
+
+## Spec 38 (2026-11-22, D-086): the editor is paper too
+The editor now uses the paper language of spec 35 (`[data-paper][data-editor]` on its root). The dark tokens above describe the old studio and apply only where no screen marks itself paper. In the editor:
+- The top bar is the black film-strip bar.
+- Panels, inspector and timeline are paper edged in 2 px ink.
+- The video preview stays a black screen in an ink frame.
+- Pip leads the rail, and its panel is open on load with the glowing Pip (`components/pip-panel/pip-orb.tsx`) at the centre of an empty conversation.
+- Active rail items are ink tiles.
+- The selected slot lifts on a Pip-blue fill with a 3 px hard shadow.
+- Play and the playhead are ember.
+
+## Spec 38 follow-up (2026-11-23, D-087): night desk by default
+The editor opens dark. The paper look is the light option, behind a top-bar toggle. Theme-aware tokens:
+- `paper`, `ink` and `mist`.
+- `edge` (frame borders), `rule` (panel edges) and `hard` (offset shadows).
+- `tile` (raised inverse tiles).
+- `voice`/`voice-2` (green) and `sound`/`sound-2` (cyan → blue).
+
+Use these, not literal `#000`, inside editor markup. On orange fills use `text-black`/`border-black`; on violet or black fills use `text-[#fff]`.

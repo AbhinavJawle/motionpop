@@ -154,7 +154,7 @@ export function logo(p: Of<'logo'>, ctx: TplCtx): Tpl {
     width: size,
     height: size,
     borderRadius: Math.round(size * 0.24),
-    border: `2px solid ${ctx.look.upper ? ctx.pal.ink : ctx.pal.accent}`,
+    border: `2px solid ${ctx.pal.accent}`,
     boxSizing: 'border-box',
     opacity: 0,
   });

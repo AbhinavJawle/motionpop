@@ -12,7 +12,7 @@ export function PlayheadLine() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute top-7 bottom-[18px] z-[1] w-px bg-ember shadow-[0_0_7px_rgb(255_122_61/0.25)]"
+      className="pointer-events-none absolute top-[20px] bottom-[14px] z-[1] w-[2px] -translate-x-[0.5px] bg-flame"
       style={{ left: 'var(--playhead-x)' }}
     />
   );
@@ -39,7 +39,7 @@ export function PlayheadCapsule() {
       aria-label="Playhead"
       aria-valuemin={0}
       aria-valuenow={Math.round(clock.currentMs)}
-      className="absolute top-1.5 z-30 flex h-5 w-11 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full bg-ember shadow-[0_0_12px_rgb(255_122_61/0.18),inset_0_1px_0_rgb(255_255_255/0.12)] select-none"
+      className="absolute top-0 z-30 flex h-[20px] w-12 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border-[1.5px] border-black bg-flame select-none"
       style={{ left: 'var(--playhead-x)' }}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -56,7 +56,10 @@ export function PlayheadCapsule() {
         clock.seek(toMs(e.clientX, e.currentTarget));
       }}
     >
-      <span ref={text} className="tabular font-mono text-[10px] leading-[13px] text-bg">
+      <span
+        ref={text}
+        className="tabular font-mono text-[10px] leading-[13px] font-semibold text-black"
+      >
         {(clock.currentMs / 1000).toFixed(1)}s
       </span>
     </div>

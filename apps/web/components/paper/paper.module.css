@@ -1,0 +1,321 @@
+/*
+ * Spec 35: the paper kit for every screen outside the editor. Same language as the marketing
+ * site (spec 34): white paper, black ink, 2 px rules, hard ink shadows.
+ */
+
+/* ------------------------------------------------------------------ poster type */
+/* A class, not utilities: tailwind-merge drops `leading-*` when a text size follows it. */
+.poster {
+  font-family: var(--font-poster);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.004em;
+  line-height: 0.9;
+}
+
+/* ------------------------------------------------------------------ the film-strip app bar */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: #000;
+  color: #fff;
+}
+
+.bar::before,
+.bar::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='5'%3E%3Crect x='4' y='0' width='9' height='5' rx='1.5' fill='%23ffffff' fill-opacity='0.16'/%3E%3C/svg%3E");
+  background-size: 18px 5px;
+  pointer-events: none;
+}
+
+.bar::before {
+  top: 4px;
+}
+
+.bar::after {
+  bottom: 4px;
+}
+
+.barLink {
+  position: relative;
+  font-family: var(--font-poster);
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: #fff;
+  opacity: 0.62;
+  transition: opacity 160ms ease;
+}
+
+.barLink:hover,
+.barLink[aria-current='page'] {
+  opacity: 1;
+}
+
+.barLink[aria-current='page']::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -7px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--color-flame);
+}
+
+/* ------------------------------------------------------------------ buttons that press into their shadow */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 2px solid var(--btn-edge, #000);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 3px 3px 0 var(--btn-hard, #000);
+  transition:
+    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 140ms ease;
+  cursor: pointer;
+}
+
+.btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--btn-hard, #000);
+}
+
+.btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--btn-hard, #000);
+}
+
+.btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+  box-shadow: 3px 3px 0 var(--btn-hard, #000);
+}
+
+/* The --btn-* variables are set only by the editor's night desk (spec 38 R5). */
+.ink {
+  background: var(--btn-ink, #000);
+  color: var(--btn-paper, #fff);
+}
+
+.paper {
+  background: var(--btn-paper, #fff);
+  color: var(--btn-ink, #000);
+}
+
+.paper:hover {
+  background: var(--color-mist);
+}
+
+.flame {
+  background: var(--color-flame);
+  color: #000;
+}
+
+/* on the black bar or a black panel */
+.onInk {
+  border-color: #fff;
+  box-shadow: 3px 3px 0 rgb(255 255 255 / 0.35);
+}
+
+.onInk:hover {
+  box-shadow: 4px 4px 0 rgb(255 255 255 / 0.5);
+}
+
+.onInk:active {
+  box-shadow: 1px 1px 0 rgb(255 255 255 / 0.35);
+}
+
+.sm {
+  height: 34px;
+  padding: 0 12px;
+  font-size: 12px;
+}
+
+.lg {
+  height: 48px;
+  padding: 0 22px;
+  font-size: 14px;
+}
+
+/* a quiet text button with an ink underline */
+.link {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.link:hover {
+  text-decoration-color: var(--color-flame);
+}
+
+/* ------------------------------------------------------------------ frames */
+.frame {
+  border: 2px solid #000;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.raised {
+  box-shadow: 5px 5px 0 #000;
+}
+
+/* a frame you can click: lifts into a hard shadow */
+.press {
+  transition:
+    transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.press:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 #000;
+}
+
+.field {
+  border: 2px solid #000;
+  border-radius: 8px;
+  background: #fff;
+  transition: box-shadow 140ms ease;
+}
+
+.field:focus-within {
+  box-shadow: 3px 3px 0 #000;
+}
+
+/* ------------------------------------------------------------------ film strip edge */
+.sprockets {
+  height: 14px;
+  background-color: #000;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='14'%3E%3Crect x='5' y='3.5' width='10' height='7' rx='1.6' fill='%23ffffff'/%3E%3C/svg%3E");
+  background-size: 20px 14px;
+  background-repeat: repeat-x;
+}
+
+/* ------------------------------------------------------------------ Pip's speech bubble */
+.bubble {
+  position: relative;
+  display: inline-block;
+  padding: 10px 18px 9px;
+  border: 2px solid #000;
+  border-radius: 50% / 46%;
+  background: #fff;
+  font-family: var(--font-scrawl);
+  font-size: 21px;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.bubble::before,
+.bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -16px;
+  left: 24%;
+  border-style: solid;
+  border-width: 16px 5px 0 12px;
+  border-color: #000 transparent transparent transparent;
+}
+
+.bubble::after {
+  bottom: -12px;
+  left: calc(24% + 3px);
+  border-width: 13px 3px 0 9px;
+  border-color: #fff transparent transparent transparent;
+}
+
+.bubbleRight::before {
+  left: auto;
+  right: 24%;
+  border-width: 16px 12px 0 5px;
+}
+
+.bubbleRight::after {
+  left: auto;
+  right: calc(24% + 3px);
+  border-width: 13px 9px 0 3px;
+}
+
+/* ------------------------------------------------------------------ textures */
+.halftone {
+  background-image: radial-gradient(#000 1.05px, transparent 1.5px);
+  background-size: 7px 7px;
+}
+
+.ruled {
+  background-image: linear-gradient(
+    transparent 31px,
+    rgb(141 188 235 / 0.55) 31px,
+    rgb(141 188 235 / 0.55) 32px
+  );
+  background-size: 100% 32px;
+  background-attachment: local;
+}
+
+/* Storyboard panels that lean into each other (md and up). */
+@media (min-width: 768px) {
+  .slantFirst {
+    clip-path: polygon(0 0, 100% 0, calc(100% - 24px) 100%, 0 100%);
+  }
+
+  .slantMid {
+    clip-path: polygon(24px 0, 100% 0, calc(100% - 24px) 100%, 0 100%);
+  }
+
+  .slantLast {
+    clip-path: polygon(24px 0, 100% 0, 100% 100%, 0 100%);
+  }
+}
+
+/* An ink outline that follows a clip-path: put it on the wrapper of a clipped panel. */
+.outline {
+  filter: drop-shadow(2px 0 0 #000) drop-shadow(-2px 0 0 #000) drop-shadow(0 2px 0 #000)
+    drop-shadow(0 -2px 0 #000);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .press,
+  .barLink {
+    transition: none;
+  }
+}
+
+/*
+ * The desk under every paper screen (spec 36): a faint dot grid like a cutting mat, Pip-blue
+ * light from the top right and a warm ember glow at the bottom left. Frames keep their white fill.
+ */
+.desk {
+  background-color: #fbfcfe;
+  background-image:
+    radial-gradient(70vw 60vh at 100% 0%, rgb(141 188 235 / 0.28), transparent 70%),
+    radial-gradient(55vw 50vh at 0% 100%, rgb(255 106 61 / 0.1), transparent 70%),
+    radial-gradient(40vw 40vh at 0% 30%, rgb(139 124 255 / 0.07), transparent 70%),
+    radial-gradient(rgb(0 0 0 / 0.09) 1px, transparent 1.4px);
+  background-size:
+    auto,
+    auto,
+    auto,
+    22px 22px;
+}

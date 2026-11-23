@@ -10,9 +10,13 @@ import {
   APP_CONFIG_DEFAULTS,
   DEFAULT_CAPTIONS,
   FormatSchema,
+  PIP_MAX_STEPS,
   PipCaptionChoiceSchema,
+  ReelLookSchema,
+  ReelSfxKindSchema,
   SlotPlacementSchema,
   VideoStageModeSchema,
+  audioOf,
   costOf,
   type Brand,
   type CostConfig,
@@ -36,6 +40,81 @@ import { imageRoleOf, suggestSubject } from '@/lib/images/generate';
 export function slotRefs(project: EditorProject): Map<string, string> {
   const sorted = [...project.slots].sort((a, b) => a.startMs - b.startMs);
   return new Map(sorted.map((s, i) => [`s${i + 1}`, s.id]));
+}
+
+/** Reel scenes in time order get refs r1..rN (spec 37). */
+export function sceneRefs(project: EditorProject): Map<string, string> {
+  const sorted = [...(project.reel?.scenes ?? [])].sort((a, b) => a.startMs - b.startMs);
+  return new Map(sorted.map((s, i) => [`r${i + 1}`, s.id]));
+}
+
+/** Keys of a scene's content that are not words on screen. */
+const NOT_TEXT = new Set([
+  'template',
+  'icon',
+  'asset',
+  'src',
+  'html',
+  'css',
+  'script',
+  'kind',
+  'url',
+  'at',
+]);
+
+/** The words a scene shows, short (what the model needs to tell scenes apart). */
+export function sceneText(content: unknown, max = 140): string {
+  const out: string[] = [];
+  const walk = (v: unknown, depth: number) => {
+    if (out.join(' ').length > max || depth > 3) return;
+    if (typeof v === 'string') {
+      const t = v.trim();
+      if (t) out.push(t);
+    } else if (Array.isArray(v)) v.forEach((x) => walk(x, depth + 1));
+    else if (v && typeof v === 'object')
+      for (const [k, x] of Object.entries(v)) if (!NOT_TEXT.has(k)) walk(x, depth + 1);
+  };
+  walk(content, 0);
+  return clip(out.join(' · ').replace(/\s+/g, ' '), max);
+}
+
+/** The reel's state in a few words, for Pip (spec 37 R1.1). */
+function reelInput(project: EditorProject): PipPlanInput['project']['reel'] {
+  const r = project.reel;
+  if (!r) return undefined;
+  const refs = sceneRefs(project);
+  const a = audioOf(project);
+  const music = r.music?.src
+    ? `generated "${clip(r.music.brief, 60)}"`
+    : a.musicId === 'calm-pad' || a.musicId === 'steady-pulse'
+      ? a.musicId
+      : 'none';
+  const theme = r.theme
+    ? `${r.theme.accent}${r.theme.accent2 ? ` ${r.theme.accent2}` : ''} ${r.theme.background} gradient`
+    : r.look === 'mono'
+      ? 'house black and white (no colour yet)'
+      : 'house cream and orange';
+  return {
+    look: r.look,
+    captions: r.captions,
+    theme: clip(theme, 80),
+    sound: clip(
+      `effects ${a.autoSfx ? `on (${a.sfxGainDb >= 0 ? '+' : ''}${a.sfxGainDb} dB)` : 'off'}; music ${music}; added sounds ${r.sfx?.length ?? 0}`,
+      160,
+    ),
+    cuts: project.video?.cuts.filter((c) => c.enabled).length ?? 0,
+    scenes: [...refs].slice(0, 80).map(([ref, id]) => {
+      const s = r.scenes.find((x) => x.id === id)!;
+      return {
+        ref,
+        template: s.content.template,
+        layout: s.layout,
+        startMs: s.startMs,
+        endMs: s.endMs,
+        text: sceneText(s.content),
+      };
+    }),
+  };
 }
 
 export function pipInput(
@@ -86,19 +165,34 @@ export function pipInput(
       components: DETECT_CATALOGUE.filter((c) => c.built)
         .slice(0, 16)
         .map((c) => ({ id: c.id, name: c.name, useWhen: c.useWhen.slice(0, 160) })),
+      ...(project.reel ? { reel: reelInput(project) } : {}),
     },
     history: history.slice(-6).map((h) => ({ role: h.role, text: h.text.slice(0, 400) })),
     message: message.slice(0, 1000),
   };
 }
 
-/** Credits a step spends when applied: only a cloud regeneration costs (quick edits route per user). */
+/**
+ * Credits a step spends when applied: a cloud regeneration, a reel scene edit (the note price; a
+ * new graphic adds the custom price, shown on the card) and directing the reel again.
+ */
 export function stepCredits(
   action: PipStep['action'],
   cfg: CostConfig = APP_CONFIG_DEFAULTS,
 ): number {
-  return action === 'generateSlot' ? costOf('generate', 1, cfg) : 0;
+  switch (action) {
+    case 'generateSlot':
+      return costOf('generate', 1, cfg);
+    case 'editScene':
+      return costOf('edit', 1, cfg);
+    case 'regenerateReel':
+      return costOf('reel', 1, cfg);
+    default:
+      return 0;
+  }
 }
+
+const HEX_IN = /#[0-9a-fA-F]{6}\b/g;
 
 export function planCredits(plan: PipPlan): number {
   return plan.steps.filter((s) => s.include).reduce((n, s) => n + s.credits, 0);
@@ -114,20 +208,150 @@ export function enforcePlan(
   cfg: CostConfig = APP_CONFIG_DEFAULTS,
 ): PipPlan {
   const refs = slotRefs(project);
+  const scenes = sceneRefs(project);
   const styleIds = new Set(styleOptions().map((s) => s.id));
   const steps: PipStep[] = [];
   const dropped: PipPlan['dropped'] = [];
   const seen = new Set<string>();
   const drop = (label: string, reason: string) =>
-    dropped.length < 8 && dropped.push({ label: clip(label || 'A step', 60), reason });
+    dropped.length < PIP_MAX_STEPS && dropped.push({ label: clip(label || 'A step', 60), reason });
+  const reel = project.reel;
+  const NO_REEL = 'Only for video reels';
 
-  for (const m of out.steps.slice(0, 8)) {
+  for (const m of out.steps.slice(0, PIP_MAX_STEPS)) {
     const label = clip(m.label.trim() || m.action, 60);
     const slotId = refs.get(m.slot);
-    const base = { id: `step-${steps.length + 1}`, action: m.action, label, include: true };
-    const key = `${m.action}:${slotId ?? ''}:${m.choice}`;
+    const sceneId = scenes.get(m.slot);
+    // A slot action aimed at a reel scene means the scene action (the model mixes them up).
+    const action: PipStep['action'] =
+      sceneId && !slotId
+        ? m.action === 'updateSlot' || m.action === 'generateSlot'
+          ? 'editScene'
+          : m.action === 'removeSlot'
+            ? 'clearScene'
+            : m.action
+        : m.action;
+    const base = { id: `step-${steps.length + 1}`, action, label, include: true };
+    const key = `${action}:${slotId ?? sceneId ?? ''}:${m.choice}:${action === 'addSound' ? m.atWord : ''}`;
     if (seen.has(key)) continue;
-    switch (m.action) {
+    const instruction = m.instruction.trim().slice(0, 200);
+    switch (action) {
+      case 'editScene':
+      case 'clearScene': {
+        if (!reel) {
+          drop(label, NO_REEL);
+          continue;
+        }
+        if (!sceneId) {
+          drop(label, 'That scene isn’t in the reel');
+          continue;
+        }
+        if (action === 'editScene' && !instruction) {
+          drop(label, 'Nothing to change was given');
+          continue;
+        }
+        steps.push({
+          ...base,
+          sceneId,
+          ...(action === 'editScene' ? { instruction } : {}),
+          credits: stepCredits(action, cfg),
+        });
+        break;
+      }
+      case 'setReelTheme': {
+        if (!reel) {
+          drop(label, NO_REEL);
+          continue;
+        }
+        const hexes = instruction.match(HEX_IN) ?? [];
+        if (!hexes[0]) {
+          drop(label, 'No colours were given');
+          continue;
+        }
+        const background =
+          m.choice === 'plain' || m.choice === 'bold' || m.choice === 'soft' ? m.choice : 'soft';
+        steps.push({
+          ...base,
+          theme: {
+            accent: hexes[0].toUpperCase(),
+            ...(hexes[1] ? { accent2: hexes[1].toUpperCase() } : {}),
+            background,
+          },
+          credits: 0,
+        });
+        break;
+      }
+      case 'setReelLook': {
+        const look = ReelLookSchema.safeParse(m.choice);
+        if (!reel) {
+          drop(label, NO_REEL);
+          continue;
+        }
+        if (!look.success) {
+          drop(label, 'Choose mono or cream');
+          continue;
+        }
+        if (look.data === reel.look) {
+          drop(label, 'The reel already has that look');
+          continue;
+        }
+        steps.push({ ...base, look: look.data, credits: 0 });
+        break;
+      }
+      case 'regenerateReel':
+        if (!reel) {
+          drop(label, NO_REEL);
+          continue;
+        }
+        steps.push({
+          ...base,
+          ...(instruction ? { instruction } : {}),
+          credits: stepCredits(m.action, cfg),
+        });
+        break;
+      case 'setSound': {
+        const c = m.choice;
+        if (c !== 'on' && c !== 'off' && c !== 'louder' && c !== 'quieter' && c !== 'clear') {
+          drop(label, 'Choose on, off, louder, quieter or clear');
+          continue;
+        }
+        if (c === 'clear' && !reel?.sfx?.length) {
+          drop(label, 'There are no added sounds');
+          continue;
+        }
+        steps.push({ ...base, sound: c, credits: 0 });
+        break;
+      }
+      case 'setMusic': {
+        const c = m.choice;
+        if (c !== 'none' && c !== 'calm-pad' && c !== 'steady-pulse' && c !== 'ai') {
+          drop(label, 'Unknown music');
+          continue;
+        }
+        if (c === 'ai' && (!reel || instruction.length < 3)) {
+          drop(label, reel ? 'No music brief was given' : NO_REEL);
+          continue;
+        }
+        steps.push({ ...base, music: c, ...(c === 'ai' ? { instruction } : {}), credits: 0 });
+        break;
+      }
+      case 'addSound': {
+        const kind = ReelSfxKindSchema.safeParse(m.choice);
+        if (!reel) {
+          drop(label, NO_REEL);
+          continue;
+        }
+        if (!kind.success) {
+          drop(label, 'Unknown sound');
+          continue;
+        }
+        if (m.atWord < 0 || !project.transcript.words[m.atWord]) {
+          drop(label, 'No word to put it on');
+          continue;
+        }
+        steps.push({ ...base, sfxKind: kind.data, atWord: m.atWord, credits: 0 });
+        break;
+      }
       case 'updateSlot':
       case 'generateSlot':
       case 'removeSlot': {
@@ -288,7 +512,12 @@ export type ChipId =
   | 'vertical'
   | 'overlays'
   | 'cutaways'
-  | 'toggleCuts';
+  | 'toggleCuts'
+  // Video reels (spec 37)
+  | 'reelColour'
+  | 'reelSfx'
+  | 'reelMusic'
+  | 'reelLook';
 
 export interface Chip {
   id: ChipId;
@@ -321,8 +550,30 @@ export function cleanSubject(raw: string): string | null {
   return ImageSubjectSchema.safeParse(s).success ? s : null;
 }
 
+/** A vivid pair that lifts either house look (ember into violet). */
+export const REEL_DEFAULT_THEME = { accent: '#FF5A36', accent2: '#7C5CFF' } as const;
+
+/** Chips for a video reel (spec 37): colour, sound, music, captions, look, cuts. */
+function reelChips(project: EditorProject): Chip[] {
+  const r = project.reel!;
+  const a = audioOf(project);
+  const hasMusic = !!r.music?.src || a.musicId === 'calm-pad' || a.musicId === 'steady-pulse';
+  const out: Chip[] = [
+    {
+      id: 'reelColour',
+      label: r.theme ? 'Back to the look’s own colours' : 'Add colour and gradients',
+    },
+    { id: 'reelSfx', label: a.autoSfx ? 'Turn sound effects off' : 'Turn sound effects on' },
+    { id: 'reelMusic', label: hasMusic ? 'Remove the music' : 'Add a calm music bed' },
+    { id: 'captions', label: r.captions ? 'Turn captions off' : 'Add captions' },
+    { id: 'reelLook', label: r.look === 'mono' ? 'Try the cream look' : 'Try the mono look' },
+  ];
+  return out;
+}
+
 /** The chips that make sense for this project right now (empty state). */
 export function chipsFor(project: EditorProject): Chip[] {
+  if (project.reel && project.slots.length === 0) return reelChips(project);
   const out: Chip[] = [];
   if (project.video) {
     const anyCutaway = project.slots.some((s) => s.placement !== 'overlay');
@@ -374,7 +625,7 @@ export function codePlan(
   });
   const plan = (reply: string, steps: Omit<PipStep, 'id' | 'include'>[]): PipPlan => ({
     reply,
-    steps: steps.slice(0, 8).map(step),
+    steps: steps.slice(0, PIP_MAX_STEPS).map(step),
     dropped: [],
     source: 'code',
   });
@@ -418,6 +669,19 @@ export function codePlan(
     }
     case 'brand': {
       if (!savedBrand) return plan(NO_BRAND_YET, []);
+      if (project.reel)
+        return plan('Your brand colours across the reel', [
+          {
+            action: 'setReelTheme',
+            theme: {
+              accent: savedBrand.accent,
+              ...(savedBrand.accent2 ? { accent2: savedBrand.accent2 } : {}),
+              background: 'soft',
+            },
+            label: 'Use my brand colours',
+            credits: 0,
+          },
+        ]);
       if (
         project.brand?.accent.toLowerCase() === savedBrand.accent.toLowerCase() &&
         (project.brand.accent2 ?? '').toLowerCase() === (savedBrand.accent2 ?? '').toLowerCase()
@@ -443,7 +707,9 @@ export function codePlan(
           ]);
     }
     case 'captions': {
-      const on = (project.captions ?? DEFAULT_CAPTIONS).enabled;
+      const on = project.reel
+        ? project.reel.captions
+        : (project.captions ?? DEFAULT_CAPTIONS).enabled;
       return plan('Done in one step', [
         {
           action: 'setCaptions',
@@ -482,6 +748,56 @@ export function codePlan(
           action: 'toggleCuts',
           cutEnabled: !anyEnabled,
           label: anyEnabled ? 'Restore all video cuts' : 'Apply AI video cuts',
+          credits: 0,
+        },
+      ]);
+    }
+    case 'reelColour': {
+      const r = project.reel;
+      if (!r) return plan('This project has no reel', []);
+      return r.theme
+        ? plan('Back to the look’s own colours', [
+            { action: 'setReelTheme', label: 'Use the look’s colours', credits: 0 },
+          ])
+        : plan('Colour and soft gradients on every scene. Ask me for any colours you like.', [
+            {
+              action: 'setReelTheme',
+              theme: { ...REEL_DEFAULT_THEME, background: 'soft' },
+              label: 'Ember and violet, soft gradient',
+              credits: 0,
+            },
+          ]);
+    }
+    case 'reelSfx': {
+      const on = audioOf(project).autoSfx;
+      return plan(on ? 'Quiet it is' : 'Every reveal gets its sound', [
+        {
+          action: 'setSound',
+          sound: on ? 'off' : 'on',
+          label: on ? 'Sound effects off' : 'Sound effects on',
+          credits: 0,
+        },
+      ]);
+    }
+    case 'reelMusic': {
+      const a = audioOf(project);
+      const has =
+        !!project.reel?.music?.src || a.musicId === 'calm-pad' || a.musicId === 'steady-pulse';
+      return has
+        ? plan('Just your voice and the effects', [
+            { action: 'setMusic', music: 'none', label: 'Remove the music', credits: 0 },
+          ])
+        : plan('A calm bed under your voice. Ask me for any mood and I’ll write new music.', [
+            { action: 'setMusic', music: 'calm-pad', label: 'Calm music bed', credits: 0 },
+          ]);
+    }
+    case 'reelLook': {
+      const next = project.reel?.look === 'mono' ? 'cream' : 'mono';
+      return plan(next === 'cream' ? 'Warm and editorial' : 'Clean and bold', [
+        {
+          action: 'setReelLook',
+          look: next,
+          label: next === 'cream' ? 'Switch to cream' : 'Switch to mono',
           credits: 0,
         },
       ]);

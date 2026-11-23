@@ -395,7 +395,7 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
               <span className="size-2 rounded-full bg-[#27C93F]" />
               <span
                 ref={mediaTitleRef}
-                className="ml-2 truncate font-mono text-[10px] text-white/60"
+                className="ml-2 truncate font-mono text-[10px] text-[#fff]/60"
               />
             </div>
             <div className="relative min-h-0 flex-1 overflow-hidden">

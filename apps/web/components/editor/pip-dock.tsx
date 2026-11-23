@@ -37,9 +37,24 @@ export function PipDock() {
           ? 'Pip is thinking…'
           : 'Drop a slot, I’ll fill it';
 
+  // Spec 33: the bubble speaks up when something changes, then gets out of the way; hovering
+  // Pip brings it back. While Pip works it stays.
+  const [quietFor, setQuietFor] = useState<string | null>(null);
+  const [hover, setHover] = useState(false);
+  useEffect(() => {
+    if (working) return;
+    const id = setTimeout(() => setQuietFor(message), 4000);
+    return () => clearTimeout(id);
+  }, [message, working]);
+  const speaking = working || hover || quietFor !== message;
+
   return (
-    // Under an open left panel (z-10), as in pip-conversation.png: the panel covers the bubble.
-    <div className="pointer-events-none absolute bottom-[16px] left-3 z-[5] flex items-center gap-[7px]">
+    // Under an open left panel (z-10): the panel covers the bubble.
+    <div
+      className="absolute bottom-3 left-[13px] z-[5] flex items-center gap-2"
+      onPointerEnter={() => setHover(true)}
+      onPointerLeave={() => setHover(false)}
+    >
       <Pip
         size={38}
         state={generating ? 'thinking' : showDone ? 'done' : 'idle'}
@@ -47,14 +62,16 @@ export function PipDock() {
         seed={7}
       />
       <AnimatePresence mode="wait">
-        <motion.div
-          key={message}
-          {...popIn}
-          role="status"
-          className="pointer-events-auto rounded-chip bg-glass px-[17px] py-2 text-[11px] leading-[14px] font-medium text-bubble-ink shadow-glass backdrop-blur-[16px]"
-        >
-          {message}
-        </motion.div>
+        {speaking && (
+          <motion.div
+            key={message}
+            {...popIn}
+            role="status"
+            className="rounded-lg bg-glass px-3 py-1.5 text-[12px] leading-4 font-medium whitespace-nowrap text-bubble-ink shadow-pop backdrop-blur-[16px]"
+          >
+            {message}
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );

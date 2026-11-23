@@ -875,3 +875,324 @@ Template:
   - The processing-flow 404 seen during the spec 30 export is still untraced.
   - The inspector fold question above.
   - Nothing pushed (16 local commits ahead of origin).
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · spec 31 sign-up CTA with the plush Pip (Rive)
+- **Founder brief:** an animated React sign-up CTA from two references: a composition (near-black button, thin pink-to-blue border with glow, "Sign up & create" in monospace, a diagonal arrow, the ghost peeking over the top edge with plush hands over the border) and the plush mascot, to be kept exactly. Mascot animated with Rive, button in HTML/CSS, body behind the edge and hands in front.
+- **Built:**
+  - **Assets:**
+    - The mascot matted from its dark background with a local-backdrop colour-line matte, which keeps the fuzzy edge and the scallop gaps.
+    - The body with fur filled under the eyes. Each eye layer carries the original socket pixels, so open eyes recomposite within 1.9/255 and a blink squashes the socket rim into a lid crease.
+    - Two plush hands built from the mascot's own fur fibres and lighting.
+  - **Rive (`apps/web/rive/pip-cta`, CLI 1.10.0):**
+    - Two artboards in one space; view model `hover` / `press`. Idle, Hover and Press layers key separate nodes, so hover and press never restart the idle loop.
+    - Idle is a 6 s seamless loop (float, tilt, settle compression, lagging paws, one blink).
+    - The generator is `tools/build.py`; `tools/preview.py` renders both artboards headless on black and white, recovers alpha and composites them with a button mock.
+  - **App:**
+    - `SignupCTA` (one real link; CSS face, border, glow, 2 px hover lift, press), sized by container queries.
+    - A client-only mascot: two canvases sharing one loaded RiveFile, wasm self-hosted, stills while loading and for reduced motion.
+    - Used in the landing page's closing section for signed-out visitors.
+- **Checks and fixes:**
+  - The headless frames caught a pill-shaped outline left by the eye fill during the blink; fixed with the socket-carrying eye layers.
+  - Measured against an untouched run, the hover lift was about 12 px and the hop about 20 px at a 620 px button. Toned down to about 8 px and 10 px.
+  - The browser caught the glow painting over the button face: a negative z-index child sits above its parent's own background. The glow is now its own element.
+  - The browser caught "Problem loading file; may be corrupt!". The file loaded fine in a bare page on canvas-lite 2.49.2 and 2.54.0 and on canvas 2.49.2 and 2.54.0. The cause was `useRiveFile` publishing the file before it loads, so under StrictMode a cleaned-up file reached `useRive`. Replaced with a hook that hands over only a loaded file.
+  - Tuned against the reference: border, glow, arrow size, paws 10 % smaller. The proportions match: smile 0.049 of the button width above the edge (reference 0.05), text 0.61 of the width (0.63). The head rises higher than the reference ghost because the real mascot is taller; kept, since the mascot comes first.
+- **Blocker found:** the Rive workspace is on a plan with the splash watermark. The published `.riv` draws about 2.3 s of opaque black on load, over the button text, measured in the page and in a bare page. I didn't try to hide or bypass it. The animation is behind `PIP_CTA_RIVE_ENABLED` (off), so the CTA ships the still pose. To switch it on: republish from a plan without the splash, copy the file, flip the flag.
+- **Verified:**
+  - `rive . --verify` and `inspect` are clean.
+  - Web typecheck and lint: green.
+  - Landing tests 9/9.
+  - Full web suite: 1235 passed, 3 failed, all in `lib/tts/generate-voice-cache.test.ts`. That file wasn't touched this session; the working tree already held uncommitted schema changes. Not traced.
+  - Headless Chromium against the dev server at 1440 and 390 wide: idle, hover, press, release and leave all checked; no horizontal overflow.
+- **Gaps:**
+  - The animated version has only been seen after the splash ends.
+  - The paws are generated, not drawn.
+  - Not tested on Safari or Firefox.
+  - Not committed.
+- **Follow-up (same day):** the founder saw no animation. Two causes:
+  - macOS Reduce Motion is on, so the CTA showed the still pose.
+  - The `.riv` still carried the splash.
+  - Removing the splash needs a paid Rive plan; the founder said "just make it work somehow". I rebuilt the rig in `motion` from the same five layers: same Bounce > Perk > Float nesting, idle curves, blink, perk and hop. Then I removed the Rive runtime, the `.riv`, the wasm and the stills.
+  - Browser check (headless Chromium, dev server): Pip floats (body moves ~13 px over the loop), the float stays continuous through a press (max 0.12 px per frame, no restart), no splash, no console errors.
+  - Landing tests 9/9; typecheck and lint clean. Reduced-motion visitors still see Pip still.
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · spec 32 editor shine (calm studio pass)
+- **Founder ask:** "lets make that editor shinnneeeeeeeeeeee. you are a professional designer", after comparing with a competitor's calm editor; the design PNGs are old, so screenshots of `/editor/demo` (own dev server on 3210, fake AI) at 1440×900 and 1920×1080 were the reference.
+- **Found:**
+  - the preview was capped at 405 px tall in a large empty area
+  - about eight accent colours competed
+  - letter-spaced caps labels everywhere
+  - "Fit" and "Timeline settings" only toasted "on its way"
+  - the editor opened on a blank frame
+  - clicking a slot didn't move the preview to it
+  - the picture nudge toast covered the tracks
+- **Built (spec 32, decision D-080):**
+  - **Preview:** a fit-box hook makes the frame as large as the workspace allows (1440: 774×436 with the inspector open, 1920: about 1094×616). The footer is gone: save status by the title, style name in the toolbar (opens Styles), scene counter removed. The colour blobs are replaced by a neutral spotlight, and the frame has a lifted shadow.
+  - **Colour roles:**
+    - ember only for Export and the playhead
+    - "Make it a film" a violet tint instead of solid with a glow
+    - "Add graphic" neutral; "Synced" plain text
+    - voice waveform white (bright where played) on a neutral band; sound band neutral, no glow
+    - slot cards neutral, selection a violet ring, no ready dot
+    - "Make picture" secondary
+  - **Type:** sentence-case track labels (Graphics, Video, Words, Voice, Sound) centred in their rows. "Fit" and "Timeline settings" removed. The Picture section is now aligned with the other inspector sections.
+  - **Behaviour:** the editor opens on the first ready graphic's hero frame (`slotHeroMs`: key moment or 70 % through, before the exit), and clicking a slot while paused seeks there. A drag no longer counts as a click. Toasts sit above the timeline through `--toast-bottom`.
+- **Verified:**
+  - typecheck and lint clean
+  - web unit suite 1238 passed; the same 3 `generate-voice-cache` failures as before this session (not touched)
+  - new `key-moment.test.ts` 3/3
+  - Playwright chromium: `editor-demo`, `editor-design` (pixel check within tolerance), `generate-design`, `inspector-design`, `note-design`, `inspector-fold` — 8 passed, 4 skipped as before
+- **Gaps:**
+  - The reel editor was not screenshotted (no reel fixture; the founder's reels live in their own browser storage); it shares the same preview and timeline code.
+  - The style-mascot idea waits for transparent cutouts.
+  - Not committed.
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · spec 33 editor studio system (whole-editor overhaul)
+- **Founder ask:** "you kinda only did the timeline … do a complete overhaul and make the ui as masterclass".
+- **Built (spec 33, decision D-081):**
+  - graphite tokens with no purple tint; radii 8/10/18; `shadow-pop`; a focus ring instead of the glow; sentence-case labels
+  - 48 px top bar with a Pip mark and a "Projects / title" breadcrumb; 64 px neutral rail
+  - shared panel headers; Styles as a two-column gallery of samples in each look's colours
+  - Pip panel suggestion rows, scope tabs and a composer with a focus ring and a white send button
+  - white `solid` button for Brand and Voice actions
+  - inspector rebuilt: header "Graphic n · times", "You said" card, prompt box, hairline value table, aligned Style/Timing/Versions rows
+  - neutral export option cards
+  - Pip dock bubble shows only while Pip works, on hover or for 4 s after a message
+- **Verified:**
+  - typecheck and lint clean
+  - web unit suite 1238 passed with the same 3 pre-existing `generate-voice-cache` failures (not touched)
+  - Playwright chromium: `editor-demo`, `editor-design` (new studio baseline, 0.00/0.04/0.00 %), `export-design` (export 16.6 %, ready 7.0 %), `inspector-design`, `note-design`, `generate-design`, `inspector-fold`, `credits-design` — all passed, 4 skipped as before
+  - screenshots at 1440×900, 1920×1080 and 9:16
+- **Gaps:** reel editor not screenshotted (no fixture); not committed.
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · spec 34 marketing site
+- **Founder ask:** marketing copy for both hackathons, and a site design heavily inspired by capy.ai, using the animated Pip files and the Pip CTA button in the hero.
+- **Built (spec 34, D-082):**
+  - Studied capy.ai at 1440 (screenshots, fonts).
+  - Wrote the copy module: hero "You talk. We make it move.", a ticker of phrases turning into graphics, how it works, looks, hybrid AI, Pip plans, features, audiences, the "stitched together" build story, pricing, FAQ, closing call.
+  - Rebuilt `components/landing/landing.tsx` in an ink storyboard style with a CSS module.
+  - Rendered the clapperboard (12 s) and juggling (4 s) Pip loops from the founder's Rive projects by difference matting. Both are seamless loops; mean difference between first and last frame 0.09 and 0.06.
+  - Captured a new editor screenshot for the product frame.
+- **Fixed during browser QA:**
+  - The Pip CTA's headroom is in container units and fell back to the viewport, leaving a 400 px gap. It now sits in a sized container.
+  - The CSS-module bubble beat Tailwind's `hidden` on phones.
+  - Cleared overlaps between Pip and the ticker and panels.
+- **Verified:**
+  - typecheck, lint, prettier clean
+  - landing tests 9/9
+  - screenshots at 1440 and 390: no console errors, no horizontal scroll
+- **Gaps:**
+  - Safari shows still Pips (alpha HEVC not verified).
+  - The signed-out hero was checked through tests, not in the browser (the local dev auth shows the signed-in variant).
+  - Not committed.
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · Pip paper-plane loop (spec 34 follow-up)
+- **Founder ask:** animate Pip riding the paper plane from the reference picture. They wanted a fast, dynamic, seamless 3 s loop made in Rive, with the plane swooping and banking, Pip leaning, bouncing and waving, and speed effects.
+- **Built (`apps/web/rive/pip-plane`):**
+  - Cut the reference into five layers: plane, smoke, body, waving arm and left arm. Used a known-backdrop matte and rebuilt the occluded plane behind Pip from its straight top edge.
+  - Generated `scene.rml`. The flight is a periodic spline; Pip moves on spring physics driven by the flight; the wave is three waves through the turn. Added ink speed streaks with trim paths, swooshes, sparks, a stretching smoke trail and a faint speed echo.
+  - Rendered every frame with the Rive CLI on white and black for true alpha, then encoded `public/pip/plane.webm` (0.62 MB) and the still.
+  - It replaces the second clapper in the landing closer ("Give that idea a little afterlife."). `PipLoopName` gains `plane`.
+- **Bugs fixed on the way:**
+  - The vertical flight channel read the x poses, so the plane barely climbed.
+  - The shadowed gap between the left arm and the body matted as opaque black.
+  - A light halo appeared around the hem where the rebuilt paper met the real paper.
+- **Verified:**
+  - `rive --verify` 0 errors
+  - seam error 0.04 against 1.4 per frame
+  - nothing touches the artboard edges
+  - typecheck, lint, landing tests 9/9
+  - headless Chromium at 1440 and 390: video playing at 840 x 564, no horizontal scroll, no app console errors
+- **Gaps:** Safari still gets the still; not committed.
+
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · spec 35 paper app screens (everything outside the editor)
+- **Founder ask:** a complete redesign of the dashboard, then of onboarding and everything else outside the editor.
+- **Spec:** `.kiro/specs/35-paper-app-screens/` (requirements, design with tokens, wireframe and a review against generic defaults, tasks). Written in Claude Code, not Kiro. Decision D-083.
+- **Built:**
+  - Paper theme: tokens remapped on `html:has([data-paper])`; Bebas and Patrick Hand font variables on `<html>`; `font-poster` and `font-scrawl` utilities; a paper kit in `components/paper/` (`PaperPage`, `AppBar`, `btn()`, frames, sprockets, bubbles, ruled sheet, slanted panels).
+  - Dashboard: poster greeting with Pip's clapper loop and bubble; an ink capture bar (hold to record, paste, ⌘K, and a "Use this script" button once text is typed); a film-strip lead frame with storyboard ticks and Resume; the week line; project frames and list rows with real look stills; empty and catching states with Pip juggling; a paper drop overlay; a "Try a look" strip.
+  - Sign-in: the form on paper beside a black film panel ("You talk. We make it move."). Accessible names kept for `auth.spec`.
+  - Start: a poster header, and Record / Upload / Script as slanted storyboard panels (ember, paper, ink). Record: a huge Bebas clock, an ember stop button, an ink waveform at full width. Script: a ruled writing sheet, ink voice choices, and the price on the Generate button. Processing: steps as a numbered shot list, an ink word strip, and Pip's bubble (`pip-bubble` kept).
+  - Styles: look frames, with four new stills captured from the demo editor. Settings: app bar, poster title, an ink index, sections as paper frames. Share: video on a film strip; not-found with Pip. Legal: a paper column.
+- **Problems found on the way:**
+  - `cn()` (tailwind-merge) dropped `leading-*` before an arbitrary text size, so poster type became a CSS-module class.
+  - Shadow tokens are inlined by Tailwind, so the paper menu and dialog frames needed an unlayered rule.
+  - The toggle knob was `bg-white`, which went ink on paper; it now uses a `knob` token (`components/ui` forbids raw hex).
+  - The ⋯ menu was clipped by its card.
+  - At 390 px the app bar, the project bar and the Record panel's waveform overflowed.
+- **Verified:**
+  - typecheck, lint, prettier clean.
+  - vitest: 1238 pass. The only 3 failures are the existing `generate-voice-cache` tests.
+  - Playwright: processing, credits-design (Settings widths updated), editor-design, editor-demo, export-design, inspector-design, note-design, generate-design and inspector-fold all pass.
+  - Screenshots at 1440 and 390 for every route: no horizontal scroll.
+- **Gaps:**
+  - The Firebase sign-in form was checked by tests, not by eye (local dev shows the local-mode variant).
+  - The share page with a real video was not rendered (offline mode has no shares).
+  - Not committed.
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · Pip clapper loop v2 (spec 34 follow-up)
+- **Founder ask:** the clapperboard Pip (`~/Developer/pip-rive/pip-float`) felt too still. They asked for a 5 s loop with clearly visible bouncing, wobbling and leaning, constantly wiggling tentacles, about 3 fast clapper snaps per loop, snap reactions, head tilts and blinks.
+- **Built:**
+  - Rewrote the scene generator (`tools/build.py`; v1 backed up in `build/v1`).
+  - 5 s loop. The body bounces like a ball and lands on each of three snaps (0.83 s, 2.5 s, 4.17 s), with a squash and a rebound. It sways and leans both ways and tilts its head twice.
+  - Each snap: the board opens, opens wide, slams shut in 7 frames, bounces and swings back open. The hands jolt, the eyes squint and a ripple goes out.
+  - Cut the eyes into their own layers (`tools/eyes.py`) for blinks.
+  - The tentacles ride two travelling waves with a different phase per tentacle, plus a lag behind the body. Each vertex's weight is averaged across the tentacle's width, so thin tentacles no longer pinch.
+  - Re-rendered `public/pip/clapper.webm` (0.52 MB, 480×480, 30 fps) and its still.
+- **Verified:**
+  - `rive --verify` 0 errors
+  - seam error 0.06 against 2.0 per frame
+  - nothing clipped
+  - on-screen motion about 5× v1 (mean frame-to-frame change 3.2 against 0.63); v2's quietest moment moves more than v1's average
+  - plays as a 5 s loop on the landing page in headless Chromium, no page errors
+- **Gaps:** the pip-rive projects live outside the repo, unversioned; not committed.
+- **Follow-up (founder: "too fast, a bit creepy"):** the same motion now plays 1.3× slower, a 6.5 s loop with a snap every 2.2 s. The slam still takes about 0.15 s. Re-rendered `clapper.webm` (0.61 MB), seam error 0.06. The 5 s version is kept in `build/v2_*`.
+
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · Spec 36 depth and colour
+- **Founder ask:**
+  - Backgrounds are flat and boring: a loud-but-nice hero, subtle colour elsewhere.
+  - The editor peeking 20–30 % in the hero.
+  - Pips placed meaningfully.
+  - A livelier idle for the CTA Pip.
+  - 10–20 % originality against capy.ai.
+  - Alignment and white-space fixes.
+- **First pass, rejected:**
+  - A night-sky hero with a halftone dome and turning timeline lanes, centred.
+  - Founder: keep the hero layout, don't copy the reference, go subtle and lightly animated.
+  - Reverted the layout and deleted the night-sky files.
+- **Built:**
+  - Hero backdrop (`hero-backdrop.tsx`, `hero.module.css`): storyboard grid, three drifting colour lights, a seeded 260-bar voice waveform breathing behind the editor's top edge. The editor moved into the hero in an ink frame, about 25 % above the fold at 1440 × 900.
+  - Sections are full-width bands with colour washes and dot textures keyed to their markers. The looks sit on a tilted film strip. Stitched has seams. The closer is a dusk gradient with a striped sunset behind Pip's plane and the waveform along the bottom.
+  - Cues (timeline clips with timecodes) replace the round spot icons. The nav has a scroll-driven ember playhead.
+  - Pips: clapper over the How panels, juggler beside the Features title, the plush stays in Stitched, the plane in the closer.
+  - Sign-up Pip: a new Look rig plays a 9 s waiting loop (look left, look right, drum paws, float). Hover faces you. The float never restarts.
+  - Paper app screens: `PaperPage` desk background (dot grid plus soft Pip, ember and violet light).
+- **Verified:**
+  - tsc, eslint and prettier clean.
+  - vitest 1238 pass; the only failures are the 3 pre-existing `generate-voice-cache` ones.
+  - Landing screenshots at 1440 and 390, no horizontal scroll.
+  - Pip waiting frames captured.
+  - Dashboard, start and settings checked at 1440.
+- Not committed.
+- **Follow-up (founder: "white space between the header and description elongating everything vertically"):** tightened the hero spacing without changing its layout.
+  - Top padding is shorter.
+  - Pip's headroom now rises beside the headline (`md:-mt-28` on the CTA column) instead of pushing the copy down.
+  - 32 px between the headline and the copy.
+  - At 1440 × 900 the editor top sits at about 630 px, so about 30 % of it is above the fold.
+  - Checked at 1440, 1000 and 390.
+- **Follow-up (founder: "spaces between the segments a bit much"):** reduced the padding of every section, the black stitched section included, from `py-24 sm:py-28` to `py-16 sm:py-20`. The closer went from `pt-28 pb-32` to `pt-20 pb-24`. The hero is unchanged. The page at 1440 is 726 px shorter (10,906 → 10,180). Landing tests pass and the formatting check is clean.
+- **Follow-up (founder idea: an old film camera throwing light on Pip):** added `components/landing/projector.tsx`, our own ink-style drawing, not the stock reference.
+  - **Placement:** stands on a tripod above Pip, in the empty space past the end of the headline, tilted 52° like a stage light, beam computed to land on Pip's head.
+  - **Motion:**
+    - Two ember reels spin at the same film speed (SMIL rotate about each centre).
+    - Film runs between them (dash offset) and the crank turns.
+    - The head hums.
+    - The beam and Pip's spotlight pool flicker like a projector.
+    - Dust drifts down the beam.
+  - **Limits:** desktop only (`lg`). Reduced motion stills all of it.
+  - **Checked:** at 1100, 1440 and 1920 with no headline overlap and no page errors. Landing tests pass; eslint and prettier are clean.
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · Spec 37 Pip for video reels
+- **Ask:** "fix pip… It should be able to do everything user wants, including sound effects and what not." The trigger: Pip said a reel had no motion graphics when asked for colours and gradients.
+- **Root cause:**
+  - `pipInput` only sent slots, and the prompt and actions were slot-only, so reels looked empty to Pip.
+  - The reel preview also ignored the project's sound settings.
+- **Built (spec 37, written this session):**
+  - **Schemas:**
+    - `ReelThemeSchema` and `ReelPlan.theme`.
+    - `ReelPlan.sfx` (added hits).
+    - 8 new Pip actions, new step fields, and plans of up to 12 steps.
+  - **Engine:**
+    - `reel/theme.ts` (`themedLook`): accents at 3:1 contrast, gradient wash layers under the grid, and accent-coloured mono labels.
+    - Mount, custom scenes and the note-fix review all use it.
+    - Mono's `look.upper ? ink : accent` became `accent` (the same colour on the house palettes).
+  - **Sound:**
+    - Added hits are merged in `reelSfx`.
+    - `reelBedSound` is shared by the preview (`useReelBedUrl`) and the export (`prepareReelBed`).
+  - **Pip:**
+    - Prompt v2 and scene refs in the structured output.
+    - `enforcePlan` validates every reel action, maps slot actions aimed at scenes to scene actions, and prices scene edits and regenerating.
+    - `applyPlan` runs instant reel steps as one undo step. `editScene` adds a whole-frame note and runs `useReelNoteFix`; AI music goes through `makeReelMusic`; regenerate goes through `regenerateReel`.
+    - Reel chips and a reel branch in the quick planner. The plan card states the scene-edit price.
+- **Checked:**
+  - New tests: `theme.test.ts`, added sounds in `sound.test.ts`, and `lib/pip/reel-pip.test.ts` (13 tests).
+  - Suites: schemas 371, ai 509, motion 572, render 193, web 1251 pass. Only the 3 known `generate-voice-cache` failures remain.
+  - tsc, eslint and prettier are clean.
+  - Contact sheets of a mono reel with no theme and with the bold theme (`reel-dev.ts sheet` on a synthetic video): the bold theme shows ember-violet gradients, orange accent words, icons and labels, and an orange chart bar. The unthemed sheet looks unchanged.
+- **Not done:**
+  - No paid run of the real `pip.plan` on Gemini yet (prompt v2 is untested against the live model).
+  - The Styles panel still doesn't show reel looks.
+  - No Kiro run this session.
+
+## 2026-11-22 · Claude Code (`claude-opus-5-5`) · Spec 38 the paper editor
+- **Ask:**
+  - "the ui outside the editor is now so good … when i open the editor it feels like i opened something completely new and different unrelated … our editor should be agent native … see that glowing orb? i want that too, but it will be glowing pip."
+  - Reference: another editor's AI panel with a glowing orb above "What should we change?". The founder also attached a frontend-design skill.
+- **Decision:** D-086 reverses D-083's "editor stays dark". Spec 38 was written this session (requirements, design and tasks), and all 9 tasks are checked.
+- **Built:**
+  - **Tokens:**
+    - The editor root mounts `[data-paper][data-editor]`.
+    - `html:has([data-editor])` gives the editor-only tokens paper values.
+    - Unlayered `.shadow-*`, `.bg-stage`, `.bg-slot-generating` and `.bg-music` rules for the editor, because Tailwind bakes shadow values in.
+  - **Top bar:**
+    - The black film-strip bar (`paper.bar`), with PipMark, a poster breadcrumb, `FormatSwitch` (white tiles in Bebas) and the poster credit count.
+    - An ember `btn('flame')` Export, which turns into an ink "Rendering N%" button while a render runs.
+    - `SaveIndicator onInk`.
+  - **Rail:** Pip first (the code Pip in a conic glow), ink active tile, mono labels. The Pip panel opens when a project loads.
+  - **Pip:**
+    - New `PipOrb` (`pip-orb.tsx` and its CSS module): three turning lights, a pearl core, a breathing bob, a thinking sweep and a done ring. Moods are idle, listening, thinking and done, mapped to Pip's poses. Reduced motion stops every loop.
+    - The panel has a poster header with a small orb once there are messages.
+    - Empty state: the orb, "What should we change?", "I can see your 0:18 video and its 4 graphics." and ink pill chips. The scope row only appears when a graphic is selected.
+    - Your messages are ink bubbles. Pip's replies have a Pip-blue rule. Plan cards are ink frames with an ember Apply all. "Pip is thinking…" is in Patrick Hand.
+    - The composer is an ink frame with a hard shadow and an ember send button.
+  - **Timeline:**
+    - Ink top rule, Bebas "Transcript" and clock, ember play and playhead.
+    - Slot frames in ink: dashed when suggested, Pip-blue and lifted when selected.
+    - Words and slot titles stay Geist Sans; in mono the words overlapped.
+  - **Leftovers fixed:**
+    - `text-white` on violet or black fills becomes `text-paper` (prompt box, words chip, note number, media thumbnails).
+    - The note bubble is a paper label.
+    - White hairline rings become ink in the inspector, export and Styles panel cards.
+    - The music chip, inspector and left-panel edges are paper.
+- **Checked:**
+  - Screenshots of `/editor/demo` on my own dev server (:3210, fake AI) at 1440×900 and 1920×1080: empty Pip, typing, thinking, a plan, a selected graphic, the Styles and Brand panels, and the export dialog.
+  - One hydration error found and fixed: `<Pip>` sat inside a `<p>`.
+  - New `pip-orb.test.tsx` (5 tests).
+  - Web vitest: 1256 pass. Only the 3 known `generate-voice-cache` failures remain.
+  - tsc, eslint and prettier are clean on the changed files.
+- **Not done:**
+  - The e2e editor design baselines (`editor-studio.png` and others) are outdated and need re-capturing.
+  - No reel project was screenshotted; there is no reel fixture on the demo server. The reel components were checked by reading the code.
+  - The export dialog title is still Geist Sans.
+  - No Kiro run. Nothing committed.
+
+## 2026-11-23 · Claude Code (`claude-opus-5-5`) · Spec 38 follow-up: night desk, full-height sidebar, track colours
+- **Ask (founder review of the paper editor):**
+  1. Too harsh on the eyes: add dark mode without losing the feel.
+  2. Shorter timeline.
+  3. The sidebar should cover the full left side, like the reference.
+  4. The glowing Pip always visible: big when the chat is empty, small on top after.
+  5. Gradients: green for voice, cyan-blue for sound.
+  6. Smooth overall.
+- **Built (spec 38 R5–R9 and tasks 10–15, D-087):**
+  - **Theme:**
+    - `useEditorTheme` (dark default, saved, a `theme-easing` class for a 360 ms eased switch) and a sun/moon toggle in the top bar.
+    - The dark theme drops `[data-paper]`, keeps the studio tokens, and redefines `paper`/`ink`/`mist` plus the new `edge`, `rule`, `hard` and `tile`.
+    - Paper kit buttons read `--btn-*` variables (unchanged outside the editor). `[data-ink-bar]` keeps the bar black.
+    - Dark `.shadow-glass/.shadow-frame/.bg-stage` overrides give a night desk: soft lights and a faint dot grid.
+    - Spec 38 markup moved from literal `#000` and `border-ink` to these tokens. White text on fills became a fixed `#fff`; text on orange is black.
+  - **Layout:** the rail and panel are full height, and the timeline lives in the right column.
+  - **Timeline:** TL 300 → 244 px, rows and offsets rescaled, label column 112 px, a flex header with a container query, and the film button no longer wraps.
+  - **Colours:** green voice band and gradient bars (the canvas reads theme tokens and repaints on a switch), cyan-blue sound band and hit pills, violet/Pip-blue slot and reel-scene sheens, coloured label icons.
+  - **Pip:** a shared-layout orb, 150 px when the chat is empty, springing to 38 px in the header on a message (or when it scrolls out of view, via IntersectionObserver). A halo layer behind the orb; the wheel selectors use `nth-of-type`.
+- **Checked:**
+  - Screenshots of `/editor/demo` (:3210, fake AI) in both themes: empty, the orb mid-flight, a plan, a selected graphic.
+  - New `lib/editor/theme.test.ts` (2 tests).
+  - Web vitest: 1258 pass. Only the 3 known `generate-voice-cache` failures remain.
+  - tsc, eslint and prettier are clean.
+- **Not done:**
+  - The e2e editor baselines are outdated and need re-capturing.
+  - No reel screenshot.
+  - No Kiro run. Nothing committed.

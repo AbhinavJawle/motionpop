@@ -81,7 +81,7 @@ export function PictureSection({ slot }: { slot: Slot }) {
   };
 
   return (
-    <section className="px-5 py-4" aria-labelledby={`pic-${slot.id}`}>
+    <section className="py-4" aria-labelledby={`pic-${slot.id}`}>
       <SectionLabel id={`pic-${slot.id}`}>Picture</SectionLabel>
       <div className="mt-3 flex gap-3">
         <div className="relative flex size-[72px] shrink-0 items-center justify-center overflow-hidden rounded-chip border border-line bg-card-2">
@@ -113,7 +113,7 @@ export function PictureSection({ slot }: { slot: Slot }) {
       </div>
       <div className="mt-2.5 flex items-center gap-2">
         <Button
-          variant="primary"
+          variant="secondary"
           size="sm"
           disabled={!!busy || subject.trim().length < 3}
           onClick={() => void generate()}

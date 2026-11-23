@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { BrandHexSchema } from './brand';
 
 /**
  * Reel engine (spec 25): a talking-head video becomes a vertical reel built only from
@@ -296,6 +297,32 @@ export const ReelWordSchema = z.object({
 });
 export type ReelWord = z.infer<typeof ReelWordSchema>;
 
+/**
+ * Colours over the reel's look (spec 37 R2.2): an accent, an optional second colour and how much
+ * of a gradient the backgrounds take. The engine pushes both colours to readable contrast.
+ */
+export const ReelThemeSchema = z
+  .object({
+    accent: BrandHexSchema,
+    accent2: BrandHexSchema.optional(),
+    background: z.enum(['plain', 'soft', 'bold']).default('soft'),
+  })
+  .strict();
+export type ReelTheme = z.infer<typeof ReelThemeSchema>;
+
+/** The synthesised hits a reel can play (the SFX synth's kinds). */
+export const REEL_SFX_KINDS = ['whoosh', 'pop', 'tick', 'rise', 'impact'] as const;
+export const ReelSfxKindSchema = z.enum(REEL_SFX_KINDS);
+export type ReelSfxKind = z.infer<typeof ReelSfxKindSchema>;
+/** Most hits a creator (or Pip) adds on top of the derived ones (spec 37 R3.3). */
+export const REEL_ADDED_SFX_MAX = 40;
+export const ReelAddedSfxSchema = z.object({
+  kind: ReelSfxKindSchema,
+  atMs: ms,
+  gainDb: z.number().min(-24).max(6).default(-2),
+});
+export type ReelAddedSfx = z.infer<typeof ReelAddedSfxSchema>;
+
 export const ReelPlanSchema = z.object({
   v: z.literal(1),
   look: ReelLookSchema,
@@ -331,6 +358,10 @@ export const ReelPlanSchema = z.object({
     })
     .optional(),
   captions: z.boolean().default(true),
+  /** Colours and a gradient over the look (spec 37). Absent: the look's own colours. */
+  theme: ReelThemeSchema.optional(),
+  /** Hits added on top of the ones the scenes make (spec 37 R3.3), on the reel timeline. */
+  sfx: z.array(ReelAddedSfxSchema).max(REEL_ADDED_SFX_MAX).optional(),
   /** The hook title shown over the first scene (mono: dark band at the seam). */
   hook: short(48).optional(),
   scenes: z.array(ReelSceneSchema).min(1).max(80),

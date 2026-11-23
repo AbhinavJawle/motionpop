@@ -1,9 +1,12 @@
 import {
+  REEL_ADDED_SFX_MAX,
   ReelPlanSchema,
   restyleReelPlan,
   type ImageAsset,
+  type ReelAddedSfx,
   type ReelLook,
   type ReelPlan,
+  type ReelTheme,
 } from '@motionpop/schemas';
 import { produce } from 'immer';
 import { CommandRejected, type Command } from './command';
@@ -85,4 +88,89 @@ export function setReelCaptions(on: boolean): Command {
       });
     },
   };
+}
+
+/**
+ * One change to the reel plan as a function of it (spec 37): validated whole, one undo step. The
+ * function may throw `CommandRejected` to say why it can't apply.
+ */
+function changeReel(label: string, change: (r: ReelPlan) => ReelPlan): Command {
+  let prev: ReelPlan | undefined;
+  return {
+    label,
+    do(p) {
+      if (!p.reel) throw new CommandRejected('This project has no reel');
+      const parsed = ReelPlanSchema.safeParse(change(p.reel));
+      if (!parsed.success) throw new CommandRejected('That reel change is not valid');
+      prev = p.reel;
+      return produce(p, (d) => {
+        d.reel = parsed.data;
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (prev) d.reel = prev;
+      });
+    },
+  };
+}
+
+/** A copy of `o` without `keys` (optional fields go absent, not undefined). */
+function omit<T extends object, K extends keyof T>(o: T, ...keys: K[]): Omit<T, K> {
+  const out = { ...o };
+  for (const k of keys) delete out[k];
+  return out;
+}
+
+/** Colours and a gradient over the reel's look (spec 37 R2.2); null goes back to the look's own. */
+export function setReelTheme(theme: ReelTheme | null): Command {
+  return changeReel(theme ? 'Colour the reel' : 'Use the look’s own colours', (r) => {
+    const rest = omit(r, 'theme');
+    return theme ? { ...rest, theme } : rest;
+  });
+}
+
+/** Adds one sound hit on the reel timeline (spec 37 R3.3). */
+export function addReelSound(hit: ReelAddedSfx): Command {
+  return changeReel('Add a sound', (r) => {
+    const have = r.sfx ?? [];
+    if (have.length >= REEL_ADDED_SFX_MAX)
+      throw new CommandRejected('This reel already has the most added sounds');
+    return { ...r, sfx: [...have, hit].sort((a, b) => a.atMs - b.atMs) };
+  });
+}
+
+/** Removes every added sound (the scenes' own hits stay, under the effects switch). */
+export function clearReelSounds(): Command {
+  return changeReel('Remove added sounds', (r) => {
+    if (!r.sfx?.length) throw new CommandRejected('There are no added sounds');
+    return omit(r, 'sfx');
+  });
+}
+
+/** One scene back to the speaker with no graphic (spec 37 R2.4). */
+export function clearReelScene(sceneId: string): Command {
+  return changeReel('Remove a graphic', (r) => {
+    if (!r.scenes.some((s) => s.id === sceneId))
+      throw new CommandRejected(`scene "${sceneId}" does not exist`);
+    return {
+      ...r,
+      scenes: r.scenes.map((s) => {
+        if (s.id !== sceneId) return s;
+        const rest = omit(s, 'tag', 'carry', 'bg');
+        return { ...rest, layout: 'speaker' as const, content: { template: 'none' as const } };
+      }),
+    };
+  });
+}
+
+/**
+ * The reel's music source (spec 37 R3.2): `null` drops the generated track (the synthesised bed
+ * or silence plays); a brief replaces it and waits for new music to be generated.
+ */
+export function setReelMusicBrief(brief: string | null, src?: string): Command {
+  return changeReel(brief ? 'New music' : 'Remove the generated music', (r) => {
+    const rest = omit(r, 'music');
+    return brief ? { ...rest, music: { brief, ...(src ? { src } : {}) } } : rest;
+  });
 }

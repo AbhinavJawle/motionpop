@@ -2,6 +2,7 @@
 
 import {
   PIP_MODEL_CHOICES,
+  costOf,
   type PipModelId,
   type PipPlan,
   type PipScope,
@@ -17,10 +18,12 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { AnimatePresence, motion, type Transition } from 'motion/react';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { toast } from 'sonner';
 import { Pip } from '@/components/pip/pip';
+import { btn } from '@/components/paper/kit';
+import { PipOrb, type OrbMood } from './pip-orb';
 import { LeftPanel } from '@/components/editor/left-panel';
 import { Tooltip } from '@/components/ui/tooltip';
 import { useRoute } from '@/lib/ai/use-route';
@@ -30,6 +33,7 @@ import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import { closeSettingsPanel, useSettingsPanel } from '@/lib/editor/settings-panel';
 import { slotCardText } from '@/lib/editor/slot-display';
 import { popIn } from '@/lib/motion/presets';
+import { useStill } from '@/lib/motion/use-still';
 import { chipsFor, planCredits } from '@/lib/pip/plan';
 import { pipModelLabel, usePipModel } from '@/lib/pip/model-store';
 import {
@@ -43,6 +47,9 @@ import {
   usePip,
   type PipEntry,
 } from '@/lib/pip/use-pip';
+import { makeReelMusic } from '@/lib/reel/pip-music';
+import { regenerateReel } from '@/lib/reel/regenerate';
+import { useReelNoteFix } from '@/lib/reel/use-reel-note-fix';
 import { useAppConfig } from '@/lib/renders/hooks';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 
@@ -83,6 +90,7 @@ function PipPanelBody() {
     (s) => s.project?.slots.find((x) => x.id === s.selectedSlotId) ?? null,
   );
   const [scopeSlot, setScopeSlot] = useState(false);
+  const [typing, setTyping] = useState(false);
   const scope: PipScope =
     scopeSlot && selected ? { kind: 'slot', slotId: selected.id } : { kind: 'video' };
   const route = useRoute('pip.plan');
@@ -90,6 +98,7 @@ function PipPanelBody() {
   const generateRoute = useRoute('generate');
   const { client: credits } = useCreditsClient();
   const config = useAppConfig();
+  const reelNoteFix = useReelNoteFix();
   const scroller = useRef<HTMLDivElement>(null);
   const chips = useMemo(() => (project ? chipsFor(project) : []), [project]);
   const selectedIndex = useEditor((s) => {
@@ -102,6 +111,8 @@ function PipPanelBody() {
   });
 
   useEffect(() => {
+    // An empty thread starts at the top, where the glowing Pip is.
+    if (!messages.length) return;
     scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
@@ -116,28 +127,68 @@ function PipPanelBody() {
     );
   const apply = (id: string) =>
     void applyPipPlan(
-      { store: editorStore, credits, getRouter, config, doc: document, editRoute, generateRoute },
+      {
+        store: editorStore,
+        credits,
+        getRouter,
+        config,
+        doc: document,
+        editRoute,
+        generateRoute,
+        // Video reels (spec 37): scene edits run as frame notes on the strong model.
+        reelNote: (sceneId, noteId) => reelNoteFix.run(sceneId, noteId),
+        regenerateReel: () => regenerateReel({ credits }),
+        reelMusic: (brief) => makeReelMusic(editorStore, brief),
+      },
       id,
     );
 
+  const mood = useOrbMood(busy, typing, messages);
+  const summary = project ? projectSummary(project) : '';
+  // Spec 38 R9: Pip is always in sight. Big in an empty chat; once you talk (or the big one
+  // scrolls away) it moves into the header, small.
+  const [bigInView, setBigInView] = useState(true);
+  const compact = messages.length > 0 || !bigInView;
+  const still = useStill();
+  const orbMove = still
+    ? { duration: 0 }
+    : { type: 'spring' as const, stiffness: 240, damping: 28 };
+
   return (
-    <div className="flex h-full flex-col px-5 pt-4 pb-4">
-      <header className="flex h-10 shrink-0 items-center justify-between border-b border-white/6 pb-3">
+    <div className="flex h-full flex-col bg-paper px-4 pb-4 font-mono">
+      <header className="-mx-4 flex h-14 shrink-0 items-center justify-between border-b border-line px-4">
         <button
           type="button"
-          className="flex items-center gap-1.5 text-[17px] leading-[22px] font-semibold text-text"
+          className="-ml-1 flex h-9 items-center gap-2 rounded-md pr-1.5 transition-colors hover:bg-mist"
           onClick={() => {
             if (messages.length) newConversation();
           }}
           title="New conversation"
         >
-          Pip
-          <ChevronDown className="size-3.5 text-text-2" strokeWidth={1.5} aria-hidden />
+          <AnimatePresence initial={false}>
+            {compact && (
+              <motion.span
+                key="orb-small"
+                layoutId={messages.length > 0 ? 'pip-orb' : undefined}
+                transition={orbMove}
+                initial={messages.length > 0 ? false : { opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.5 }}
+                className="block"
+              >
+                <PipOrb mood={mood} size={38} />
+              </motion.span>
+            )}
+          </AnimatePresence>
+          <span className="relative top-[1px] font-poster text-[26px] leading-none tracking-[0.02em] text-ink">
+            Pip
+          </span>
+          <ChevronDown className="size-3.5 text-text-3" strokeWidth={2} aria-hidden />
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
-            className="h-6 rounded-full bg-card-2 px-3 text-[11px] leading-[14px] text-text-2 hover:text-text"
+            className="h-8 rounded-lg px-2.5 text-[12px] leading-4 text-text-2 transition-colors hover:bg-mist hover:text-ink"
             onClick={() => send('Make the whole video use one consistent look')}
           >
             Style
@@ -147,28 +198,36 @@ function PipPanelBody() {
               type="button"
               aria-label="New conversation"
               onClick={newConversation}
-              className="flex size-7 items-center justify-center rounded-full text-text-2 hover:bg-card hover:text-text"
+              className="flex size-8 items-center justify-center rounded-lg border-[1.5px] border-edge text-ink transition hover:-translate-y-px hover:shadow-[2px_2px_0_var(--color-hard)]"
             >
-              <Plus className="size-4" strokeWidth={1.5} aria-hidden />
+              <Plus className="size-4" strokeWidth={2} aria-hidden />
             </button>
           </Tooltip>
         </div>
       </header>
 
-      <div ref={scroller} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pt-4">
+      <div ref={scroller} className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pt-3">
         {messages.length === 0 ? (
           <EmptyState
+            mood={mood}
+            orbMove={orbMove}
+            scroller={scroller}
+            onOrbInView={setBigInView}
+            summary={summary}
             chips={chips}
             onChip={(id, label) => chipToPip(editorStore, id, label, scope)}
           />
         ) : (
-          <div className="flex flex-col gap-3 pb-2">
+          <div className="flex flex-col gap-4 pb-2">
             {messages.map((m) => (
               <Message key={m.id} m={m} onApply={apply} />
             ))}
             {busy && (
-              <div className="flex items-center gap-2 text-[12px] text-text-2">
-                <Pip state="thinking" size={22} decorative />
+              <div
+                role="status"
+                className="flex items-center gap-2 font-scrawl text-[19px] leading-6 text-ink"
+              >
+                <Pip state="thinking" size={24} decorative />
                 Pip is thinking…
               </div>
             )}
@@ -176,8 +235,9 @@ function PipPanelBody() {
         )}
       </div>
 
-      {messages.length === 0 && (
-        <div className="mt-3 flex shrink-0 gap-2">
+      {/* The scope only needs a choice when a graphic is selected. */}
+      {messages.length === 0 && selected && (
+        <div className="mt-3 flex shrink-0 gap-1.5">
           <ScopeChip active={!scopeSlot || !selected} onClick={() => setScopeSlot(false)}>
             Whole video
           </ScopeChip>
@@ -188,15 +248,21 @@ function PipPanelBody() {
           )}
         </div>
       )}
-      <Composer busy={busy} model={selectedModel} onModelChange={setSelectedModel} onSend={send} />
-      <p className="mt-2 flex shrink-0 items-center justify-center gap-1 text-[11px] leading-[14px]">
+      <Composer
+        busy={busy}
+        model={selectedModel}
+        onModelChange={setSelectedModel}
+        onSend={send}
+        onTyping={setTyping}
+      />
+      <p className="mt-2.5 flex shrink-0 items-center justify-center gap-1 text-[11px] leading-[14px]">
         {route.kind === 'cloud' ? (
           <span className="flex items-center gap-1 text-text-2">
-            <Cloud className="size-3" strokeWidth={1.5} aria-hidden />~{route.credits} credits
+            <Cloud className="size-3" strokeWidth={1.75} aria-hidden />~{route.credits} credits
           </span>
         ) : (
           <span className="flex items-center gap-1 text-mint-ink">
-            <Zap className="size-3" strokeWidth={1.5} aria-hidden />
+            <Zap className="size-3" strokeWidth={1.75} aria-hidden />
             free · quick planner
           </span>
         )}
@@ -205,32 +271,91 @@ function PipPanelBody() {
   );
 }
 
+/** "I can see your 0:18 video and its 3 graphics.": what Pip can see. */
+function projectSummary(
+  p: NonNullable<ReturnType<typeof editorStore.getState>['project']>,
+): string {
+  const ms = p.voiceover.durationMs;
+  const clock = `${Math.floor(ms / 60000)}:${String(Math.round((ms % 60000) / 1000)).padStart(2, '0')}`;
+  const scenes = p.reel?.scenes.filter((s) => s.content.template !== 'none').length;
+  const n = scenes ?? p.slots.length;
+  const noun = scenes !== undefined ? 'scene' : 'graphic';
+  if (n === 0) return `I can see your ${clock} video. No ${noun}s on it yet.`;
+  return `I can see your ${clock} video and its ${n === 1 ? `one ${noun}` : `${n} ${noun}s`}.`;
+}
+
+/**
+ * The orb's mood (spec 38 R2.3): thinking while a plan is made, listening while you type, done for
+ * a moment after a plan lands, idle otherwise.
+ */
+function useOrbMood(busy: boolean, typing: boolean, messages: PipEntry[]): OrbMood {
+  const applied = messages.filter((m) => m.planState === 'applied').length;
+  const seen = useRef(applied);
+  const [done, setDone] = useState(false);
+  useEffect(() => {
+    if (applied > seen.current) {
+      setDone(true);
+      const t = window.setTimeout(() => setDone(false), 2400);
+      seen.current = applied;
+      return () => window.clearTimeout(t);
+    }
+    seen.current = applied;
+  }, [applied]);
+  if (busy) return 'thinking';
+  if (done) return 'done';
+  if (typing) return 'listening';
+  return 'idle';
+}
+
 function EmptyState({
+  mood,
+  orbMove,
+  scroller,
+  onOrbInView,
+  summary,
   chips,
   onChip,
 }: {
+  mood: OrbMood;
+  orbMove: Transition;
+  scroller: RefObject<HTMLDivElement | null>;
+  onOrbInView: (inView: boolean) => void;
+  summary: string;
   chips: ReturnType<typeof chipsFor>;
   onChip: (id: ReturnType<typeof chipsFor>[number]['id'], label: string) => void;
 }) {
+  const orb = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = orb.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver(([e]) => onOrbInView(Boolean(e?.isIntersecting)), {
+      root: scroller.current,
+      threshold: 0.4,
+    });
+    io.observe(el);
+    return () => {
+      io.disconnect();
+      onOrbInView(true);
+    };
+  }, [scroller, onOrbInView]);
   return (
-    <div className="flex flex-col items-center text-center">
-      <div className="relative mt-2 flex size-[88px] items-center justify-center">
-        <div aria-hidden className="absolute inset-0 rounded-full bg-violet/10 blur-2xl" />
-        <Pip state="idle" size={56} glow decorative />
-      </div>
-      <h2 className="mt-3 text-[18px] leading-[23px] font-semibold text-text">
-        What should we make move?
+    <div className="flex min-h-full flex-col items-center justify-center pb-2 text-center">
+      <motion.div ref={orb} layoutId="pip-orb" transition={orbMove}>
+        <PipOrb mood={mood} size={150} />
+      </motion.div>
+      <h2 className="mt-1 font-poster text-[30px] leading-[0.95] tracking-[0.01em] text-ink uppercase">
+        What should we change?
       </h2>
-      <p className="mt-2 text-[12.5px] leading-[17px] text-text-2">
-        I can see your whole timeline. Ask for one graphic or change the whole video.
+      <p className="mt-1.5 max-w-[280px] text-[12px] leading-[18px] text-text-2">
+        {summary || 'I can see your whole video.'}
       </p>
-      <div className="mt-4 flex w-full flex-col gap-1.5">
+      <div className="mt-3.5 flex w-full flex-wrap justify-center gap-1.5">
         {chips.map((c) => (
           <button
             key={c.id}
             type="button"
             onClick={() => onChip(c.id, c.label)}
-            className="h-[26px] w-full rounded-full border border-white/8 px-3 text-left text-[11.5px] leading-[15px] text-text-body transition-colors hover:border-violet/40 hover:bg-card hover:text-text"
+            className="max-w-full truncate rounded-full border-[1.5px] border-edge bg-paper px-3 py-[5px] text-[11.5px] leading-4 text-ink transition hover:-translate-x-px hover:-translate-y-px hover:bg-mist hover:shadow-[3px_3px_0_var(--color-hard)] active:translate-x-0 active:translate-y-0 active:shadow-none"
           >
             {c.label}
           </button>
@@ -255,10 +380,10 @@ function ScopeChip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        'h-[22px] min-w-0 truncate rounded-full px-3 text-[11px] leading-[14px] transition-colors',
+        'h-7 min-w-0 truncate rounded-md px-2.5 text-[11px] leading-[14px] font-medium transition-colors',
         active
-          ? 'bg-violet-sel text-text shadow-glass'
-          : 'border border-white/8 text-text-2 hover:text-text',
+          ? 'bg-tile text-tile-ink'
+          : 'text-text-2 ring-1 ring-line hover:bg-mist hover:text-ink',
       )}
     >
       {children}
@@ -271,11 +396,13 @@ function Composer({
   model,
   onModelChange,
   onSend,
+  onTyping,
 }: {
   busy: boolean;
   model: PipModelId;
   onModelChange: (m: PipModelId) => void;
   onSend: (t: string) => void;
+  onTyping: (typing: boolean) => void;
 }) {
   const [text, setText] = useState('');
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -296,8 +423,9 @@ function Composer({
     el.style.height = 'auto';
     el.style.height = `${Math.min(120, el.scrollHeight)}px`;
   }, [text]);
+  useEffect(() => onTyping(text.trim().length > 0), [text, onTyping]);
   return (
-    <div className="mt-2.5 shrink-0 rounded-card border border-white/8 bg-card px-3 pt-2.5 pb-2">
+    <div className="mt-3 shrink-0 rounded-[12px] border-2 border-edge bg-paper px-3 pt-3 pb-2 shadow-[4px_4px_0_var(--color-hard)] transition-shadow focus-within:shadow-[5px_5px_0_var(--color-hard)]">
       <textarea
         ref={ref}
         rows={1}
@@ -306,27 +434,27 @@ function Composer({
         onKeyDown={onKey}
         placeholder="Ask Pip anything…"
         aria-label="Ask Pip"
-        className="block w-full resize-none bg-transparent text-[13px] leading-[18px] text-text outline-none placeholder:text-text-3"
+        className="block min-h-[40px] w-full resize-none bg-transparent font-mono text-[13px] leading-[19px] text-ink outline-none placeholder:text-text-3"
       />
-      <div className="mt-2 flex items-center gap-2 text-text-2">
+      <div className="mt-2 flex items-center gap-2.5 text-text-3">
         <Tooltip content="Attach images soon" side="top">
-          <Paperclip className="size-4 shrink-0" strokeWidth={1.5} aria-label="Attach (soon)" />
+          <Paperclip className="size-4 shrink-0" strokeWidth={1.75} aria-label="Attach (soon)" />
         </Tooltip>
         <Tooltip content="Voice input soon" side="top">
-          <Mic className="size-4 shrink-0" strokeWidth={1.5} aria-label="Voice (soon)" />
+          <Mic className="size-4 shrink-0" strokeWidth={1.75} aria-label="Voice (soon)" />
         </Tooltip>
-        <label className="relative flex min-w-0 items-center gap-1 rounded-full border border-white/8 bg-card-2 px-2 py-0.5 text-[10.5px] text-text-2 hover:border-violet/40 hover:text-text">
-          <Sparkles className="size-3 shrink-0 text-violet" strokeWidth={1.5} aria-hidden />
+        <label className="relative flex h-7 min-w-0 items-center gap-1 rounded-md px-1.5 text-[11px] text-text-2 transition-colors hover:bg-mist hover:text-ink">
+          <Sparkles className="size-3 shrink-0 text-violet" strokeWidth={1.75} aria-hidden />
           <select
             aria-label="Pip AI model"
             data-testid="pip-model-select"
             value={model}
             disabled={busy}
             onChange={(e) => onModelChange(e.target.value as PipModelId)}
-            className="max-w-[132px] cursor-pointer truncate bg-transparent pr-1 text-[10.5px] text-text outline-none"
+            className="max-w-[132px] cursor-pointer truncate bg-transparent pr-1 font-mono text-[11px] font-medium text-text-2 outline-none"
           >
             {PIP_MODEL_CHOICES.map((choice) => (
-              <option key={choice.id} value={choice.id} className="bg-panel text-text">
+              <option key={choice.id} value={choice.id} className="bg-paper text-ink">
                 {choice.label}
               </option>
             ))}
@@ -337,9 +465,9 @@ function Composer({
           aria-label="Send"
           disabled={!text.trim() || busy}
           onClick={submit}
-          className="ml-auto flex size-7 shrink-0 items-center justify-center rounded-full bg-ember-grad text-white shadow-ember transition disabled:opacity-40"
+          className="ml-auto flex size-8 shrink-0 items-center justify-center rounded-full border-[1.5px] border-black bg-flame text-black shadow-[2px_2px_0_var(--color-hard)] transition hover:-translate-x-px hover:-translate-y-px hover:shadow-[3px_3px_0_var(--color-hard)] disabled:border-line disabled:bg-mist disabled:text-text-4 disabled:shadow-none disabled:hover:translate-0"
         >
-          <ArrowUp className="size-4" strokeWidth={2} aria-hidden />
+          <ArrowUp className="size-4" strokeWidth={2.25} aria-hidden />
         </button>
       </div>
     </div>
@@ -351,7 +479,7 @@ function Message({ m, onApply }: { m: PipEntry; onApply: (id: string) => void })
     return (
       <motion.div
         {...popIn}
-        className="rounded-card border border-violet/15 bg-reason px-3.5 py-3 text-[12.5px] leading-[18px] text-text"
+        className="ml-8 self-end rounded-[12px] rounded-br-[4px] bg-tile px-3.5 py-2.5 text-[12.5px] leading-[18px] text-tile-ink"
       >
         {m.text}
       </motion.div>
@@ -359,16 +487,18 @@ function Message({ m, onApply }: { m: PipEntry; onApply: (id: string) => void })
   }
   return (
     <motion.div {...popIn} className="flex flex-col gap-2.5">
-      <div className="flex flex-wrap items-center gap-2 text-[12.5px] leading-[17px]">
-        <Pip state={m.planState === 'applied' ? 'done' : 'idle'} size={18} decorative />
-        <span className="font-semibold text-text">Pip</span>
+      <div className="flex items-center gap-2 text-[12px] leading-4">
+        <Pip state={m.planState === 'applied' ? 'done' : 'idle'} size={22} decorative />
+        <span className="font-poster text-[19px] leading-none tracking-[0.02em] text-ink">Pip</span>
         {m.model && (
-          <span className="rounded-full bg-card-2 px-1.5 py-0.5 font-mono text-[9.5px] text-text-3">
+          <span className="rounded-full bg-mist px-1.5 py-0.5 text-[9.5px] text-text-3">
             {pipModelLabel(m.model)}
           </span>
         )}
-        <span className="text-text-2">{m.text}</span>
       </div>
+      <p className="border-l-[3px] border-pip pl-3 text-[12.5px] leading-[19px] text-text-body">
+        {m.text}
+      </p>
       {m.plan &&
         m.plan.steps.length > 0 &&
         m.planState !== 'applied' &&
@@ -377,7 +507,7 @@ function Message({ m, onApply }: { m: PipEntry; onApply: (id: string) => void })
         <PlanCard m={m} plan={m.plan} done />
       )}
       {m.planState === 'applied' && m.result && <ActionCard m={m} />}
-      {m.planState === 'undone' && <p className="text-[11px] text-text-3">Undone.</p>}
+      {m.planState === 'undone' && <p className="pl-3 text-[11px] text-text-3">Undone.</p>}
     </motion.div>
   );
 }
@@ -396,8 +526,15 @@ function PlanCard({
   const [editing, setEditing] = useState(false);
   const applying = m.planState === 'applying';
   const cost = planCredits(plan);
+  const config = useAppConfig();
+  const sceneEdits = plan.steps.some((s) => s.include && s.action === 'editScene');
   return (
-    <div className="rounded-card border border-white/8 bg-card px-3.5 py-3">
+    <div
+      className={cn(
+        'rounded-[12px] border-2 border-edge bg-paper px-3.5 py-3',
+        !done && 'shadow-[4px_4px_0_var(--color-hard)]',
+      )}
+    >
       <ol className="flex flex-col gap-2">
         {plan.steps.map((s, i) => {
           const st = m.stepStates?.[s.id];
@@ -414,10 +551,13 @@ function PlanCard({
                   />
                 )}
                 <span className={cn('min-w-0 flex-1', !s.include && 'text-text-4 line-through')}>
-                  {i + 1}. {s.label}
+                  <span className="mr-1.5 font-poster text-[16px] leading-none text-text-3">
+                    {i + 1}
+                  </span>
+                  {s.label}
                 </span>
                 {s.credits > 0 && st?.state !== 'done' && (
-                  <span className="flex items-center gap-0.5 text-[10px] text-violet-ink-2">
+                  <span className="flex shrink-0 items-center gap-0.5 rounded-full bg-violet/10 px-1.5 py-0.5 text-[10px] text-violet-ink">
                     <Cloud className="size-2.5" strokeWidth={1.5} aria-hidden />
                     {s.credits}
                   </span>
@@ -428,13 +568,13 @@ function PlanCard({
                       initial={{ scale: 0.4, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                     >
-                      <Check className="size-4 text-mint" strokeWidth={2} aria-label="Done" />
+                      <Check className="size-4 text-mint" strokeWidth={2.5} aria-label="Done" />
                     </motion.span>
                   )}
                 </AnimatePresence>
               </div>
               {st?.state === 'running' && (
-                <span className="w-fit rounded-full bg-violet-sel px-2 py-0.5 text-[10.5px] text-violet-ink">
+                <span className="w-fit rounded-full bg-pip/35 px-2 py-0.5 text-[10.5px] text-ink">
                   …in progress
                 </span>
               )}
@@ -445,18 +585,24 @@ function PlanCard({
           );
         })}
       </ol>
+      {sceneEdits && !done && (
+        <p className="mt-2 text-[10.5px] leading-[14px] text-text-3">
+          A scene edit is {costOf('edit', 1, config)} credit, plus {costOf('custom', 1, config)}{' '}
+          when Pip writes a new graphic for it.
+        </p>
+      )}
       {plan.dropped.length > 0 && (
         <p className="mt-2 text-[10.5px] leading-[14px] text-text-3">
           Left out: {plan.dropped.map((d) => `${d.label} (${d.reason})`).join(', ')}
         </p>
       )}
       {!done && (
-        <div className="mt-3 flex gap-2">
+        <div className="mt-3.5 flex gap-2.5">
           <button
             type="button"
             disabled={applying || plan.steps.every((s) => !s.include)}
             onClick={onApply}
-            className="h-[26px] flex-1 rounded-lg bg-violet text-[12px] font-semibold text-white shadow-generate transition hover:brightness-110 disabled:opacity-50"
+            className={btn('flame', 'sm', false, 'h-9 flex-1 px-2')}
           >
             {applying ? 'Applying…' : cost > 0 ? `Apply all · ☁ ${cost}` : 'Apply all'}
           </button>
@@ -464,7 +610,7 @@ function PlanCard({
             type="button"
             disabled={applying}
             onClick={() => setEditing((e) => !e)}
-            className="h-[26px] flex-1 rounded-lg border border-white/10 text-[12px] text-text hover:bg-card-2 disabled:opacity-50"
+            className={btn('paper', 'sm', false, 'h-9 flex-1 px-2')}
           >
             {editing ? 'Done editing' : 'Edit plan'}
           </button>
@@ -478,9 +624,10 @@ function ActionCard({ m }: { m: PipEntry }) {
   const n = m.result?.changes ?? 0;
   const firstSlot = m.result?.slotIds[0];
   return (
-    <div className="rounded-card border border-white/8 bg-card px-3.5 py-3">
+    <div className="rounded-[12px] bg-mint-tint px-3.5 py-3">
       <div className="flex items-center justify-between">
-        <p className="text-[12.5px] leading-[17px] font-medium text-text">
+        <p className="flex items-center gap-1.5 text-[12.5px] leading-[17px] font-medium text-mint-ink">
+          <Check className="size-4" strokeWidth={2.5} aria-hidden />
           {n === 0 ? 'Nothing changed' : `Updated ${n} ${n === 1 ? 'step' : 'steps'}`}
         </p>
         <div className="flex flex-col items-end gap-1 text-[11.5px]">
@@ -488,7 +635,7 @@ function ActionCard({ m }: { m: PipEntry }) {
           {m.entries && (
             <button
               type="button"
-              className="text-violet-ink hover:underline"
+              className="text-ink underline decoration-[1.5px] underline-offset-[3px] hover:decoration-flame"
               onClick={() => undoPipPlan(editorStore, m.id)}
             >
               Undo
@@ -497,7 +644,7 @@ function ActionCard({ m }: { m: PipEntry }) {
           {firstSlot && (
             <button
               type="button"
-              className="text-violet-ink hover:underline"
+              className="text-ink underline decoration-[1.5px] underline-offset-[3px] hover:decoration-flame"
               onClick={() => {
                 const st = editorStore.getState();
                 if (st.project?.slots.some((s) => s.id === firstSlot)) st.select(firstSlot);

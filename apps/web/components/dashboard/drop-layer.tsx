@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { Pip } from '@/components/pip/pip';
+import { PipLoop } from '@/components/landing/pip-loop';
 import { toast } from '@/components/ui/toast';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
 import { handOffFile, PROCESSING_NEW } from '@/lib/intake/hand-off';
@@ -90,8 +90,8 @@ export function DropOverlay({ state, floating }: { state: CatchState; floating: 
           className="pointer-events-none absolute inset-0 z-50"
           data-testid="drop-overlay"
         >
-          {floating && <div className="fixed inset-0 bg-bg/40" />}
-          <svg className="absolute inset-4 h-[calc(100%-32px)] w-[calc(100%-32px)] overflow-visible">
+          {floating && <div className="fixed inset-0 bg-paper/70" />}
+          <svg className="fixed inset-3 h-[calc(100dvh-24px)] w-[calc(100vw-24px)] overflow-visible">
             <rect
               x="0"
               y="0"
@@ -99,32 +99,20 @@ export function DropOverlay({ state, floating }: { state: CatchState; floating: 
               height="100%"
               rx="16"
               fill="none"
-              stroke="var(--color-ember)"
-              strokeOpacity="0.85"
-              strokeWidth="1.5"
-              strokeDasharray="10 6"
+              stroke="#000"
+              strokeWidth="2.5"
+              strokeDasharray="12 8"
             />
           </svg>
           {floating && (
             <motion.div
               {...modal}
-              className="fixed top-1/2 left-1/2 flex w-[640px] -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-[20px] border border-ember/35 bg-[linear-gradient(180deg,rgb(255_122_61/0.12),rgb(255_122_61/0.04)),var(--color-panel)] pt-6 pb-10 shadow-modal"
+              className="fixed top-1/2 left-1/2 flex w-[560px] max-w-[calc(100vw-48px)] -translate-x-1/2 -translate-y-1/2 flex-col items-center rounded-[16px] border-2 border-ink bg-paper px-8 pt-8 pb-10 text-center shadow-[6px_6px_0_#000]"
             >
               <CatchPill />
-              <div className="mt-5">
-                <Pip
-                  state={state === 'caught' ? 'caught' : 'catching'}
-                  size={130}
-                  glow
-                  decorative
-                  seed={8}
-                />
-              </div>
-              <p className="mt-6 text-[22px] leading-7 font-semibold">{C.empty.title}</p>
-              <p className="mt-3 text-sm leading-[18px] text-text-2">{C.drag.body}</p>
-              <p className="mt-6 font-mono text-[11px] leading-[14px] text-text-3">
-                {C.drag.formats}
-              </p>
+              <PipLoop name="juggle" className="mt-4 size-[200px]" />
+              <p className="font-poster text-[40px] leading-[0.95] uppercase">{C.drag.body}</p>
+              <p className="mt-3 text-[13px] text-black/60">{C.drag.formats}</p>
             </motion.div>
           )}
         </motion.div>

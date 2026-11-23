@@ -39,12 +39,10 @@ export function WordStrip({
   }, [words, keys]);
 
   return (
-    <div className="relative h-[104px] overflow-hidden rounded-xl bg-[rgb(21_21_29/0.7)] shadow-glass">
-      <span className="absolute top-3 left-4 font-mono text-[9px] leading-3 tracking-[1.1px] text-text-3">
-        YOUR VOICE
-      </span>
+    <div className="relative h-[112px] overflow-hidden rounded-[16px] border-2 border-ink bg-paper">
+      <span className="absolute top-2.5 left-4 text-[11px] font-semibold">Your voice</span>
       {durationMs > 0 && (
-        <span className="absolute top-3 right-4 font-mono text-[9px] leading-3 text-text-3">
+        <span className="absolute top-2.5 right-4 text-[11px] tabular">
           {(durationMs / 1000).toFixed(1)}s
         </span>
       )}
@@ -63,32 +61,22 @@ export function WordStrip({
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 transition={{ ...springPop, delay: still ? 0 : 0.08 + k * 0.09 }}
                 className={cn(
-                  'absolute top-0 flex h-full items-center gap-1.5 overflow-hidden rounded-[6px] border border-dashed px-2 shadow-glass',
-                  slot.status === 'ready'
-                    ? 'border-violet/45 bg-slot-ready'
-                    : 'border-white/14 bg-slot-suggested',
+                  'absolute top-0 flex h-full items-center gap-1.5 overflow-hidden rounded-[6px] border-2 border-ink px-2',
+                  slot.status === 'ready' ? 'bg-pip' : 'border-dashed bg-paper',
                 )}
                 style={{ left: `${left}%`, width: `${width}%` }}
               >
-                <span
-                  aria-hidden
-                  className={cn(
-                    'shrink-0 text-[10px] leading-3',
-                    slot.status === 'ready' ? 'text-mint' : 'text-violet',
-                  )}
-                >
+                <span aria-hidden className={cn('shrink-0 text-[10px] leading-3')}>
                   {slot.status === 'ready' ? '●' : '✦'}
                 </span>
-                <span className="truncate text-[10px] leading-3 font-medium text-text-2">
-                  {title}
-                </span>
+                <span className="truncate text-[11px] leading-3 font-medium">{title}</span>
               </motion.span>
             );
           })}
       </div>
       <div className="absolute inset-x-4 top-[66px] h-6">
         {words.length === 0 && (
-          <span className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-white/8" />
+          <span className="absolute inset-x-0 top-1/2 h-[2px] -translate-y-1/2 border-t-2 border-dashed border-ink/40" />
         )}
         {shown.map(({ w, key }, k) => {
           const left = durationMs > 0 ? (w.startMs / durationMs) * 100 : 0;
@@ -107,7 +95,7 @@ export function WordStrip({
                 delay: still ? 0 : Math.min(k, 60) * 0.012,
               }}
               title={w.text}
-              className="absolute top-0 h-full rounded-[3px] bg-[linear-gradient(180deg,var(--color-violet),rgb(139_124_255/0.55))]"
+              className="absolute top-0 h-full rounded-[3px] bg-ink"
               style={{ left: `${left}%`, width: `${width}%` }}
             />
           );

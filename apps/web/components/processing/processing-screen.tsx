@@ -4,8 +4,10 @@ import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { Pip } from '@/components/pip/pip';
-import { Button } from '@/components/ui/button';
+import Link from 'next/link';
+import { PipLoop } from '@/components/landing/pip-loop';
+import { btn, Bubble, paper, PaperPage, PipMark, poster } from '@/components/paper/kit';
+import { cn } from '@/lib/cn';
 import { fadeIn, springPop } from '@/lib/motion/presets';
 import { useStill } from '@/lib/motion/use-still';
 import { browserPipelineDeps } from '@/lib/pipeline/browser-deps';
@@ -159,129 +161,140 @@ export function ProcessingScreen({ id }: { id: string }) {
   const done = state.projectId !== null;
   const failed = state.error !== null && phase === 'running';
 
+  const bubble =
+    state.slots.length > 0
+      ? slotsReady(state.slots.length)
+      : failed
+        ? 'Hmm, that one slipped.'
+        : phase === 'running'
+          ? 'On it…'
+          : 'Drop it, I’ll catch it!';
+
   return (
-    <main className="relative flex min-h-dvh items-start justify-center overflow-hidden bg-bg px-4 pt-[12vh] pb-16">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-[-10%] left-1/2 h-[520px] w-[820px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(139_124_255/0.16),transparent)] blur-2xl"
-      />
-      <div className="relative w-full max-w-[560px]">
-        <header className="flex flex-col items-center text-center">
-          <div className="relative">
-            <Pip
-              size={96}
-              state={
-                done ? 'celebrating' : failed ? 'idle' : phase === 'running' ? 'thinking' : 'waving'
-              }
-              glow
-              decorative
-              seed={5}
-            />
-            <AnimatePresence>
-              {state.slots.length > 0 && (
-                <motion.p
-                  key="bubble"
-                  data-testid="pip-bubble"
-                  initial={still ? false : { opacity: 0, scale: 0.6, x: -6, y: 6 }}
-                  animate={{ opacity: 1, scale: 1, x: 0, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  transition={springPop}
-                  className="absolute top-1 left-[calc(100%+6px)] origin-bottom-left rounded-[12px] rounded-bl-[4px] bg-card-2 px-3 py-1.5 text-[12px] leading-4 font-medium whitespace-nowrap text-text shadow-glass"
-                >
-                  {slotsReady(state.slots.length)}
-                </motion.p>
-              )}
-            </AnimatePresence>
-          </div>
-          <p className="mt-5 font-mono text-[11px] leading-[14px] tracking-[1.1px] text-violet-ink">
-            {phase === 'running' ? (done ? 'ALL SET' : 'PIP IS WORKING') : 'NEW PROJECT'}
-          </p>
-          <h1 className="mt-2 text-[28px] leading-[34px] font-semibold text-text">
-            {done ? 'Here it comes' : 'Turning your voice into motion'}
-          </h1>
-          <p className="mt-2 text-[13px] leading-[18px] text-text-2">
-            {phase === 'running'
-              ? 'A few moments. A little magic.'
-              : 'Bring your voice. We’ll bring the motion.'}
-          </p>
-        </header>
-
-        <div className="mt-9">
-          <AnimatePresence mode="wait" initial={false}>
-            {phase === 'drop' && (
-              <motion.div key="drop" {...fadeIn}>
-                <DropZone
-                  key={intakeError ?? 'none'}
-                  initialError={intakeError}
-                  onFile={(file) => start({ file, name: file.name, source: 'upload' })}
-                  onSample={() => start({ ...sampleInput(), source: 'sample' })}
-                />
-              </motion.div>
-            )}
-
-            {phase === 'running' && (
-              <motion.div key="run" {...fadeIn}>
-                <ol className="flex flex-col gap-3" aria-label="Processing steps">
-                  {PIPELINE_STEPS.map((step, k) => (
-                    <StepCard
-                      key={step}
-                      index={k + 1}
-                      title={state.steps[step].title ?? STEP_TITLES[step]}
-                      state={state.steps[step].state}
-                      detail={state.steps[step].detail}
-                      {...(state.steps[step].route ? { route: state.steps[step].route } : {})}
-                    />
-                  ))}
-                </ol>
-                <div className="mt-6">
-                  <WordStrip
-                    words={state.words}
-                    keys={state.wordKeys}
-                    durationMs={state.durationMs}
-                    slots={state.slots}
-                  />
-                </div>
-                <div className="mt-6 flex justify-center gap-3">
-                  {failed ? (
-                    <>
-                      <Button
-                        variant="primary"
-                        onClick={() => lastInput.current && start(lastInput.current)}
-                      >
-                        Try again
-                      </Button>
-                      <Button variant="secondary" onClick={chooseAnother}>
-                        Choose another file
-                      </Button>
-                    </>
-                  ) : (
-                    !done && (
-                      <Button variant="ghost" onClick={cancel}>
-                        Cancel
-                      </Button>
-                    )
-                  )}
-                </div>
-              </motion.div>
-            )}
-
-            {phase === 'interrupted' && (
-              <motion.div key="int" {...fadeIn} className="flex flex-col items-center gap-4">
-                <p className="text-[13px] leading-[18px] text-text-2">
-                  This upload was interrupted. Nothing was saved.
-                </p>
-                <Button variant="primary" onClick={() => router.replace('/processing/new')}>
-                  Choose another file
-                </Button>
-              </motion.div>
-            )}
-          </AnimatePresence>
+    <PaperPage>
+      <header className="border-b-2 border-ink">
+        <div className="mx-auto flex h-16 max-w-[1240px] items-center px-6 lg:px-10">
+          <Link href="/dashboard" className="flex items-center gap-2.5" aria-label="motionpop home">
+            <PipMark />
+            <span className="font-sans text-[22px] leading-none font-semibold tracking-[-0.03em]">
+              motionpop
+            </span>
+          </Link>
         </div>
+      </header>
+      <main className="mx-auto w-full max-w-[1000px] px-6 pb-20 lg:px-10">
+        <section className="flex items-end justify-between gap-6 pt-12 pb-10">
+          <div>
+            <h1 className={cn(poster, 'text-[clamp(52px,7vw,96px)]')}>
+              {done ? 'Here it comes.' : 'Turning your voice into motion.'}
+            </h1>
+            <p className="mt-4 text-[15px]">
+              {phase === 'running'
+                ? 'A few moments. A little magic.'
+                : 'Bring your voice. We’ll bring the motion.'}
+            </p>
+          </div>
+          <div className="relative h-[170px] w-[150px] shrink-0 sm:w-[240px]">
+            <AnimatePresence mode="wait">
+              <motion.span
+                key={bubble}
+                data-testid={state.slots.length > 0 ? 'pip-bubble' : undefined}
+                initial={still ? false : { opacity: 0, scale: 0.7, y: 6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={springPop}
+                className="absolute top-0 right-[30px] origin-bottom-right whitespace-nowrap"
+              >
+                <Bubble right>{bubble}</Bubble>
+              </motion.span>
+            </AnimatePresence>
+            <PipLoop
+              name={done || state.slots.length > 0 ? 'juggle' : 'clapper'}
+              className="absolute -right-3 -bottom-6 size-[150px] select-none"
+            />
+          </div>
+        </section>
+
+        <AnimatePresence mode="wait" initial={false}>
+          {phase === 'drop' && (
+            <motion.div key="drop" {...fadeIn}>
+              <DropZone
+                key={intakeError ?? 'none'}
+                initialError={intakeError}
+                onFile={(file) => start({ file, name: file.name, source: 'upload' })}
+                onSample={() => start({ ...sampleInput(), source: 'sample' })}
+              />
+            </motion.div>
+          )}
+
+          {phase === 'running' && (
+            <motion.div key="run" {...fadeIn}>
+              <ol
+                className="overflow-hidden rounded-[16px] border-2 border-ink bg-paper shadow-[6px_6px_0_#000]"
+                aria-label="Processing steps"
+              >
+                {PIPELINE_STEPS.map((step, k) => (
+                  <StepCard
+                    key={step}
+                    index={k + 1}
+                    title={state.steps[step].title ?? STEP_TITLES[step]}
+                    state={state.steps[step].state}
+                    detail={state.steps[step].detail}
+                    {...(state.steps[step].route ? { route: state.steps[step].route } : {})}
+                  />
+                ))}
+              </ol>
+              <div className="mt-8">
+                <WordStrip
+                  words={state.words}
+                  keys={state.wordKeys}
+                  durationMs={state.durationMs}
+                  slots={state.slots}
+                />
+              </div>
+              <div className="mt-8 flex gap-4">
+                {failed ? (
+                  <>
+                    <button
+                      type="button"
+                      className={btn('ink')}
+                      onClick={() => lastInput.current && start(lastInput.current)}
+                    >
+                      Try again
+                    </button>
+                    <button type="button" className={btn('paper')} onClick={chooseAnother}>
+                      Choose another file
+                    </button>
+                  </>
+                ) : (
+                  !done && (
+                    <button type="button" className={paper.link} onClick={cancel}>
+                      Cancel
+                    </button>
+                  )
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {phase === 'interrupted' && (
+            <motion.div key="int" {...fadeIn} className="flex flex-col items-start gap-5">
+              <p className="text-[15px]">This upload was interrupted. Nothing was saved.</p>
+              <button
+                type="button"
+                className={btn('ink')}
+                onClick={() => router.replace('/processing/new')}
+              >
+                Choose another file
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <p role="status" aria-live="polite" className="sr-only">
           {state.announcement}
         </p>
-      </div>
-    </main>
+      </main>
+    </PaperPage>
   );
 }

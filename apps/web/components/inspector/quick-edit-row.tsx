@@ -102,7 +102,7 @@ export function QuickEditRow({ slot }: { slot: Slot }) {
     <div className="mt-2">
       <div
         aria-busy={busy}
-        className="relative flex h-8 items-center overflow-hidden rounded-lg bg-card pr-2.5 pl-2.5 shadow-glass focus-within:shadow-violet-glow"
+        className="relative flex h-9 items-center overflow-hidden rounded-[10px] bg-card pr-2 pl-3 shadow-glass transition-shadow focus-within:shadow-violet-glow"
       >
         <input
           {...{ [QUICK_EDIT_ATTR]: '' }}
@@ -115,7 +115,7 @@ export function QuickEditRow({ slot }: { slot: Slot }) {
           onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Quick edit… e.g. make it slower"
-          className="relative z-10 h-full min-w-0 flex-1 bg-transparent text-[10px] leading-[13px] text-text outline-none placeholder:text-placeholder disabled:opacity-60"
+          className="relative z-10 h-full min-w-0 flex-1 bg-transparent text-[12px] leading-4 text-text outline-none placeholder:text-text-3 disabled:opacity-60"
         />
         <span className="relative z-10">
           {reason ? (
@@ -124,7 +124,7 @@ export function QuickEditRow({ slot }: { slot: Slot }) {
             <CostChip
               route={chip.route}
               credits={chip.route === 'cloud' ? chip.credits : 0}
-              className={chip.route === 'device' ? 'w-[110px] justify-start pl-2' : undefined}
+              className={undefined}
             />
           ) : null}
         </span>
@@ -181,14 +181,14 @@ function Notice({
   children: React.ReactNode;
 }) {
   return (
-    <div role="status" className="mt-2 rounded-chip bg-card px-3 py-2.5 shadow-glass">
-      <p className="text-[11px] leading-4 text-text-body">{message}</p>
+    <div role="status" className="mt-2 rounded-[10px] bg-card px-3 py-2.5 shadow-glass">
+      <p className="text-[12px] leading-[17px] text-text-body">{message}</p>
       <div className="mt-2 flex items-center gap-3">
         {children}
         <button
           type="button"
           onClick={onDismiss}
-          className="text-[10px] leading-[13px] text-text-3 transition-colors hover:text-text"
+          className="text-[11px] leading-[14px] text-text-3 transition-colors hover:text-text"
         >
           Dismiss
         </button>

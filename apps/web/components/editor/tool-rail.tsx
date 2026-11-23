@@ -1,16 +1,6 @@
 'use client';
 
-import {
-  Folder,
-  Image,
-  LayoutGrid,
-  Mic,
-  Music,
-  Sparkles,
-  Star,
-  Type,
-  type LucideIcon,
-} from 'lucide-react';
+import { Folder, Image, LayoutGrid, Mic, Music, Star, Type, type LucideIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/cn';
@@ -19,10 +9,12 @@ import { useSettingsPanel } from '@/lib/editor/settings-panel';
 import { toggleRailPanel, useRailPanel } from '@/lib/editor/rail-panel';
 import { useEditor, type RailItem } from '@/lib/stores/editor';
 import { usePip } from '@/lib/pip/use-pip';
+import { PipAvatar } from '@/components/pip/pip-avatar';
 
-const ITEMS: readonly { id: RailItem; label: string; icon: LucideIcon }[] = [
+const ITEMS: readonly { id: RailItem; label: string; icon: LucideIcon | null }[] = [
+  // Spec 38 R2.1: the editor is Pip-first; Pip's item leads the rail and wears Pip's face.
+  { id: 'ai', label: 'Pip', icon: null },
   { id: 'voice', label: 'Voice', icon: Mic },
-  { id: 'ai', label: 'AI', icon: Sparkles },
   { id: 'styles', label: 'Styles', icon: LayoutGrid },
   { id: 'media', label: 'Media', icon: Image },
   { id: 'audio', label: 'Audio', icon: Music },
@@ -31,7 +23,7 @@ const ITEMS: readonly { id: RailItem; label: string; icon: LucideIcon }[] = [
   { id: 'projects', label: 'Projects', icon: Folder },
 ];
 
-/** 72 px tool rail ("Tool rail" in design/figma-export.css). Panels behind it land in later specs. */
+/** 64 px tool rail (spec 38): ink icons on paper; the active item is an ink tile. */
 export function ToolRail() {
   const rail = useEditor((s) => s.rail);
   const setRail = useEditor((s) => s.setRail);
@@ -41,7 +33,7 @@ export function ToolRail() {
   return (
     <nav
       aria-label="Tools"
-      className="relative flex w-[72px] shrink-0 flex-col items-center gap-1.5 border-r border-white/6 bg-panel pt-3"
+      className="relative flex w-16 shrink-0 flex-col items-center gap-1 border-r-2 border-rule bg-paper pt-2.5"
     >
       {ITEMS.map(({ id, label, icon: Icon }) => {
         const active = rail === id && !settingsOpen;
@@ -72,23 +64,36 @@ export function ToolRail() {
               setRail(id);
             }}
             className={cn(
-              'relative flex h-[50px] w-14 flex-col items-center rounded-chip pt-[7px] transition-colors',
-              active ? 'text-text' : 'text-text-2 hover:text-text',
+              'group relative flex h-[52px] w-[52px] flex-col items-center justify-center gap-1 rounded-[10px] transition-colors',
+              active ? 'text-tile-ink' : 'text-ink/70 hover:bg-mist hover:text-ink',
+              id === 'ai' && 'mb-1.5',
             )}
           >
             {active && (
               <motion.span
                 layoutId="rail-active"
                 transition={spring}
-                className="absolute inset-0 rounded-chip bg-rail-active shadow-glass"
+                className="absolute inset-0 rounded-[10px] bg-tile ring-1 ring-edge"
               />
             )}
-            <Icon
-              className={cn('relative size-5', active && 'text-violet')}
-              strokeWidth={1.5}
-              aria-hidden
-            />
-            <span className="relative mt-[5px] text-[10px] leading-[13px] font-medium">
+            {Icon ? (
+              <Icon className="relative size-[18px]" strokeWidth={1.75} aria-hidden />
+            ) : (
+              <span className="relative -my-0.5">
+                <span
+                  aria-hidden
+                  className={cn(
+                    'absolute -inset-1.5 rounded-full blur-[6px] transition-opacity',
+                    active ? 'opacity-90' : 'opacity-60',
+                  )}
+                  style={{
+                    background: 'conic-gradient(from 200deg, #8dbceb, #8b7cff, #ff6a3d, #8dbceb)',
+                  }}
+                />
+                <PipAvatar size={22} ring={false} className="relative" />
+              </span>
+            )}
+            <span className="relative font-mono text-[10px] leading-[12px] font-medium">
               {label}
             </span>
           </button>

@@ -47,10 +47,10 @@ export function FontsPanelBody() {
   const current = (project.fonts?.display ?? lookFamily) as FontChoice;
 
   return (
-    <div className="flex h-full flex-col px-5 pt-4 pb-4">
+    <div className="flex h-full flex-col px-4 pb-4">
       <style>{FACE_CSS}</style>
-      <header className="flex h-10 shrink-0 items-center border-b border-white/6 pb-3">
-        <h2 className="text-[17px] leading-[22px] font-semibold text-text">Fonts</h2>
+      <header className="-mx-4 flex h-12 shrink-0 items-center border-b border-line px-4">
+        <h2 className="text-[14px] leading-5 font-semibold text-text">Fonts</h2>
       </header>
       <div className="-mx-1 min-h-0 flex-1 space-y-2 overflow-y-auto px-1 pt-4 pb-6">
         <p className="pb-2 text-[12px] leading-[17px] text-text-2">

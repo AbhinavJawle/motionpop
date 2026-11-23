@@ -1,42 +1,41 @@
 import type { ReactNode } from 'react';
-import { Pip } from '@/components/pip/pip';
-import type { PipState } from '@/components/pip/states';
+import { PipLoop, type PipLoopName } from '@/components/landing/pip-loop';
+import { Bubble, poster } from '@/components/paper/kit';
+import { cn } from '@/lib/cn';
 
 /**
- * Pip with ember sound arcs in a bloom, eyebrow, headline and subline (start.png and
- * recording.png: Pip ~120 px centred at y 215, eyebrow y 314, headline 40 px y 340, subline
- * 16 px y 404). Shared by Start and Recording.
+ * The header of Start and Recording (spec 35): a left-aligned poster headline and subline, with
+ * Pip on the right saying `bubble`. Shared by Start and Recording.
  */
 export function StartHero({
-  eyebrow,
+  bubble,
   headline,
   subline,
-  pip = 'idle',
+  pip = 'clapper',
   pipSlot,
 }: {
-  eyebrow: string;
+  /** Pip's line, in the speech bubble. */
+  bubble: string;
   headline: string;
   subline: string;
-  pip?: PipState;
-  /** Replaces the Pip (the recorder drives its own, reacting to the level). */
+  pip?: PipLoopName;
+  /** Replaces the Pip loop. */
   pipSlot?: ReactNode;
 }) {
   return (
-    <section className="relative flex flex-col items-center pt-[80px] text-center">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-[10px] left-1/2 h-[420px] w-[460px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(255_122_61/0.14),rgb(255_122_61/0.04)_55%,transparent)]"
-      />
-      <div className="relative h-[150px]">
-        {pipSlot ?? <Pip state={pip} size={150} props={['arcs']} decorative seed={6} />}
+    <section className="relative flex items-end justify-between gap-8 pt-14 pb-10">
+      <div className="max-w-[760px]">
+        <h1 className={cn(poster, 'text-[clamp(56px,7vw,104px)]')}>{headline}</h1>
+        <p className="mt-5 max-w-[560px] text-[15px] leading-[1.65]">{subline}</p>
       </div>
-      <p className="relative mt-[22px] text-[10px] leading-[13px] font-medium tracking-[2.2px] text-text-2">
-        {eyebrow}
-      </p>
-      <h1 className="relative mt-[18px] text-[40px] leading-[48px] font-semibold tracking-[-1px]">
-        {headline}
-      </h1>
-      <p className="relative mt-[10px] text-base leading-5 text-text-2">{subline}</p>
+      <div className="relative hidden h-[230px] w-[290px] shrink-0 md:block" aria-hidden>
+        <Bubble right className="absolute top-2 right-[60px] whitespace-nowrap">
+          {bubble}
+        </Bubble>
+        {pipSlot ?? (
+          <PipLoop name={pip} className="absolute -right-4 -bottom-8 size-[210px] select-none" />
+        )}
+      </div>
     </section>
   );
 }

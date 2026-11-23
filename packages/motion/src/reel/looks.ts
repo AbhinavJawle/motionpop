@@ -19,6 +19,12 @@ export interface Palette {
   cardInk: string;
   shadow: string;
   dark: boolean;
+  /** Second colour of a theme (spec 37); absent on the house palettes. */
+  accent2?: string;
+  /** Background image layers under the grid (a theme's gradient). */
+  bgLayers?: string[];
+  /** True when a creator's theme is on this palette. */
+  themed?: boolean;
 }
 
 export interface LookTokens {

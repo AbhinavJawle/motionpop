@@ -55,7 +55,7 @@ export function PromptBox({ slot }: { slot: Slot }) {
   };
 
   return (
-    <div className="relative mt-2 h-[72px] rounded-chip bg-card shadow-glass">
+    <div className="relative mt-3 rounded-[10px] bg-card shadow-glass transition-shadow focus-within:shadow-violet-glow">
       <textarea
         id={INSPECTOR_PROMPT_ID}
         aria-label="Graphic prompt"
@@ -63,7 +63,8 @@ export function PromptBox({ slot }: { slot: Slot }) {
         onChange={(e) => setDraft(e.target.value)}
         onBlur={save}
         maxLength={500}
-        className="h-full w-full resize-none bg-transparent px-3 pt-[9px] pb-8 text-xs leading-[18px] text-text-body outline-none placeholder:text-text-4"
+        rows={3}
+        className="block h-[86px] w-full resize-none bg-transparent px-3 pt-2.5 pb-10 text-[13px] leading-[19px] text-text outline-none placeholder:text-text-4"
         placeholder={
           prefilling ? 'Pip is writing a prompt…' : 'Describe the graphic you want here…'
         }
@@ -77,7 +78,7 @@ export function PromptBox({ slot }: { slot: Slot }) {
             : 'Nothing in the library fits? Pip writes a custom graphic')
         }
         side="top"
-        className="absolute bottom-1 left-2"
+        className="absolute bottom-2 left-2"
       >
         <span>
           <Button
@@ -86,7 +87,7 @@ export function PromptBox({ slot }: { slot: Slot }) {
             disabled={custom.disabledReason !== null || gen.busy || draft.trim().length < 3}
             onMouseDown={keepFocus}
             onClick={makeCustom}
-            className="h-[26px] gap-1 px-2 text-violet-ink"
+            className="h-7 gap-1.5 px-2 text-[11px] text-text-2 hover:text-text"
           >
             <span>{custom.filmBeat ? 'Rebuild beat' : 'Custom'}</span>
             <CostChip route="cloud" credits={custom.cost} />
@@ -97,7 +98,7 @@ export function PromptBox({ slot }: { slot: Slot }) {
         content={gen.disabledReason ?? 'Generate with cloud AI'}
         shortcut={gen.disabledReason ? undefined : '⌘G'}
         side="top"
-        className="absolute right-3 bottom-1"
+        className="absolute right-2 bottom-2"
       >
         <span>
           <Button
@@ -106,7 +107,7 @@ export function PromptBox({ slot }: { slot: Slot }) {
             disabled={gen.disabledReason !== null || gen.busy}
             onMouseDown={keepFocus}
             onClick={generate}
-            className="h-[26px] w-[122px] gap-0 pr-[7px] pl-[11px]"
+            className="h-7 gap-2 pr-1.5 pl-3 text-[12px] font-semibold text-[#fff]"
           >
             <span>✦ Generate</span>
             <CostChip route="cloud" credits={cost} className="ml-auto" />

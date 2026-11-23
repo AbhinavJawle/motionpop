@@ -32,3 +32,5 @@ export {
   REEL_MUSIC_RMS_DB,
   type StereoPcm,
 } from './music';
+export { contrast as reelContrast, themedLook, themedPalette } from './theme';
+export { LOOKS as REEL_LOOK_TOKENS } from './looks';

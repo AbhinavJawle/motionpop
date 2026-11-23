@@ -12,6 +12,8 @@ export function Toaster() {
     <SonnerToaster
       position="bottom-center"
       gap={8}
+      // The editor lifts toasts above its timeline (spec 32) through this variable.
+      offset={{ bottom: 'var(--toast-bottom, 24px)' }}
       toastOptions={{
         unstyled: true,
         classNames: {

@@ -20,25 +20,28 @@ import { looseReason } from '@/lib/slots/loose';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 
 /**
- * "GRAPHIC", "Slot 2 · Bar chart", the time range and the ⋯ menu (design/figma-export.css,
- * "Graphic inspector": label y12, title y28 17/22 semibold, time y52 mono 11).
+ * Inspector header (spec 33): "Graphic 2 · 0:04.2 – 0:07.8 · 3.6s" as a quiet eyebrow, the
+ * graphic type as the title (a menu), and the ⋯ menu.
  */
 export function InspectorHeader({ slot }: { slot: Slot }) {
   const slotNumber = useEditor(
     (s) => s.project?.slots.filter((x) => x.startMs <= slot.startMs).length ?? 0,
   );
+  const seconds = ((slot.endMs - slot.startMs) / 1000).toFixed(1);
   return (
-    <div className="relative -mx-5 px-5">
-      <p className="pt-3 text-[10px] leading-[13px] font-medium tracking-[1.4px] text-eyebrow">
-        GRAPHIC
+    <div className="relative pt-4 pb-1">
+      <p className="flex h-6 items-center gap-1.5 pr-9 text-[11px] leading-[14px] text-text-3">
+        <span className="font-medium text-text-2">Graphic {slotNumber}</span>
+        <span aria-hidden>·</span>
+        <span className="tabular font-mono">
+          {formatClock(slot.startMs)} – {formatClock(slot.endMs)}
+        </span>
+        <span aria-hidden>·</span>
+        <span className="tabular font-mono">{seconds}s</span>
       </p>
-      <h2 className="mt-[3px] flex h-[22px] items-center pr-10 text-[17px] leading-[22px] font-semibold whitespace-nowrap">
-        <span className="whitespace-pre">Slot {slotNumber} · </span>
+      <h2 className="mt-1 flex h-7 items-center text-[17px] leading-[22px] font-semibold tracking-[-0.01em] whitespace-nowrap">
         <TypePicker slot={slot} />
       </h2>
-      <p className="mt-0.5 h-[14px] font-mono text-[11px] leading-[14px] text-text-2">
-        {formatClock(slot.startMs)} – {formatClock(slot.endMs)}
-      </p>
       <SlotMenu slotId={slot.id} />
     </div>
   );
@@ -75,7 +78,7 @@ function SlotMenu({ slotId }: { slotId: string }) {
   };
 
   return (
-    <div ref={rootRef} className="absolute top-[26px] right-[28px]">
+    <div ref={rootRef} className="absolute top-4 right-0">
       <button
         ref={buttonRef}
         type="button"
@@ -83,7 +86,7 @@ function SlotMenu({ slotId }: { slotId: string }) {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="flex size-6 items-center justify-center rounded-md text-text-2 transition-colors hover:bg-card hover:text-text"
+        className="flex size-7 items-center justify-center rounded-md text-text-2 transition-colors hover:bg-white/6 hover:text-text"
       >
         <MoreHorizontal className="size-4" strokeWidth={1.5} />
       </button>
@@ -93,7 +96,7 @@ function SlotMenu({ slotId }: { slotId: string }) {
             {...popIn}
             role="menu"
             aria-label="Slot actions"
-            className="absolute top-full right-0 z-50 mt-1 w-[168px] origin-top-right rounded-card bg-card-2 p-1 shadow-glass"
+            className="absolute top-full right-0 z-50 mt-1 w-[188px] origin-top-right rounded-card bg-card-2 p-1 shadow-pop"
           >
             <MenuItem
               icon={<Copy className="size-3.5" strokeWidth={1.5} />}
@@ -148,7 +151,7 @@ function MenuItem({
       role="menuitem"
       onClick={onSelect}
       className={cn(
-        'flex h-8 w-full items-center gap-2 rounded-lg px-2 text-left text-[11px] leading-[14px] transition-colors hover:bg-card-3',
+        'flex h-8 w-full items-center gap-2 rounded-md px-2 text-left text-[12px] leading-4 transition-colors hover:bg-white/6',
         danger ? 'text-error' : 'text-text-body hover:text-text',
       )}
     >
@@ -199,10 +202,10 @@ function TypePicker({ slot }: { slot: Slot }) {
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1 rounded-md transition-colors hover:text-violet"
+        className="-ml-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 transition-colors hover:bg-white/6"
       >
         {componentName(slot.componentId)}
-        <ChevronDown className="size-3.5 text-text-3" strokeWidth={1.5} />
+        <ChevronDown className="size-4 text-text-3" strokeWidth={1.5} />
       </button>
       <AnimatePresence>
         {open && (
@@ -210,7 +213,7 @@ function TypePicker({ slot }: { slot: Slot }) {
             {...popIn}
             role="menu"
             aria-label="Graphic type"
-            className="absolute top-full left-0 z-50 mt-1 w-[232px] origin-top-left rounded-card bg-card-2 p-1 shadow-glass"
+            className="absolute top-full left-0 z-50 mt-1 w-[248px] origin-top-left rounded-card bg-card-2 p-1 shadow-pop"
           >
             {GRAPHIC_TYPES.map((t) => {
               const current = t.id === slot.componentId;
@@ -221,13 +224,13 @@ function TypePicker({ slot }: { slot: Slot }) {
                   role="menuitemradio"
                   aria-checked={current}
                   onClick={() => pick(t.id)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-card-3"
+                  className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-white/6"
                 >
                   <span className="flex-1">
                     <span className="block text-[12px] leading-[16px] font-medium text-text">
                       {t.name}
                     </span>
-                    <span className="block text-[10px] leading-[13px] font-normal text-text-3">
+                    <span className="block text-[11px] leading-[14px] font-normal text-text-3">
                       {t.about}
                     </span>
                   </span>

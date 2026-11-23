@@ -2,16 +2,14 @@
 
 import { motion } from 'motion/react';
 import { Cloud, Zap } from 'lucide-react';
-import { Chip } from '@/components/ui/chip';
 import { Shimmer } from '@/components/ui/shimmer';
 import { cn } from '@/lib/cn';
 import type { StepState } from '@/lib/pipeline/events';
 import { popIn } from '@/lib/motion/presets';
 
 /**
- * One step of the Processing screen, in the generating panel's language
- * (editor-generating.png, "Progress · Finding moments", figma-export.css l.30187):
- * 50 px, r10, 22 px indicator; done = mint tint + ✓, active = violet border + shimmer.
+ * One step of the Processing screen (spec 35): a numbered line of the shot list. Active is
+ * tinted with a shimmer, done gets an ink tick, failed a red mark.
  */
 export function StepCard({
   index,
@@ -33,34 +31,25 @@ export function StepCard({
       {...popIn}
       data-state={state}
       className={cn(
-        'relative flex h-[50px] items-center overflow-hidden rounded-[10px] pr-4 pl-3.5 transition-colors duration-200',
-        state === 'active'
-          ? 'border border-violet/25 bg-[#252036]'
-          : state === 'failed'
-            ? 'border border-error/60 bg-[rgb(21_21_29/0.7)]'
-            : 'border border-transparent bg-[rgb(21_21_29/0.7)]',
+        'relative flex min-h-[64px] items-center overflow-hidden border-b-2 border-ink pr-5 pl-5 transition-colors duration-200 last:border-b-0',
+        state === 'active' && 'bg-[#fff1ea]',
+        state === 'failed' && 'bg-[#fdecec]',
       )}
     >
-      {state === 'active' && <Shimmer />}
+      {state === 'active' && <Shimmer tone="neutral" />}
       <span
         aria-hidden
         className={cn(
-          'relative flex size-[22px] shrink-0 items-center justify-center rounded-full text-[12px] leading-4 font-medium',
-          state === 'done' && 'bg-mint/10 text-[#76E5B0]',
-          state === 'active' && 'bg-violet/10 text-[#CFC5FF]',
-          state === 'failed' && 'bg-error/15 text-error',
-          (state === 'pending' || state === 'skipped') && 'bg-white/5 text-text-3',
+          'relative w-12 shrink-0 font-poster text-[30px] leading-none tabular',
+          (state === 'pending' || state === 'skipped') && 'text-black/30',
         )}
       >
-        {state === 'done' ? '✓' : state === 'failed' ? '!' : index}
+        {String(index).padStart(2, '0')}
       </span>
       <span
         className={cn(
-          'relative ml-[11px] text-[13px] leading-[17px] font-medium',
-          state === 'done' && 'text-[#D3D0DF]',
-          state === 'active' && 'text-[#E0D8FF]',
-          state === 'failed' && 'text-text',
-          (state === 'pending' || state === 'skipped') && 'text-text-3',
+          'relative text-[15px] font-semibold',
+          (state === 'pending' || state === 'skipped') && 'font-normal text-black/45',
         )}
       >
         {title}
@@ -73,35 +62,40 @@ export function StepCard({
             initial={{ opacity: 0, y: 3 }}
             animate={{ opacity: 1, y: 0 }}
             className={cn(
-              'max-w-[300px] truncate text-[11px] leading-[14px]',
-              state === 'failed' ? 'text-error' : 'text-text-2',
+              'hidden max-w-[300px] truncate text-[12px] sm:block',
+              state === 'failed' ? 'text-error' : 'text-black/60',
             )}
           >
             {detail}
           </motion.span>
         )}
         {route && state !== 'skipped' && state !== 'pending' && (
-          <Chip
-            tone={route === 'device' ? 'mint' : 'violet'}
-            icon={
-              route === 'device' ? (
-                <Zap strokeWidth={1.5} aria-hidden />
-              ) : (
-                <Cloud strokeWidth={1.5} aria-hidden />
-              )
-            }
-          >
-            {route === 'device' ? 'on-device' : 'cloud · free'}
-          </Chip>
-        )}
-        {state === 'skipped' && (
-          <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] leading-[13px] text-text-3">
-            {detail ?? 'Up next'}
+          <span className="inline-flex h-6 items-center gap-1 rounded-md border-2 border-ink px-1.5 text-[11px]">
+            {route === 'device' ? (
+              <Zap className="size-3" strokeWidth={2} aria-hidden />
+            ) : (
+              <Cloud className="size-3" strokeWidth={2} aria-hidden />
+            )}
+            {route === 'device' ? 'on-device' : 'cloud, free'}
           </span>
         )}
+        {state === 'skipped' && (
+          <span className="text-[12px] text-black/45">{detail ?? 'Up next'}</span>
+        )}
         {state === 'done' && (
-          <span aria-hidden className="text-[11px] leading-[14px] font-medium text-[#76E5B0]">
+          <span
+            aria-hidden
+            className="flex size-7 items-center justify-center rounded-full bg-ink text-[13px] text-paper"
+          >
             ✓
+          </span>
+        )}
+        {state === 'failed' && (
+          <span
+            aria-hidden
+            className="flex size-7 items-center justify-center rounded-full bg-error text-[13px] font-bold text-paper"
+          >
+            !
           </span>
         )}
       </span>

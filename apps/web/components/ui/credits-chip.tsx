@@ -34,7 +34,7 @@ export function CreditsChip({
       aria-label={credits === null ? 'Credits loading' : `${credits} credits`}
       aria-busy={credits === null}
       className={cn(
-        'inline-flex h-8 min-w-[70px] items-center justify-center gap-2 rounded-chip bg-card px-3 text-xs leading-4 text-text shadow-glass hover:bg-card-2',
+        'inline-flex h-8 min-w-[64px] items-center justify-center gap-1.5 rounded-chip bg-card px-2.5 text-xs leading-4 text-text shadow-glass transition-colors hover:bg-card-2',
         dashboard && 'min-w-[104px] gap-1.5 border border-line pr-2.5 pl-2.5',
         className,
       )}

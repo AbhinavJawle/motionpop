@@ -87,11 +87,11 @@ export function OptionCards<T extends string>({
             {...(o.soon ? {} : { whileHover: { y: -1 }, whileTap: { scale: 0.97 } })}
             transition={spring}
             className={cn(
-              'flex flex-1 items-center justify-center gap-3 rounded-chip border text-[13px] leading-[17px] transition-colors duration-200',
+              'flex flex-1 items-center justify-center gap-2.5 rounded-[10px] text-[13px] leading-[17px] font-medium transition-[background-color,box-shadow,color] duration-200',
               cardClassName,
               selected
-                ? 'border-ember-edge bg-ember-tint text-ember-ink'
-                : 'border-dialog-line bg-option text-text-2',
+                ? 'bg-white/[0.08] text-text shadow-[inset_0_0_0_1.5px_var(--color-edge)]'
+                : 'bg-white/[0.025] text-text-2 shadow-[inset_0_0_0_1px_rgb(0_0_0/0.12)] hover:bg-white/[0.05] hover:text-text',
               o.soon && 'cursor-not-allowed text-text-4',
             )}
           >

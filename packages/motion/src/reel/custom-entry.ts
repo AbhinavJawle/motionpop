@@ -36,11 +36,11 @@ function styleOf(scene: ReelCustomScene): StylePack {
       ink: p.ink,
       muted: p.muted,
       accent: p.accent,
-      accent2: p.link,
+      accent2: p.accent2 ?? p.link,
       highlight: p.accent,
       positive: '#22C55E',
       negative: '#EF4444',
-      chart: [p.accent, p.link, p.muted],
+      chart: [p.accent, p.accent2 ?? p.link, p.muted],
     },
     fonts: {
       ...base.fonts,

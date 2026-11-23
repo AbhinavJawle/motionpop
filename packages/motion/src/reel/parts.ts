@@ -183,7 +183,7 @@ export function words(
     const isAcc = acc.has(w.toLowerCase().replace(/[^\p{L}\p{N}%$#]/gu, ''));
     const s = h('span', { display: 'inline-block', willChange: 'transform, filter, opacity' }, [w]);
     if (isAcc) {
-      if (ctx.look.upper) css(s, { color: ctx.pal.muted });
+      if (ctx.look.upper) css(s, { color: ctx.pal.themed ? ctx.pal.accent : ctx.pal.muted });
       else
         css(s, {
           fontFamily: ctx.look.italic,

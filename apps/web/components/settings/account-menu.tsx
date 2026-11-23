@@ -79,7 +79,7 @@ export function AccountMenu({
   };
 
   const itemClass =
-    'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs leading-4 text-text-2 outline-none transition-colors hover:bg-white/8 hover:text-text focus-visible:bg-white/8 focus-visible:text-text [&_svg]:size-4';
+    'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-xs leading-4 text-text-2 outline-none transition-colors hover:bg-card-3 hover:text-text focus-visible:bg-card-3 focus-visible:text-text [&_svg]:size-4';
 
   return (
     <div ref={rootRef} className="relative" onKeyDown={onKeyDown}>

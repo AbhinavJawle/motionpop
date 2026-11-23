@@ -36,8 +36,8 @@ export function SettingsPanel() {
   return (
     <LeftPanel open={open} label="Settings" onClose={closeSettingsPanel}>
       <div className="flex h-full flex-col">
-        <header className="flex h-12 shrink-0 items-center border-b border-white/6 px-4">
-          <h2 className="text-[15px] leading-5 font-semibold">Settings</h2>
+        <header className="flex h-12 shrink-0 items-center border-b border-line px-4">
+          <h2 className="text-[14px] leading-5 font-semibold">Settings</h2>
         </header>
         <div
           ref={bodyRef}

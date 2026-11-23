@@ -125,10 +125,11 @@ test('export dialog options match export.png', async ({ page }) => {
   const box = await dialog.boundingBox();
   expect(Math.round(box?.width ?? 0)).toBe(560);
   expect(Math.round(box?.x ?? 0)).toBe(440);
-  expect(Math.round(box?.height ?? 0)).toBe(768 + 18 + 28);
-  await expectSize(dialog.getByRole('radio', { name: '16:9' }), 160, 48, 'format card');
-  await expectSize(dialog.getByRole('radio', { name: '1080p' }), 160, 42, 'resolution card');
-  await expectSize(dialog.getByRole('button', { name: 'Export video' }), 496, 48, 'export button');
+  // Spec 33 (D-081): 44 px format cards, 40 px resolution cards and a 44 px button.
+  expect(Math.round(box?.height ?? 0)).toBe(768 + 18 + 28 - 14);
+  await expectSize(dialog.getByRole('radio', { name: '16:9' }), 160, 44, 'format card');
+  await expectSize(dialog.getByRole('radio', { name: '1080p' }), 160, 40, 'resolution card');
+  await expectSize(dialog.getByRole('button', { name: 'Export video' }), 496, 44, 'export button');
   await expectSize(dialog.getByTestId('video-still'), 192, 108, 'thumbnail');
   const shot = await save(page, 'export');
   const pct = compare('export', shot, EXPORT_BOX);

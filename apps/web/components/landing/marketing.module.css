@@ -1,0 +1,577 @@
+/*
+ * The marketing site's visual system (spec 34): white paper, black ink, a storyboard of panels.
+ * Tokens are on .page so nothing leaks into the app.
+ */
+
+.page {
+  --ink: #000;
+  --paper: #fff;
+  --mist: #f3f3f1;
+  --ember: #ff6a3d;
+  --pip: #8dbceb;
+  --violet: #8b7cff;
+  --mint: #2fc48d;
+  --sun: #ffd23f;
+  --rule: 2px;
+
+  min-height: 100dvh;
+  overflow-x: clip;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.6;
+  color-scheme: light;
+}
+
+.page ::selection {
+  background: var(--ember);
+  color: var(--ink);
+}
+
+.page :focus-visible {
+  outline: 2px solid var(--ember);
+  outline-offset: 3px;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.002em;
+  line-height: 0.9;
+}
+
+.hand {
+  font-family: var(--font-hand);
+  letter-spacing: 0.01em;
+}
+
+/* ------------------------------------------------------------------ nav: a strip of film */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.nav::before,
+.nav::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='5'%3E%3Crect x='4' y='0' width='9' height='5' rx='1.5' fill='%23ffffff' fill-opacity='0.16'/%3E%3C/svg%3E");
+  background-size: 18px 5px;
+  pointer-events: none;
+}
+
+.nav::before {
+  top: 4px;
+}
+
+.nav::after {
+  bottom: 4px;
+}
+
+/* the playhead: an ember line that follows the scroll, because the page is a timeline */
+.playhead {
+  display: none;
+}
+
+@supports (animation-timeline: scroll()) {
+  .playhead {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -3px;
+    display: block;
+    height: 3px;
+    background: var(--ember);
+    transform-origin: 0 50%;
+    animation: playhead linear both;
+    animation-timeline: scroll(root);
+  }
+
+  .playhead::after {
+    content: '';
+    position: absolute;
+    right: -5px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border: 2px solid var(--ink);
+    border-radius: 2px 2px 50% 50%;
+    background: var(--ember);
+  }
+
+  @keyframes playhead {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}
+
+.navLink {
+  font-family: var(--font-display);
+  font-size: 22px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--paper);
+  opacity: 0.86;
+  transition: opacity 160ms ease;
+}
+
+.navLink:hover {
+  opacity: 1;
+}
+
+/* ------------------------------------------------------------------ buttons with a hard shadow */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: var(--rule) solid var(--ink);
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 1;
+  white-space: nowrap;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition:
+    transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    box-shadow 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.btn:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 4px 4px 0 var(--ink);
+}
+
+.btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--ink);
+}
+
+.btnInk {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.btnPaper {
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.btnOnInk {
+  border-color: var(--paper);
+  box-shadow: 3px 3px 0 rgb(255 255 255 / 0.35);
+}
+
+.btnOnInk:hover {
+  box-shadow: 4px 4px 0 rgb(255 255 255 / 0.45);
+}
+
+/* ------------------------------------------------------------------ section cues */
+/* a tiny waveform inside the clip, like the voice lane of the timeline */
+.cueWave {
+  width: 26px;
+  height: 14px;
+  background:
+    linear-gradient(currentColor, currentColor) 0 50% / 2px 40% no-repeat,
+    linear-gradient(currentColor, currentColor) 6px 50% / 2px 90% no-repeat,
+    linear-gradient(currentColor, currentColor) 12px 50% / 2px 60% no-repeat,
+    linear-gradient(currentColor, currentColor) 18px 50% / 2px 100% no-repeat,
+    linear-gradient(currentColor, currentColor) 24px 50% / 2px 50% no-repeat;
+  opacity: 0.75;
+}
+
+/* ------------------------------------------------------------------ section washes */
+/* Each band takes the colour of its cue, quietly. Textures sit on ::before behind the content. */
+.ruled,
+.washEmber,
+.washSplit,
+.washViolet,
+.washSun,
+.washDots,
+.washSunCorner,
+.washPip {
+  position: relative;
+  isolation: isolate;
+}
+
+.ruled::before,
+.washEmber::before,
+.washSplit::before,
+.washSplit::after,
+.washViolet::before,
+.washSun::before,
+.washDots::before,
+.washSunCorner::before,
+.washPip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* storyboard paper: a faint Pip-blue grid that fades out towards the edges */
+.ruled {
+  background: #fbfdff;
+}
+
+.ruled::before {
+  background-image:
+    linear-gradient(rgb(141 188 235 / 0.32) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(141 188 235 / 0.32) 1px, transparent 1px);
+  background-size: 36px 36px;
+  background-position: center top;
+  mask-image: radial-gradient(80% 90% at 50% 40%, #000 30%, transparent 85%);
+}
+
+.washEmber {
+  background: #fff3ee;
+}
+
+.washEmber::before {
+  background-image: radial-gradient(rgb(255 106 61 / 0.45) 1.2px, transparent 1.7px);
+  background-size: 10px 10px;
+  mask-image: radial-gradient(60% 70% at 100% 0%, #000, transparent 70%);
+}
+
+/* hybrid: mint dots on the device side, violet dots on the cloud side */
+.washSplit {
+  background: #fff;
+}
+
+.washSplit::before {
+  background-image: radial-gradient(rgb(47 196 141 / 0.5) 1.2px, transparent 1.7px);
+  background-size: 10px 10px;
+  mask-image: radial-gradient(55% 75% at 0% 70%, #000, transparent 70%);
+}
+
+.washSplit::after {
+  background-image: radial-gradient(rgb(139 124 255 / 0.55) 1.2px, transparent 1.7px);
+  background-size: 10px 10px;
+  mask-image: radial-gradient(55% 75% at 100% 70%, #000, transparent 70%);
+}
+
+.washViolet {
+  background: #f2f0ff;
+}
+
+.washViolet::before {
+  background-image: radial-gradient(rgb(139 124 255 / 0.5) 1.2px, transparent 1.7px);
+  background-size: 10px 10px;
+  mask-image: radial-gradient(50% 80% at 0% 100%, #000, transparent 70%);
+}
+
+.washSun {
+  background: #fff8dc;
+}
+
+.washSun::before {
+  background-image:
+    linear-gradient(rgb(0 0 0 / 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(0 0 0 / 0.05) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: linear-gradient(180deg, #000, transparent 60%);
+}
+
+.washDots {
+  background: #fff;
+}
+
+.washDots::before {
+  background-image: radial-gradient(rgb(255 106 61 / 0.4) 1.2px, transparent 1.7px);
+  background-size: 10px 10px;
+  mask-image: radial-gradient(45% 70% at 0% 100%, #000, transparent 70%);
+}
+
+.washSunCorner {
+  background: #fff;
+}
+
+.washSunCorner::before {
+  background-image: radial-gradient(rgb(232 178 0 / 0.55) 1.2px, transparent 1.7px);
+  background-size: 10px 10px;
+  mask-image: radial-gradient(40% 60% at 100% 0%, #000, transparent 70%);
+}
+
+.washPip {
+  background: #eef5fc;
+}
+
+.washPip::before {
+  background-image: radial-gradient(rgb(141 188 235 / 0.9) 1.2px, transparent 1.7px);
+  background-size: 10px 10px;
+  mask-image: radial-gradient(45% 70% at 100% 100%, #000, transparent 70%);
+}
+
+/* ------------------------------------------------------------------ the looks film strip */
+.filmstrip {
+  position: relative;
+  padding: 36px 18px 40px;
+  border-radius: 6px;
+  background: var(--ink);
+  box-shadow: 8px 8px 0 rgb(0 0 0 / 0.18);
+}
+
+.filmstrip::before,
+.filmstrip::after {
+  content: '';
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  height: 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='26' height='10'%3E%3Crect x='6' y='0' width='14' height='10' rx='2.5' fill='%23ffffff' fill-opacity='0.9'/%3E%3C/svg%3E");
+  background-size: 26px 10px;
+}
+
+.filmstrip::before {
+  top: 12px;
+}
+
+.filmstrip::after {
+  bottom: 12px;
+}
+
+/* ------------------------------------------------------------------ stitched: a seam on each edge */
+.stitched::before,
+.stitched::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 14px;
+  background:
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 0.7) 0 10px, transparent 10px 18px) center /
+      100% 2px no-repeat,
+    repeating-linear-gradient(
+        90deg,
+        transparent 0 4px,
+        rgb(47 196 141 / 0.9) 4px 6px,
+        transparent 6px 18px
+      )
+      center / 100% 14px no-repeat;
+}
+
+.stitched::before {
+  top: 18px;
+}
+
+.stitched::after {
+  bottom: 18px;
+}
+
+/* ------------------------------------------------------------------ the closer: sunset */
+.dusk {
+  background: linear-gradient(180deg, #eef5fc 0%, #f4efff 50%, #fff1ea 100%);
+}
+
+.sun {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 60%;
+  aspect-ratio: 1;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(180deg, var(--sun) 0%, #ff9a5a 55%, var(--ember) 100%);
+  box-shadow: 6px 6px 0 var(--ink);
+  overflow: hidden;
+}
+
+/* sunset stripes cut through its lower half */
+.sun::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(180deg, transparent 0 14px, rgb(244 239 255) 14px 20px);
+  mask-image: linear-gradient(180deg, transparent 52%, #000 53%);
+}
+
+/* ------------------------------------------------------------------ ink boxes and panels */
+.box {
+  border: var(--rule) solid var(--ink);
+  background: var(--paper);
+}
+
+/* An ink outline that follows any clip-path: put it on the wrapper of a clipped panel. */
+.outline {
+  filter: drop-shadow(2px 0 0 var(--ink)) drop-shadow(-2px 0 0 var(--ink))
+    drop-shadow(0 2px 0 var(--ink)) drop-shadow(0 -2px 0 var(--ink));
+}
+
+.halftone {
+  background-image: radial-gradient(var(--ink) 1.05px, transparent 1.5px);
+  background-size: 7px 7px;
+}
+
+.halftoneFadeLeft {
+  mask-image: linear-gradient(90deg, #000 0%, transparent 85%);
+}
+
+.halftoneFadeRight {
+  mask-image: linear-gradient(270deg, #000 0%, transparent 85%);
+}
+
+.halftoneFadeUp {
+  mask-image: linear-gradient(0deg, #000 0%, transparent 90%);
+}
+
+/* Storyboard panels that lean into each other (md and up). */
+@media (min-width: 768px) {
+  .slantFirst {
+    clip-path: polygon(0 0, 100% 0, calc(100% - 28px) 100%, 0 100%);
+  }
+
+  .slantMid {
+    clip-path: polygon(28px 0, 100% 0, calc(100% - 28px) 100%, 0 100%);
+  }
+
+  .slantLast {
+    clip-path: polygon(28px 0, 100% 0, 100% 100%, 0 100%);
+  }
+
+  .slantSplitLeft {
+    clip-path: polygon(0 0, 100% 0, calc(100% - 56px) 100%, 0 100%);
+  }
+
+  .slantSplitRight {
+    clip-path: polygon(56px 0, 100% 0, 100% 100%, 0 100%);
+  }
+}
+
+/* ------------------------------------------------------------------ the ticker */
+.tickerTrack {
+  display: flex;
+  width: max-content;
+  animation: ticker 48s linear infinite;
+}
+
+.ticker:hover .tickerTrack {
+  animation-play-state: paused;
+}
+
+@keyframes ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ------------------------------------------------------------------ speech bubbles */
+.bubble {
+  position: relative;
+  display: inline-block;
+  padding: 14px 22px 12px;
+  border: var(--rule) solid var(--ink);
+  border-radius: 50% / 46%;
+  background: var(--paper);
+  font-family: var(--font-hand);
+  font-size: 24px;
+  line-height: 1.1;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+/* the tail: two stacked triangles make an outlined point */
+.bubble::before,
+.bubble::after {
+  content: '';
+  position: absolute;
+  bottom: -18px;
+  left: 26%;
+  border-style: solid;
+  border-width: 18px 6px 0 14px;
+  border-color: var(--ink) transparent transparent transparent;
+}
+
+.bubble::after {
+  bottom: -14px;
+  left: calc(26% + 3px);
+  border-width: 15px 4px 0 11px;
+  border-color: var(--paper) transparent transparent transparent;
+}
+
+.bubbleRight::before {
+  left: auto;
+  right: 26%;
+  border-width: 18px 14px 0 6px;
+}
+
+.bubbleRight::after {
+  left: auto;
+  right: calc(26% + 3px);
+  border-width: 15px 11px 0 4px;
+}
+
+/* a running stitch between two parts, with cross ticks */
+.seam {
+  position: relative;
+  height: 14px;
+  background:
+    repeating-linear-gradient(90deg, #fff 0 6px, transparent 6px 10px) center / 100% 2px no-repeat,
+    repeating-linear-gradient(90deg, transparent 0 3px, #fff 3px 5px, transparent 5px 10px) center /
+      100% 14px no-repeat;
+}
+
+/* ------------------------------------------------------------------ FAQ */
+.faq summary {
+  list-style: none;
+  cursor: pointer;
+}
+
+.faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.faqIcon {
+  transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.faq[open] .faqIcon {
+  transform: rotate(45deg);
+}
+
+/* ------------------------------------------------------------------ hero load sequence */
+.rise {
+  opacity: 0;
+  transform: translateY(18px);
+  animation: rise 700ms cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+@keyframes rise {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tickerTrack {
+    animation: none;
+  }
+
+  .rise {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .btn,
+  .faqIcon {
+    transition: none;
+  }
+}

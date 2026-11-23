@@ -29,6 +29,10 @@ import { PipDock } from './pip-dock';
 import { PreviewPane } from './preview-pane';
 import { SettingsPanel } from './settings-panel';
 import { PipPanel } from '@/components/pip-panel/pip-panel';
+import { useRailPanel } from '@/lib/editor/rail-panel';
+import { useSettingsPanel } from '@/lib/editor/settings-panel';
+import { usePip } from '@/lib/pip/use-pip';
+import { useEditorTheme, type EditorTheme } from '@/lib/editor/theme';
 import { ToolRail } from './tool-rail';
 import { RailPanels } from './rail-panels';
 import { TopBar } from './top-bar';
@@ -62,6 +66,8 @@ export function EditorScreen({
   const projectId = useEditor((s) => s.project?.id);
   const rejection = useEditor((s) => s.rejection);
 
+  const theme = useEditorTheme((s) => s.theme);
+  useEffect(() => useEditorTheme.getState().hydrate(), []);
   useEditorKeys(clock);
   useSoundBed(clock, voice?.voiceLevelDb ?? null);
   useAutoFill();
@@ -99,6 +105,15 @@ export function EditorScreen({
       cancelled = true;
     };
   }, [id, repo, initialSlot]);
+
+  // Spec 38 R2.1: the editor is Pip-first. Pip's panel is open when a project opens, unless
+  // another left panel already holds the slot.
+  useEffect(() => {
+    if (phase.kind !== 'ready') return;
+    if (useRailPanel.getState().open || useSettingsPanel.getState().open) return;
+    usePip.getState().setOpen(true);
+    editorStore.getState().setRail('ai');
+  }, [phase.kind, projectId]);
 
   useEffect(() => {
     if (phase.kind !== 'ready') return;
@@ -206,24 +221,40 @@ export function EditorScreen({
     );
 
   return (
-    <div className="flex h-dvh min-h-[720px] min-w-[1280px] flex-col overflow-hidden bg-bg text-text">
+    <div
+      {...themeAttrs(theme)}
+      className="flex h-dvh min-h-[720px] min-w-[1280px] flex-col overflow-hidden bg-bg font-mono text-text"
+    >
       <TopBar />
+      {/* Spec 38 R6: the sidebar (rail + panel) runs the full height; the timeline sits under
+          the preview and inspector only. */}
       <div className="relative flex min-h-0 flex-1">
         <ToolRail />
         <SettingsPanel />
         <PipPanel />
         <RailPanels />
-        <PreviewPane />
-        <Inspector />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="relative flex min-h-0 flex-1">
+            <PreviewPane />
+            <Inspector />
+          </div>
+          <Timeline clock={clock} peaks={voice?.peaks ?? null} bucketMs={voice?.bucketMs ?? 10} />
+        </div>
         <PipDock />
       </div>
       <ExportController />
       <AIStatusToasts />
       <PictureNudge />
       <CaptureTestHook />
-      <Timeline clock={clock} peaks={voice?.peaks ?? null} bucketMs={voice?.bucketMs ?? 10} />
     </div>
   );
+}
+
+/** Light is paper (`[data-paper]`); dark is the night desk (spec 38 R5). */
+function themeAttrs(theme: EditorTheme) {
+  return theme === 'light'
+    ? { 'data-paper': '', 'data-editor': '', 'data-theme': 'light' }
+    : { 'data-editor': '', 'data-theme': 'dark' };
 }
 
 function CenterState({
@@ -238,7 +269,10 @@ function CenterState({
   action?: React.ReactNode;
 }) {
   return (
-    <main className="flex h-dvh flex-col items-center justify-center gap-4 bg-bg text-center text-text">
+    <main
+      {...themeAttrs(useEditorTheme.getState().theme)}
+      className="flex h-dvh flex-col items-center justify-center gap-4 bg-bg text-center text-text"
+    >
       <Pip size={96} state={pip} glow />
       <h1 className="text-lg font-semibold">{title}</h1>
       {body && <p className="max-w-md text-sm text-text-2">{body}</p>}

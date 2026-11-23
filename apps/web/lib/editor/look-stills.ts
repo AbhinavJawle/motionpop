@@ -4,4 +4,8 @@ export const LOOK_STILLS: Readonly<Record<string, string>> = {
   'field-notes': '/looks/field-notes.jpg',
   'paper-collage': '/looks/paper-collage.jpg',
   newsprint: '/looks/newsprint.jpg',
+  'editorial-cream': '/looks/editorial-cream.jpg',
+  'studio-light': '/looks/studio-light.jpg',
+  'creator-dark': '/looks/creator-dark.jpg',
+  'keynote-clean': '/looks/keynote-clean.jpg',
 };

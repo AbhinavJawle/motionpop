@@ -34,8 +34,8 @@ export interface SlotCardProps extends Omit<HTMLMotionProps<'div'>, 'children' |
 
 /**
  * One slot on the SLOTS track, in every state from editor-timeline.md: suggested (dashed,
- * breathing), generating (violet gradient + shimmer), ready (thumbnail + mint dot), selected
- * (violet → ember border + bloom), has a note (red dot), failed (red outline + retry).
+ * breathing), generating (violet gradient + shimmer), ready (thumbnail), selected
+ * (violet ring), has a note (red dot), failed (red outline + retry).
  */
 export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotCard(
   { entry: slot, selected, width, phase, className, style, ...rest },
@@ -61,9 +61,9 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
       transition={springPop}
       className={cn(
         'group absolute cursor-grab touch-none rounded-[9px] outline-none select-none data-[dragging=move]:cursor-grabbing',
-        selected ? 'top-2 h-[47px] p-px' : 'top-2.5 h-[43px]',
-        selected &&
-          'bg-[linear-gradient(90deg,var(--color-violet),var(--color-ember-pink)_70%,var(--color-ember))] shadow-[0_0_18px_rgb(139_124_255/0.13)]',
+        selected ? 'top-[6px] h-[40px]' : 'top-[7px] h-[38px]',
+        // Spec 38 R3.1: the selected graphic lifts on a hard ink shadow.
+        selected && 'rounded-[9px] shadow-[3px_3px_0_var(--color-hard)]',
         className,
       )}
       style={{ ...style, width }}
@@ -71,21 +71,27 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
     >
       <div
         className={cn(
-          'relative flex h-full items-center overflow-hidden rounded-[8px] shadow-glass',
-          slot.status === 'suggested' &&
-            !selected &&
-            'border border-dashed border-white/14 bg-slot-suggested',
-          slot.status === 'suggested' && selected && 'bg-slot-suggested',
+          'relative flex h-full items-center overflow-hidden rounded-[8px]',
+          selected
+            ? 'border-2 border-edge'
+            : slot.status === 'suggested'
+              ? 'border-[1.5px] border-dashed border-edge/45'
+              : 'border-[1.5px] border-edge',
+          slot.status === 'suggested' && !selected && 'bg-slot-suggested',
+          slot.status === 'suggested' && selected && 'bg-slot-selected',
           slot.status === 'generating' && 'bg-slot-generating',
-          slot.status === 'ready' && (selected ? 'bg-slot-selected' : 'bg-slot-ready'),
-          slot.status === 'failed' && 'border border-error/70 bg-slot-ready',
-          'group-focus-visible:ring-2 group-focus-visible:ring-violet',
+          slot.status === 'ready' &&
+            (selected
+              ? 'bg-slot-selected bg-linear-to-br from-pip/35 to-violet/30'
+              : 'bg-slot-ready bg-linear-to-br from-transparent from-30% to-violet/18'),
+          slot.status === 'failed' && 'border-error bg-slot-ready',
+          'group-focus-visible:ring-2 group-focus-visible:ring-flame group-focus-visible:ring-offset-1',
         )}
       >
         {slot.status === 'suggested' && !still && (
           <motion.span
             aria-hidden
-            className="pointer-events-none absolute inset-0 rounded-[inherit] shadow-[inset_0_0_12px_rgb(139_124_255/0.18)]"
+            className="pointer-events-none absolute inset-0 rounded-[inherit] bg-pip/15"
             animate={{ opacity: [...breathe.animate.opacity] }}
             transition={breathe.transition}
           />
@@ -93,7 +99,7 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
         {slot.status === 'generating' && <Shimmer />}
 
         {slot.status === 'suggested' && (
-          <span aria-hidden className="ml-3 w-3 shrink-0 text-[13px] leading-[17px] text-violet">
+          <span aria-hidden className="ml-3 w-3 shrink-0 text-[13px] leading-[17px] text-ink">
             ✦
           </span>
         )}
@@ -109,11 +115,11 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
             aria-hidden
             className={cn(
               'ml-[7px] flex w-[39px] shrink-0 items-center justify-center rounded-[5px]',
-              thumb ? 'h-[29px] bg-slot-thumb-callout' : 'h-[33px] bg-slot-thumb',
+              thumb ? 'h-[25px] bg-mist' : 'h-[28px] bg-mist',
             )}
           >
             {thumb ? (
-              <span className="text-[10px] leading-[13px] font-semibold text-ember">{thumb}</span>
+              <span className="font-poster text-[15px] leading-none text-ink">{thumb}</span>
             ) : (
               <TypeGlyph componentId={slot.componentId} />
             )}
@@ -123,7 +129,7 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
         {!compact && (
           <span
             className={cn(
-              'relative min-w-0 flex-1 pr-6',
+              'relative min-w-0 flex-1 pr-6 font-sans',
               slot.status === 'suggested'
                 ? 'ml-2.5'
                 : slot.status === 'generating'
@@ -135,8 +141,8 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
               className={cn(
                 'block truncate leading-[14px] font-medium',
                 slot.status === 'generating'
-                  ? 'text-[10px] leading-[13px] text-text'
-                  : 'text-[11px]',
+                  ? 'text-[11px] leading-[14px] text-text'
+                  : 'text-[12px] leading-[15px]',
                 slot.status === 'suggested' && 'text-slot-title',
                 slot.status === 'ready' &&
                   (selected ? 'text-slot-title-sel' : 'text-slot-title-ready'),
@@ -147,7 +153,7 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
             </span>
             <span
               className={cn(
-                'mt-[3px] block truncate text-[9px] leading-3',
+                'mt-0.5 block truncate text-[10px] leading-[13px]',
                 slot.status === 'failed' ? 'text-error' : 'text-text-3',
               )}
             >
@@ -161,18 +167,12 @@ export const SlotCard = forwardRef<HTMLDivElement, SlotCardProps>(function SlotC
             <RotateCcw className="size-3" strokeWidth={1.5} aria-hidden /> Retry
           </span>
         )}
-        {hasNote ? (
+        {/* Ready is the default state and carries no dot (spec 32 R3.3); a note still does. */}
+        {hasNote && (
           <span
             aria-label="Has an unresolved note"
             className="absolute top-2.5 right-3.5 size-1.5 rounded-full bg-error"
           />
-        ) : (
-          slot.status === 'ready' && (
-            <span
-              aria-hidden
-              className="absolute top-[11px] right-3.5 size-[5px] rounded-full bg-mint"
-            />
-          )
         )}
       </div>
       {width >= 24 && (
@@ -216,15 +216,15 @@ const GLYPHS: Record<string, LucideIcon> = {
 function TypeGlyph({ componentId }: { componentId: string }) {
   const Icon = GLYPHS[componentId];
   if (!Icon) return <MiniBars />;
-  return <Icon className="size-[17px] text-violet-ink" strokeWidth={1.5} />;
+  return <Icon className="size-[16px] text-text-2" strokeWidth={1.5} />;
 }
 
 function MiniBars() {
   return (
     <span className="flex items-end gap-[3px] pt-1">
-      <span className="h-2.5 w-1.5 rounded-[1px] bg-violet/70" />
-      <span className="h-[15px] w-1.5 rounded-[1px] bg-violet/70" />
-      <span className="h-5 w-1.5 rounded-[1px] bg-ember" />
+      <span className="h-2.5 w-1.5 rounded-[1px] bg-text-3" />
+      <span className="h-[15px] w-1.5 rounded-[1px] bg-text-3" />
+      <span className="h-5 w-1.5 rounded-[1px] bg-text-2" />
     </span>
   );
 }

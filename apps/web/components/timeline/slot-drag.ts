@@ -95,6 +95,8 @@ export function startSlotDrag(e: ReactPointerEvent<HTMLElement>, slotId: string)
     delete el.dataset.dragging;
     const s = editorStore.getState();
     const r = result;
+    // The click that follows a real drag must not seek (spec 32 R4.2).
+    if (active) el.dataset.dragged = '1';
     if (commit && active && r && (r.startMs !== slot.startMs || r.endMs !== slot.endMs)) {
       s.exec(
         mode === 'move'

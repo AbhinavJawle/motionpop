@@ -10,7 +10,7 @@ export function Divider({ className, soft }: { className?: string; soft?: boolea
   );
 }
 
-/** CONTENT, STYLE, TIMING: Geist 500 10 px, 0.8 px tracking, #8B849A, uppercase. */
+/** Section headings (spec 33): sentence case, 12 px semibold, text-2. */
 export function SectionLabel({
   children,
   className,
@@ -21,13 +21,7 @@ export function SectionLabel({
   id?: string;
 }) {
   return (
-    <span
-      id={id}
-      className={cn(
-        'text-[10px] leading-[13px] font-medium tracking-[0.8px] text-section uppercase',
-        className,
-      )}
-    >
+    <span id={id} className={cn('text-[12px] leading-4 font-semibold text-text-2', className)}>
       {children}
     </span>
   );

@@ -1,21 +1,32 @@
 'use client';
 
 import type { Format } from '@motionpop/schemas';
-import { ChevronDown, ChevronLeft, History, Pencil, Redo2, Undo2, Upload } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronLeft,
+  History,
+  Moon,
+  Pencil,
+  Redo2,
+  Sun,
+  Undo2,
+  Upload,
+} from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { motion } from 'motion/react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { PipAvatar } from '@/components/pip/pip-avatar';
+import { btn, paper, PipMark } from '@/components/paper/kit';
 import { AccountMenu } from '@/components/settings/account-menu';
 import { BrandKitChip } from '@/components/ui/brand-kit-chip';
-import { Button } from '@/components/ui/button';
-import { CreditsChip } from '@/components/ui/credits-chip';
-import { SegmentedPills } from '@/components/ui/segmented-pills';
 import { Tooltip } from '@/components/ui/tooltip';
 import { renameProject, setFormat } from '@/lib/commands';
 import { cn } from '@/lib/cn';
+import { spring } from '@/lib/motion/presets';
 import { useCreditsBalance } from '@/lib/credits/use-credits-client';
 import { toggleRailPanel } from '@/lib/editor/rail-panel';
+import { useEditorTheme } from '@/lib/editor/theme';
+import { SaveIndicator } from './preview-pane';
 import { openSettingsPanel } from '@/lib/editor/settings-panel';
 import { isActive } from '@/lib/renders/export-flow';
 import { exportStore, useExportUi } from '@/lib/renders/export-store';
@@ -35,7 +46,10 @@ function showVersions() {
   if (!selected || !scrollToVersions(document, still)) toast(NO_SELECTION_TOAST);
 }
 
-/** Editor top bar (editor.png; "Top bar" in design/figma-export.css): 56 px. */
+/**
+ * Editor top bar (spec 38 R1.2): the dashboard's black film-strip bar. Pip home, the breadcrumb in
+ * poster type, the format switch, history, brand, credits, an ember Export and the account menu.
+ */
 export function TopBar() {
   const title = useEditor((s) => s.project?.title ?? '');
   const format = useEditor((s) => s.project?.format ?? '16:9');
@@ -43,8 +57,8 @@ export function TopBar() {
   const brandAccent = useEditor((s) => s.project?.brand?.accent ?? null);
   const brandAccent2 = useEditor((s) => s.project?.brand?.accent2 ?? null);
   const brandDots = brandAccent
-    ? ([brandAccent, brandAccent2 ?? brandAccent, 'var(--color-text)'] as const)
-    : null;
+    ? ([brandAccent, brandAccent2 ?? brandAccent, '#ffffff'] as const)
+    : (['var(--color-flame)', 'var(--color-pip)', '#ffffff'] as const);
   const canUndo = useEditor(selectCanUndo);
   const canRedo = useEditor(selectCanRedo);
   const exec = useEditor((s) => s.exec);
@@ -52,34 +66,45 @@ export function TopBar() {
   const undo = useEditor((s) => s.undo);
   const redo = useEditor((s) => s.redo);
   const balance = useCreditsBalance();
+  const theme = useEditorTheme((s) => s.theme);
+  const toggleTheme = useEditorTheme((s) => s.toggle);
 
   return (
-    <header className="relative flex h-14 shrink-0 items-center border-b border-white/6 bg-raised-grad pr-[28px] pl-5">
-      <Link href="/dashboard" className="flex items-center gap-[7px]" aria-label="motionpop home">
-        <PipAvatar size={24} ring={false} />
-        <span className="text-[19px] leading-[25px] font-semibold tracking-[-0.2px]">
-          motionpop
-        </span>
-      </Link>
-      <span aria-hidden className="mr-4 ml-6 h-5 w-px bg-line-strong" />
+    <header
+      data-ink-bar
+      className={cn(paper.bar, 'relative flex h-14 shrink-0 items-center pr-3 pl-3')}
+    >
       <Link
         href="/dashboard"
-        className="flex items-center gap-1 text-xs leading-4 text-text-2 transition-colors hover:text-text"
+        aria-label="motionpop home"
+        className="flex size-9 items-center justify-center rounded-lg transition-transform hover:-rotate-6"
       >
-        <ChevronLeft className="size-4" strokeWidth={1.5} aria-hidden />
-        Home
+        <PipMark className="h-7" />
       </Link>
-      <ProjectTitle
-        title={title}
-        onRename={(next) => {
-          if (next !== title) exec(renameProject(next));
-        }}
-      />
+      <nav aria-label="Breadcrumb" className="ml-2 flex min-w-0 items-center gap-1.5">
+        <Link
+          href="/dashboard"
+          className="flex items-center gap-0.5 rounded-md px-1 py-1 font-poster text-[19px] leading-none tracking-[0.02em] text-paper/60 uppercase transition-colors hover:text-paper"
+        >
+          <ChevronLeft className="size-4" strokeWidth={2} aria-hidden />
+          Projects
+        </Link>
+        <span aria-hidden className="font-poster text-[19px] leading-none text-paper/35">
+          /
+        </span>
+        <ProjectTitle
+          title={title}
+          onRename={(next) => {
+            if (next !== title) exec(renameProject(next));
+          }}
+        />
+      </nav>
+      <span className="ml-3">
+        <SaveIndicator onInk />
+      </span>
 
-      <div className="absolute left-1/2 -translate-x-1/2 -ml-4">
-        <SegmentedPills
-          label="Video format"
-          options={FORMATS}
+      <div className="absolute left-1/2 -translate-x-1/2">
+        <FormatSwitch
           value={format}
           onChange={(next) => {
             if (next !== format) exec(setFormat(next));
@@ -87,43 +112,95 @@ export function TopBar() {
         />
       </div>
 
-      <div className="ml-auto flex items-center">
-        <div className="flex items-center gap-[15px]">
+      <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-0.5">
           <IconAction label="Undo" shortcut="⌘Z" disabled={!canUndo} onClick={undo}>
-            <Undo2 className="size-[18px]" strokeWidth={1.5} />
+            <Undo2 className="size-4" strokeWidth={1.75} />
           </IconAction>
           <IconAction label="Redo" shortcut="⇧⌘Z" disabled={!canRedo} onClick={redo}>
-            <Redo2 className="size-[18px]" strokeWidth={1.5} />
+            <Redo2 className="size-4" strokeWidth={1.75} />
           </IconAction>
           <IconAction label="Version history" onClick={showVersions}>
-            <History className="size-[18px]" strokeWidth={1.5} />
+            <History className="size-4" strokeWidth={1.75} />
+          </IconAction>
+          <IconAction label={theme === 'dark' ? 'Light mode' : 'Dark mode'} onClick={toggleTheme}>
+            {theme === 'dark' ? (
+              <Sun className="size-4" strokeWidth={1.75} />
+            ) : (
+              <Moon className="size-4" strokeWidth={1.75} />
+            )}
           </IconAction>
         </div>
+        <span aria-hidden className="mx-1 h-5 w-px bg-paper/20" />
         <BrandKitChip
-          className="ml-[19px]"
-          {...(brandDots ? { colors: brandDots } : {})}
+          colors={brandDots}
+          className="bg-transparent text-paper/75 shadow-none ring-1 ring-paper/25 hover:bg-paper/10 hover:text-paper"
           onClick={() => {
             toggleRailPanel('brand');
             setRail('brand');
           }}
         />
-        <CreditsChip
-          className="ml-3"
-          credits={balance}
+        <button
+          type="button"
           onClick={() => openSettingsPanel('credits')}
-        />
+          aria-label={balance === null ? 'Credits loading' : `${balance} credits`}
+          className="h-8 rounded-lg px-2 font-mono text-[12px] text-paper/70 transition-colors hover:text-paper"
+        >
+          <span className="font-poster text-[22px] leading-none tracking-[0.02em] text-paper tabular">
+            {balance ?? '–'}
+          </span>{' '}
+          credits
+        </button>
         <ExportButton />
-        <span className="ml-5">
-          <AccountMenu onOpenSettings={() => openSettingsPanel(null)} />
+        <span className="ml-1">
+          <AccountMenu size={30} onOpenSettings={() => openSettingsPanel(null)} />
         </span>
       </div>
     </header>
   );
 }
 
+/** 16:9 · 9:16 · 1:1 as ink segments: the chosen one is a white tile (spec 38). */
+function FormatSwitch({ value, onChange }: { value: Format; onChange: (next: Format) => void }) {
+  const layoutId = useId();
+  return (
+    <div
+      role="radiogroup"
+      aria-label="Video format"
+      className="flex h-9 items-center gap-0.5 rounded-[10px] p-[3px] ring-1 ring-paper/25"
+    >
+      {FORMATS.map((o) => {
+        const selected = o.value === value;
+        return (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={selected}
+            onClick={() => onChange(o.value)}
+            className={cn(
+              'relative h-[28px] min-w-[54px] rounded-[7px] px-3 font-poster text-[19px] leading-none tracking-[0.03em] transition-colors',
+              selected ? 'text-ink' : 'text-paper/60 hover:text-paper',
+            )}
+          >
+            {selected && (
+              <motion.span
+                layoutId={layoutId}
+                transition={spring}
+                className="absolute inset-0 rounded-[7px] bg-paper"
+              />
+            )}
+            <span className="relative top-[1px]">{o.label}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 /**
- * "Export button" (editor.png). While a render runs it takes the status look of the dashboard's
- * "Rendering 64%" chip (violet ring, spinner) and a click reopens the progress (spec 08 R4.4).
+ * Export (spec 38): the ember button that presses into its shadow, like "New project". While a
+ * render runs it shows the progress and a click reopens it (spec 08 R4.4).
  */
 function ExportButton() {
   const view = useExportUi((s) => s.view);
@@ -131,35 +208,33 @@ function ExportButton() {
   const rendering = starting || isActive(view?.status);
   if (!rendering) {
     return (
-      <Button
-        variant="primary"
-        size="lg"
-        className="ml-3 h-9 w-[114px] gap-0 pr-3 pl-[13px]"
+      <button
+        type="button"
+        className={btn('flame', 'sm', true, 'h-9 gap-2 pr-2.5 pl-3')}
         onClick={() => exportStore.getState().openFromButton()}
       >
-        <Upload className="size-4" strokeWidth={1.5} aria-hidden />
-        <span className="ml-2.5">Export</span>
-        <ChevronDown className="ml-auto size-3" strokeWidth={1.5} aria-hidden />
-      </Button>
+        <Upload className="size-3.5" strokeWidth={2} aria-hidden />
+        Export
+        <ChevronDown className="size-3.5" strokeWidth={2} aria-hidden />
+      </button>
     );
   }
   const percent = view?.progress ?? 0;
   return (
-    <Button
-      variant="secondary"
-      size="lg"
-      className="ml-3 h-9 w-[114px] gap-0 border border-violet pl-[13px] shadow-violet"
+    <button
+      type="button"
+      className={btn('ink', 'sm', true, 'h-9 gap-2.5 pl-3')}
       aria-label={`Rendering ${percent}%. Open export progress`}
       onClick={() => exportStore.getState().openFromButton()}
     >
       <span
         aria-hidden
-        className="size-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-violet/30 border-t-violet motion-reduce:animate-none"
+        className="size-3.5 shrink-0 animate-spin rounded-full border-[1.5px] border-paper/30 border-t-flame motion-reduce:animate-none"
       />
-      <span className="ml-2.5 whitespace-nowrap">
-        Rendering <span className="tabular font-mono">{percent}%</span>
+      <span className="whitespace-nowrap">
+        Rendering <span className="tabular">{percent}%</span>
       </span>
-    </Button>
+    </button>
   );
 }
 
@@ -183,7 +258,7 @@ function IconAction({
         aria-label={label}
         disabled={disabled}
         onClick={onClick}
-        className="text-text-2 transition-colors hover:text-text disabled:text-text-4 disabled:hover:text-text-4"
+        className="flex size-8 items-center justify-center rounded-md text-paper/70 transition-colors hover:bg-paper/10 hover:text-paper disabled:text-paper/25 disabled:hover:bg-transparent"
       >
         {children}
       </button>
@@ -214,7 +289,7 @@ export function ProjectTitle({
   };
 
   return (
-    <div className="ml-8 flex items-center gap-3">
+    <div className="flex min-w-0 items-center">
       {editing ? (
         <input
           ref={inputRef}
@@ -230,7 +305,7 @@ export function ProjectTitle({
               setEditing(false);
             }
           }}
-          className="h-7 w-56 rounded-lg bg-card px-2 text-sm leading-[18px] font-medium text-text shadow-glass outline-none"
+          className="h-8 w-64 rounded-md bg-paper px-2 font-poster text-[21px] leading-none tracking-[0.02em] text-ink uppercase outline-none"
         />
       ) : (
         <button
@@ -239,12 +314,14 @@ export function ProjectTitle({
             setDraft(title);
             setEditing(true);
           }}
-          className={cn('group flex items-center gap-3 text-sm leading-[18px] font-medium')}
+          className={cn(
+            'group flex h-8 items-center gap-2 rounded-md px-1.5 font-poster text-[22px] leading-none tracking-[0.02em] text-paper uppercase transition-colors hover:bg-paper/10',
+          )}
           aria-label={`Rename project, ${title}`}
         >
-          <span className="max-w-64 truncate">{title}</span>
+          <span className="relative top-[1px] max-w-72 truncate">{title}</span>
           <Pencil
-            className="size-3.5 text-text-2 transition-colors group-hover:text-text"
+            className="size-3.5 text-paper/60 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
             strokeWidth={1.5}
             aria-hidden
           />

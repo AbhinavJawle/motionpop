@@ -24,13 +24,13 @@ export function BrandKitChip({
       onClick={onClick}
       {...buttonMotion}
       className={cn(
-        'inline-flex h-8 w-[132px] items-center gap-2 rounded-chip bg-card pr-3 pl-2.5 text-[11px] leading-[14px] text-text shadow-glass hover:bg-card-2',
+        'inline-flex h-8 items-center gap-2 rounded-chip bg-card pr-2.5 pl-2.5 text-[12px] leading-4 text-text-2 shadow-glass transition-colors hover:bg-card-2 hover:text-text',
         className,
       )}
     >
-      <Star className="size-4" strokeWidth={1.5} aria-hidden />
+      <Star className="size-3.5" strokeWidth={1.5} aria-hidden />
       Brand kit
-      <span className="ml-auto flex items-center gap-[3px]" aria-hidden>
+      <span className="ml-0.5 flex items-center gap-[3px]" aria-hidden>
         {colors.map((c, i) => (
           <motion.span
             key={i}

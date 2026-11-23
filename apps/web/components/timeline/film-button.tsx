@@ -22,7 +22,7 @@ export function FilmButton() {
       <span
         role="status"
         data-testid="film-status"
-        className="relative inline-flex h-7 items-center gap-2 overflow-hidden rounded-chip border border-violet/40 bg-violet/12 pr-1 pl-2.5 text-[12px] leading-4 font-medium text-violet-ink"
+        className="relative inline-flex h-7 shrink-0 items-center gap-2 overflow-hidden rounded-chip border border-violet/40 whitespace-nowrap bg-violet/12 pr-1 pl-2.5 text-[12px] leading-4 font-medium text-violet-ink"
       >
         <motion.span
           aria-hidden
@@ -60,7 +60,7 @@ export function FilmButton() {
           {...buttonMotion}
           disabled={disabledReason !== null}
           onClick={run}
-          className="inline-flex h-7 items-center gap-1.5 rounded-chip bg-violet px-2.5 text-[12px] leading-4 font-medium text-white shadow-violet-glow transition-opacity disabled:opacity-45"
+          className="inline-flex h-7 items-center gap-1.5 rounded-chip border border-violet/35 bg-violet/14 px-2.5 text-[12px] leading-4 font-medium text-violet-ink transition-colors hover:bg-violet/22 disabled:opacity-45"
         >
           <Clapperboard className="size-3.5" strokeWidth={1.75} aria-hidden />
           {hasFilm ? 'Remake the film' : 'Make it a film'}

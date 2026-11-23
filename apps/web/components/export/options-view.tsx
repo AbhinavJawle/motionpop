@@ -50,10 +50,12 @@ export function ProjectCard({
   scenes: number;
 }) {
   return (
-    <div className="flex h-[132px] items-center gap-4 rounded-[14px] border border-dialog-line bg-dialog-card p-3">
+    <div className="flex h-[132px] items-center gap-4 rounded-[12px] bg-white/[0.03] p-3 shadow-[inset_0_0_0_1px_rgb(0_0_0/0.12)]">
       <VideoStill project={project} format={format} boxW={192} boxH={108} radius={3.2} />
       <div className="min-w-0">
-        <div className="truncate text-[15px] leading-5 text-text">{project.title}</div>
+        <div className="truncate text-[15px] leading-5 font-semibold text-text">
+          {project.title}
+        </div>
         <div className="tabular mt-[7px] font-mono text-xs leading-4 text-text-2">
           {secondsText(project.durationMs)} · {scenes} {scenes === 1 ? 'scene' : 'scenes'}
         </div>
@@ -86,18 +88,18 @@ export function OptionsView({
   const note = startError ?? state.blockNote ?? state.leftOutNote;
   return (
     <div>
-      <div className="mt-6 text-[13px] leading-[17px] text-text">Format</div>
+      <div className="mt-6 text-[12px] leading-4 font-semibold text-text-2">Format</div>
       <div className="mt-[9px]">
         <OptionCards
           label="Format"
           options={FORMAT_CARDS}
           value={options.format}
           onChange={(format) => onOptions({ ...options, format })}
-          cardClassName="h-12"
+          cardClassName="h-11"
         />
       </div>
 
-      <div className="mt-6 text-[13px] leading-[17px] text-text">Resolution</div>
+      <div className="mt-5 text-[12px] leading-4 font-semibold text-text-2">Resolution</div>
       <div className="mt-[9px]">
         <OptionCards
           label="Resolution"
@@ -106,7 +108,7 @@ export function OptionsView({
           onChange={(resolution) => {
             if (resolution !== '4k') onOptions({ ...options, resolution });
           }}
-          cardClassName="h-[42px]"
+          cardClassName="h-10"
         />
       </div>
 
@@ -172,14 +174,14 @@ export function OptionsView({
         disabled={!state.canExport}
         onClick={onExport}
         className={cn(
-          'h-12 w-full justify-start gap-2.5 rounded-chip px-4 pb-3 text-xs leading-4',
+          'h-11 w-full justify-center gap-2 rounded-[10px] px-4 text-[13px] leading-4 font-semibold',
           note ? 'mt-5' : 'mt-[23px]',
         )}
       >
         <Upload className="size-4" strokeWidth={1.6} aria-hidden />
         Export video
       </Button>
-      <div className="tabular mt-[15px] text-center font-mono text-[11px] leading-[14px] text-text-2">
+      <div className="tabular mt-3 text-center font-mono text-[11px] leading-[14px] text-text-3">
         MP4 · H.264 · 30 fps
       </div>
     </div>

@@ -1,11 +1,14 @@
 import { z } from 'zod';
 import {
   APP_CONFIG_DEFAULTS,
+  PIP_ACTIONS,
+  PIP_MAX_STEPS,
   PipModelOutputSchema,
+  REEL_SFX_KINDS,
   costOf,
   type PipModelOutput,
 } from '@motionpop/schemas';
-import { PIP_PLAN_SYSTEM_V1, pipPlanPromptV1 } from '../prompts/pip-plan.v1';
+import { PIP_PLAN_SYSTEM_V2, pipPlanPromptV2 } from '../prompts/pip-plan.v2';
 import type { TaskDef } from '../router';
 
 export const PipPlanInputSchema = z.object({
@@ -44,16 +47,93 @@ export const PipPlanInputSchema = z.object({
     components: z
       .array(z.object({ id: z.string(), name: z.string(), useWhen: z.string() }))
       .max(16),
+    /** A video reel's scenes and state (spec 37). */
+    reel: z
+      .object({
+        look: z.string().max(20),
+        captions: z.boolean(),
+        theme: z.string().max(80),
+        sound: z.string().max(160),
+        cuts: z.number().int().nonnegative(),
+        scenes: z
+          .array(
+            z.object({
+              ref: z.string().max(8),
+              template: z.string().max(20),
+              layout: z.string().max(12),
+              startMs: z.number().int().nonnegative(),
+              endMs: z.number().int().nonnegative(),
+              text: z.string().max(140),
+            }),
+          )
+          .max(80),
+      })
+      .optional(),
   }),
   history: z.array(z.object({ role: z.string(), text: z.string().max(400) })).max(6),
   message: z.string().trim().min(1).max(1000),
 });
 export type PipPlanInput = z.infer<typeof PipPlanInputSchema>;
 
-/** Enums of exactly this project's slot refs and choices (structured output, no schema text). */
+/** Choices only video reels take (spec 37). */
+const REEL_CHOICES = [
+  'mono',
+  'cream',
+  'plain',
+  'soft',
+  'bold',
+  'on',
+  'off',
+  'louder',
+  'quieter',
+  'clear',
+  'calm-pad',
+  'steady-pulse',
+  'ai',
+  ...REEL_SFX_KINDS,
+  'enable',
+  'disable',
+  'none',
+];
+
+/** Enums of exactly this project's refs and choices (structured output, no schema text). */
 export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> {
-  const slots = [...input.project.slots.map((s) => s.ref), 'none'];
-  const choices = [
+  const reel = input.project.reel;
+  const slots = [
+    ...input.project.slots.map((s) => s.ref),
+    ...(reel?.scenes.map((s) => s.ref) ?? []),
+    'none',
+  ];
+  // A reel with no slots takes reel choices only; slot projects keep the v1 list.
+  const slotChoices = reel && !input.project.slots.length ? [] : slotProjectChoices(input);
+  const choices = [...new Set([...(reel ? REEL_CHOICES : []), ...slotChoices])].slice(0, 64);
+  return {
+    type: 'object',
+    properties: {
+      reply: { type: 'string' },
+      steps: {
+        type: 'array',
+        maxItems: PIP_MAX_STEPS,
+        items: {
+          type: 'object',
+          properties: {
+            action: { type: 'string', enum: [...PIP_ACTIONS] },
+            slot: { type: 'string', enum: slots },
+            choice: { type: 'string', enum: choices },
+            atWord: { type: 'integer' },
+            instruction: { type: 'string' },
+            label: { type: 'string' },
+          },
+          required: ['action', 'slot', 'choice', 'atWord', 'instruction', 'label'],
+        },
+      },
+    },
+    required: ['reply', 'steps'],
+  };
+}
+
+function slotProjectChoices(input: PipPlanInput): string[] {
+  return [
     ...new Set([
       ...input.project.styles.map((s) => s.id),
       '16:9',
@@ -81,47 +161,7 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
       ...input.project.components.map((c) => c.id),
       'none',
     ]),
-  ].slice(0, 64);
-  return {
-    type: 'object',
-    properties: {
-      reply: { type: 'string' },
-      steps: {
-        type: 'array',
-        maxItems: 8,
-        items: {
-          type: 'object',
-          properties: {
-            action: {
-              type: 'string',
-              enum: [
-                'updateSlot',
-                'addSlot',
-                'removeSlot',
-                'setStyle',
-                'setCaptions',
-                'generateSlot',
-                'setFormat',
-                'setPlacement',
-                'setVideoStage',
-                'setBeatClip',
-                'toggleCuts',
-                'addPunchIn',
-                'cutRange',
-              ],
-            },
-            slot: { type: 'string', enum: slots },
-            choice: { type: 'string', enum: choices },
-            atWord: { type: 'integer' },
-            instruction: { type: 'string' },
-            label: { type: 'string' },
-          },
-          required: ['action', 'slot', 'choice', 'atWord', 'instruction', 'label'],
-        },
-      },
-    },
-    required: ['reply', 'steps'],
-  };
+  ];
 }
 
 /**
@@ -137,8 +177,8 @@ export function pipPlanTask(): TaskDef<PipPlanInput, PipModelOutput> {
     output: PipModelOutputSchema,
     mode: () => 'ONLY_IN_CLOUD',
     model: (cfg) => cfg.modelStrong,
-    system: PIP_PLAN_SYSTEM_V1,
-    prompt: (i) => pipPlanPromptV1(i),
+    system: PIP_PLAN_SYSTEM_V2,
+    prompt: (i) => pipPlanPromptV2(i),
     cloudCost: () => costOf('pip-plan', 1, APP_CONFIG_DEFAULTS),
     cloudFallback: false,
     maxRepairs: 1,

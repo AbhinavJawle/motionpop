@@ -1,13 +1,9 @@
 'use client';
 
-import { ChevronLeft } from 'lucide-react';
-import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { PipAvatar } from '@/components/pip/pip-avatar';
-import { CreditsChip } from '@/components/ui/credits-chip';
+import { AppBar } from '@/components/paper/app-bar';
+import { PaperPage, poster } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
-import { useCreditsBalance } from '@/lib/credits/use-credits-client';
-import { AccountMenu } from './account-menu';
 import { SettingsContent } from './settings-content';
 
 const SECTIONS = [
@@ -21,9 +17,8 @@ function scrollToSection(id: SectionId): void {
   document.getElementById(id)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
 
-/** `/settings` (spec 13 R6.1): top bar, eyebrow, headline, a sticky section nav and a 720 px column. */
+/** `/settings` (spec 13 R6.1, paper in spec 35): the app bar, a poster headline, a sticky index and the sections. */
 export function SettingsPage() {
-  const balance = useCreditsBalance();
   const [active, setActive] = useState<SectionId>('account');
 
   // The section in view (scroll spy) and the one named by the URL hash.
@@ -50,47 +45,23 @@ export function SettingsPage() {
   }, []);
 
   return (
-    <div className="min-h-dvh min-w-[1280px] bg-bg text-text">
-      <header className="sticky top-0 z-30 flex h-14 items-center border-b border-white/6 bg-raised-grad pr-7 pl-5">
-        <Link href="/dashboard" className="flex items-center gap-[7px]" aria-label="motionpop home">
-          <PipAvatar size={24} ring={false} />
-          <span className="text-[19px] leading-[25px] font-semibold tracking-[-0.2px]">
-            motionpop
-          </span>
-        </Link>
-        <span aria-hidden className="mr-4 ml-6 h-5 w-px bg-line-strong" />
-        <Link
-          href="/dashboard"
-          className="flex items-center gap-1 text-xs leading-4 text-text-2 transition-colors hover:text-text"
-        >
-          <ChevronLeft className="size-4" strokeWidth={1.5} aria-hidden />
-          Home
-        </Link>
-        <div className="ml-auto flex items-center gap-3">
-          <CreditsChip
-            credits={balance}
-            onClick={() => {
-              window.history.replaceState(null, '', '#credits');
-              setActive('credits');
-              scrollToSection('credits');
-            }}
-          />
-          <span className="ml-2">
-            <AccountMenu />
-          </span>
-        </div>
-      </header>
-
-      <main className="mx-auto w-[1000px] pt-14 pb-24">
-        <p className="text-[11px] leading-[14px] font-medium tracking-[1.2px] text-ember">
-          SETTINGS
-        </p>
-        <h1 className="mt-2 text-[32px] leading-10 font-semibold tracking-[-0.6px]">
-          Make it yours.
-        </h1>
-        <div className="mt-10 flex items-start gap-12">
-          <nav aria-label="Settings sections" className="sticky top-[88px] w-[180px] shrink-0">
-            <ul className="space-y-1">
+    <PaperPage>
+      <AppBar
+        active="settings"
+        onCredits={() => {
+          window.history.replaceState(null, '', '#credits');
+          setActive('credits');
+          scrollToSection('credits');
+        }}
+      />
+      <main className="mx-auto w-full max-w-[1240px] px-6 pt-14 pb-24 lg:px-10">
+        <h1 className={cn(poster, 'text-[clamp(56px,7vw,104px)]')}>Make it yours.</h1>
+        <div className="mt-12 flex flex-col items-start gap-10 md:flex-row md:gap-14">
+          <nav
+            aria-label="Settings sections"
+            className="w-full shrink-0 md:sticky md:top-[96px] md:w-[200px]"
+          >
+            <ul className="flex gap-2 md:flex-col md:gap-0 md:border-l-2 md:border-ink">
               {SECTIONS.map((s) => (
                 <li key={s.id}>
                   <a
@@ -103,23 +74,27 @@ export function SettingsPage() {
                       scrollToSection(s.id);
                     }}
                     className={cn(
-                      'block rounded-chip px-3.5 py-2 text-[13px] leading-[17px] transition-colors',
-                      active === s.id
-                        ? 'bg-rail-active text-text shadow-glass'
-                        : 'text-text-2 hover:text-text',
+                      'relative block py-2 font-poster text-[26px] leading-none uppercase transition-colors md:pl-5',
+                      active === s.id ? 'text-ink' : 'text-black/40 hover:text-ink',
                     )}
                   >
+                    {active === s.id && (
+                      <span
+                        aria-hidden
+                        className="absolute top-1/2 -left-[2px] hidden h-7 w-[5px] -translate-y-1/2 rounded-full bg-flame md:block"
+                      />
+                    )}
                     {s.label}
                   </a>
                 </li>
               ))}
             </ul>
           </nav>
-          <div className="w-[720px] min-w-0" data-testid="settings-column">
+          <div className="w-full max-w-[760px] min-w-0" data-testid="settings-column">
             <SettingsContent variant="page" />
           </div>
         </div>
       </main>
-    </div>
+    </PaperPage>
   );
 }

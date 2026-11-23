@@ -2,7 +2,8 @@
 
 import { motion } from 'motion/react';
 import { useRef, useState, type DragEvent } from 'react';
-import { Pip } from '@/components/pip/pip';
+import { Upload } from 'lucide-react';
+import { btn } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
 import { INTAKE_LIMITS, validateIntake } from '@/lib/audio/intake';
 import { springPop } from '@/lib/motion/presets';
@@ -56,20 +57,18 @@ export function DropZone({
         animate={{ scale: over ? 1.02 : 1 }}
         transition={springPop}
         className={cn(
-          'flex h-[260px] w-full flex-col items-center justify-center rounded-2xl border border-dashed transition-colors duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet',
-          over
-            ? 'border-violet/70 bg-violet/8'
-            : 'border-white/14 bg-[rgb(21_21_29/0.7)] hover:border-white/24',
+          'flex h-[300px] w-full flex-col items-center justify-center rounded-[16px] border-[2.5px] border-dashed border-ink px-6 text-center transition-colors duration-200 outline-none focus-visible:ring-4 focus-visible:ring-flame',
+          over ? 'bg-[#eef5fc]' : 'bg-mist hover:bg-[#ececE8]',
         )}
       >
-        <Pip size={84} state={over ? 'catching' : 'idle'} glow={over} decorative seed={11} />
-        <span className="mt-4 text-[17px] leading-[22px] font-semibold text-text">
+        <Upload className="size-9" strokeWidth={1.75} aria-hidden />
+        <span className="mt-5 font-poster text-[44px] leading-[0.9] uppercase">
           {over ? 'Drop it, I’ll catch it!' : 'Drop your voiceover or video'}
         </span>
-        <span className="mt-1.5 text-[12px] leading-4 text-text-2">or click to choose a file</span>
-        <span className="mt-4 font-mono text-[10px] leading-[13px] text-text-3">
-          MP3, WAV, M4A · MP4 or MOV up to {INTAKE_LIMITS.maxVideoBytes / 1024 / 1024} MB ·{' '}
-          {INTAKE_LIMITS.maxDurationMs / 60_000} min
+        <span className="mt-3 text-[14px]">or click to choose a file</span>
+        <span className="mt-5 text-[12px] text-black/55">
+          MP3, WAV or M4A, or MP4 and MOV up to {INTAKE_LIMITS.maxVideoBytes / 1024 / 1024} MB, at
+          most {INTAKE_LIMITS.maxDurationMs / 60_000} minutes
         </span>
       </motion.button>
       <input
@@ -85,16 +84,16 @@ export function DropZone({
         }}
       />
       {error && (
-        <p role="alert" className="mt-3 text-[12px] leading-4 text-error">
+        <p role="alert" className="mt-4 self-start text-[13px] text-error">
           {error}
         </p>
       )}
       <button
         type="button"
         onClick={onSample}
-        className="mt-5 text-[12px] leading-4 font-medium text-violet-ink underline-offset-4 hover:underline"
+        className={btn('ink', 'lg', false, 'mt-6 self-start')}
       >
-        ✦ Try a sample
+        Try a sample
       </button>
     </div>
   );

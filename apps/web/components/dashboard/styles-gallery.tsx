@@ -1,12 +1,11 @@
 'use client';
 
-import { ArrowRight } from 'lucide-react';
-import { motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
+import { AppBar } from '@/components/paper/app-bar';
+import { btn, paper, PaperPage, poster } from '@/components/paper/kit';
+import { cn } from '@/lib/cn';
 import { LOOK_STILLS } from '@/lib/editor/look-stills';
 import { styleOptions } from '@/lib/inspector/timing-view';
-import { hoverLift } from '@/lib/motion/presets';
-import { DashboardTopBar } from './dashboard-top-bar';
 
 /**
  * `/styles`: every look a creator can start from, with a still of the same scene in each, what
@@ -17,47 +16,50 @@ export function StylesGallery() {
   const router = useRouter();
   const options = styleOptions();
   return (
-    <div className="min-h-dvh bg-bg text-text">
-      <DashboardTopBar active="styles" />
-      <main className="mx-auto max-w-[1440px] px-[72px] pt-12 pb-20">
-        <p className="text-[11px] leading-[14px] font-medium tracking-[1.4px] text-ember uppercase">
-          Styles
-        </p>
-        <h1 className="mt-2 text-[34px] leading-[40px] font-semibold tracking-[-0.6px]">
-          Pick a look. Every graphic follows it.
-        </h1>
-        <p className="mt-2 max-w-[640px] text-[14px] leading-5 text-text-2">
-          A look sets the colours, type, textures, maps and how everything moves. You can switch
-          looks any time in the editor, and the whole video restyles in one step.
-        </p>
-        <div className="mt-10 grid grid-cols-2 gap-6 xl:grid-cols-3">
+    <PaperPage>
+      <AppBar active="styles" />
+      <main className="mx-auto w-full max-w-[1240px] px-6 pt-14 pb-24 lg:px-10">
+        <div className="flex flex-wrap items-end justify-between gap-6 border-b-2 border-ink pb-8">
+          <div>
+            <h1 className={cn(poster, 'text-[clamp(56px,7vw,104px)]')}>
+              Pick a look.
+              <br />
+              Every graphic follows it.
+            </h1>
+            <p className="mt-5 max-w-[620px] text-[15px] leading-[1.65]">
+              A look sets the colours, type, textures, maps and how everything moves. You can switch
+              looks any time in the editor, and the whole video restyles in one step.
+            </p>
+          </div>
+        </div>
+        <div className="mt-10 grid gap-7 sm:grid-cols-2 xl:grid-cols-3">
           {options.map((o) => {
             const still = LOOK_STILLS[o.id];
             return (
-              <motion.article
+              <article
                 key={o.id}
-                {...hoverLift}
-                className="flex flex-col overflow-hidden rounded-card border border-line bg-card shadow-quiet"
+                className={cn(paper.frame, paper.press, 'flex flex-col overflow-hidden')}
               >
                 {still ? (
                   // eslint-disable-next-line @next/next/no-img-element -- small static stills
-                  <img src={still} alt="" className="block aspect-video w-full" loading="lazy" />
-                ) : (
-                  <div
-                    aria-hidden
-                    className="aspect-video w-full"
-                    style={{ background: o.colors.bg }}
+                  <img
+                    src={still}
+                    alt=""
+                    className="block aspect-video w-full border-b-2 border-ink object-cover"
+                    loading="lazy"
                   />
+                ) : (
+                  <LookSwatch colors={o.colors} name={o.name} />
                 )}
                 <div className="flex flex-1 flex-col px-5 pt-4 pb-5">
-                  <h2 className="text-[17px] leading-[22px] font-semibold">{o.name}</h2>
-                  <p className="mt-1 text-[13px] leading-[18px] text-text-2">{o.tagline}</p>
-                  <p className="mt-2 text-[12px] leading-[17px] text-text-3">{o.description}</p>
+                  <h2 className={cn(poster, 'text-[34px]')}>{o.name}</h2>
+                  <p className="mt-1.5 text-[13px] font-semibold">{o.tagline}</p>
+                  <p className="mt-2 text-[12px] leading-[1.6] text-black/65">{o.description}</p>
                   <div className="mt-3 flex flex-wrap gap-1.5">
                     {o.tags.map((t) => (
                       <span
                         key={t}
-                        className="rounded-md bg-white/6 px-2 py-0.5 text-[11px] leading-4 text-text-2"
+                        className="rounded-md border-2 border-ink px-1.5 py-px text-[11px]"
                       >
                         {t}
                       </span>
@@ -66,21 +68,45 @@ export function StylesGallery() {
                   <button
                     type="button"
                     onClick={() => router.push(`/start?style=${encodeURIComponent(o.id)}`)}
-                    className="group mt-auto flex items-center justify-between pt-5 text-[13px] leading-4 font-medium text-violet-ink-2 hover:text-violet-ink"
+                    className={btn('ink', 'md', false, 'mt-auto self-start')}
                   >
-                    Start with this style
-                    <ArrowRight
-                      className="size-4 text-violet transition-transform group-hover:translate-x-0.5"
-                      strokeWidth={1.75}
-                      aria-hidden
-                    />
+                    Start with this look
                   </button>
                 </div>
-              </motion.article>
+              </article>
             );
           })}
         </div>
       </main>
+    </PaperPage>
+  );
+}
+
+/** A look without a still: its own paper, ink and accents, set like a title card. */
+function LookSwatch({
+  colors,
+  name,
+}: {
+  colors: { bg: string; ink?: string; accent?: string; accent2?: string };
+  name: string;
+}) {
+  return (
+    <div
+      aria-hidden
+      className="relative flex aspect-video w-full items-center justify-center overflow-hidden border-b-2 border-ink"
+      style={{ background: colors.bg, color: colors.ink ?? '#000' }}
+    >
+      <span className="font-poster text-[56px] leading-none tracking-[0.01em] uppercase">40%</span>
+      <span className="absolute right-5 bottom-5 flex gap-1.5">
+        {[colors.ink, colors.accent, colors.accent2].filter(Boolean).map((c, i) => (
+          <span
+            key={i}
+            className="size-4 rounded-full border-2 border-ink"
+            style={{ background: c }}
+          />
+        ))}
+      </span>
+      <span className="sr-only">{name}</span>
     </div>
   );
 }

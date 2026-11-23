@@ -8,24 +8,24 @@
 
 @theme {
   /* Surfaces */
-  --color-bg: #08080c;
-  --color-bg-raised: #111118;
-  --color-panel: #0f0f15;
-  --color-card: #15151d;
-  --color-card-2: #191820;
-  --color-card-3: #232130;
-  --color-glass: rgb(21 21 29 / 0.7);
+  --color-bg: #0a0a0c;
+  --color-bg-raised: #111114;
+  --color-panel: #0f0f12;
+  --color-card: #17171b;
+  --color-card-2: #1d1d22;
+  --color-card-3: #27272d;
+  --color-glass: rgb(24 24 28 / 0.86);
 
   /* Lines */
-  --color-line: rgb(255 255 255 / 0.08);
+  --color-line: rgb(255 255 255 / 0.075);
   --color-line-soft: rgb(255 255 255 / 0.05);
   --color-line-strong: rgb(255 255 255 / 0.12);
 
   /* Text */
-  --color-text: #f4f3f8;
-  --color-text-2: #a09eae;
-  --color-text-3: #817a8f;
-  --color-text-4: #56505f;
+  --color-text: #f4f4f6;
+  --color-text-2: #a4a4ae;
+  --color-text-3: #80808a;
+  --color-text-4: #56565e;
 
   /* Accents: ember = now/primary/credits · violet = AI/selection/cloud · mint = on-device/success */
   --color-ember: #ff7a3d;
@@ -39,92 +39,122 @@
   --color-pip-face: #302d3d;
 
   /* Tints measured in the Figma export (chips, selected pills, AI buttons) */
-  --color-text-body: #d0cdd9; /* soft body copy in cards */
-  --color-violet-sel: #302842; /* selected segmented pill */
+  --color-text-body: #d4d4da; /* soft body copy in cards */
+  --color-violet-sel: #2a2a31; /* selected segmented pill */
   --color-violet-ink: #c9bdff; /* text on violet fills (Generate) */
   --color-violet-ink-2: #bfafff; /* cloud cost chip */
   --color-mint-ink: #78ddb0; /* text on mint tint (free · on-device, Synced) */
   --color-mint-tint: #16251f; /* mint chip background */
-  --color-avatar: #403451; /* creator avatar circle */
-  --color-track: #34303f; /* slider track */
+  --color-avatar: #2e2e36; /* creator avatar circle */
+  --color-track: #303037; /* slider track */
   --color-ember-tint: #33252b; /* selected option card */
   --color-ember-ink: #ffad85; /* text on ember tint */
-  --color-option: #1b1823; /* unselected option card */
+  --color-option: #19191e; /* unselected option card */
   --color-ember-edge: #a7664e; /* selected option card border */
-  --color-dialog-line: #34303f; /* dialog dividers and option card borders */
-  --color-dialog-card: #17151e; /* project card in the export dialog */
+  --color-dialog-line: #2c2c33; /* dialog dividers and option card borders */
+  --color-dialog-card: #16161a; /* project card in the export dialog */
   --color-toggle-on: #a38aff; /* export dialog switch, on */
-  --color-toggle-off: #3b354a; /* export dialog switch, off */
-  --color-ready-card: #1b1823; /* file card in the ready dialog */
+  --color-toggle-off: #36363e; /* export dialog switch, off */
+  --color-ready-card: #19191e; /* file card in the ready dialog */
   --color-ember-oval: #261a1c; /* the dark oval behind Pip in the ready dialog */
-  --color-secondary-btn: #24202f; /* outline button fill (Copy share link) */
-  --color-secondary-btn-line: #403849; /* outline button border */
+  --color-secondary-btn: #202026; /* outline button fill (Copy share link) */
+  --color-secondary-btn-line: #36363e; /* outline button border */
   --color-violet-icon: #c4b3ff; /* link icon */
-  --color-dialog: rgb(19 18 26 / 0.96); /* modal surface (blur 16) */
-  --color-scrim: rgb(5 5 9 / 0.79); /* modal backdrop */
+  --color-dialog: rgb(20 20 24 / 0.97); /* modal surface (blur 16) */
+  --color-scrim: rgb(4 4 6 / 0.72); /* modal backdrop */
   --color-violet-thumb: #d2c8ff; /* slider handle */
 
   /* Editor + timeline (design/figma-export.css, editor frame) */
-  --color-rail-active: #252036; /* active rail item */
-  --color-reason: #1d192c; /* "Why this graphic" card */
-  --color-track-a: #0c0c12; /* alternating track surface */
-  --color-track-b: rgb(21 21 29 / 0.45); /* alternating track surface */
+  --color-rail-active: #232329; /* active rail item */
+  --color-reason: #18181d; /* "Why this graphic" card */
+  --color-track-a: #0d0d10; /* alternating track surface */
+  --color-track-b: rgb(24 24 28 / 0.42); /* alternating track surface */
   --color-track-hair: rgb(255 255 255 / 0.035); /* track separator */
-  --color-slot-suggested: #17151f;
-  --color-slot-selected: #30273f;
-  --color-slot-ready: #1e1f29;
-  --color-slot-thumb: #1d1b2b;
-  --color-slot-thumb-callout: #33263d;
-  --color-slot-title: #c4bad6; /* suggested title */
-  --color-slot-title-sel: #eee8ff;
-  --color-slot-title-ready: #dad5e5;
-  --color-synced: #17241f;
-  --color-sfx: #303043;
-  --color-music: #0e1c1b;
-  --color-music-bar: #52736a;
+  --color-slot-suggested: #16161a;
+  --color-slot-selected: #25232e;
+  --color-slot-ready: #1c1c21;
+  --color-slot-thumb: #232329;
+  --color-slot-thumb-callout: #2a2a31;
+  --color-slot-title: #c4c4cc; /* suggested title */
+  --color-slot-title-sel: #f4f4f6;
+  --color-slot-title-ready: #dcdce2;
+  --color-synced: #18181d;
+  --color-sfx: #26262d;
+  --color-music: #141418;
+  --color-music-bar: #5a5a64;
   --color-ready-ink: #bfe9d6; /* "Ready in 4.2s" */
-  --color-time-dim: #827d90; /* "/ 00:18.0" */
-  --color-zoom-track: #37323f;
-  --color-zoom-thumb: #e2ddec;
-  --color-bubble-ink: #c5bece; /* Pip bubble */
-  --color-style-ink: #c4bfce; /* style name in inspector */
-  --color-eyebrow: #8e899e; /* "GRAPHIC" */
+  --color-time-dim: #7c7c86; /* "/ 00:18.0" */
+  --color-zoom-track: #303037;
+  --color-zoom-thumb: #e6e6ea;
+  --color-bubble-ink: #cfcfd6; /* Pip bubble */
+  --color-style-ink: #cfcfd6; /* style name in inspector */
+  --color-eyebrow: #8a8a94; /* "GRAPHIC" */
   --color-bolt: #ffb43a; /* the filled ⚡ in the on-device chip */
-  --color-section: #8b849a; /* CONTENT, STYLE, TIMING, VERSIONS labels */
-  --color-placeholder: #aaa2b8; /* quick edit placeholder */
-  --color-glyph: #81739d; /* version tile bars and dots (muted violet) */
+  --color-section: #8a8a94; /* CONTENT, STYLE, TIMING, VERSIONS labels */
+  --color-placeholder: #73737c; /* quick edit placeholder */
+  --color-glyph: #7c7c88; /* version tile bars and dots (muted violet) */
   --color-curve: #b9a9ff; /* ease curve stroke */
-  --color-field-ink: #e6e3ef; /* title field text */
-  --color-cell-ink: #e3dfed; /* data table values */
+  --color-field-ink: #ececf0; /* title field text */
+  --color-cell-ink: #e6e6ea; /* data table values */
 
   /* Type */
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* Spec 35 (paper app screens): the marketing site's poster and handwriting faces. */
+  --font-poster: var(--font-display), 'Arial Narrow', Impact, sans-serif;
+  --font-scrawl: var(--font-hand), 'Comic Sans MS', cursive;
+
+  /* Spec 35: paper and ink, outside the editor. */
+  --color-ink: #000000;
+  --color-paper: #ffffff;
+  --color-mist: #f3f3f1;
+  --color-mist-2: #e8e8e4;
+  --color-pip: #8dbceb;
+  --color-flame: #ff6a3d;
+  /* Spec 38 R5: the editor's ink split by job, so the night desk can soften each one. */
+  --color-edge: #000000; /* frame borders (cards, chips, composer) */
+  --color-rule: #000000; /* structural edges between panels */
+  --color-hard: #000000; /* hard offset shadows */
+  --color-tile: #000000; /* raised inverse tiles (active rail item, your messages) */
+  --color-tile-ink: #ffffff;
+  /* Spec 38 R8: track colours (night values; paper overrides below). */
+  --color-voice: #34d399;
+  --color-voice-2: #059669;
+  --color-voice-ink: #a7f3d0;
+  --color-sound: #22d3ee;
+  --color-sound-2: #3b82f6;
+  --color-sound-ink: #a5f3fc;
+  /* Switch knobs stay white on both themes (`white` turns to ink on paper). */
+  --color-knob: #ffffff;
 
   /* Radii */
-  --radius-chip: 10px;
-  --radius-card: 12px;
-  --radius-modal: 24px; /* "Export dialog" l.66587 */
+  --radius-chip: 8px;
+  --radius-card: 10px;
+  --radius-modal: 18px; /* "Export dialog" l.66587 */
 
   /* Shadows */
   /* The PNGs show a faint 1px edge on glass cards (explicit as a border on "Format switcher" l.246); drawn as an inset ring. */
-  --shadow-glass:
-    0 8px 24px rgb(0 0 0 / 0.35), inset 0 1px 0 rgb(255 255 255 / 0.08),
-    inset 0 0 0 1px rgb(255 255 255 / 0.06);
-  --shadow-quiet: inset 0 1px 0 rgb(255 255 255 / 0.05);
+  /* Spec 33 (studio system): crisp hairlines instead of glows. */
+  --shadow-glass: 0 1px 2px rgb(0 0 0 / 0.28), inset 0 0 0 1px rgb(255 255 255 / 0.065);
+  --shadow-quiet: inset 0 0 0 1px rgb(255 255 255 / 0.05);
   --shadow-ember:
-    0 4px 20px rgb(255 122 61 / 0.18), 0 8px 24px rgb(0 0 0 / 0.35),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-  --shadow-violet: 0 4px 16px rgb(139 124 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.08);
-  --shadow-violet-glow:
-    0 8px 24px rgb(0 0 0 / 0.35), 0 0 18px rgb(139 124 255 / 0.12),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-
+    0 1px 2px rgb(0 0 0 / 0.35), 0 4px 14px rgb(255 106 61 / 0.2),
+    inset 0 1px 0 rgb(255 255 255 / 0.2);
+  --shadow-violet: 0 1px 2px rgb(0 0 0 / 0.3), inset 0 0 0 1px rgb(139 124 255 / 0.35);
+  /* Focus ring for fields (and the few places that asked for a violet glow). */
+  --shadow-violet-glow: inset 0 0 0 1px rgb(139 124 255 / 0.55), 0 0 0 3px rgb(139 124 255 / 0.14);
   --shadow-generate:
-    0 3px 16px rgb(139 124 255 / 0.16), 0 8px 24px rgb(0 0 0 / 0.35),
-    inset 0 1px 0 rgb(255 255 255 / 0.08);
-  --shadow-modal: 0 24px 64px rgb(0 0 0 / 0.6), inset 0 1px 0 rgb(255 255 255 / 0.06);
-  --shadow-sel: 0 4px 16px rgb(139 124 255 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.08);
+    0 1px 2px rgb(0 0 0 / 0.35), 0 4px 12px rgb(139 124 255 / 0.18),
+    inset 0 1px 0 rgb(255 255 255 / 0.16);
+  --shadow-modal: 0 24px 80px rgb(0 0 0 / 0.6), inset 0 0 0 1px rgb(255 255 255 / 0.07);
+  --shadow-sel: 0 1px 2px rgb(0 0 0 / 0.35), inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  --shadow-pop:
+    0 12px 32px rgb(0 0 0 / 0.45), 0 2px 6px rgb(0 0 0 / 0.3),
+    inset 0 0 0 1px rgb(255 255 255 / 0.07);
+
+  /* Spec 32 (calm studio): the lifted frame on the preview stage. */
+  --shadow-frame:
+    0 0 0 1px rgb(255 255 255 / 0.07), 0 2px 8px rgb(0 0 0 / 0.4), 0 24px 64px rgb(0 0 0 / 0.5);
 
   /* Easing */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
@@ -132,7 +162,7 @@
 
 /* Gradients from the Figma export, as utilities. */
 @utility bg-ember-grad {
-  background: linear-gradient(90deg, #ff7a3d 0%, #ff4d6d 100%);
+  background: linear-gradient(180deg, #ff8a4c 0%, #ff6a3d 100%);
 }
 /* The ember gradient as text colour (the landing headline). */
 @utility text-ember-grad {
@@ -145,13 +175,17 @@
   background: linear-gradient(180deg, #ffa064 0%, #ff683c 100%);
 }
 @utility bg-violet-fill {
-  background: linear-gradient(180deg, #8070da 0%, #554496 100%);
+  background: linear-gradient(180deg, #8f80ff 0%, #6f5fe0 100%);
 }
 @utility bg-frame {
-  background: linear-gradient(110.56deg, #252334 0%, #121219 90.91%);
+  background: linear-gradient(135deg, #1d1d23 0%, #111114 100%);
+}
+/* Spec 32: the preview stage, a neutral spotlight behind the frame (no colour blobs). */
+@utility bg-stage {
+  background: radial-gradient(70% 65% at 50% 48%, #15151c 0%, #0b0b10 70%, #09090d 100%);
 }
 @utility bg-raised-grad {
-  background: linear-gradient(180deg, #101018 0%, #08080c 100%);
+  background: #0d0d10;
 }
 @utility bg-ember-bloom {
   background: radial-gradient(
@@ -173,42 +207,138 @@
   );
 }
 @utility bg-slot-generating {
-  background: linear-gradient(90deg, #211b30 0%, #413355 15%, #413355 45%, #211b30 100%);
+  background: linear-gradient(90deg, #1d1b26 0%, #2c2840 25%, #2c2840 55%, #1d1b26 100%);
 }
 @utility bg-music {
-  background:
-    radial-gradient(
-      16% 170% at 89% 5%,
-      rgb(56 255 156 / 0.27) 0%,
-      rgb(20 204 122 / 0.12) 40%,
-      rgb(10 140 89 / 0) 100%
-    ),
-    radial-gradient(
-      22% 220% at 57% 108%,
-      rgb(56 255 156 / 0.25) 0%,
-      rgb(20 204 122 / 0.11) 40%,
-      rgb(10 140 89 / 0) 100%
-    ),
-    radial-gradient(
-      18% 180% at 19% 5%,
-      rgb(56 255 156 / 0.3) 0%,
-      rgb(20 204 122 / 0.135) 40%,
-      rgb(10 140 89 / 0) 100%
-    ),
-    #0e1c1b;
+  background: rgb(255 255 255 / 0.025);
 }
+/* Section labels (spec 33): sentence case, semibold, quiet. */
 @utility label-caps {
   font-size: 11px;
-  line-height: 1.2;
-  font-weight: 500;
-  letter-spacing: 1.1px;
-  text-transform: uppercase;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: 0.01em;
   color: var(--color-text-3);
 }
 
 @layer base {
   :root {
     color-scheme: dark;
+  }
+  /*
+   * Spec 35: every screen outside the editor marks itself `[data-paper]`, and the shared tokens
+   * turn to paper and ink for the whole document (portals, toasts and menus included).
+   */
+  html:has([data-paper]) {
+    color-scheme: light;
+    /* Shared parts tint with white alpha on dark (`bg-white/8`); on paper the same tint is ink. */
+    --color-white: #000000;
+    --color-bg: #ffffff;
+    --color-bg-raised: #fafaf8;
+    --color-panel: #ffffff;
+    --color-card: #f3f3f1;
+    --color-card-2: #e8e8e4;
+    --color-card-3: #dcdcd6;
+    --color-glass: #ffffff;
+    --color-line: rgb(0 0 0 / 0.16);
+    --color-line-soft: rgb(0 0 0 / 0.09);
+    --color-line-strong: rgb(0 0 0 / 0.5);
+    --color-text: #000000;
+    --color-text-2: #3e3e3a;
+    --color-text-3: #66665f;
+    --color-text-4: #9b9b93;
+    --color-text-body: #1e1e1c;
+    --color-ember: #ff6a3d;
+    --color-violet: #6b5cf0;
+    --color-violet-deep: #4b3cc9;
+    --color-mint: #15a870;
+    --color-warn: #a86a00;
+    --color-error: #d23a3a;
+    --color-violet-sel: #e8e8e4;
+    --color-violet-ink: #3f30b8;
+    --color-violet-ink-2: #4b3cc9;
+    --color-mint-ink: #0b6e47;
+    --color-mint-tint: #e2f5ec;
+    --color-avatar: #e8e8e4;
+    --color-track: #dcdcd6;
+    --color-ember-tint: #ffeae1;
+    --color-ember-ink: #a8380f;
+    --color-option: #ffffff;
+    --color-ember-edge: #ff6a3d;
+    --color-dialog-line: rgb(0 0 0 / 0.16);
+    --color-dialog-card: #f3f3f1;
+    --color-toggle-on: #000000;
+    --color-toggle-off: #cfcfc8;
+    --color-ready-card: #f3f3f1;
+    --color-ember-oval: #ffeae1;
+    --color-secondary-btn: #ffffff;
+    --color-secondary-btn-line: #000000;
+    --color-violet-icon: #4b3cc9;
+    --color-dialog: #ffffff;
+    --color-scrim: rgb(0 0 0 / 0.38);
+    --color-violet-thumb: #000000;
+    --color-bubble-ink: #1e1e1c;
+    --color-eyebrow: #66665f;
+    --color-section: #66665f;
+    --color-placeholder: #8a8a83;
+    --color-field-ink: #000000;
+    --color-cell-ink: #000000;
+    --color-pip-face: #000000;
+    --shadow-glass: 0 0 0 2px #000;
+    --shadow-quiet: inset 0 0 0 2px #000;
+    --shadow-sel: 0 0 0 2px #000;
+    --shadow-pop: 0 0 0 2px #000, 4px 4px 0 #000;
+    --shadow-modal: 0 0 0 2px #000, 6px 6px 0 #000;
+    --shadow-violet-glow: inset 0 0 0 2px #000, 0 0 0 3px rgb(141 188 235 / 0.6);
+  }
+  /*
+   * Spec 38: the editor joins the paper (it marks itself `[data-paper][data-editor]`). Its own
+   * tokens get paper values, and its dense controls take hairlines instead of the 2 px rings the
+   * roomy paper screens use; 2 px ink is kept for frames you press or open.
+   */
+  html:has([data-editor][data-paper]) {
+    --color-voice: #10b981;
+    --color-voice-2: #047857;
+    --color-voice-ink: #065f46;
+    --color-sound: #06b6d4;
+    --color-sound-2: #2563eb;
+    --color-sound-ink: #155e75;
+    --color-rail-active: #000000;
+    --color-reason: #f3f3f1;
+    --color-track-a: #ffffff;
+    --color-track-b: #fafaf8;
+    --color-track-hair: rgb(0 0 0 / 0.1);
+    --color-slot-suggested: #ffffff;
+    --color-slot-selected: #dcebfa;
+    --color-slot-ready: #ffffff;
+    --color-slot-thumb: #f3f3f1;
+    --color-slot-thumb-callout: #e8e8e4;
+    --color-slot-title: #3e3e3a;
+    --color-slot-title-sel: #000000;
+    --color-slot-title-ready: #000000;
+    --color-synced: #f3f3f1;
+    --color-sfx: #f3f3f1;
+    --color-music: #f3f3f1;
+    --color-music-bar: #9b9b93;
+    --color-ready-ink: #0b6e47;
+    --color-time-dim: #66665f;
+    --color-zoom-track: #dcdcd6;
+    --color-zoom-thumb: #000000;
+    --color-style-ink: #1e1e1c;
+    --color-bolt: #d98a00;
+    --color-glyph: #66665f;
+    --color-curve: #6b5cf0;
+    --color-ember-soft: rgb(255 106 61 / 0.9);
+  }
+  html:has([data-paper]) ::selection {
+    background: rgb(141 188 235 / 0.6);
+  }
+  html:has([data-paper]) :focus-visible {
+    outline: 2px solid #ff6a3d;
+    outline-offset: 3px;
+  }
+  html:has([data-paper]) * {
+    scrollbar-color: rgb(0 0 0 / 0.3) transparent;
   }
   /* The root stays at 16px so Tailwind's rem spacing matches the design (h-14 = 56px). */
   html,
@@ -219,14 +349,169 @@
   }
   body {
     font-size: 13px;
+    font-feature-settings: 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   :focus-visible {
-    outline: 2px solid var(--color-violet);
+    outline: 2px solid rgb(139 124 255 / 0.8);
     outline-offset: 2px;
+  }
+  ::selection {
+    background: rgb(139 124 255 / 0.35);
+  }
+  /* Thin, quiet scrollbars in panels. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.12) transparent;
   }
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+}
+
+/* Spec 35, unlayered so it beats the utilities: Tailwind bakes shadow values in at build time,
+ * so the shared pop-overs get their ink frame here on paper screens. */
+html:has([data-paper]) [role='dialog'][aria-modal='true'] {
+  box-shadow:
+    0 0 0 2px #000,
+    6px 6px 0 #000;
+  backdrop-filter: none;
+}
+html:has([data-paper]) [role='menu'],
+html:has([data-paper]) [role='listbox'] {
+  box-shadow:
+    0 0 0 2px #000,
+    4px 4px 0 #000;
+  backdrop-filter: none;
+}
+
+/* Spec 38: the editor's shadows on paper (unlayered for the same reason as above). */
+html:has([data-editor][data-paper]) .shadow-quiet {
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.14);
+}
+html:has([data-editor][data-paper]) .shadow-sel {
+  box-shadow: inset 0 0 0 1.5px #000;
+}
+html:has([data-editor][data-paper]) .shadow-glass,
+html:has([data-editor][data-paper]) .shadow-pop {
+  box-shadow:
+    0 0 0 1.5px #000,
+    3px 3px 0 #000;
+  backdrop-filter: none;
+}
+html:has([data-editor][data-paper]) .shadow-ember,
+html:has([data-editor][data-paper]) .shadow-generate {
+  box-shadow:
+    0 0 0 1.5px #000,
+    2px 2px 0 #000;
+}
+html:has([data-editor][data-paper]) .shadow-violet {
+  box-shadow: inset 0 0 0 1.5px #6b5cf0;
+}
+html:has([data-editor][data-paper]) .shadow-frame {
+  box-shadow:
+    0 0 0 2px #000,
+    6px 6px 0 #000;
+}
+html:has([data-editor][data-paper]) .shadow-violet-glow,
+html:has([data-editor][data-paper]) .focus-within\:shadow-violet-glow:focus-within {
+  box-shadow:
+    inset 0 0 0 1.5px #000,
+    0 0 0 3px rgb(141 188 235 / 0.55);
+}
+html:has([data-editor][data-paper]) .shadow-modal {
+  box-shadow:
+    0 0 0 2px #000,
+    6px 6px 0 #000;
+}
+html:has([data-editor][data-paper]) .bg-stage {
+  background-color: #fbfcfe;
+  background-image:
+    radial-gradient(60% 70% at 100% 0%, rgb(141 188 235 / 0.26), transparent 70%),
+    radial-gradient(50% 60% at 0% 100%, rgb(255 106 61 / 0.09), transparent 70%),
+    radial-gradient(rgb(0 0 0 / 0.08) 1px, transparent 1.4px);
+  background-size:
+    auto,
+    auto,
+    22px 22px;
+}
+html:has([data-editor][data-paper]) .bg-raised-grad {
+  background: #fff;
+}
+html:has([data-editor][data-paper]) .bg-slot-generating {
+  background: linear-gradient(90deg, #eef5fc 0%, #d6e8f9 25%, #d6e8f9 55%, #eef5fc 100%);
+}
+html:has([data-editor][data-paper]) .bg-music {
+  background: rgb(0 0 0 / 0.03);
+}
+
+/*
+ * Spec 38 R5: the night desk. In dark mode the editor drops `[data-paper]`, so the studio's dark
+ * tokens apply; on top of them the paper language comes back in chalk: soft edges on frames, hard
+ * offset shadows, the same poster type and Pip's lights.
+ */
+html:has([data-editor][data-theme='dark']) {
+  --color-paper: #141418;
+  --color-ink: #ecebe6;
+  --color-mist: #1f1f25;
+  --color-mist-2: #29292f;
+  --color-edge: rgb(255 255 255 / 0.26);
+  --color-rule: rgb(255 255 255 / 0.08);
+  --color-hard: rgb(0 0 0 / 0.55);
+  --color-tile: #2c2c34;
+  --btn-ink: #ecebe6;
+  --btn-paper: #1c1c22;
+  --btn-edge: rgb(255 255 255 / 0.3);
+  --btn-hard: rgb(0 0 0 / 0.6);
+  --color-slot-selected: #1d2a3a;
+  --color-slot-ready: #19191e;
+  --color-slot-suggested: #141418;
+}
+/* The film-strip bar is black in both themes. */
+[data-ink-bar] {
+  --color-paper: #ffffff;
+  --color-ink: #000000;
+  --btn-ink: #000000;
+  --btn-paper: #ffffff;
+  --btn-edge: #000000;
+  --btn-hard: #000000;
+}
+html:has([data-editor][data-theme='dark']) .shadow-glass,
+html:has([data-editor][data-theme='dark']) .shadow-pop {
+  box-shadow:
+    0 0 0 1px rgb(255 255 255 / 0.13),
+    3px 3px 0 rgb(0 0 0 / 0.55);
+  backdrop-filter: none;
+}
+html:has([data-editor][data-theme='dark']) .shadow-frame {
+  box-shadow:
+    0 0 0 1.5px rgb(255 255 255 / 0.14),
+    8px 8px 0 rgb(0 0 0 / 0.5),
+    0 30px 90px rgb(0 0 0 / 0.55);
+}
+html:has([data-editor][data-theme='dark']) .bg-stage {
+  background-color: #0e0e12;
+  background-image:
+    radial-gradient(60% 70% at 100% 0%, rgb(141 188 235 / 0.11), transparent 70%),
+    radial-gradient(50% 60% at 0% 100%, rgb(255 106 61 / 0.07), transparent 70%),
+    radial-gradient(40% 50% at 50% 110%, rgb(139 124 255 / 0.08), transparent 70%),
+    radial-gradient(rgb(255 255 255 / 0.05) 1px, transparent 1.4px);
+  background-size:
+    auto,
+    auto,
+    auto,
+    22px 22px;
+}
+
+/* Switching theme eases colours instead of snapping (the class lives for 420 ms). */
+html.theme-easing *,
+html.theme-easing *::before,
+html.theme-easing *::after {
+  transition:
+    background-color 360ms ease,
+    border-color 360ms ease,
+    color 360ms ease,
+    fill 360ms ease,
+    box-shadow 360ms ease !important;
 }

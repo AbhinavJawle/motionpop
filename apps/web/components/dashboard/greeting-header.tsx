@@ -1,41 +1,46 @@
 'use client';
 
-import { Pip } from '@/components/pip/pip';
+import { Bubble, poster } from '@/components/paper/kit';
+import { PipLoop } from '@/components/landing/pip-loop';
 import { useAuth } from '@/lib/auth/auth-provider';
-import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
 import { greet } from '@/lib/dashboard/greeting';
+import { cn } from '@/lib/cn';
+
+/** "Good afternoon, Abhinav" → ["Good afternoon,", "Abhinav."] for the two poster lines. */
+function posterLines(line: string): [string, string] {
+  const i = line.indexOf(',');
+  if (i < 0) return [line, ''];
+  const tail = line.slice(i + 1).trim();
+  return [line.slice(0, i + 1), /[.?!]$/.test(tail) ? tail : `${tail}.`];
+}
 
 /**
- * Eyebrow, time-aware greeting and Pip (projects.png): eyebrow at y 126, greeting 36 px at
- * y 148, subline 15 px at y 209, Pip ~110 px top right with an ember glow; nightcap at night.
- * Pip never takes a click (R2.3).
+ * The greeting (spec 35): the time-aware line set as a two-line poster title, with Pip holding
+ * the clapper and saying the subline. Pip never takes a click (spec 11 R2.3).
  */
 export function GreetingHeader({ now }: { now: number | null }) {
   const auth = useAuth();
   const name = auth.status === 'signed-in' ? auth.user.displayName : null;
   const g = now === null ? null : greet(new Date(now).getHours(), name);
+  const [a, b] = g ? posterLines(g.line) : [' ', ' '];
 
   return (
-    <section className="relative h-[200px] pt-[42px]">
-      <p className="label-caps text-[11px] leading-[14px] tracking-[1.4px] text-ember">
-        {C.eyebrow}
-      </p>
+    <section className="relative flex items-end justify-between gap-6 pt-16 pb-10">
       <h1
         data-testid="dashboard-title"
-        className="mt-[11px] h-[44px] text-[36px] leading-[44px] font-semibold tracking-[-0.6px] text-text"
+        className={cn(poster, 'text-[clamp(64px,9vw,128px)]')}
+        aria-label={g?.line}
       >
-        {g?.line ?? '\u00a0'}
+        <span className="block">{a}</span>
+        <span className="block">{b}</span>
       </h1>
-      <p className="mt-[13px] h-5 text-[15px] leading-5 text-text-2">{g?.subline ?? '\u00a0'}</p>
-      <div className="pointer-events-none absolute top-[14px] right-[78px]" aria-hidden>
-        <Pip
-          size={118}
-          look="cursor"
-          glow
-          decorative
-          seed={3}
-          props={g?.night ? ['nightcap'] : []}
-        />
+      <div className="relative hidden h-[250px] w-[300px] shrink-0 md:block" aria-hidden>
+        {g && (
+          <Bubble right className="absolute top-6 right-[40px] whitespace-nowrap">
+            {g.subline}
+          </Bubble>
+        )}
+        <PipLoop name="clapper" className="absolute -right-6 -bottom-10 size-[230px] select-none" />
       </div>
     </section>
   );

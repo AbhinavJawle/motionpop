@@ -29,7 +29,7 @@ export function Ruler() {
 
   return (
     <div
-      className="absolute inset-x-0 top-0 h-[38px] cursor-pointer"
+      className="absolute inset-x-0 top-0 h-[26px] cursor-pointer"
       onPointerDown={(e) => {
         const rect = e.currentTarget.getBoundingClientRect();
         clock.seek((e.clientX - rect.left) / view.pxPerMs + view.scrollMs);
@@ -42,17 +42,17 @@ export function Ruler() {
               if (el) labels.current.set(t, el);
               else labels.current.delete(t);
             }}
-            className="absolute top-2 -translate-x-1/2 font-mono text-[9px] leading-3 whitespace-nowrap text-text-3 transition-opacity duration-150"
+            className="absolute top-[5px] -translate-x-1/2 font-mono text-[9px] leading-3 whitespace-nowrap text-text-3 transition-opacity duration-150"
           >
             {label(t)}
           </span>
-          <span className="absolute top-[26px] h-2 w-px bg-white/14" />
+          <span className="absolute top-[18px] h-2 w-px bg-white/14" />
         </div>
       ))}
       {ticks.minors.map((t) => (
         <span
           key={`m${t}`}
-          className="absolute top-[30px] h-1 w-px bg-white/8"
+          className="absolute top-[21px] h-1 w-px bg-white/8"
           style={{ left: msToX(t, view) }}
         />
       ))}

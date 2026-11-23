@@ -3,15 +3,15 @@
 import { AnimatePresence, motion } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import { Pip } from '@/components/pip/pip';
-import type { PipState } from '@/components/pip/states';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import Link from 'next/link';
+import { PipLoop } from '@/components/landing/pip-loop';
+import { btn, Bubble, paper, PaperPage, PipMark, poster, Sprockets } from '@/components/paper/kit';
+import { cn } from '@/lib/cn';
 import { createAccount, sendReset, signInWithEmail, signInWithGoogle } from '@/lib/auth/actions';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { authErrorMessage } from '@/lib/auth/errors';
 import { safeNextPath } from '@/lib/auth/next-path';
-import { fadeIn, popIn } from '@/lib/motion/presets';
+import { fadeIn } from '@/lib/motion/presets';
 
 type Mode = 'sign-in' | 'create' | 'reset';
 type Busy = null | 'google' | 'email';
@@ -38,9 +38,9 @@ const COPY: Record<Mode, { title: string; sub: string; submit: string; busy: str
 };
 
 const field =
-  'h-10 w-full rounded-chip bg-card-2 px-3 text-[13px] leading-[18px] text-text shadow-glass outline-none transition-shadow duration-200 placeholder:text-text-3 focus:shadow-violet-glow disabled:opacity-40';
+  'h-full w-full bg-transparent text-[14px] outline-none placeholder:text-black/45 disabled:opacity-40';
 
-/** Sign in (screens.md, not designed: glass card, Pip waving, Google + email/password). */
+/** Sign in (spec 35): the form on paper beside a black film panel with Pip juggling. */
 export function SignInScreen() {
   const auth = useAuth();
   const router = useRouter();
@@ -92,28 +92,25 @@ export function SignInScreen() {
     );
   }
 
-  const pip: PipState =
-    auth.status === 'signed-in' ? 'celebrating' : error ? 'thinking' : busy ? 'thinking' : 'waving';
+  const pip = auth.status === 'signed-in' ? 'done' : 'idle';
   const copy = COPY[mode];
+  const fieldBox = cn(paper.field, 'flex h-12 items-center px-3.5');
 
   return (
-    <main className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-bg px-6 py-12">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute top-[18%] left-1/2 size-[520px] -translate-x-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(139_124_255/0.10),transparent)]"
-      />
+    <PaperPage className="grid min-h-dvh lg:grid-cols-[minmax(0,1fr)_minmax(0,1.05fr)]">
+      <main className="flex flex-col px-6 py-8 sm:px-12 lg:px-16">
+        <Link href="/" className="flex items-center gap-2.5 self-start" aria-label="motionpop home">
+          <PipMark />
+          <span className="font-sans text-[22px] leading-none font-semibold tracking-[-0.03em]">
+            motionpop
+          </span>
+        </Link>
 
-      <motion.div {...popIn} className="relative flex w-full max-w-[380px] flex-col items-center">
-        <Pip state={pip} size={104} glow look="cursor" decorative seed={7} />
-        <p className="mt-4 text-[19px] leading-[25px] font-semibold tracking-[-0.2px] text-text">
-          motionpop
-        </p>
-
-        <Card className="mt-6 w-full p-7">
+        <div className="my-auto w-full max-w-[420px] py-12">
           <AnimatePresence mode="wait" initial={false}>
             <motion.div key={mode} {...fadeIn}>
-              <h1 className="text-[22px] leading-[28px] font-semibold text-text">{copy.title}</h1>
-              <p className="mt-1.5 text-[13px] leading-[18px] text-text-2">{copy.sub}</p>
+              <h1 className={cn(poster, 'text-[64px]')}>{copy.title}</h1>
+              <p className="mt-4 text-[14px] leading-[1.6] text-black/70">{copy.sub}</p>
             </motion.div>
           </AnimatePresence>
 
@@ -123,59 +120,63 @@ export function SignInScreen() {
             <>
               {mode !== 'reset' && (
                 <>
-                  <Button
-                    variant="secondary"
-                    size="lg"
-                    className="mt-6 h-10 w-full text-[13px]"
+                  <button
+                    type="button"
+                    className={btn('paper', 'lg', false, 'mt-8 w-full')}
                     disabled={busy !== null || auth.status === 'loading'}
                     onClick={() => void attempt('google', signInWithGoogle)}
                   >
+                    <GoogleG />
                     {busy === 'google' ? 'Opening Google…' : 'Continue with Google'}
-                  </Button>
-                  <div className="my-5 flex items-center gap-3" aria-hidden>
-                    <span className="h-px flex-1 bg-line" />
-                    <span className="font-mono text-[10px] tracking-[1px] text-text-3">OR</span>
-                    <span className="h-px flex-1 bg-line" />
+                  </button>
+                  <div className="my-6 flex items-center gap-4" aria-hidden>
+                    <span className="h-[2px] flex-1 bg-ink" />
+                    <span className="font-scrawl text-[20px] leading-none">or</span>
+                    <span className="h-[2px] flex-1 bg-ink" />
                   </div>
                 </>
               )}
 
               <form
                 onSubmit={onSubmit}
-                className={mode === 'reset' ? 'mt-6 flex flex-col gap-3' : 'flex flex-col gap-3'}
+                className={mode === 'reset' ? 'mt-8 flex flex-col gap-3' : 'flex flex-col gap-3'}
                 noValidate
                 aria-describedby={error ? ids.error : undefined}
               >
                 <label htmlFor={ids.email} className="sr-only">
                   Email
                 </label>
-                <input
-                  id={ids.email}
-                  type="email"
-                  autoComplete="email"
-                  placeholder="Email"
-                  className={field}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={busy !== null}
-                  required
-                />
+                <span className={fieldBox}>
+                  <input
+                    id={ids.email}
+                    type="email"
+                    autoComplete="email"
+                    placeholder="Email"
+                    className={field}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    disabled={busy !== null}
+                    required
+                  />
+                </span>
                 {mode !== 'reset' && (
                   <>
                     <label htmlFor={ids.password} className="sr-only">
                       Password
                     </label>
-                    <input
-                      id={ids.password}
-                      type="password"
-                      autoComplete={mode === 'create' ? 'new-password' : 'current-password'}
-                      placeholder={mode === 'create' ? 'Password (6+ characters)' : 'Password'}
-                      className={field}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      disabled={busy !== null}
-                      required
-                    />
+                    <span className={fieldBox}>
+                      <input
+                        id={ids.password}
+                        type="password"
+                        autoComplete={mode === 'create' ? 'new-password' : 'current-password'}
+                        placeholder={mode === 'create' ? 'Password (6+ characters)' : 'Password'}
+                        className={field}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={busy !== null}
+                        required
+                      />
+                    </span>
                   </>
                 )}
 
@@ -186,38 +187,35 @@ export function SignInScreen() {
                       {...fadeIn}
                       id={error ? ids.error : undefined}
                       role={error ? 'alert' : 'status'}
-                      className={
-                        error
-                          ? 'text-[12px] leading-[16px] text-error'
-                          : 'text-[12px] leading-[16px] text-mint-ink'
-                      }
+                      className={cn(
+                        'text-[13px] leading-[1.5]',
+                        error ? 'text-error' : 'text-mint-ink',
+                      )}
                     >
                       {error ?? notice}
                     </motion.p>
                   )}
                 </AnimatePresence>
 
-                <Button
+                <button
                   type="submit"
-                  variant="primary"
-                  size="lg"
-                  className="mt-1 h-10 w-full text-[13px]"
+                  className={btn('ink', 'lg', false, 'mt-2 w-full')}
                   disabled={busy !== null || auth.status === 'loading'}
                 >
                   {busy === 'email' ? copy.busy : copy.submit}
-                </Button>
+                </button>
               </form>
 
-              <div className="mt-5 flex flex-col items-center gap-2 text-[12px] leading-[16px] text-text-2">
+              <div className="mt-6 flex flex-wrap items-center justify-between gap-3 text-[13px]">
                 {mode === 'sign-in' && (
                   <>
-                    <TextButton onClick={() => switchMode('reset')}>Forgot password?</TextButton>
                     <span>
                       New here?{' '}
                       <TextButton strong onClick={() => switchMode('create')}>
                         Create an account
                       </TextButton>
                     </span>
+                    <TextButton onClick={() => switchMode('reset')}>Forgot password?</TextButton>
                   </>
                 )}
                 {mode !== 'sign-in' && (
@@ -231,13 +229,57 @@ export function SignInScreen() {
               </div>
             </>
           )}
-        </Card>
+        </div>
 
-        <p className="mt-6 text-center text-[11px] leading-[14px] text-text-3">
-          Bring your voice. We’ll bring the motion.
+        <p className="text-[12px] text-black/55">
+          By continuing you agree to the{' '}
+          <Link href="/terms" className="underline underline-offset-2">
+            terms
+          </Link>{' '}
+          and{' '}
+          <Link href="/privacy" className="underline underline-offset-2">
+            privacy notice
+          </Link>
+          .
         </p>
-      </motion.div>
-    </main>
+      </main>
+
+      <aside
+        aria-hidden
+        className="relative hidden flex-col justify-between overflow-hidden bg-ink p-14 text-paper lg:flex"
+      >
+        <Sprockets className="absolute inset-x-0 top-3 opacity-25" />
+        <p className={cn(poster, 'mt-10 text-[clamp(72px,7.4vw,120px)]')}>
+          You talk.
+          <br />
+          We make it move.
+        </p>
+        <div className="relative flex items-end justify-between gap-6">
+          <p className="max-w-[300px] pb-6 text-[14px] leading-[1.6] text-paper/75">
+            Pip finds the moments in what you say and lands a graphic on the exact word.
+          </p>
+          <div className="relative">
+            <Bubble className="absolute top-2 -left-24 rotate-[-4deg] text-ink">
+              {pip === 'done' ? 'Welcome in!' : 'Ready when you are.'}
+            </Bubble>
+            <PipLoop name="juggle" className="size-[280px]" />
+          </div>
+        </div>
+        <Sprockets className="absolute inset-x-0 bottom-3 opacity-25" />
+      </aside>
+    </PaperPage>
+  );
+}
+
+/** Google's "G", drawn in one colour so it sits with the ink buttons. */
+function GoogleG() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-[18px]" aria-hidden>
+      <path
+        fill="currentColor"
+        d="M21.35 11.1H12v3.2h5.35c-.5 2.5-2.6 3.9-5.35 3.9a6.2 6.2 0 1 1 0-12.4c1.5 0 2.9.55 3.95 1.45l2.4-2.4A9.6 9.6 0 0 0 12 2.4a9.6 9.6 0 1 0 0 19.2c5.5 0 9.4-3.9 9.4-9.4 0-.38-.02-.73-.05-1.1Z"
+      />
+    </svg>
   );
 }
 
@@ -254,11 +296,10 @@ function TextButton({
     <button
       type="button"
       onClick={onClick}
-      className={
-        strong
-          ? 'font-medium text-violet-ink transition-colors hover:text-text'
-          : 'text-text-2 transition-colors hover:text-text'
-      }
+      className={cn(
+        'underline decoration-[1.5px] underline-offset-4 hover:decoration-flame',
+        strong && 'font-semibold',
+      )}
     >
       {children}
     </button>
@@ -267,13 +308,13 @@ function TextButton({
 
 function LocalMode({ onContinue }: { onContinue: () => void }) {
   return (
-    <div className="mt-6 flex flex-col gap-4">
-      <p className="text-[13px] leading-[18px] text-text-body">
+    <div className="mt-8 flex flex-col gap-5">
+      <p className="text-[14px] leading-[1.6]">
         Accounts are off in this build. Your projects stay on this device.
       </p>
-      <Button variant="primary" size="lg" className="h-10 w-full text-[13px]" onClick={onContinue}>
+      <button type="button" className={btn('ink', 'lg', false, 'w-full')} onClick={onContinue}>
         Continue
-      </Button>
+      </button>
     </div>
   );
 }

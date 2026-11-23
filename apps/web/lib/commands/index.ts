@@ -47,7 +47,16 @@ export {
   toggleVideoCut,
   updateMediaClips,
 } from './video';
-export { setReel, setReelCaptions, setReelLook } from './reel';
+export {
+  addReelSound,
+  clearReelScene,
+  clearReelSounds,
+  setReel,
+  setReelCaptions,
+  setReelLook,
+  setReelMusicBrief,
+  setReelTheme,
+} from './reel';
 export {
   addReelNote,
   deleteReelNote,

@@ -45,11 +45,7 @@ function useCommitted(value: number, commit: (v: number) => void) {
 const db = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v)} dB`;
 
 function SectionLabel({ children }: { children: string }) {
-  return (
-    <h3 className="mb-2 text-[11px] leading-[14px] font-semibold tracking-[0.08em] text-text-3 uppercase">
-      {children}
-    </h3>
-  );
+  return <h3 className="mb-2 text-[12px] leading-4 font-semibold text-text-2">{children}</h3>;
 }
 
 /**
@@ -74,9 +70,9 @@ export function AudioPanelBody() {
   const current = audio.musicId ?? null;
 
   return (
-    <div className="flex h-full flex-col px-5 pt-4 pb-4">
-      <header className="flex h-10 shrink-0 items-center border-b border-white/6 pb-3">
-        <h2 className="text-[17px] leading-[22px] font-semibold text-text">Audio</h2>
+    <div className="flex h-full flex-col px-4 pb-4">
+      <header className="-mx-4 flex h-12 shrink-0 items-center border-b border-line px-4">
+        <h2 className="text-[14px] leading-5 font-semibold text-text">Audio</h2>
       </header>
 
       <div className="-mx-1 min-h-0 flex-1 space-y-6 overflow-y-auto px-1 pt-4 pb-6">
