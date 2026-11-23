@@ -82,7 +82,7 @@ export function recipeBlock(brief: ReelDirectBrief): string {
       ? '- CTA: none. Do not end on a call to action, even if the speaker asks for one.'
       : brief.cta.text
         ? `- CTA: end on a cta scene for "${brief.cta.text}".`
-        : '- CTA: only if the speaker asks viewers to comment, follow or subscribe.',
+        : "- CTA: end on a cta scene. Use the speaker's own ask when they make one (comment a word, follow, save, share); otherwise a short ask that fits the reel.",
   );
   if (brief.music === 'none')
     lines.push('- Music: none (still write a brief; it will not be used).');

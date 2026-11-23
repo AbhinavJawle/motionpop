@@ -2,7 +2,7 @@ import { ReelPlanSchema, type ReelPlan, type ReelScene, type ReelWord } from '@m
 import { describe, expect, it } from 'vitest';
 import type { Router } from '../router';
 import { directReel } from './director';
-import { applyEditChoices, ctaParts, MOOD_BRIEFS } from './edit-choices';
+import { applyEditChoices, ctaParts, defaultCtaText, MOOD_BRIEFS } from './edit-choices';
 
 const STEP = 400;
 const DUR = 12000;
@@ -146,17 +146,57 @@ describe('applyEditChoices: CTA (R5.3)', () => {
     expect(out.scenes.at(-1)!.content.template).toBe('cta');
   });
 
-  it('on without text: keeps the director cta scenes and adds none', () => {
+  // Changed by the spec 39 AI soak (9 of 19 directed reels had the CTA on and no ask): with no
+  // director cta and no creator text, a default ask is appended (was: nothing added).
+  it('on without text: keeps the director cta scenes, or adds a default ask when there is none', () => {
     const none = plan([
       scene('a', 0, 6000, 'split', { template: 'headline', title: 'Hi' }),
       scene('b', 6000, DUR, 'split', { template: 'headline', title: 'End' }),
     ]);
     const a = applyEditChoices(none, WS, DUR, { cta: { enabled: true } });
-    expect(a.scenes).toHaveLength(2);
-    expect(a.scenes.some((s) => s.content.template === 'cta')).toBe(false);
+    expect(a.scenes.filter((s) => s.content.template === 'cta')).toHaveLength(1);
+    expect(a.scenes.at(-1)!.content.template).toBe('cta');
+    expect(a.scenes.at(-1)!.endMs).toBe(DUR);
+    const short = plan([scene('a', 0, 5000, 'split', { template: 'headline', title: 'Hi' })]);
+    const s5 = applyEditChoices(short, WS, 5000, { cta: { enabled: true } });
+    expect(s5.scenes.some((s) => s.content.template === 'cta')).toBe(false);
     const b = applyEditChoices(base(), WS, DUR, { cta: { enabled: true, text: '   ' } });
     expect(b.scenes.at(-1)!.content).toEqual(CTA);
     expect(b.scenes).toHaveLength(3);
+  });
+});
+
+describe('defaultCtaText', () => {
+  const ws = (t: string) => wordsOf(t);
+  it("uses the speaker's own ask from the last third", () => {
+    expect(
+      defaultCtaText(ws('one two three four five six seven eight comment LINK below now')),
+    ).toBe('Comment LINK');
+    expect(defaultCtaText(ws('a b c d e f g h i save it for later'))).toBe('Save this');
+    // Changed in the spec 39 AI QA review: "drop a comment" has no keyword (was "Comment COMMENT").
+    expect(defaultCtaText(ws('a b c d e f g h i drop a comment below'))).toBe('Comment below');
+    expect(defaultCtaText(ws('a b c d e f g h i drop the word GUIDE'))).toBe('Comment GUIDE');
+    expect(defaultCtaText(ws('a b c d e f g h i drop GUIDE in the comments'))).toBe(
+      'Comment GUIDE',
+    );
+    expect(defaultCtaText(ws('a b c d e f g h i drop me a follow'))).toBe('Follow for more');
+    expect(defaultCtaText(ws('a b c d e f g h i and then prices drop twenty percent'))).toBe(
+      'Follow for more',
+    );
+    expect(defaultCtaText(ws('a b c d e f g h follow'))).toBe('Follow for more');
+  });
+  it('falls back to Follow for more, and ignores asks early in the reel', () => {
+    expect(
+      defaultCtaText(ws('comment LINK then a long talk about other things entirely here ok')),
+    ).toBe('Follow for more');
+    expect(defaultCtaText([])).toBe('Follow for more');
+  });
+  // Regression (found by the applyEditChoices property in the spec 39 AI QA review): the ask
+  // table was a plain object, so a spoken "constructor" matched Object.prototype and crashed.
+  it('ignores Object.prototype names', () => {
+    expect(defaultCtaText(ws('a b c d e f g h i constructor toString hasOwnProperty'))).toBe(
+      'Follow for more',
+    );
   });
 });
 

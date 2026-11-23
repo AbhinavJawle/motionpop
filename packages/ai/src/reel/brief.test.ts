@@ -43,9 +43,10 @@ const LAST = '\n\nWrite the story, then plan the reel.';
 describe('reelDirectPromptV3 with a brief (R3.5)', () => {
   const finance = builtInSkills.recipe('finance-business')!;
 
-  it('is version v4', () => {
-    expect(REEL_DIRECT_PROMPT_VERSION).toBe('v4');
-    expect(reelTemplateDirectTask().promptVersion).toBe('v4');
+  // Changed by the spec 39 AI soak: v5 asks for a CTA whenever it is on (was v4).
+  it('is version v5', () => {
+    expect(REEL_DIRECT_PROMPT_VERSION).toBe('v5');
+    expect(reelTemplateDirectTask().promptVersion).toBe('v5');
   });
 
   it('adds the RECIPE block before the final line, with pacing, layout %, hook, CTA and notes', () => {
@@ -80,7 +81,7 @@ describe('reelDirectPromptV3 with a brief (R3.5)', () => {
   it('states the CTA and music variants', () => {
     expect(recipeBlock(brief({ cta: { enabled: false } }))).toContain('- CTA: none.');
     expect(recipeBlock(brief({ cta: { enabled: true } }))).toContain(
-      '- CTA: only if the speaker asks',
+      "- CTA: end on a cta scene. Use the speaker's own ask",
     );
     expect(recipeBlock(brief({ music: 'none' }))).toContain('- Music: none');
     expect(recipeBlock(brief({ music: 'auto' }))).toContain(finance.musicBrief);

@@ -135,10 +135,70 @@ function shapeHook(plan: ReelPlan, words: readonly ReelWord[], style: ReelHookSt
   return next;
 }
 
+/** Below this length a reel gets no automatic CTA (there is no room for an ask). */
+export const CTA_MIN_REEL_MS = 6000;
+
+/** Words that never become a comment keyword ("comment below", "drop a comment", "comment what…"). */
+const NOT_KEYWORD =
+  /^(a|an|the|it|this|that|below|down|here|your|you|me|us|in|on|if|and|with|what|how|word|comment|comments)$/;
+
+/**
+ * Spoken asks → the CTA text. `comment` takes the next word as the keyword; `drop` counts only as
+ * "drop the word X" or "drop X in the comments", since "prices drop" is not an ask.
+ */
+const CTA_ASKS: ReadonlyMap<string, string | null> = new Map([
+  ['comment', null],
+  ['drop', null],
+  ['follow', 'Follow for more'],
+  ['save', 'Save this'],
+  ['share', 'Share this'],
+  ['send', 'Send this'],
+  ['subscribe', 'Subscribe now'],
+  ['try', 'Try this'],
+]);
+
+/**
+ * The ask when the creator turned the CTA on but wrote none and the director made none (spec 39
+ * R5.4, found in the AI soak: 9 of 19 directed reels came back without one). The speaker's own
+ * ask in the last third of the reel wins ("comment LINK", "save it for later"); otherwise a
+ * plain "Follow for more".
+ */
+export function defaultCtaText(words: readonly ReelWord[]): string {
+  const tail = words.slice(Math.floor(words.length * 0.66));
+  const clean = (t: string) => t.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
+  for (let i = 0; i < tail.length; i++) {
+    const key = clean(tail[i]!.text);
+    // A Map, not an object: a spoken "constructor" must not hit Object.prototype.
+    if (!CTA_ASKS.has(key)) continue;
+    const fixed = CTA_ASKS.get(key);
+    if (fixed) return fixed;
+    const next = tail.slice(i + 1, i + 6).map((w) => clean(w.text));
+    const isKeyword = (w: string | undefined): w is string =>
+      !!w && !NOT_KEYWORD.test(w) && !CTA_ASKS.has(w);
+    if (key === 'comment') {
+      const keyword = next.slice(0, 2).find(isKeyword);
+      return keyword ? `Comment ${keyword.toUpperCase()}` : 'Comment below';
+    }
+    // `drop`: "drop the word GUIDE" or "drop GUIDE in the comments"; anything else keeps scanning
+    // (a following "comment" or "follow" is still found: "drop a comment below", "drop me a follow").
+    const word = next.indexOf('word');
+    const comments = next.findIndex((w) => w === 'comment' || w === 'comments');
+    const keyword =
+      word >= 0 && isKeyword(next[word + 1])
+        ? next[word + 1]
+        : comments > 0
+          ? next.slice(0, comments).find(isKeyword)
+          : undefined;
+    if (keyword) return `Comment ${keyword.toUpperCase()}`;
+  }
+  return 'Follow for more';
+}
+
 function shapeCta(
   plan: ReelPlan,
   cta: NonNullable<EditChoices['cta']>,
   durationMs: number,
+  words: readonly ReelWord[] = [],
 ): ReelPlan {
   if (!cta.enabled) {
     return {
@@ -148,7 +208,9 @@ function shapeCta(
       ),
     };
   }
-  const text = cta.text?.trim();
+  const hasCta = plan.scenes.some((s) => s.content.template === 'cta');
+  const text =
+    cta.text?.trim() || (hasCta || durationMs < CTA_MIN_REEL_MS ? '' : defaultCtaText(words));
   if (!text) return plan;
   const content = { template: 'cta', ...ctaParts(text) } as ReelScene['content'];
   // The creator's ask replaces the director's: one cta scene, at the end.
@@ -188,7 +250,7 @@ export function applyEditChoices(
 ): ReelPlan {
   let next: ReelPlan = { ...plan, scenes: [...plan.scenes] };
   if (choices.hookStyle) next = shapeHook(next, words, choices.hookStyle);
-  if (choices.cta) next = shapeCta(next, choices.cta, durationMs);
+  if (choices.cta) next = shapeCta(next, choices.cta, durationMs, words);
   if (choices.captions) {
     next.captions = choices.captions.enabled;
     next.captionStyle = choices.captions.style;

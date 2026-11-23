@@ -4,7 +4,7 @@
 import { REEL_ICONS, type ReelLook } from '@motionpop/schemas';
 import { recipeBlock, type ReelDirectBrief } from './brief';
 
-export const REEL_DIRECT_PROMPT_VERSION = 'v4';
+export const REEL_DIRECT_PROMPT_VERSION = 'v5';
 
 /** Layouts and templates in the director's language (shared with `reel.note`, spec 29). */
 export const REEL_LAYOUTS_AND_TEMPLATES = `LAYOUTS

@@ -2,7 +2,7 @@ import { ReelPlanSchema, type ReelWord } from '@motionpop/schemas';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { autoReelPlan } from './auto';
-import { applyEditChoices, type EditChoices } from './edit-choices';
+import { applyEditChoices, CTA_MIN_REEL_MS, type EditChoices } from './edit-choices';
 
 const TOKEN = fc.oneof(
   { weight: 5, arbitrary: fc.stringMatching(/^[A-Za-z]{1,12}[.,?]?$/) },
@@ -94,6 +94,44 @@ describe('applyEditChoices (property)', () => {
         expect(base).toEqual(before);
       }),
       { numRuns: 60 },
+    );
+  });
+});
+
+// Spec 39 AI QA: the default ask (CTA on, no text) is added only when the plan has none and the
+// reel is long enough for it.
+describe('applyEditChoices: default CTA (property)', () => {
+  it('never adds a second cta, never adds one under CTA_MIN_REEL_MS, else ends on exactly one', () => {
+    fc.assert(
+      fc.property(transcript, fc.boolean(), ({ words, durationMs, look }, withCta) => {
+        const auto = autoReelPlan(words, durationMs, look);
+        const base = withCta
+          ? {
+              ...auto,
+              scenes: auto.scenes.map((s, i) =>
+                i === auto.scenes.length - 1
+                  ? {
+                      ...s,
+                      layout: 'speaker' as const,
+                      content: { template: 'cta' as const, verb: 'Comment', keyword: 'GUIDE' },
+                    }
+                  : s,
+              ),
+            }
+          : auto;
+        const count = (p: typeof base) =>
+          p.scenes.filter((s) => s.content.template === 'cta').length;
+        const out = applyEditChoices(base, words, durationMs, { cta: { enabled: true } });
+        expect(ReelPlanSchema.safeParse(out).success).toBe(true);
+        if (count(base) > 0 || durationMs < CTA_MIN_REEL_MS) {
+          expect(count(out)).toBe(count(base));
+        } else {
+          expect(count(out)).toBe(1);
+          expect(out.scenes.at(-1)!.content.template).toBe('cta');
+          expect(out.scenes.at(-1)!.endMs).toBe(durationMs);
+        }
+      }),
+      { numRuns: 200 },
     );
   });
 });
