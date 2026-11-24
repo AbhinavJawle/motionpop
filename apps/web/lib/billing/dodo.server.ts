@@ -5,11 +5,13 @@ import {
   CREDIT_PACKS,
   DodoResourceIdSchema,
   getCreditPack,
+  sha256Hex,
   type BillingEnvironment,
   type CreditPackId,
 } from '@motionpop/schemas';
 import {
   grantPurchasedCredits,
+  readAlreadyRevokedCredits,
   readBillingPayment,
   restoreDisputedCredits,
   revokePurchasedCredits,
@@ -87,9 +89,14 @@ export function createDodoClient(cfg: BillingConfig): DodoPayments {
   });
 }
 
+/** Strict hostname pattern (host or host:port) to block header-injection in x-forwarded-host. */
+const SAFE_HOST_RE = /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?$/i;
+
 /**
  * Safe return URL for Dodo checkout: uses configured `DODO_PAYMENTS_RETURN_URL`, else
- * `NEXT_PUBLIC_APP_URL`, else the current request origin. Never trusts client-supplied URLs.
+ * `NEXT_PUBLIC_APP_URL`, else validated reverse-proxy `x-forwarded-host` (Firebase App Hosting /
+ * Cloud Run), else the request origin. Never appends pre-existing query params so Dodo can append
+ * `?payment_id=...&status=...` cleanly, and never trusts client-supplied return URLs.
  */
 export function resolveReturnUrl(
   cfg: BillingConfig,
@@ -99,10 +106,22 @@ export function resolveReturnUrl(
   if (cfg.returnUrl) return cfg.returnUrl;
   const appUrl = cleanEnv(env.NEXT_PUBLIC_APP_URL);
   if (appUrl) {
-    return `${appUrl.replace(/\/+$/, '')}/pricing?checkout=return`;
+    return `${appUrl.replace(/\/+$/, '')}/pricing`;
+  }
+  const fwdHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ?? '';
+  const fwdProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase() ?? '';
+  if (fwdHost && SAFE_HOST_RE.test(fwdHost)) {
+    const proto = fwdProto === 'http' || fwdProto === 'https' ? fwdProto : 'https';
+    return `${proto}://${fwdHost}/pricing`;
   }
   const url = new URL(req.url);
-  return `${url.origin}/pricing?checkout=return`;
+  return `${url.origin}/pricing`;
+}
+
+/** Deterministic safe Firestore doc ID for any Standard Webhooks `webhook-id` header. */
+export function safeWebhookDocId(webhookId: string): string {
+  if (DodoResourceIdSchema.safeParse(webhookId).success) return webhookId;
+  return `wh_${sha256Hex(webhookId).slice(0, 40)}`;
 }
 
 export interface ResolvedCartCredits {
@@ -154,51 +173,67 @@ export interface WebhookDeps {
   cfg: BillingConfig;
   retrievePayment: (paymentId: string) => Promise<{
     payment_id: string;
+    status?: string | null;
+    refund_status?: string | null;
     metadata?: Record<string, unknown> | null;
     product_cart?: Array<{ product_id: string; quantity: number }> | null;
     customer?: { customer_id?: string | null } | null;
   }>;
   retrieveLineItems: (paymentId: string) => Promise<{
-    items: Array<{ items_id: string; refundable_amount: number }>;
+    items: Array<{ items_id: string; amount: number; refundable_amount: number }>;
   }>;
   grant?: typeof grantPurchasedCredits;
   revoke?: typeof revokePurchasedCredits;
   restore?: typeof restoreDisputedCredits;
   readPayment?: typeof readBillingPayment;
+  readAlreadyRevoked?: typeof readAlreadyRevokedCredits;
 }
 
 export interface WebhookOutcome {
   handled: boolean;
-  action:
-    | 'granted'
-    | 'replayed'
-    | 'revoked'
-    | 'restored'
-    | 'ignored';
+  action: 'granted' | 'replayed' | 'revoked' | 'restored' | 'ignored';
   detail?: string;
 }
 
 /**
+ * Thrown when a refund or dispute webhook arrives BEFORE `payment.succeeded` (out-of-order
+ * delivery) for a genuine Motionpop credit pack payment so the route returns 500 and Dodo retries.
+ */
+export class OutOfOrderWebhookError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OutOfOrderWebhookError';
+  }
+}
+
+/**
  * Processes a cryptographically verified Dodo Payments webhook event atomically.
- * Throws on transient Firestore errors so the route returns 500 and Dodo retries cleanly.
+ * Throws on transient Firestore errors or out-of-order credit-pack reversals so the route
+ * returns 500 and Dodo retries cleanly.
  */
 export async function handleDodoWebhookEvent(
   deps: WebhookDeps,
   event: UnwrapWebhookEvent,
   webhookId: string,
 ): Promise<WebhookOutcome> {
-  const safeWebhookId = DodoResourceIdSchema.safeParse(webhookId).success
-    ? webhookId
-    : `wh_${Date.now()}`;
+  const safeWebhookId = safeWebhookDocId(webhookId);
   const grantFn = deps.grant ?? grantPurchasedCredits;
   const revokeFn = deps.revoke ?? revokePurchasedCredits;
   const restoreFn = deps.restore ?? restoreDisputedCredits;
   const readPayFn = deps.readPayment ?? readBillingPayment;
+  const readRevokedFn = deps.readAlreadyRevoked ?? readAlreadyRevokedCredits;
 
   switch (event.type) {
     case 'payment.succeeded': {
       const payment = event.data;
       const paymentId = payment.payment_id;
+      if (payment.status && payment.status !== 'succeeded') {
+        return { handled: true, action: 'ignored', detail: `status-${payment.status}` };
+      }
+      if (payment.refund_status === 'full') {
+        return { handled: true, action: 'ignored', detail: 'already-fully-refunded' };
+      }
+
       let metadata: Record<string, unknown> | null | undefined = payment.metadata;
       let cart = payment.product_cart;
       let dodoCustomerId = payment.customer?.customer_id || undefined;
@@ -209,6 +244,12 @@ export async function handleDodoWebhookEvent(
 
       if (!cart?.length || !metaUid(metadata)) {
         const full = await deps.retrievePayment(paymentId);
+        if (full.status && full.status !== 'succeeded') {
+          return { handled: true, action: 'ignored', detail: `status-${full.status}` };
+        }
+        if (full.refund_status === 'full') {
+          return { handled: true, action: 'ignored', detail: 'already-fully-refunded' };
+        }
         cart = full.product_cart ?? cart;
         metadata = full.metadata ?? metadata;
         dodoCustomerId = full.customer?.customer_id || dodoCustomerId;
@@ -251,19 +292,30 @@ export async function handleDodoWebhookEvent(
       if (refund.is_partial) {
         const stored = await readPayFn(deps.db, refund.payment_id);
         if (!stored) {
+          const full = await deps.retrievePayment(refund.payment_id);
+          if (resolvePurchasedCart(full.product_cart, deps.cfg)) {
+            throw new OutOfOrderWebhookError(
+              `Partial refund arrived before payment.succeeded for ${refund.payment_id}`,
+            );
+          }
           return { handled: false, action: 'ignored', detail: 'unknown-payment' };
         }
         const { items } = await deps.retrieveLineItems(refund.payment_id);
-        const fullyRefundedIds = new Set(
-          items.filter((it) => it.refundable_amount === 0).map((it) => it.items_id),
-        );
-        const matchedCredits = stored.items
-          .filter((it) => fullyRefundedIds.has(it.productId))
-          .reduce((sum, it) => sum + it.credits, 0);
-        if (matchedCredits <= 0) {
-          return { handled: true, action: 'ignored', detail: 'partial-refund-no-full-item' };
+        const lineById = new Map(items.map((it) => [it.items_id, it]));
+        let targetTotalRevoked = 0;
+        for (const purchased of stored.items) {
+          const line = lineById.get(purchased.productId);
+          if (!line || line.amount <= 0) continue;
+          const refundedAmount = Math.max(0, line.amount - line.refundable_amount);
+          const ratio = Math.min(1, refundedAmount / line.amount);
+          targetTotalRevoked += Math.round(purchased.credits * ratio);
         }
-        creditsToRevoke = matchedCredits;
+        const alreadyRevoked = await readRevokedFn(deps.db, stored.uid, refund.payment_id);
+        const deltaToRevoke = Math.max(0, targetTotalRevoked - alreadyRevoked);
+        if (deltaToRevoke <= 0) {
+          return { handled: true, action: 'ignored', detail: 'partial-refund-already-covered' };
+        }
+        creditsToRevoke = deltaToRevoke;
       }
 
       const res = await revokeFn(deps.db, {
@@ -274,6 +326,14 @@ export async function handleDodoWebhookEvent(
         sourceId: refund.refund_id,
         ...(creditsToRevoke !== undefined ? { creditsToRevoke } : {}),
       });
+      if (!res.applied && res.reason === 'no-purchase') {
+        const full = await deps.retrievePayment(refund.payment_id);
+        if (resolvePurchasedCart(full.product_cart, deps.cfg)) {
+          throw new OutOfOrderWebhookError(
+            `Refund arrived before payment.succeeded for ${refund.payment_id}`,
+          );
+        }
+      }
       return {
         handled: true,
         action: res.applied ? 'revoked' : res.reason === 'replay' ? 'replayed' : 'ignored',
@@ -290,6 +350,14 @@ export async function handleDodoWebhookEvent(
         kind: 'dispute',
         sourceId: dispute.dispute_id,
       });
+      if (!res.applied && res.reason === 'no-purchase') {
+        const full = await deps.retrievePayment(dispute.payment_id);
+        if (resolvePurchasedCart(full.product_cart, deps.cfg)) {
+          throw new OutOfOrderWebhookError(
+            `Dispute arrived before payment.succeeded for ${dispute.payment_id}`,
+          );
+        }
+      }
       return {
         handled: true,
         action: res.applied ? 'revoked' : res.reason === 'replay' ? 'replayed' : 'ignored',

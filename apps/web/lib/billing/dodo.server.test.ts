@@ -3,6 +3,7 @@ import type { UnwrapWebhookEvent } from 'dodopayments/resources/webhooks';
 import type { Firestore } from 'firebase-admin/firestore';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  OutOfOrderWebhookError,
   createDodoClient,
   handleDodoWebhookEvent,
   isKeyCompatibleWithEnvironment,
@@ -10,6 +11,7 @@ import {
   readBillingConfig,
   resolvePurchasedCart,
   resolveReturnUrl,
+  safeWebhookDocId,
   type BillingConfig,
 } from './dodo.server';
 
@@ -93,14 +95,37 @@ describe('dodo.server config and safety guards (spec 44)', () => {
     ).toBeNull();
   });
 
-  it('derives safe return URL from env or request origin', () => {
+  it('derives safe return URL from env, validated x-forwarded-host, or request origin (no double query string)', () => {
     const req = new Request('https://motionpop.app/api/billing/checkout', { method: 'POST' });
-    expect(resolveReturnUrl(TEST_CFG, req, {})).toBe(
-      'https://motionpop.app/pricing?checkout=return',
-    );
+    expect(resolveReturnUrl(TEST_CFG, req, {})).toBe('https://motionpop.app/pricing');
     expect(
       resolveReturnUrl({ ...TEST_CFG, returnUrl: 'https://custom.example/done' }, req, {}),
     ).toBe('https://custom.example/done');
+
+    // Behind Cloud Run / App Hosting reverse proxy
+    const proxied = new Request('http://0.0.0.0:8080/api/billing/checkout', {
+      method: 'POST',
+      headers: {
+        'x-forwarded-host': 'motionpop.app',
+        'x-forwarded-proto': 'https',
+      },
+    });
+    expect(resolveReturnUrl(TEST_CFG, proxied, {})).toBe('https://motionpop.app/pricing');
+
+    // Rejects header-injection in x-forwarded-host
+    const evilHost = new Request('https://motionpop.app/api/billing/checkout', {
+      method: 'POST',
+      headers: { 'x-forwarded-host': 'evil.com/phish?x=' },
+    });
+    expect(resolveReturnUrl(TEST_CFG, evilHost, {})).toBe('https://motionpop.app/pricing');
+  });
+
+  it('produces deterministic safe Firestore IDs for unusual webhook-id formats', () => {
+    expect(safeWebhookDocId('msg_abc_123')).toBe('msg_abc_123');
+    const a = safeWebhookDocId('wh:2026.11.24/weird');
+    const b = safeWebhookDocId('wh:2026.11.24/weird');
+    expect(a).toBe(b);
+    expect(a).toMatch(/^wh_[0-9a-f]{40}$/);
   });
 
   it('verifies Standard Webhooks signatures on raw body via official SDK unwrap() and rejects tampering', () => {
@@ -255,7 +280,8 @@ describe('handleDodoWebhookEvent (spec 44)', () => {
       sourceId: 'ref_1',
     });
 
-    // Partial refund: only pdt_starter_01 has refundable_amount === 0
+    // Partial refund: 100% of starter (500/500) refunded + 50% of creator (750/1500) refunded
+    // = 60 + 100 = 160 total; if 60 was already revoked, incremental delta is 100!
     revoke.mockClear();
     const partialEvent = {
       ...fullRefundEvent,
@@ -269,8 +295,8 @@ describe('handleDodoWebhookEvent (spec 44)', () => {
         retrievePayment: vi.fn(),
         retrieveLineItems: vi.fn(async () => ({
           items: [
-            { items_id: 'pdt_starter_01', refundable_amount: 0 },
-            { items_id: 'pdt_creator_01', refundable_amount: 1500 },
+            { items_id: 'pdt_starter_01', amount: 500, refundable_amount: 0 },
+            { items_id: 'pdt_creator_01', amount: 1500, refundable_amount: 750 },
           ],
         })),
         readPayment: vi.fn(async () => ({
@@ -283,6 +309,7 @@ describe('handleDodoWebhookEvent (spec 44)', () => {
           ],
           environment: 'test_mode' as const,
         })),
+        readAlreadyRevoked: vi.fn(async () => 60),
         revoke,
       },
       partialEvent,
@@ -294,8 +321,80 @@ describe('handleDodoWebhookEvent (spec 44)', () => {
       paymentId: 'pay_003',
       kind: 'refund',
       sourceId: 'ref_2',
-      creditsToRevoke: 60,
+      creditsToRevoke: 100,
     });
+  });
+
+  it('throws OutOfOrderWebhookError when refund/dispute arrives before payment.succeeded for a real credit pack, and skips already-refunded payment.succeeded', async () => {
+    // Already-refunded payment.succeeded must NOT grant credits
+    const grant = vi.fn();
+    const refundedPay = {
+      business_id: 'bus_1',
+      type: 'payment.succeeded',
+      timestamp: '2026-11-24T12:00:00Z',
+      data: {
+        payment_id: 'pay_already_refunded',
+        status: 'succeeded',
+        refund_status: 'full',
+        metadata: { app_user_id: 'user_42' },
+        product_cart: [{ product_id: 'pdt_creator_01', quantity: 1 }],
+        customer: { customer_id: 'cus_99', email: 'creator@example.com', name: 'Creator' },
+      },
+    } as unknown as UnwrapWebhookEvent;
+    const skipped = await handleDodoWebhookEvent(
+      {
+        db: fakeDb,
+        cfg: TEST_CFG,
+        retrievePayment: vi.fn(),
+        retrieveLineItems: vi.fn(),
+        grant,
+      },
+      refundedPay,
+      'msg_refunded_pay',
+    );
+    expect(skipped.action).toBe('ignored');
+    expect(grant).not.toHaveBeenCalled();
+
+    // Out-of-order refund for a real Motionpop credit pack triggers retry (OutOfOrderWebhookError)
+    const earlyRefund = {
+      business_id: 'bus_1',
+      type: 'refund.succeeded',
+      timestamp: '2026-11-24T12:00:00Z',
+      data: { refund_id: 'ref_early', payment_id: 'pay_future', is_partial: false, status: 'succeeded' },
+    } as unknown as UnwrapWebhookEvent;
+    await expect(
+      handleDodoWebhookEvent(
+        {
+          db: fakeDb,
+          cfg: TEST_CFG,
+          retrievePayment: vi.fn(async () => ({
+            payment_id: 'pay_future',
+            product_cart: [{ product_id: 'pdt_creator_01', quantity: 1 }],
+          })),
+          retrieveLineItems: vi.fn(),
+          revoke: vi.fn(async () => ({ applied: false, revoked: 0, reason: 'no-purchase' as const })),
+        },
+        earlyRefund,
+        'msg_ref_early',
+      ),
+    ).rejects.toBeInstanceOf(OutOfOrderWebhookError);
+
+    // Unrelated product refund does NOT throw (no infinite retry loop)
+    const unrelated = await handleDodoWebhookEvent(
+      {
+        db: fakeDb,
+        cfg: TEST_CFG,
+        retrievePayment: vi.fn(async () => ({
+          payment_id: 'pay_other_app',
+          product_cart: [{ product_id: 'pdt_some_other_app', quantity: 1 }],
+        })),
+        retrieveLineItems: vi.fn(),
+        revoke: vi.fn(async () => ({ applied: false, revoked: 0, reason: 'no-purchase' as const })),
+      },
+      earlyRefund,
+      'msg_ref_other',
+    );
+    expect(unrelated.action).toBe('ignored');
   });
 
   it('revokes on dispute.opened and restores on dispute.won / dispute.cancelled', async () => {

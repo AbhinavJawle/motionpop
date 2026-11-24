@@ -43,8 +43,9 @@ export const UserDocSchema = z.object({
   photoURL: z.string().optional(),
   credits: z.number().int().nonnegative(),
   plan: PlanSchema,
-  /** Dodo Payments customer id, written server-side after the first purchase (spec 44). */
+  /** Dodo Payments customer id and mode, written server-side after first purchase (spec 44). */
   dodoCustomerId: z.string().min(1).max(128).optional(),
+  dodoCustomerEnv: z.enum(['test_mode', 'live_mode']).optional(),
   settings: UserSettingsSchema,
   schemaVersion: z.literal(1),
   createdAt: TimestampLikeSchema,

@@ -35,6 +35,7 @@ import {
   startPackCheckout,
 } from '@/lib/billing/client';
 import { cn } from '@/lib/cn';
+import { userStore } from '@/lib/credits/firestore-listen';
 import { planLine } from '@/lib/credits/ledger-text';
 import { useCredits } from '@/lib/credits/use-credits';
 import { useCreditsBalance } from '@/lib/credits/use-credits-client';
@@ -63,9 +64,25 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
   const [returnStatus, setReturnStatus] = useState<BillingStatusResponse | null>(null);
   const [polling, setPolling] = useState(false);
 
-  const isReturn = searchParams.get('checkout') === 'return';
   const returnPaymentId = searchParams.get('payment_id')?.trim() ?? '';
   const returnQueryStatus = searchParams.get('status')?.trim().toLowerCase() ?? '';
+  const isReturn =
+    Boolean(returnPaymentId) ||
+    Boolean(returnQueryStatus) ||
+    searchParams.get('checkout') === 'return';
+  const isFailedReturn =
+    returnQueryStatus === 'failed' ||
+    returnQueryStatus === 'cancelled' ||
+    returnQueryStatus === 'expired';
+
+  // Reset spinner if the user navigates back from hosted checkout via browser BFCache.
+  useEffect(() => {
+    const onPageShow = (e: PageTransitionEvent) => {
+      if (e.persisted) setBusyPack(null);
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -85,12 +102,12 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
   // Credits are granted strictly by the verified webhook, never from URL query params.
   useEffect(() => {
     if (!isReturn || !returnPaymentId || auth.status !== 'signed-in') return;
-    if (returnQueryStatus === 'failed' || returnQueryStatus === 'cancelled') return;
+    if (isFailedReturn) return;
 
     let cancelled = false;
     let attempts = 0;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const getIdToken = auth.user.getIdToken;
+    const { uid, getIdToken } = auth.user;
 
     const poll = async () => {
       if (cancelled) return;
@@ -100,6 +117,7 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
         if (cancelled) return;
         setReturnStatus(res);
         if (res.status === 'settled' || res.status === 'reversed') {
+          if (res.balance !== null) userStore.setBalance(uid, res.balance);
           setPolling(false);
           return;
         }
@@ -121,10 +139,11 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [isReturn, returnPaymentId, returnQueryStatus, auth]);
+  }, [isReturn, isFailedReturn, returnPaymentId, auth]);
 
+  const packsLoading = packsInfo === null && !packsError;
   const packAvailable = (id: CreditPackId): boolean => {
-    if (!packsInfo) return !packsError;
+    if (!packsInfo) return false;
     return packsInfo.packs.find((p) => p.id === id)?.available ?? false;
   };
 
@@ -206,14 +225,14 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
             data-testid="checkout-return-banner"
             className={cn(
               'mb-8 rounded-2xl border-2 border-ink p-5 shadow-[4px_4px_0_#000]',
-              returnQueryStatus === 'failed' || returnQueryStatus === 'cancelled'
+              isFailedReturn || returnStatus?.status === 'reversed'
                 ? 'bg-[#fee2e2]'
                 : returnStatus?.status === 'settled'
                   ? 'bg-[#d1fae5]'
                   : 'bg-[#fef3c7]',
             )}
           >
-            {returnQueryStatus === 'failed' || returnQueryStatus === 'cancelled' ? (
+            {isFailedReturn ? (
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
                   <p className="font-semibold text-ink">Checkout wasn&apos;t completed</p>
@@ -224,6 +243,18 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
                 </div>
                 <Link href="/pricing" className={btn('paper', 'sm')}>
                   Dismiss
+                </Link>
+              </div>
+            ) : returnStatus?.status === 'reversed' ? (
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <p className="font-semibold text-ink">Payment was refunded or reversed</p>
+                  <p className="mt-1 text-[13px] text-black/75">
+                    Unspent credits from this payment were removed from your ledger.
+                  </p>
+                </div>
+                <Link href="/settings#credits" className={btn('paper', 'sm')}>
+                  View ledger
                 </Link>
               </div>
             ) : returnStatus?.status === 'settled' ? (
@@ -408,7 +439,13 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
 
                   <button
                     type="button"
-                    disabled={isBusy || busyPack !== null || !available}
+                    disabled={
+                      isBusy ||
+                      busyPack !== null ||
+                      auth.status === 'loading' ||
+                      packsLoading ||
+                      !available
+                    }
                     onClick={() => void handleBuy(pack.id)}
                     className={cn(
                       btn(pack.popular ? 'flame' : 'ink', 'md', pack.popular),
@@ -420,6 +457,8 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
                         <Loader2 className="size-4 animate-spin" aria-hidden />
                         Opening checkout…
                       </>
+                    ) : packsLoading ? (
+                      'Checking checkout…'
                     ) : !available ? (
                       'Checkout setup pending'
                     ) : auth.status === 'signed-out' ? (

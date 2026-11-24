@@ -81,18 +81,27 @@ export function grantPurchasedCredits(
   const txRef = userRef.collection('credits').doc(txId);
 
   return db.runTransaction(async (t) => {
-    const [whSnap, userSnap, txSnap] = await t.getAll(webhookRef, userRef, txRef);
+    // Read paymentRef too so a single paymentId can NEVER credit two different accounts.
+    const [whSnap, paySnap, userSnap, txSnap] = await t.getAll(
+      webhookRef,
+      paymentRef,
+      userRef,
+      txRef,
+    );
     if (!userSnap?.exists) {
       throw new LedgerError('not-bootstrapped', `User doc missing for ${input.uid}`);
     }
     const user = UserDocSchema.parse(userSnap.data());
     const existingPurchase = txSnap?.exists ? CreditTxSchema.parse(txSnap.data()) : null;
     const webhookProcessed = whSnap?.exists ?? false;
+    const paymentAlreadyRecorded = paySnap?.exists ?? false;
 
     const decision = decidePurchaseGrant({
       balance: user.credits,
       creditsToGrant: input.credits,
-      existingPurchase,
+      existingPurchase:
+        existingPurchase ??
+        (paymentAlreadyRecorded ? { delta: input.credits, balanceAfter: user.credits } : null),
       webhookProcessed,
       currentPlan: user.plan,
       targetPlan: input.targetPlan,
@@ -141,7 +150,9 @@ export function grantPurchasedCredits(
     t.update(userRef, {
       credits: decision.balanceAfter,
       plan: decision.nextPlan,
-      ...(input.dodoCustomerId ? { dodoCustomerId: input.dodoCustomerId } : {}),
+      ...(input.dodoCustomerId
+        ? { dodoCustomerId: input.dodoCustomerId, dodoCustomerEnv: input.environment }
+        : {}),
       lastSeenAt: at,
     });
 
@@ -342,7 +353,7 @@ export function restoreDisputedCredits(
     t.create(resTxRef, {
       delta: decision.restored,
       reason: 'purchase-restore',
-      refId: safeDisputeId,
+      refId: safePaymentId,
       balanceAfter: decision.balanceAfter,
       at,
     });
@@ -374,20 +385,51 @@ export async function readPurchaseStatus(
     return { paymentId: safePaymentId, status: 'pending', balance };
   }
   const tx = CreditTxSchema.parse(txSnap.data());
-  // Single-field query on `refId` (no composite index needed) to check for payment reversals.
+  // Single-field query on `refId` (no composite index needed) computing net reversals vs restores.
   const relatedSnap = await userRef
     .collection('credits')
     .where('refId', '==', safePaymentId)
-    .limit(10)
+    .limit(20)
     .get();
-  const hasReversal = relatedSnap.docs.some((d) => {
+  let netAdjustment = 0;
+  for (const d of relatedSnap.docs) {
     const parsed = CreditTxSchema.safeParse(d.data());
-    return parsed.success && parsed.data.reason === 'purchase-reversal';
-  });
-  if (hasReversal) {
+    if (!parsed.success) continue;
+    if (
+      parsed.data.reason === 'purchase-reversal' ||
+      parsed.data.reason === 'purchase-restore'
+    ) {
+      netAdjustment += parsed.data.delta;
+    }
+  }
+  if (netAdjustment < 0) {
     return { paymentId: safePaymentId, status: 'reversed', credits: tx.delta, balance };
   }
   return { paymentId: safePaymentId, status: 'settled', credits: tx.delta, balance };
+}
+
+/** Reads total credits already revoked for `paymentId` (to avoid over-revoking across partial refunds). */
+export async function readAlreadyRevokedCredits(
+  db: Firestore,
+  uid: string,
+  paymentId: string,
+): Promise<number> {
+  const safePaymentId = DodoResourceIdSchema.parse(paymentId);
+  const snap = await db
+    .collection('users')
+    .doc(uid)
+    .collection('credits')
+    .where('refId', '==', safePaymentId)
+    .limit(20)
+    .get();
+  let revoked = 0;
+  for (const d of snap.docs) {
+    const parsed = CreditTxSchema.safeParse(d.data());
+    if (parsed.success && parsed.data.reason === 'purchase-reversal' && parsed.data.delta < 0) {
+      revoked += -parsed.data.delta;
+    }
+  }
+  return revoked;
 }
 
 /** Reads the persisted billing payment record (server-only) for partial-refund credit math. */

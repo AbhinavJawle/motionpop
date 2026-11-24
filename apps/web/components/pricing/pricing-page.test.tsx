@@ -98,8 +98,8 @@ describe('PricingPage (spec 44)', () => {
     expect(h.startPackCheckout).not.toHaveBeenCalled();
   });
 
-  it('polls read-only payment status on checkout return and shows confirmation once webhook settles', async () => {
-    h.searchParams = new URLSearchParams('checkout=return&payment_id=pay_abc123&status=succeeded');
+  it('polls read-only payment status on plain Dodo return URL (without checkout=return) and shows confirmation once webhook settles', async () => {
+    h.searchParams = new URLSearchParams('payment_id=pay_abc123&status=succeeded');
     h.fetchPaymentStatus.mockResolvedValue({
       paymentId: 'pay_abc123',
       status: 'settled',
