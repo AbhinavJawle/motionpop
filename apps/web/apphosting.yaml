@@ -28,3 +28,18 @@ env:
     value: us-central1
     availability:
       - RUNTIME
+  # Billing mode defaults to test_mode until Dodo Payments live secrets are created in Secret Manager
+  # (spec 44). Before uncommenting any `secret:` entries below, create each secret in GCP Secret Manager
+  # and grant the App Hosting backend access (`firebase apphosting:secrets:grantaccess <NAME>`):
+  #   - PIXABAY_API_KEY
+  #   - PEXELS_API_KEY
+  #   - UNCOMMON_EAR_API_KEY
+  #   - DODO_PAYMENTS_API_KEY
+  #   - DODO_PAYMENTS_WEBHOOK_KEY
+  #   - DODO_PRODUCT_STARTER_ID
+  #   - DODO_PRODUCT_CREATOR_ID
+  #   - DODO_PRODUCT_STUDIO_ID
+  - variable: DODO_PAYMENTS_ENVIRONMENT
+    value: test_mode
+    availability:
+      - RUNTIME

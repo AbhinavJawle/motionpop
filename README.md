@@ -47,13 +47,13 @@ Motionpop runs on **Firebase AI Logic out of the box** (no API key needed). On D
 ## Repository
 
 ```
-apps/web           Next.js 16 app (landing, /how-it-works, dashboard, start, editor, recipes, skills, styles, settings)
+apps/web           Next.js 16 app (landing, /how-it-works, /pricing, dashboard, start, editor, recipes, skills, styles, settings)
 packages/schemas   Zod 4 schemas shared across browser, API and Cloud Run
 packages/motion    Deterministic motion core, 21 reel templates, 9 explainer scenes, 8 looks, HyperFrames compiler, procedural SFX
 packages/ai        Firebase AI Logic hybrid router, 20+ tasks (10 on-device Nano), prompts, schema/cap guards, Lyria 2, BYOK
-services/render    Cloud Run render service (@hyperframes/producer + FFmpeg parity compositor)
+services/render    Cloud Run render service (@hyperframes/producer + FFmpeg parity compositor) & Firestore credit/billing ledger
 skills/            5 Reel Director Recipes & 8 Motion-Graphic Slot Skills (Markdown)
-.kiro/             44 EARS specs, 21 steering docs, hooks, 8 Firebase Agent Skills & HyperFrames skills
+.kiro/             45 EARS specs, 21 steering docs, hooks, 8 Firebase Agent Skills & HyperFrames skills
 docs/              plan, decisions (D-001..D-087+), third-party disclosure, demo scripts, hackathon write-ups
 ```
 

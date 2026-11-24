@@ -54,8 +54,19 @@ export function AccountSection({ variant }: { variant: SettingsVariant }) {
                 : 'Working locally'}
             </p>
             {plan && (
-              <Chip tone={plan === 'judge' ? 'ember' : 'neutral'} className="h-[19px]">
-                <span data-testid="plan-chip">{plan === 'judge' ? 'Judge' : 'Free'}</span>
+              <Chip
+                tone={plan === 'judge' ? 'ember' : plan === 'free' ? 'neutral' : 'mint'}
+                className="h-[19px]"
+              >
+                <span data-testid="plan-chip">
+                  {plan === 'judge'
+                    ? 'Judge'
+                    : plan === 'pro'
+                      ? 'Studio'
+                      : plan === 'creator'
+                        ? 'Creator'
+                        : 'Free'}
+                </span>
               </Chip>
             )}
           </div>

@@ -1,6 +1,7 @@
 'use client';
 
-import { Cloud, KeyRound } from 'lucide-react';
+import { Cloud, Coins, KeyRound } from 'lucide-react';
+import Link from 'next/link';
 import { useState } from 'react';
 import { NumberRoll } from '@/components/ui/number-roll';
 import { Shimmer } from '@/components/ui/shimmer';
@@ -55,6 +56,18 @@ export function CreditsSection({ variant, nowMs }: { variant: SettingsVariant; n
             {planLine(plan, config.freeCredits) || 'Credits sync when you sign in.'}
           </p>
         </div>
+        <Link
+          href="/pricing"
+          className={cn(
+            'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-chip px-3 text-xs font-medium transition-colors',
+            variant === 'page'
+              ? 'border-2 border-ink bg-flame text-white shadow-[2px_2px_0_#000] hover:brightness-105'
+              : 'bg-ember text-white hover:brightness-110',
+          )}
+        >
+          <Coins className="size-3.5" strokeWidth={2} aria-hidden />
+          Buy credits
+        </Link>
       </div>
 
       {byokActive && (

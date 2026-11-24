@@ -7,7 +7,7 @@ const ISSUES = 'https://github.com/AbhinavJawle/motionpop/issues';
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Privacy" updated="16 November 2026">
+    <LegalPage title="Privacy" updated="24 November 2026">
       <p>
         Motionpop is a small, open-source project built and run by one person. This page says
         plainly what it stores, where your words and voice go, and how to remove them.
@@ -53,9 +53,12 @@ export default function PrivacyPage() {
           be written by Anthropic&apos;s Claude, through our server.
         </li>
         <li>
-          <strong>Hosting:</strong> accounts, projects, files and rendering run on Google Cloud and
-          Firebase in the United States. Sign-in is protected by Firebase App Check, which uses
-          reCAPTCHA.
+          <strong>Hosting &amp; billing:</strong> accounts, projects, files and rendering run on
+          Google Cloud and Firebase in the United States. Sign-in is protected by Firebase App
+          Check, which uses reCAPTCHA. One-time credit pack purchases are processed by{' '}
+          <strong>Dodo Payments</strong> (Merchant of Record); we send your email and user ID to
+          create a checkout session and store only the resulting Dodo customer ID and payment
+          reference—never your card details.
         </li>
       </ul>
 

@@ -42,7 +42,10 @@ describe('Landing', () => {
     render(<Landing />);
     // Quick edits and the export are both free.
     expect(screen.getAllByText('Free').length).toBe(2);
-    expect(screen.getByText('20 credits on sign-up')).toBeTruthy();
+    expect(screen.getByText('15 credits on sign-up')).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Buy credit packs' }).getAttribute('href')).toBe(
+      '/pricing',
+    );
     expect(screen.getAllByText(/^\d+ credits$/).length).toBe(3);
     expect(screen.getByRole('link', { name: 'Privacy' }).getAttribute('href')).toBe('/privacy');
     for (const a of screen.getAllByRole('link', { name: 'How it works' })) {

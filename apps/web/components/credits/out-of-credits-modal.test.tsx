@@ -37,6 +37,9 @@ describe('OutOfCreditsModal', () => {
     expect(screen.getByTestId('out-of-credits-cost').textContent).toBe(
       '0 available · Generate costs 3',
     );
+    expect(screen.getByRole('link', { name: /Buy credits/i }).getAttribute('href')).toBe(
+      '/pricing',
+    );
     expect(screen.getByRole('button', { name: 'Keep editing' })).toBeTruthy();
   });
 

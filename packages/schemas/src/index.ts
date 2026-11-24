@@ -19,6 +19,7 @@ export * from './plan';
 export * from './gate';
 export * from './render';
 export * from './credits';
+export * from './billing';
 export * from './cost';
 export * from './usage';
 export * from './pip';

@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 describe('AppBar', () => {
-  it('shows all five tabs when signed in and marks the active tab', () => {
+  it('shows all six tabs when signed in and marks the active tab', () => {
     render(<AppBar active="recipes" />);
     const links = [
       ['Projects', '/dashboard'],
@@ -35,6 +35,7 @@ describe('AppBar', () => {
       ['Recipes', '/recipes'],
       ['Skills', '/skills'],
       ['How it works', '/how-it-works'],
+      ['Pricing', '/pricing'],
     ] as const;
     for (const [name, href] of links) {
       const el = screen.getByRole('link', { name });
@@ -46,12 +47,13 @@ describe('AppBar', () => {
     );
   });
 
-  it('shows only How it works and Sign in when signed out, with logo pointing to /', () => {
+  it('shows only How it works, Pricing and Sign in when signed out, with logo pointing to /', () => {
     h.auth = { status: 'signed-out' };
     render(<AppBar active="how" />);
     expect(screen.getByRole('link', { name: 'How it works' }).getAttribute('aria-current')).toBe(
       'page',
     );
+    expect(screen.getByRole('link', { name: 'Pricing' }).getAttribute('href')).toBe('/pricing');
     expect(screen.getByRole('link', { name: 'Sign in' }).getAttribute('href')).toBe('/sign-in');
     expect(screen.queryByRole('link', { name: 'Projects' })).toBeNull();
     expect(screen.getByRole('link', { name: 'motionpop home' }).getAttribute('href')).toBe('/');

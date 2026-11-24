@@ -1,6 +1,8 @@
 'use client';
 
 import type { ClientCreditAction } from '@motionpop/schemas';
+import { Coins } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect } from 'react';
 import { Pip } from '@/components/pip/pip';
 import { Button } from '@/components/ui/button';
@@ -80,18 +82,28 @@ export function OutOfCreditsModal({
             {costLine(info)}
           </p>
         )}
-        <Button
-          variant="primary"
-          size="lg"
-          className="mt-6 h-10 w-full"
-          onClick={() => {
-            onClose();
-            // After the modal's own focus restore has run.
-            setTimeout(focusQuickEdit, 50);
-          }}
-        >
-          Keep editing
-        </Button>
+        <div className="mt-6 flex w-full flex-col gap-2.5">
+          <Link
+            href="/pricing"
+            onClick={onClose}
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-chip bg-ember px-4 text-[13px] font-medium text-white transition hover:brightness-110"
+          >
+            <Coins className="size-4" strokeWidth={2} aria-hidden />
+            Buy credits
+          </Link>
+          <Button
+            variant="secondary"
+            size="lg"
+            className="h-10 w-full"
+            onClick={() => {
+              onClose();
+              // After the modal's own focus restore has run.
+              setTimeout(focusQuickEdit, 50);
+            }}
+          >
+            Keep editing
+          </Button>
+        </div>
       </div>
     </Modal>
   );

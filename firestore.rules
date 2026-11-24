@@ -102,6 +102,14 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Dodo Payments webhook deduplication & payment lookup records (spec 44): server-only.
+    match /billing_webhooks/{wid} {
+      allow read, write: if false;
+    }
+    match /billing_payments/{pid} {
+      allow read, write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

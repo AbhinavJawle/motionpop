@@ -1277,3 +1277,18 @@ Template:
 - Implemented `packages/ai/src/skills/user-skill.ts` (`parseSkillMarkdown`, `condenseSkillInstructions`, `toUserSkillRef`, `toRawGithubCandidates`, `EXAMPLE_SKILL_MARKDOWN`) + wired custom skill injection directly into `reel.direct` (`packages/ai/src/reel/brief.ts`) and `film.direct` (`packages/ai/src/tasks/film.ts`, `apps/web/lib/film/film.ts`).
 - Built SSRF-safe `/api/skills/import` route (HTTPS `github.com` / `raw.githubusercontent.com` allowlist, 128 KB cap, 8 s timeout) and bidirectional Firestore + `localStorage` store (`apps/web/lib/skills/user-skills.ts`).
 - Built `SkillImportModal` (paste `SKILL.md`, GitHub URL import, upload `.md`, or load example skill) and wired custom skills across `/skills`, `/recipes`, `/start?skill=<id>`, and `/start/configure` + SummaryPanel.
+
+
+## 2026-11-24 — Compliance audit, clean commits & Spec 44 (Credit Buying + Dodo Payments + 15 Default Credits)
+- **Tools:** Antigravity (Gemini 4 Neon), `dodo-agent-plugin` installed via `agy plugin install`.
+- **Short task (audit & compliance):**
+  - Fixed Vitest `firebase/ai` peer-hash resolution mismatch in `apps/web/vitest.config.ts` so `lib/tts/generate-voice-cache.test.ts` passes cleanly across workspace packages.
+  - Audited 2,079 repository files for secrets (0 leaks), third-party trademarks/logos (0 hits in UI/samples), and live GCP project parity (`motionpop-48409`: noted `JUDGE_EMAILS` is the only Secret Manager entry so far, Cloud Run `motionpop-render` last deployed Nov 16, and flagged monthly €5/€13 Firebase spend caps including one in `AWAITING_NEXT_PERIOD`).
+  - Updated `docs/third-party.md` and `how-it-works-page.tsx` to accurately disclose Rive CLI (Pip WebM/WebP exports), Vertex AI Lyria 2, Pixabay, Pexels, Wikimedia Commons, Simple Icons, Uncommon Ear, and Dodo Payments.
+  - Committed all 197 pending files across 3 clean conventional commits (`40aa082`, `87cac29`, `3654d43`) with 5/5 packages green.
+- **Spec 44 (`44-pricing-and-dodopayments`):**
+  - Lowered `APP_CONFIG_DEFAULTS.freeCredits` from `20` to `15` (judge accounts keep `judgeCredits = 500` with auto-refill).
+  - Added `@motionpop/schemas` billing catalog (`starter`: 60 cr / $5, `creator`: 200 cr / $15, `studio`: 600 cr / $39), Zod contracts, `UserDocSchema.dodoCustomerId`, and `purchase` / `purchase-reversal` / `purchase-restore` ledger reasons.
+  - Added pure billing ledger decisions + `fast-check` property tests (`services/render/src/store/billing-logic.ts` & `.test.ts`) and single-transaction Firestore fulfillment/revocation/restore helpers (`billing.ts`) with `billing_webhooks/{webhookId}` + `billing_payments/{paymentId}` double idempotency.
+  - Built authenticated `POST /api/billing/checkout`, read-only `GET /api/billing/packs` & `GET /api/billing/status`, and raw-body Standard Webhooks `POST /api/webhooks/dodopayments` using the official `dodopayments` SDK (`2.63.1`), defaulting strictly to `test_mode`.
+  - Built `/pricing` page in the Paper aesthetic with live Dodo checkout redirect, return-URL webhook status polling, and wired Buy CTAs across `AppBar`, `Settings → Credits`, `OutOfCreditsModal`, `Landing`, `Terms`, and `Privacy`.

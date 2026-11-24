@@ -196,7 +196,7 @@ export const STITCHED = {
     },
     {
       name: 'Kiro Spec-Driven Build',
-      job: '43 EARS specs, steering rules, hooks and property-tested boundaries live in /.kiro',
+      job: '44 EARS specs, steering rules, hooks and property-tested boundaries live in /.kiro',
     },
   ],
   bubble: 'It’s alive!',
@@ -260,7 +260,7 @@ export const FAQ = {
     },
     {
       q: 'What do I export, and is it really open source?',
-      a: 'Export 720p or 1080p MP4s in 9:16, 16:9 or 1:1—or transparent WebM overlays to drop into another editor—plus shareable links. The full codebase and 43 Kiro specs are open source under Apache-2.0.',
+      a: 'Export 720p or 1080p MP4s in 9:16, 16:9 or 1:1—or transparent WebM overlays to drop into another editor—plus shareable links. The full codebase and 45 Kiro specs are open source under Apache-2.0.',
     },
   ],
 } as const;

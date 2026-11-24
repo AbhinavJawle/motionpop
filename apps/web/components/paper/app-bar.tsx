@@ -16,7 +16,7 @@ import s from './paper.module.css';
  * The app bar outside the editor (spec 35): a strip of film like the marketing nav, with the
  * mark, Projects and Styles, the credit balance, "New project" and the account menu.
  */
-export type AppBarTab = 'projects' | 'styles' | 'recipes' | 'skills' | 'how';
+export type AppBarTab = 'projects' | 'styles' | 'recipes' | 'skills' | 'how' | 'pricing';
 
 /** The main tabs, on every screen outside the editor. */
 const TABS: readonly (readonly [AppBarTab, string, string])[] = [
@@ -25,6 +25,7 @@ const TABS: readonly (readonly [AppBarTab, string, string])[] = [
   ['recipes', '/recipes', 'Recipes'],
   ['skills', '/skills', 'Skills'],
   ['how', '/how-it-works', 'How it works'],
+  ['pricing', '/pricing', 'Pricing'],
 ];
 
 export function AppBar({
@@ -58,7 +59,8 @@ export function AppBar({
           aria-label="Main"
           className="-mx-1 flex min-w-0 items-center gap-5 overflow-x-auto px-1 [scrollbar-width:none] sm:ml-2 sm:gap-6"
         >
-          {TABS.filter(([id]) => !signedOut || id === 'how').map(([id, href, label]) => (
+          {TABS.filter(([id]) => !signedOut || id === 'how' || id === 'pricing').map(
+            ([id, href, label]) => (
             <Link
               key={id}
               href={href}

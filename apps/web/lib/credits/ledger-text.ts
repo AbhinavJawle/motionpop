@@ -10,6 +10,9 @@ import {
 export const REASON_TEXT: Record<CreditReason, string> = {
   signup: 'Welcome credits',
   'judge-grant': 'Judge top-up',
+  purchase: 'Purchased credits',
+  'purchase-reversal': 'Payment refund / reversal',
+  'purchase-restore': 'Dispute resolved · credits restored',
   generate: 'Generated a graphic',
   edit: 'Cloud quick edit',
   'pip-plan': 'Pip plan',
@@ -71,6 +74,8 @@ export function costRows(cfg: CostConfig = APP_CONFIG_DEFAULTS): CostRow[] {
 
 export function planLine(plan: Plan | null, signupCredits: number): string {
   if (plan === 'judge') return 'Judge plan · topped up daily';
+  if (plan === 'pro') return 'Studio plan · pay-as-you-go credits';
+  if (plan === 'creator') return 'Creator plan · pay-as-you-go credits';
   if (plan === null) return '';
   return `Free plan · ${signupCredits} credits on sign-up`;
 }

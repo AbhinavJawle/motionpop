@@ -21,6 +21,7 @@
     "@motionpop/render": "workspace:*",
     "@motionpop/schemas": "workspace:*",
     "clsx": "^2.1.1",
+    "dodopayments": "^2.63.1",
     "fast-json-patch": "^3.1.1",
     "firebase": "13.3.0",
     "firebase-admin": "14.5.1",

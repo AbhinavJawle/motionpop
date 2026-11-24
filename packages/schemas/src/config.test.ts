@@ -207,7 +207,7 @@ describe('parseRemoteConfig', () => {
       kill_switch: 'TRUE',
     });
     expect(cfg.judgeCredits).toBe(500);
-    expect(cfg.freeCredits).toBe(20);
+    expect(cfg.freeCredits).toBe(15);
     expect(cfg.flagTier2).toBe(false);
     expect(cfg.customProvider).toBe('gemini');
     expect(cfg.routingOverrides).toEqual({});

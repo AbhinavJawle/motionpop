@@ -63,7 +63,7 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   routingOverrides: {},
   flagTier2: false,
   flagAutoFill: true,
-  freeCredits: 20,
+  freeCredits: 15,
   judgeCredits: 500,
   dailyBudgetCredits: 20000,
   killSwitch: false,

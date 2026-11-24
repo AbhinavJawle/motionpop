@@ -104,7 +104,14 @@ export interface RefundInput {
   server: boolean;
 }
 
-const NOT_SPENDS: ReadonlySet<CreditReason> = new Set(['refund', 'judge-grant', 'signup']);
+const NOT_SPENDS: ReadonlySet<CreditReason> = new Set([
+  'refund',
+  'judge-grant',
+  'signup',
+  'purchase',
+  'purchase-reversal',
+  'purchase-restore',
+]);
 
 /** The time of a ledger entry in ms (a Firestore Timestamp or a Date). */
 export function txMs(at: CreditTx['at']): number {

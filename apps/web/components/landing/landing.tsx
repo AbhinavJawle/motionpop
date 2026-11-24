@@ -935,7 +935,15 @@ function Pricing() {
               </li>
             ))}
           </ul>
-          <StartLink className="mt-8 w-full md:mt-auto md:w-fit" />
+          <div className="mt-8 flex flex-wrap items-center gap-3 md:mt-auto">
+            <StartLink className="w-full sm:w-fit" />
+            <Link
+              href="/pricing"
+              className={cn(s.btn, s.btnPaper, 'w-full sm:w-fit')}
+            >
+              Buy credit packs
+            </Link>
+          </div>
         </div>
         <ul className="border-t-2 border-black md:border-t-0 md:border-l-2 md:pl-8">
           {PRICING.rows.map((r) => (

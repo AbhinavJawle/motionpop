@@ -5,7 +5,7 @@ export const metadata: Metadata = { title: 'Terms · motionpop' };
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Terms" updated="16 November 2026">
+    <LegalPage title="Terms" updated="24 November 2026">
       <p>
         Motionpop turns your voice into videos with motion graphics. By using it you agree to these
         terms. They are short on purpose.
@@ -26,11 +26,19 @@ export default function TermsPage() {
       </ul>
       <p>We may suspend accounts that break these rules.</p>
 
-      <h2>Credits</h2>
+      <h2>Credits &amp; payments</h2>
       <p>
-        New accounts get free credits. Cloud actions show their price before you click and are
-        refunded when they fail. Credits have no cash value and can&apos;t be transferred. There are
-        no paid plans yet.
+        New accounts receive 15 free welcome credits. On-device Chrome Gemini Nano edits and video
+        exports are free. Cloud actions display their credit price before you click and are
+        automatically refunded if a cloud job fails. You can also buy one-time credit packs on{' '}
+        <a href="/pricing">/pricing</a>; purchased credits never expire, have no cash value, and
+        can&apos;t be transferred between accounts.
+      </p>
+      <p>
+        All credit pack purchases, invoices, and applicable taxes (VAT/GST) are processed by{' '}
+        <strong>Dodo Payments</strong> as our Merchant of Record. Credits are added only after a
+        verified payment webhook confirms the order. If a payment is refunded or disputed, unspent
+        credits from that order are removed from your balance.
       </p>
 
       <h2>AI output</h2>
