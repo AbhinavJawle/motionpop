@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream';
 import { loadShare } from '@motionpop/render/store';
+import { renderContainerFor, renderMimeType } from '@motionpop/schemas';
 import { bucket } from '@/lib/renders/storage.server';
 import { renderMode } from '@/lib/renders/mode.server';
 import { adminDb } from '@/lib/firebase/admin.server';
@@ -22,8 +23,9 @@ export async function GET(
     const loaded = await loadShare(adminDb(), shareId);
     const path = loaded?.render.outputPath;
     if (!loaded || !path) return new Response('Not found', { status: 404 });
+    const mime = renderMimeType(renderContainerFor(loaded.render));
     return new Response(Readable.toWeb(bucket().file(path).createReadStream()) as ReadableStream, {
-      headers: { 'content-type': 'video/mp4', 'cache-control': 'private, no-store' },
+      headers: { 'content-type': mime, 'cache-control': 'private, no-store' },
     });
   } catch {
     return new Response('Not found', { status: 404 });

@@ -32,4 +32,10 @@ describe('contentDisposition', () => {
     expect(contentDisposition('')).toContain('filename="motionpop video.mp4"');
     expect(contentDisposition('../../..')).not.toContain('/');
   });
+
+  it('uses .webm when container is webm (spec 47)', () => {
+    expect(contentDisposition('Lower Third', 'webm')).toBe(
+      `attachment; filename="Lower Third.webm"; filename*=UTF-8''Lower%20Third.webm`,
+    );
+  });
 });

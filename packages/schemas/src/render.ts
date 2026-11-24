@@ -5,10 +5,20 @@ import { FormatSchema, type Format } from './format';
 import { EditorProjectSchema, IntMsSchema, type EditorProject, type Slot } from './project';
 import { TimestampLikeSchema } from './user';
 
-// 4K and transparent WebM are "Later" (spec 08 review F7). Adding '4k' here and a container
-// field on the options and the doc is the whole schema change.
+// 4K is "Later" (spec 08 review F7); transparent alpha WebM is live (spec 47).
 export const ResolutionSchema = z.enum(['720p', '1080p']);
 export type Resolution = z.infer<typeof ResolutionSchema>;
+
+export const RenderContainerSchema = z.enum(['mp4', 'webm']);
+export type RenderContainer = z.infer<typeof RenderContainerSchema>;
+
+/** Output container for a render: transparent exports produce VP9 alpha WebM; others produce H.264 MP4. */
+export const renderContainerFor = (d: { transparent?: boolean | undefined }): RenderContainer =>
+  d.transparent ? 'webm' : 'mp4';
+
+/** MIME type for a rendered video container. */
+export const renderMimeType = (container: RenderContainer): 'video/webm' | 'video/mp4' =>
+  container === 'webm' ? 'video/webm' : 'video/mp4';
 
 export const RenderStatusSchema = z.enum(['queued', 'rendering', 'encoding', 'done', 'error']);
 export type RenderStatus = z.infer<typeof RenderStatusSchema>;
@@ -55,6 +65,8 @@ export const RenderOptionsSchema = z
     resolution: ResolutionSchema,
     captions: z.boolean(),
     music: z.boolean(),
+    /** When true, renders transparent alpha WebM (VP9 yuva420p) for NLE compositing (spec 47). */
+    transparent: z.boolean().optional(),
   })
   .strict();
 export type RenderOptions = z.infer<typeof RenderOptionsSchema>;
@@ -93,6 +105,20 @@ export function mediaClipPathFor(uid: string, projectId: string): RegExp {
   );
 }
 
+/** The only Storage paths a caller's stock visual overlay upload may have (spec 45 R5.1). */
+export function stockOverlayPathFor(uid: string, projectId: string): RegExp {
+  return new RegExp(
+    `^users/${escapeRegExp(uid)}/video/${escapeRegExp(projectId)}/stock-ov-[0-9a-f]{16}\\.(mp4|mov|webm|png|jpg|webp)$`,
+  );
+}
+
+/** The only Storage paths a caller's stock audio/SFX upload may have (spec 45 R5.1). */
+export function stockAudioPathFor(uid: string, projectId: string): RegExp {
+  return new RegExp(
+    `^users/${escapeRegExp(uid)}/audio/${escapeRegExp(projectId)}/stock-au-[0-9a-f]{16}\\.(wav|mp3|m4a|webm|ogg)$`,
+  );
+}
+
 export const RenderRequestSchema = z
   .object({
     requestId: z.uuid(),
@@ -105,6 +131,10 @@ export const RenderRequestSchema = z
     videoPath: z.string().min(1).max(300).optional(),
     /** Optional uploaded Media Bin clip paths keyed by `clipId` (spec 21 R5.1). */
     clipPaths: z.record(z.string().min(1).max(64), z.string().min(1).max(300)).optional(),
+    /** Optional uploaded Stock Media overlay paths keyed by `clipId` (spec 45 R5.1). */
+    stockOverlayPaths: z.record(z.string().min(1).max(64), z.string().min(1).max(300)).optional(),
+    /** Optional uploaded Stock Audio clip paths keyed by `clipId` (spec 45 R5.1). */
+    stockAudioPaths: z.record(z.string().min(1).max(64), z.string().min(1).max(300)).optional(),
   })
   .strict();
 export type RenderRequest = z.infer<typeof RenderRequestSchema>;
@@ -145,6 +175,7 @@ export const RenderDocSchema = z
     resolution: ResolutionSchema,
     captions: z.boolean(),
     music: z.boolean(),
+    transparent: z.boolean().optional(),
     durationMs: IntMsSchema,
     /** Slots that render. */
     slotCount: z.number().int().nonnegative(),
@@ -156,6 +187,8 @@ export const RenderDocSchema = z
     voicePath: z.string(),
     videoPath: z.string().optional(),
     clipPaths: z.record(z.string().min(1).max(64), z.string().min(1).max(300)).optional(),
+    stockOverlayPaths: z.record(z.string().min(1).max(64), z.string().min(1).max(300)).optional(),
+    stockAudioPaths: z.record(z.string().min(1).max(64), z.string().min(1).max(300)).optional(),
     outputPath: z.string().optional(),
     thumbPath: z.string().optional(),
     sizeBytes: z.number().int().nonnegative().optional(),
@@ -213,6 +246,7 @@ export const RenderStatusResponseSchema = z.object({
   resolution: ResolutionSchema,
   durationMs: IntMsSchema,
   sizeBytes: z.number().int().nonnegative().optional(),
+  transparent: z.boolean().optional(),
 });
 export type RenderStatusResponse = z.infer<typeof RenderStatusResponseSchema>;
 
@@ -229,6 +263,7 @@ export function toRenderStatus(renderId: string, d: RenderDoc): RenderStatusResp
     resolution: d.resolution,
     durationMs: d.durationMs,
     ...(d.sizeBytes !== undefined ? { sizeBytes: d.sizeBytes } : {}),
+    ...(d.transparent ? { transparent: true } : {}),
   };
 }
 
@@ -324,7 +359,12 @@ export interface RenderPaths {
 }
 
 /** Storage paths of one render. Throws when an id could change the path (`..`, `/`, spaces). */
-export function renderPaths(uid: string, projectId: string, renderId: string): RenderPaths {
+export function renderPaths(
+  uid: string,
+  projectId: string,
+  renderId: string,
+  container: RenderContainer = 'mp4',
+): RenderPaths {
   for (const [name, id] of [
     ['uid', uid],
     ['projectId', projectId],
@@ -337,7 +377,7 @@ export function renderPaths(uid: string, projectId: string, renderId: string): R
     dir,
     inputDir: `${dir}input/`,
     input: `${dir}input/project.json`,
-    output: `${dir}video.mp4`,
+    output: container === 'webm' ? `${dir}video.webm` : `${dir}video.mp4`,
     thumb: `${dir}thumb.jpg`,
   };
 }

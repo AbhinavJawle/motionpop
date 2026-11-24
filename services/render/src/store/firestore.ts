@@ -50,6 +50,7 @@ export type NewRender = Pick<
   | 'resolution'
   | 'captions'
   | 'music'
+  | 'transparent'
   | 'durationMs'
   | 'slotCount'
   | 'mode'
@@ -57,6 +58,8 @@ export type NewRender = Pick<
   | 'voicePath'
   | 'videoPath'
   | 'clipPaths'
+  | 'stockOverlayPaths'
+  | 'stockAudioPaths'
   | 'key'
 >;
 

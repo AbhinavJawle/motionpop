@@ -4,6 +4,7 @@
 import type { ReelCompileAssets } from '@motionpop/motion/reel';
 import type { compileProject } from '@motionpop/motion/compiler';
 import type { VideoCompositeArgs } from './video-ffmpeg';
+import type { StockCompositeArgs } from './stock-ffmpeg';
 import type {
   RenderDoc,
   RenderErrorCode,
@@ -125,10 +126,13 @@ export interface MediaProbe {
   durationMs: number;
   audioStreams: number;
   videoStreams: number;
-  /** Video stream size and frame count; absent when there is no video stream. */
+  /** Video stream size, codec, pixel format and frame count; absent when there is no video stream. */
   width?: number;
   height?: number;
   frames?: number;
+  codecName?: string;
+  pixFmt?: string;
+  alphaMode?: boolean;
 }
 
 export interface Ffmpeg {
@@ -144,6 +148,8 @@ export interface Ffmpeg {
   frame(args: { video: string; atMs: number; destJpg: string; longSide: number }): Promise<void>;
   /** Cut/zoom source video, composite transparent graphics overlay, and mux audio into MP4 (spec 18). */
   compositeVideo?(args: VideoCompositeArgs): Promise<void>;
+  /** Post-composite multi-lane Stock Media visual overlays & mix Stock Audio clips onto MP4 (spec 45). */
+  compositeStockLayers?(args: StockCompositeArgs): Promise<void>;
   /**
    * Re-encodes the audio of an MP4 to a loudness target (two-pass EBU R128, linear gain), copying
    * the video stream (spec 27 R3.3). Writes `dest`; the caller swaps it in.

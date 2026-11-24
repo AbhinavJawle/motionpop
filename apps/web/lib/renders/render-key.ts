@@ -26,10 +26,19 @@ export function renderKeyOf(input: {
   project: EditorProject;
   options: RenderOptions;
   voicePath: string;
+  stockOverlayPaths?: Readonly<Record<string, string>>;
+  stockAudioPaths?: Readonly<Record<string, string>>;
   /** Defaults to RUNTIME_VERSION; tests pass another to check that the key changes. */
   runtimeVersion?: string;
 }): string {
-  const { project, options, voicePath, runtimeVersion = RUNTIME_VERSION } = input;
+  const {
+    project,
+    options,
+    voicePath,
+    stockOverlayPaths,
+    stockAudioPaths,
+    runtimeVersion = RUNTIME_VERSION,
+  } = input;
   const assets = assetsInUse(project)
     .map((a) => sha256Hex(a.src ?? ''))
     .sort();
@@ -37,10 +46,21 @@ export function renderKeyOf(input: {
     stableJson({
       version: RENDER_KEY_VERSION,
       runtime: runtimeVersion,
-      compile: projectCompileInput(project, { mode: 'render', format: options.format }),
+      compile: projectCompileInput(project, {
+        mode: 'render',
+        format: options.format,
+        ...(options.transparent ? { background: 'transparent' } : {}),
+      }),
       assets,
       options,
       voicePath,
+      ...(project.stockOverlays?.length ? { stockOverlays: project.stockOverlays } : {}),
+      ...(project.stockAudio?.length ? { stockAudio: project.stockAudio } : {}),
+      ...(project.stockMediaLanes?.length ? { stockMediaLanes: project.stockMediaLanes } : {}),
+      ...(project.stockAudioLanes?.length ? { stockAudioLanes: project.stockAudioLanes } : {}),
+      ...(stockOverlayPaths && Object.keys(stockOverlayPaths).length ? { stockOverlayPaths } : {}),
+      ...(stockAudioPaths && Object.keys(stockAudioPaths).length ? { stockAudioPaths } : {}),
+      ...(project.video?.cuts.length ? { videoCuts: project.video.cuts } : {}),
     }),
   );
 }

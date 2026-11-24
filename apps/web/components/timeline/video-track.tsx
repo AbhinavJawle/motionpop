@@ -2,16 +2,23 @@
 
 import {
   keptSourceSegments,
+  videoDisplaySegments,
   type MediaClip,
   type VideoStageMode,
   type VideoStageSegment,
 } from '@motionpop/schemas';
-import { Film, Scissors, ZoomIn } from 'lucide-react';
+import { Film, Scissors, Trash2, ZoomIn } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
 import { cn } from '@/lib/cn';
-import { removeVideoPunchIn, setSlotVideoStage } from '@/lib/commands';
+import {
+  removeVideoPunchIn,
+  removeVideoSplit,
+  setSlotVideoStage,
+  splitVideoAt,
+} from '@/lib/commands';
 import { selectSlots, useEditor } from '@/lib/stores/editor';
+import { cutVideoSegment } from '@/lib/timeline/edit-actions';
 import { msToX } from '@/lib/timeline/geometry';
 import { useTimeline } from './timeline-context';
 
@@ -139,7 +146,9 @@ export function VideoTrack() {
   const slots = useEditor(selectSlots);
   const mediaBin = useEditor((s) => s.project?.mediaBin ?? EMPTY_MEDIA_BIN);
   const selectedId = useEditor((s) => s.selectedSlotId);
+  const selectedItem = useEditor((s) => s.selectedItem);
   const select = useEditor((s) => s.select);
+  const selectItem = useEditor((s) => s.selectItem);
   const exec = useEditor((s) => s.exec);
   const [thumbs, setThumbs] = useState<string[]>(() =>
     video?.src ? (filmstripCache.get(video.src) ?? []) : [],
@@ -172,6 +181,11 @@ export function VideoTrack() {
       window.removeEventListener('pointerdown', onPointerDown);
     };
   }, [openPickerId]);
+
+  const displaySegments = useMemo(() => {
+    if (!video) return [];
+    return videoDisplaySegments(video.originalDurationMs, video.cuts, video.splits);
+  }, [video]);
 
   const cutSeams = useMemo(() => {
     if (!video) return [];
@@ -243,7 +257,7 @@ export function VideoTrack() {
         />
       </div>
 
-      {/* Per-beat stage choreography segments */}
+      {/* Per-beat stage choreography segments (pills float above segment selection layer) */}
       {stages.map((st) => {
         const left = msToX(st.startMs, view);
         const width = Math.max(12, msToX(st.endMs, view) - left);
@@ -257,16 +271,9 @@ export function VideoTrack() {
           <div
             key={st.id}
             data-testid={`video-stage-${st.id}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (linkedSlot) select(linkedSlot.id);
-              clock.seek(st.startMs);
-            }}
             className={cn(
-              'group absolute top-1.5 bottom-1.5 z-[2] cursor-pointer rounded-[6px] border transition-colors',
-              isSelected
-                ? 'border-violet/80 ring-1 ring-violet/40'
-                : 'border-white/12 hover:border-white/28',
+              'group pointer-events-none absolute top-1.5 bottom-1.5 z-[5] rounded-[6px] border transition-colors',
+              isSelected ? 'border-violet/80 ring-1 ring-violet/40' : 'border-white/12',
               isCutaway && 'bg-[#0c0d14]/78',
             )}
             style={{ left, width }}
@@ -299,7 +306,7 @@ export function VideoTrack() {
                       : `Video layout: ${st.mode}`
                   }
                   className={cn(
-                    'truncate rounded-full border px-1.5 py-[1px] font-mono text-[9.5px] leading-[13px] font-medium backdrop-blur-sm transition-transform hover:scale-[1.03]',
+                    'pointer-events-auto truncate rounded-full border px-1.5 py-[1px] font-mono text-[9.5px] leading-[13px] font-medium backdrop-blur-sm transition-transform hover:scale-[1.03]',
                     STAGE_PILL_STYLE[st.mode],
                   )}
                 >
@@ -314,7 +321,7 @@ export function VideoTrack() {
                 aria-label="Choose video layout"
                 onPointerDown={(e) => e.stopPropagation()}
                 onClick={(e) => e.stopPropagation()}
-                className="absolute bottom-[calc(100%+6px)] left-0 z-40 flex min-w-[152px] flex-col gap-0.5 rounded-[10px] border border-white/12 bg-panel/96 p-1 shadow-modal backdrop-blur-md"
+                className="pointer-events-auto absolute bottom-[calc(100%+6px)] left-0 z-40 flex min-w-[152px] flex-col gap-0.5 rounded-[10px] border border-white/12 bg-panel/96 p-1 shadow-modal backdrop-blur-md"
               >
                 {STAGE_OPTIONS.map((opt) => (
                   <button
@@ -337,6 +344,94 @@ export function VideoTrack() {
                     <span className="font-mono text-[9px] text-text-3">{opt.short}</span>
                   </button>
                 ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Manual split segments & non-destructive Cut controls (spec 45 R2.4–R2.5) */}
+      {displaySegments.map((seg) => {
+        const segLeft = msToX(seg.timelineStartMs, view);
+        const segWidth = Math.max(12, msToX(seg.timelineEndMs, view) - segLeft);
+        const isSegSelected =
+          selectedItem?.kind === 'videoSegment' &&
+          selectedItem.startMs === seg.startMs &&
+          selectedItem.endMs === seg.endMs;
+        const hasSplits = displaySegments.length > 1;
+        return (
+          <div
+            key={seg.key}
+            data-testid={`video-segment-${seg.index}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              selectItem({ kind: 'videoSegment', startMs: seg.startMs, endMs: seg.endMs });
+              if (clock.currentMs < seg.timelineStartMs || clock.currentMs > seg.timelineEndMs) {
+                clock.seek(seg.timelineStartMs);
+              }
+            }}
+            style={{ left: segLeft, width: segWidth }}
+            className={cn(
+              'absolute top-1.5 bottom-1.5 z-[3] cursor-pointer rounded-[6px] transition-colors',
+              hasSplits && 'border border-white/20',
+              isSegSelected && 'border-2 border-flame bg-flame/12 ring-1 ring-flame/50',
+            )}
+          >
+            {seg.splitAtStart && (
+              <button
+                type="button"
+                aria-label={`Merge video split at ${(seg.timelineStartMs / 1000).toFixed(1)}s`}
+                title="Manual split — click to merge back"
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  exec(removeVideoSplit(seg.startMs));
+                }}
+                className="absolute inset-y-0 -left-[5px] z-[7] flex w-[10px] items-center justify-center group/seam"
+              >
+                <span className="h-full w-[2px] border-l border-dashed border-flame/90 group-hover/seam:bg-flame" />
+              </button>
+            )}
+            {isSegSelected && segWidth >= 48 && (
+              <div
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
+                className="absolute top-1 right-1 z-[8] flex items-center gap-1"
+              >
+                {seg.endMs - seg.startMs >= 500 && (
+                  <button
+                    type="button"
+                    aria-label="Split video segment"
+                    title="Split this segment at playhead (or midpoint)"
+                    onClick={() => {
+                      const inSeg =
+                        clock.currentMs >= seg.timelineStartMs + 250 &&
+                        clock.currentMs <= seg.timelineEndMs - 250;
+                      const srcAt = inSeg
+                        ? seg.startMs + Math.round(clock.currentMs - seg.timelineStartMs)
+                        : Math.round((seg.startMs + seg.endMs) / 2);
+                      exec(splitVideoAt(srcAt));
+                    }}
+                    className="flex h-[18px] items-center gap-0.5 rounded bg-paper/95 px-1.5 text-[9px] font-semibold text-ink shadow-xs hover:bg-mist"
+                  >
+                    <Scissors className="size-2.5 text-flame" strokeWidth={2} aria-hidden />
+                    Split
+                  </button>
+                )}
+                {hasSplits && (
+                  <button
+                    type="button"
+                    aria-label="Cut video segment"
+                    title="Cut out this video segment (Delete)"
+                    onClick={() =>
+                      void cutVideoSegment({ startMs: seg.startMs, endMs: seg.endMs }, clock)
+                    }
+                    className="flex h-[18px] items-center gap-0.5 rounded bg-flame px-1.5 text-[9px] font-semibold text-black shadow-xs hover:brightness-110"
+                  >
+                    <Trash2 className="size-2.5" strokeWidth={2} aria-hidden />
+                    Cut
+                  </button>
+                )}
               </div>
             )}
           </div>

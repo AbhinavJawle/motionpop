@@ -4,7 +4,7 @@ import { useAutoFill } from '@/lib/slots/use-auto-fill';
 import { useAutoPictures } from '@/lib/images/use-auto-pictures';
 import { useAutoChoreograph } from '@/lib/film/use-film';
 import { useGenerateShortcut } from '@/lib/slots/use-generate';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Pip } from '@/components/pip/pip';
 import { Button } from '@/components/ui/button';
@@ -65,6 +65,7 @@ export function EditorScreen({
   const repo = useMemo<ProjectLibrary>(() => projectLibrary(), []);
   const clock = useMemo(() => new PlaybackClock(editorStore), []);
   const projectId = useEditor((s) => s.project?.id);
+  const voiceSrc = useEditor((s) => s.project?.voiceover.src);
   const rejection = useEditor((s) => s.rejection);
 
   const theme = useEditorTheme((s) => s.theme);
@@ -132,10 +133,14 @@ export function EditorScreen({
     };
   }, [phase.kind, repo]);
 
-  // Voice: synthesized or decoded, then peaks in a worker. Re-created per project.
+  // Voice: synthesized or decoded, then peaks in a worker. Re-created per project or when a
+  // manual/AI video cut re-splices `voiceover.src` (spec 45: keeps playback & waveform locked).
+  const initialAppliedForRef = useRef<string | null>(null);
   useEffect(() => {
     const project = editorStore.getState().project;
     if (phase.kind !== 'ready' || !project) return;
+    const isInitialForProject = initialAppliedForRef.current !== project.id;
+    const resumeMs = Math.min(clock.currentMs, Math.max(0, project.durationMs));
     let loaded: LoadedVoice | null = null;
     let cancelled = false;
     useVoiceState.setState({
@@ -150,7 +155,12 @@ export function EditorScreen({
         const audio = new Audio(v.url);
         audio.preload = 'auto';
         clock.attachAudio(audio);
-        if (initialMs !== undefined) clock.seek(initialMs);
+        if (isInitialForProject) {
+          initialAppliedForRef.current = project.id;
+          if (initialMs !== undefined) clock.seek(initialMs);
+        } else {
+          clock.seek(resumeMs);
+        }
         setVoice(v);
         useVoiceState.setState({ status: 'ready', peaks: v.peaks, bucketMs: v.bucketMs });
       })
@@ -167,7 +177,12 @@ export function EditorScreen({
         } else {
           toast.error(`Couldn’t load the voiceover: ${e instanceof Error ? e.message : String(e)}`);
         }
-        if (initialMs !== undefined) clock.seek(initialMs);
+        if (isInitialForProject) {
+          initialAppliedForRef.current = project.id;
+          if (initialMs !== undefined) clock.seek(initialMs);
+        } else {
+          clock.seek(resumeMs);
+        }
       });
     return () => {
       cancelled = true;
@@ -175,9 +190,9 @@ export function EditorScreen({
       clock.attachAudio(null);
       loaded?.revoke();
     };
-    // The voice depends on the project identity, not on every edit.
+    // Re-runs on project load OR when video cuts re-splice `voiceover.src`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase.kind, projectId, clock]);
+  }, [phase.kind, projectId, voiceSrc, clock]);
 
   useEffect(() => () => clock.dispose(), [clock]);
 

@@ -20,7 +20,11 @@ export async function GET(
     if (!doc?.thumbPath) return new Response('Not found', { status: 404 });
     const bytes = await readFile((await localBlobs()).localPath(doc.thumbPath));
     return new Response(new Uint8Array(bytes), {
-      headers: { 'content-type': 'image/jpeg', 'cache-control': 'private, no-store' },
+      headers: {
+        'content-type': 'image/jpeg',
+        'content-length': String(bytes.byteLength),
+        'cache-control': 'private, no-store',
+      },
     });
   } catch (err) {
     return renderRouteError(err);

@@ -288,11 +288,51 @@ export const AudioSettingSchema = z.object({
 export type AudioSetting = z.infer<typeof AudioSettingSchema>;
 export const DEFAULT_AUDIO: AudioSetting = AudioSettingSchema.parse({});
 
+/** Maximum parallel lanes supported for Stock Media (V1–V4) and Stock Audio (A1–A4) (spec 45). */
+export const MAX_TIMELINE_LANES = 4;
+
+/** Metadata for one Stock Media or Stock Audio lane on the multi-track timeline (spec 45 R1.2). */
+export const TimelineLaneSchema = z.object({
+  index: z
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_TIMELINE_LANES - 1),
+  name: z.string().min(1).max(32).optional(),
+  muted: z.boolean().optional(),
+  hidden: z.boolean().optional(),
+});
+export type TimelineLane = z.infer<typeof TimelineLaneSchema>;
+
 /** How a placed stock video/photo overlay appears over the video preview. */
 export const StockOverlayLayoutSchema = z.enum(['card', 'full', 'top', 'pip']);
 export type StockOverlayLayout = z.infer<typeof StockOverlayLayoutSchema>;
 
-/** A stock video or photo placed directly on the Stock Media timeline layer. */
+/** Normalized frame placement shared by browser preview and FFmpeg export (spec 45 R1.4). */
+export interface StockOverlayBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  radiusPx: number;
+}
+
+/** Exact normalized coordinates for each stock overlay layout, 1:1 between preview and export. */
+export function stockOverlayBoxFor(layout: StockOverlayLayout): StockOverlayBox {
+  switch (layout) {
+    case 'full':
+      return { x: 0, y: 0, w: 1, h: 1, radiusPx: 0 };
+    case 'top':
+      return { x: 0.04, y: 0.04, w: 0.92, h: 0.46, radiusPx: 14 };
+    case 'pip':
+      return { x: 0.56, y: 0.05, w: 0.39, h: 0.28, radiusPx: 12 };
+    case 'card':
+    default:
+      return { x: 0.07, y: 0.14, w: 0.86, h: 0.52, radiusPx: 16 };
+  }
+}
+
+/** A stock video or photo placed directly on a Stock Media timeline lane. */
 export const StockOverlayClipSchema = z
   .object({
     id: z.string().min(1).max(64),
@@ -303,7 +343,16 @@ export const StockOverlayClipSchema = z
     mimeType: z.string().min(1).max(80),
     startMs: IntMsSchema,
     endMs: IntMsSchema,
+    /** Source media in-point in ms (advanced when splitting or left-trimming; default 0). */
+    sourceOffsetMs: IntMsSchema.optional(),
     clipDurationMs: IntMsSchema.optional(),
+    /** Zero-based visual lane index (0 = base Stock Media lane, higher renders above). */
+    track: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_TIMELINE_LANES - 1)
+      .optional(),
     layout: StockOverlayLayoutSchema.default('card'),
     provider: z.enum(['pixabay', 'pexels', 'wikimedia', 'upload']).default('pixabay'),
     attribution: z.string().max(240).optional(),
@@ -311,7 +360,7 @@ export const StockOverlayClipSchema = z
   .refine((c) => c.endMs > c.startMs, { message: 'endMs must be after startMs' });
 export type StockOverlayClip = z.infer<typeof StockOverlayClipSchema>;
 
-/** A stock sound effect or music clip placed directly on the Stock Audio timeline layer. */
+/** A stock sound effect or music clip placed directly on a Stock Audio timeline lane. */
 export const StockAudioClipSchema = z
   .object({
     id: z.string().min(1).max(64),
@@ -322,12 +371,98 @@ export const StockAudioClipSchema = z
     mimeType: z.string().min(1).max(80),
     startMs: IntMsSchema,
     endMs: IntMsSchema,
+    /** Source audio in-point in ms (advanced when splitting or left-trimming; default 0). */
+    sourceOffsetMs: IntMsSchema.optional(),
+    clipDurationMs: IntMsSchema.optional(),
+    /** Zero-based audio lane index (0 = base Stock Audio lane). */
+    track: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_TIMELINE_LANES - 1)
+      .optional(),
     /** Linear playback gain (0..1.5). Default 0.9 for SFX, 0.28 for music. */
     volume: z.number().min(0).max(1.5).default(0.9),
     attribution: z.string().max(240).optional(),
   })
   .refine((c) => c.endMs > c.startMs, { message: 'endMs must be after startMs' });
 export type StockAudioClip = z.infer<typeof StockAudioClipSchema>;
+
+function resolveLanes(
+  explicit: readonly TimelineLane[] | undefined,
+  clips: readonly { track?: number | undefined }[] | undefined,
+): TimelineLane[] {
+  const byIndex = new Map<number, TimelineLane>();
+  byIndex.set(0, { index: 0 });
+  for (const lane of explicit ?? []) {
+    if (lane.index >= 0 && lane.index < MAX_TIMELINE_LANES) {
+      byIndex.set(lane.index, { ...lane });
+    }
+  }
+  for (const clip of clips ?? []) {
+    const idx = clip.track ?? 0;
+    if (idx >= 0 && idx < MAX_TIMELINE_LANES && !byIndex.has(idx)) {
+      byIndex.set(idx, { index: idx });
+    }
+  }
+  return [...byIndex.values()].sort((a, b) => a.index - b.index);
+}
+
+/** Active visual lanes for Stock Media, always containing lane 0, sorted ascending (spec 45). */
+export function resolvedMediaLanes(project: {
+  stockMediaLanes?: readonly TimelineLane[] | undefined;
+  stockOverlays?: readonly Pick<StockOverlayClip, 'track'>[] | undefined;
+}): TimelineLane[] {
+  return resolveLanes(project.stockMediaLanes, project.stockOverlays);
+}
+
+/** Active audio lanes for Stock Audio, always containing lane 0, sorted ascending (spec 45). */
+export function resolvedAudioLanes(project: {
+  stockAudioLanes?: readonly TimelineLane[] | undefined;
+  stockAudio?: readonly Pick<StockAudioClip, 'track'>[] | undefined;
+}): TimelineLane[] {
+  return resolveLanes(project.stockAudioLanes, project.stockAudio);
+}
+
+/**
+ * Visible stock visual clips sorted in ascending lane z-order (lane 0 behind lane 1, etc.),
+ * preserving relative order within each lane. Shared by browser preview and FFmpeg export.
+ */
+export function visibleStockOverlays(project: {
+  stockMediaLanes?: readonly TimelineLane[] | undefined;
+  stockOverlays?: readonly StockOverlayClip[] | undefined;
+}): StockOverlayClip[] {
+  const clips = project.stockOverlays ?? [];
+  if (clips.length === 0) return [];
+  const hiddenLanes = new Set(
+    resolvedMediaLanes(project)
+      .filter((l) => l.hidden)
+      .map((l) => l.index),
+  );
+  return clips
+    .map((clip, order) => ({ clip, order }))
+    .filter(({ clip }) => !hiddenLanes.has(clip.track ?? 0))
+    .sort((a, b) => (a.clip.track ?? 0) - (b.clip.track ?? 0) || a.order - b.order)
+    .map(({ clip }) => clip);
+}
+
+/**
+ * Audible stock audio clips (excluding muted lanes and zero-volume clips).
+ * Shared by Web Audio playback and FFmpeg export.
+ */
+export function audibleStockAudio(project: {
+  stockAudioLanes?: readonly TimelineLane[] | undefined;
+  stockAudio?: readonly StockAudioClip[] | undefined;
+}): StockAudioClip[] {
+  const clips = project.stockAudio ?? [];
+  if (clips.length === 0) return [];
+  const mutedLanes = new Set(
+    resolvedAudioLanes(project)
+      .filter((l) => l.muted)
+      .map((l) => l.index),
+  );
+  return clips.filter((clip) => !mutedLanes.has(clip.track ?? 0) && clip.volume > 0);
+}
 
 /** The project's audio settings, `DEFAULT_AUDIO` for projects saved before spec 12. */
 export function audioOf(p: { audio?: AudioSetting | undefined }): AudioSetting {
@@ -406,10 +541,14 @@ export const EditorProjectBaseSchema = z.object({
   video: VideoTrackSchema.optional(),
   /** Secondary Media Bin clips: user-uploaded B-roll, screen recordings, screenshots & photos (spec 20). */
   mediaBin: z.array(MediaClipSchema).max(24).optional(),
-  /** Placed stock video/photo overlays rendered on the Stock Media timeline layer. */
-  stockOverlays: z.array(StockOverlayClipSchema).max(32).optional(),
-  /** Placed stock SFX and music clips rendered & played on the Stock Audio timeline layer. */
-  stockAudio: z.array(StockAudioClipSchema).max(48).optional(),
+  /** Placed stock video/photo overlays rendered on Stock Media timeline lanes (spec 45). */
+  stockOverlays: z.array(StockOverlayClipSchema).max(64).optional(),
+  /** Placed stock SFX and music clips rendered & played on Stock Audio timeline lanes (spec 45). */
+  stockAudio: z.array(StockAudioClipSchema).max(96).optional(),
+  /** Multi-lane metadata (visibility, extra lanes) for Stock Media (spec 45). */
+  stockMediaLanes: z.array(TimelineLaneSchema).max(MAX_TIMELINE_LANES).optional(),
+  /** Multi-lane metadata (mute, extra lanes) for Stock Audio (spec 45). */
+  stockAudioLanes: z.array(TimelineLaneSchema).max(MAX_TIMELINE_LANES).optional(),
   /**
    * Talking-head reel (spec 25): scene templates over the speaker video, on the cleaned timeline.
    * When present with `video`, the preview and the export use the reel engine, not the slots.

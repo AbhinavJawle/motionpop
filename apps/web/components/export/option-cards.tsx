@@ -12,6 +12,8 @@ export interface OptionCard<T extends string> {
   icon?: ReactNode;
   /** Shown disabled with a "Soon" pill; the reason is read out as the card's description. */
   soon?: string;
+  /** Disabled without a "Soon" pill (e.g. Reel vertical format lock, spec 46 R4.1). */
+  disabledReason?: string;
 }
 
 /**
@@ -34,16 +36,18 @@ export function OptionCards<T extends string>({
 }) {
   const refs = useRef(new Map<T, HTMLButtonElement>());
   const groupId = useId();
-  const enabled = options.filter((o) => !o.soon);
+  const enabled = options.filter((o) => !o.soon && !o.disabledReason);
 
   const move = (from: T, delta: number | 'first' | 'last') => {
+    if (enabled.length === 0) return;
     const i = enabled.findIndex((o) => o.value === from);
     let next: OptionCard<T> | undefined;
-    if (delta === 'first') next = enabled[0];
+    if (i < 0) next = delta === 'last' ? enabled[enabled.length - 1] : enabled[0];
+    else if (delta === 'first') next = enabled[0];
     else if (delta === 'last') next = enabled[enabled.length - 1];
     else next = enabled[(i + delta + enabled.length) % enabled.length];
     if (!next) return;
-    onChange(next.value);
+    if (next.value !== value) onChange(next.value);
     refs.current.get(next.value)?.focus();
   };
 
@@ -66,7 +70,9 @@ export function OptionCards<T extends string>({
     <div role="radiogroup" aria-label={label} className="flex gap-2">
       {options.map((o) => {
         const selected = o.value === value;
-        const descId = o.soon ? `${groupId}-${o.value}` : undefined;
+        const reason = o.soon ?? o.disabledReason;
+        const isDisabled = Boolean(reason);
+        const descId = reason ? `${groupId}-${o.value}` : undefined;
         return (
           <motion.button
             key={o.value}
@@ -77,14 +83,14 @@ export function OptionCards<T extends string>({
             type="button"
             role="radio"
             aria-checked={selected}
-            aria-disabled={o.soon ? true : undefined}
+            aria-disabled={isDisabled ? true : undefined}
             aria-describedby={descId}
             tabIndex={selected ? 0 : -1}
             onClick={() => {
-              if (!o.soon) onChange(o.value);
+              if (!isDisabled) onChange(o.value);
             }}
             onKeyDown={(e) => onKeyDown(e, o.value)}
-            {...(o.soon ? {} : { whileHover: { y: -1 }, whileTap: { scale: 0.97 } })}
+            {...(isDisabled ? {} : { whileHover: { y: -1 }, whileTap: { scale: 0.97 } })}
             transition={spring}
             className={cn(
               'flex flex-1 items-center justify-center gap-2.5 rounded-[10px] text-[13px] leading-[17px] font-medium transition-[background-color,box-shadow,color] duration-200',
@@ -92,18 +98,16 @@ export function OptionCards<T extends string>({
               selected
                 ? 'bg-white/[0.08] text-text shadow-[inset_0_0_0_1.5px_var(--color-edge)]'
                 : 'bg-white/[0.025] text-text-2 shadow-[inset_0_0_0_1px_rgb(0_0_0/0.12)] hover:bg-white/[0.05] hover:text-text',
-              o.soon && 'cursor-not-allowed text-text-4',
+              isDisabled && 'cursor-not-allowed text-text-4',
             )}
           >
             {o.icon}
             <span>{o.label}</span>
-            {o.soon && (
-              <>
-                <SoonPill className="-ml-1.5" />
-                <span id={descId} className="sr-only">
-                  {o.soon}
-                </span>
-              </>
+            {o.soon && <SoonPill className="-ml-1.5" />}
+            {reason && (
+              <span id={descId} className="sr-only">
+                {reason}
+              </span>
             )}
           </motion.button>
         );

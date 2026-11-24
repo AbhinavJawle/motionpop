@@ -9,7 +9,11 @@ import {
   exportCost,
   isSafeId,
   mediaClipPathFor,
+  renderContainerFor,
+  renderMimeType,
   renderPaths,
+  stockAudioPathFor,
+  stockOverlayPathFor,
   toRenderStatus,
   videoPathFor,
   voicePathFor,
@@ -19,8 +23,10 @@ import {
   type Format,
   type RenderApiError,
   type RenderApiErrorCode,
+  type RenderContainer,
   type RenderDoc,
   type RenderErrorCode,
+  type RenderOptions,
   type Slot,
 } from '@motionpop/schemas';
 import type { RenderMode } from './mode';
@@ -125,14 +131,39 @@ export async function createRender(
   }
   const parsed = RenderRequestSchema.safeParse(raw);
   if (!parsed.success) return apiError('invalid');
-  const { requestId, options, expectedCost, project, voicePath, videoPath, clipPaths } =
-    parsed.data;
+  const {
+    requestId,
+    options,
+    expectedCost,
+    project,
+    voicePath,
+    videoPath,
+    clipPaths,
+    stockOverlayPaths,
+    stockAudioPaths,
+  } = parsed.data;
   if (!isSafeId(uid) || !isSafeId(project.id)) return apiError('invalid');
   if (!voicePathFor(uid, project.id).test(voicePath)) return apiError('invalid');
   if (videoPath && !videoPathFor(uid, project.id).test(videoPath)) return apiError('invalid');
   if (clipPaths) {
     const re = mediaClipPathFor(uid, project.id);
     for (const p of Object.values(clipPaths)) {
+      if (!re.test(p)) return apiError('invalid');
+    }
+  }
+  if (stockOverlayPaths) {
+    const entries = Object.values(stockOverlayPaths);
+    if (entries.length > 64) return apiError('invalid');
+    const re = stockOverlayPathFor(uid, project.id);
+    for (const p of entries) {
+      if (!re.test(p)) return apiError('invalid');
+    }
+  }
+  if (stockAudioPaths) {
+    const entries = Object.values(stockAudioPaths);
+    if (entries.length > 96) return apiError('invalid');
+    const re = stockAudioPathFor(uid, project.id);
+    for (const p of entries) {
       if (!re.test(p)) return apiError('invalid');
     }
   }
@@ -165,9 +196,32 @@ export async function createRender(
   }
   if (voice.size > MAX_VOICE_BYTES) return apiError('too-large');
 
+  const isReel = Boolean(project.reel && project.video);
+  const transparent = Boolean(options.transparent) && !isReel;
+  const effectiveOptions: RenderOptions = transparent
+    ? {
+        format: options.format,
+        resolution: options.resolution,
+        captions: options.captions,
+        music: options.music,
+        transparent: true,
+      }
+    : {
+        format: options.format,
+        resolution: options.resolution,
+        captions: options.captions,
+        music: options.music,
+      };
+
   // Spec 13b R2: an identical ready export is returned as it is. No job, no charge, no count
   // against the daily limit.
-  const key = renderKeyOf({ project, options, voicePath });
+  const key = renderKeyOf({
+    project,
+    options: effectiveOptions,
+    voicePath,
+    ...(stockOverlayPaths ? { stockOverlayPaths } : {}),
+    ...(stockAudioPaths ? { stockAudioPaths } : {}),
+  });
   const reusable = await deps.findReusable(uid, key);
   if (reusable) {
     const response: CreateRenderResponse = {
@@ -186,10 +240,11 @@ export async function createRender(
     projectId: project.id,
     requestId,
     title: project.title.slice(0, 120),
-    format: options.format,
-    resolution: options.resolution,
-    captions: options.captions,
-    music: options.music,
+    format: effectiveOptions.format,
+    resolution: effectiveOptions.resolution,
+    captions: effectiveOptions.captions,
+    music: effectiveOptions.music,
+    ...(transparent ? { transparent: true } : {}),
     durationMs: project.durationMs,
     slotCount: available.renderable,
     mode: deps.mode,
@@ -197,6 +252,8 @@ export async function createRender(
     voicePath,
     ...(videoPath ? { videoPath } : {}),
     ...(clipPaths && Object.keys(clipPaths).length ? { clipPaths } : {}),
+    ...(stockOverlayPaths && Object.keys(stockOverlayPaths).length ? { stockOverlayPaths } : {}),
+    ...(stockAudioPaths && Object.keys(stockAudioPaths).length ? { stockAudioPaths } : {}),
     key,
   };
   const started = await deps.startExport(renderId, render, cost, exportConfigOf(config), nowMs);
@@ -301,13 +358,13 @@ export interface DownloadDeps extends OwnedRenderDeps {
   mode: RenderMode;
   /** A V4 signed read URL that downloads under `disposition`. */
   signedUrl: (path: string, disposition: string, ttlMs: number) => Promise<string>;
-  disposition: (title: string) => string;
+  disposition: (title: string, container?: RenderContainer) => string;
 }
 
 export type DownloadResult =
   | HandlerResult
   /** Emulator mode: the route reads the object itself and streams it. */
-  | { status: 200; stream: { path: string; disposition: string } };
+  | { status: 200; stream: { path: string; disposition: string; contentType: string } };
 
 export async function downloadRender(
   deps: DownloadDeps,
@@ -320,9 +377,13 @@ export async function downloadRender(
   if (doc.status !== 'done' || !doc.outputPath) {
     return { status: 409, body: { error: 'not-done' } };
   }
-  const disposition = deps.disposition(doc.title);
+  const container = renderContainerFor(doc);
+  const disposition = deps.disposition(doc.title, container);
   if (opts.stream) {
-    return { status: 200, stream: { path: doc.outputPath, disposition } };
+    return {
+      status: 200,
+      stream: { path: doc.outputPath, disposition, contentType: renderMimeType(container) },
+    };
   }
   if (deps.mode === 'emulator') {
     // The Storage emulator can't check signed URLs: the route streams the bytes itself.

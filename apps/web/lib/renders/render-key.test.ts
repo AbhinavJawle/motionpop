@@ -33,4 +33,42 @@ describe('renderKeyOf', () => {
     expect(renderKeyOf(input())).toBe(renderKeyOf(input(RUNTIME_VERSION)));
     expect(renderKeyOf(input())).not.toBe(renderKeyOf(input('not-the-runtime')));
   });
+
+  it('changes when stock overlays, stock audio, or lane visibility/mute flags change (spec 45 R5.2)', () => {
+    const base = input();
+    const withOverlay = {
+      ...base,
+      project: {
+        ...base.project,
+        stockOverlays: [
+          {
+            id: 'ov1',
+            name: 'Clip',
+            src: 'idb:1',
+            kind: 'video' as const,
+            mimeType: 'video/mp4',
+            startMs: 0,
+            endMs: 2000,
+            layout: 'card' as const,
+            provider: 'upload' as const,
+          },
+        ],
+      },
+    };
+    const withHiddenLane = {
+      ...withOverlay,
+      project: {
+        ...withOverlay.project,
+        stockMediaLanes: [{ index: 0, hidden: true }],
+      },
+    };
+    expect(renderKeyOf(base)).not.toBe(renderKeyOf(withOverlay));
+    expect(renderKeyOf(withOverlay)).not.toBe(renderKeyOf(withHiddenLane));
+    expect(renderKeyOf(withOverlay)).not.toBe(
+      renderKeyOf({
+        ...withOverlay,
+        stockOverlayPaths: { ov1: 'users/u1/video/p1/stock-ov-0123456789abcdef.mp4' },
+      }),
+    );
+  });
 });

@@ -16,19 +16,23 @@ export function SwitchRow({
   checked,
   onCheckedChange,
   soon,
+  disabledReason,
   className,
 }: {
   label: string;
   hint?: string;
   checked: boolean;
   onCheckedChange: (next: boolean) => void;
-  /** Why it is not available yet; makes the row disabled. */
+  /** Why it is not available yet; makes the row disabled with a "Soon" pill. */
   soon?: string;
+  /** Why it is disabled for the current project (no "Soon" pill). */
+  disabledReason?: string;
   className?: string;
 }) {
   const id = useId();
   const descId = `${id}-desc`;
-  const disabled = Boolean(soon);
+  const reason = soon ?? disabledReason;
+  const disabled = Boolean(reason);
   return (
     <div className={cn('flex items-start justify-between', className)}>
       <div>
@@ -44,10 +48,10 @@ export function SwitchRow({
         {hint && <div className="mt-[3px] text-[12px] leading-4 text-text-3">{hint}</div>}
       </div>
       <div className="-mt-[2px]">
-        {soon ? (
-          <Tooltip content={soon} side="top">
+        {reason ? (
+          <Tooltip content={reason} side="top">
             <span id={descId} className="sr-only">
-              {soon}
+              {reason}
             </span>
             <span className="inline-flex opacity-50">
               <Toggle

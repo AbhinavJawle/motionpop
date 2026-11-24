@@ -42,6 +42,7 @@ function queuedView(
     format: options.format,
     resolution: options.resolution,
     durationMs: project.durationMs,
+    ...(options.transparent ? { transparent: true } : {}),
   };
 }
 
@@ -63,6 +64,7 @@ export function ExportController() {
   const storedOptions = useExportUi((s) => s.options);
   const startError = useExportUi((s) => s.startError);
   const costOverride = useExportUi((s) => s.costOverride);
+  const startedAtMs = useExportUi((s) => s.startedAtMs);
 
   const free = client.mode === 'offline';
   // Nothing to give back when nothing was spent: offline, or a render that cost 0 credits (exports
@@ -71,10 +73,15 @@ export function ExportController() {
   const baseOptions =
     storedOptions ??
     (project ? defaultOptions(project.format, project.captions?.enabled ?? true) : null);
-  // Reels (spec 25) are vertical by design: they export in 9:16 whatever card is picked.
-  const options =
+  // Reels (spec 25) are vertical by design and bake speaker footage (no transparent WebM).
+  const options: RenderOptions | null =
     baseOptions && project?.reel && project.video
-      ? { ...baseOptions, format: '9:16' as const }
+      ? {
+          format: '9:16',
+          resolution: baseOptions.resolution,
+          captions: baseOptions.captions,
+          music: baseOptions.music,
+        }
       : baseOptions;
 
   const start = useCallback(
@@ -83,7 +90,14 @@ export function ExportController() {
       const current = editorStore.getState().project;
       if (!current || ui.starting) return;
       const picked: RenderOptions =
-        current.reel && current.video ? { ...chosen, format: '9:16' } : chosen;
+        current.reel && current.video
+          ? {
+              format: '9:16',
+              resolution: chosen.resolution,
+              captions: chosen.captions,
+              music: chosen.music,
+            }
+          : chosen;
       ui.setOptions(picked);
       ui.beginStart();
       // Freeze what is exported now: later edits don't change a running render (R2.1).
@@ -137,6 +151,7 @@ export function ExportController() {
           resolution: ui.view.resolution,
           captions: ui.options?.captions ?? false,
           music: ui.options?.music ?? true,
+          ...(ui.view.transparent ? { transparent: true } : {}),
         }
       : ui.options;
     ui.reset();
@@ -206,11 +221,17 @@ export function ExportController() {
       options={options}
       optionsState={optionsState}
       renderView={view}
+      startedAtMs={startedAtMs}
       startError={startError}
       free={nothingSpent}
       client={client}
       onOptions={(next) => exportStore.getState().setOptions(next)}
       onExport={() => void start(options)}
+      onExportAnother={(format) => {
+        const ui = exportStore.getState();
+        ui.reset();
+        ui.setOptions({ ...options, format });
+      }}
       onRetry={retry}
       onClose={() => exportStore.getState().close()}
       isActiveRender={isActive(view?.status)}

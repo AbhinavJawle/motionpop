@@ -67,6 +67,36 @@ describe('runRender: the happy path', () => {
     await expectClean(h, { keepOutput: true });
   });
 
+  it('transparent WebM renders with transparent background, webm container, and video/webm upload (spec 47)', async () => {
+    const h = await makeHarness({ title: 'Overlay Graphic' });
+    const seeded = (await h.store.get(h.renderId))!;
+    h.store.create(h.renderId, { ...seeded, transparent: true });
+
+    let capturedContainer: string | undefined;
+    let capturedHtml = '';
+    const origRender = h.deps.producer.render;
+    h.deps.producer.render = async (args) => {
+      capturedContainer = args.container;
+      capturedHtml = await readFile(`${args.compDir}/index.html`, 'utf8');
+      return origRender(args);
+    };
+
+    expect(await runRender(h.renderId, h.deps)).toBe('done');
+    expect(capturedContainer).toBe('webm');
+    expect(capturedHtml).toContain('background: transparent;');
+    expect(capturedHtml).not.toContain('<div class="mp-bg"></div>');
+
+    const doc = (await h.store.get(h.renderId))!;
+    expect(doc.outputPath).toMatch(/\/video\.webm$/);
+    expect(h.blobs.meta.get(doc.outputPath!)).toMatchObject({
+      contentType: 'video/webm',
+      cacheControl: 'private, max-age=0',
+    });
+    expect(h.blobs.meta.get(doc.outputPath!)?.contentDisposition).toContain(
+      'filename="Overlay Graphic.webm"',
+    );
+  });
+
   it('logs one structured line with timings and no transcript or URLs', async () => {
     const h = await makeHarness();
     await runRender(h.renderId, h.deps);

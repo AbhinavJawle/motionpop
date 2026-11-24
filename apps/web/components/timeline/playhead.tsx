@@ -5,14 +5,14 @@ import { msToX } from '@/lib/timeline/geometry';
 import { useFrame, useTimeline } from './timeline-context';
 
 /**
- * The playhead line (behind slot cards) and its capsule (above everything), drawn at
- * `--playhead-x`, which the frame listener writes on the time area root (spec 04 R5.2).
+ * The playhead line (behind slot cards, spanning every track in the scroll area) and its capsule
+ * (pinned in the ruler strip above), both driven by `--playhead-x` without React re-renders.
  */
 export function PlayheadLine() {
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute top-[20px] bottom-[14px] z-[1] w-[2px] -translate-x-[0.5px] bg-flame"
+      className="pointer-events-none absolute top-0 bottom-0 z-[1] w-[2px] -translate-x-[0.5px] bg-flame"
       style={{ left: 'var(--playhead-x)' }}
     />
   );
@@ -39,7 +39,7 @@ export function PlayheadCapsule() {
       aria-label="Playhead"
       aria-valuemin={0}
       aria-valuenow={Math.round(clock.currentMs)}
-      className="absolute top-0 z-30 flex h-[20px] w-12 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border-[1.5px] border-black bg-flame select-none"
+      className="absolute top-[2px] z-30 flex h-[20px] w-12 -translate-x-1/2 cursor-ew-resize touch-none items-center justify-center rounded-full border-[1.5px] border-black bg-flame select-none"
       style={{ left: 'var(--playhead-x)' }}
       onPointerDown={(e) => {
         e.stopPropagation();
@@ -66,9 +66,14 @@ export function PlayheadCapsule() {
   );
 }
 
-/** Writes `--playhead-x` (px within the time area) every frame. */
-export function usePlayheadVar(ref: React.RefObject<HTMLElement | null>): void {
+/** Writes `--playhead-x` (px within the time/ruler areas) every frame. */
+export function usePlayheadVar(
+  areaRef: React.RefObject<HTMLElement | null>,
+  rulerRef?: React.RefObject<HTMLElement | null>,
+): void {
   useFrame((ms, v) => {
-    ref.current?.style.setProperty('--playhead-x', `${msToX(ms, v)}px`);
+    const px = `${msToX(ms, v)}px`;
+    areaRef.current?.style.setProperty('--playhead-x', px);
+    rulerRef?.current?.style.setProperty('--playhead-x', px);
   });
 }

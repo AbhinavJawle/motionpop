@@ -21,6 +21,8 @@ export interface ExportUiState {
   startError: string | null;
   /** The price the server named when it refused ours (`cost-changed`); shown until options change. */
   costOverride: number | null;
+  /** Epoch ms when the active export started, preserved across modal close/reopen (spec 46). */
+  startedAtMs: number | null;
 
   /** The Export button: opens the options, or progress when a render is running. */
   openFromButton(): void;
@@ -55,37 +57,51 @@ export function createExportStore() {
     options: null,
     startError: null,
     costOverride: null,
+    startedAtMs: null,
 
     openFromButton() {
       // A finished render was already shown (or toasted): the button starts a new export.
-      if (finished(get().view)) set({ renderId: null, view: null, startError: null });
+      if (finished(get().view)) {
+        set({ renderId: null, view: null, startError: null, startedAtMs: null });
+      }
       set({ open: true });
     },
     openAsIs() {
       set({ open: true });
     },
     close() {
-      if (finished(get().view)) set({ open: false, renderId: null, view: null });
+      if (finished(get().view)) set({ open: false, renderId: null, view: null, startedAtMs: null });
       else set({ open: false });
     },
     setOptions(options) {
       set({ options, startError: null, costOverride: null });
     },
     beginStart() {
-      set({ starting: true, startError: null });
+      set({ starting: true, startError: null, startedAtMs: Date.now() });
     },
     failStart(message, costOverride) {
-      set({ starting: false, startError: message, costOverride: costOverride ?? null });
+      set({
+        starting: false,
+        startError: message,
+        costOverride: costOverride ?? null,
+        startedAtMs: null,
+      });
     },
     follow(renderId, view = null) {
-      set({ starting: false, renderId, view, startError: null });
+      set({
+        starting: false,
+        renderId,
+        view,
+        startError: null,
+        startedAtMs: get().startedAtMs ?? Date.now(),
+      });
     },
     applyView(view) {
       if (get().renderId !== view.renderId) return;
       set({ view });
     },
     reset() {
-      set({ renderId: null, view: null, starting: false, startError: null });
+      set({ renderId: null, view: null, starting: false, startError: null, startedAtMs: null });
     },
   }));
 }

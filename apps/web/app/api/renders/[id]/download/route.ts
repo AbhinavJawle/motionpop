@@ -28,7 +28,7 @@ export async function GET(
       const file = bucket().file(result.stream.path);
       return new Response(Readable.toWeb(file.createReadStream()) as ReadableStream, {
         headers: {
-          'content-type': 'video/mp4',
+          'content-type': result.stream.contentType,
           'content-disposition': result.stream.disposition,
           'cache-control': 'private, no-store',
         },

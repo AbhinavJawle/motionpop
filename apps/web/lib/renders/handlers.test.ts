@@ -226,6 +226,52 @@ describe('createRender: every error of design §10', () => {
     }
   });
 
+  it('validates and forwards owner-scoped stockOverlayPaths and stockAudioPaths, rejecting foreign paths (spec 45 R5.1)', async () => {
+    const validOv = `users/${UID}/video/${PROJECT.id}/stock-ov-0123456789abcdef.mp4`;
+    const validAu = `users/${UID}/audio/${PROJECT.id}/stock-au-0123456789abcdef.mp3`;
+    const okFakes = fakes();
+    const spy = vi.spyOn(okFakes.deps, 'startExport');
+    const okRes = await createRender(
+      okFakes.deps,
+      UID,
+      body({
+        stockOverlayPaths: { 'ov-1': validOv },
+        stockAudioPaths: { 'sa-1': validAu },
+      }),
+    );
+    expect(okRes.status).toBe(201);
+    const [, render] = spy.mock.calls[0]!;
+    expect(render.stockOverlayPaths).toEqual({ 'ov-1': validOv });
+    expect(render.stockAudioPaths).toEqual({ 'sa-1': validAu });
+
+    // Cross-user or invalid extension paths must be rejected before any charge or job launch
+    for (const bad of [
+      {
+        stockOverlayPaths: {
+          'ov-1': `users/other/video/${PROJECT.id}/stock-ov-0123456789abcdef.mp4`,
+        },
+      },
+      {
+        stockOverlayPaths: {
+          'ov-1': `users/${UID}/video/${PROJECT.id}/stock-ov-0123456789abcdef.svg`,
+        },
+      },
+      {
+        stockAudioPaths: {
+          'sa-1': `users/other/audio/${PROJECT.id}/stock-au-0123456789abcdef.mp3`,
+        },
+      },
+      {
+        stockAudioPaths: {
+          'sa-1': `users/${UID}/audio/${PROJECT.id}/stock-au-0123456789abcdef.exe`,
+        },
+      },
+    ]) {
+      const { f } = await expectError('invalid', body(bad));
+      expect(f.calls).toEqual([]);
+    }
+  });
+
   it('invalid, not a 500: ids that fail the id regex', async () => {
     await expectError('invalid', body(), fakes(), 'bad/uid');
     await expectError('invalid', body({ project: { ...PROJECT, id: 'a/b' } }));
@@ -515,6 +561,21 @@ describe('downloadRender', () => {
       stream: {
         path: 'users/user-1/projects/p/renders/r/video.mp4',
         disposition: 'attachment; filename="Launch film.mp4"',
+        contentType: 'video/mp4',
+      },
+    });
+    const webmDeps = make(
+      doc({
+        transparent: true,
+        outputPath: 'users/user-1/projects/p/renders/r/video.webm',
+      }),
+      'emulator',
+    );
+    expect(await downloadRender(webmDeps, UID, 'r1', { stream: true })).toMatchObject({
+      status: 200,
+      stream: {
+        path: 'users/user-1/projects/p/renders/r/video.webm',
+        contentType: 'video/webm',
       },
     });
     expect(deps.signedUrl).not.toHaveBeenCalled();

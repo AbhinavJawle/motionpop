@@ -1,9 +1,16 @@
 'use client';
 
 import { useEffect } from 'react';
-import { deleteSlot, duplicateSlot, moveSlot } from '@/lib/commands';
+import {
+  deleteSlot,
+  duplicateSlot,
+  moveSlot,
+  removeStockAudio,
+  removeStockOverlay,
+} from '@/lib/commands';
 import type { PlaybackClock } from '@/lib/editor/playback';
 import { editorStore } from '@/lib/stores/editor';
+import { cutVideoSegment, splitAtPlayhead } from '@/lib/timeline/edit-actions';
 
 const FRAME_MS = 1000 / 30;
 
@@ -27,8 +34,9 @@ export function takesSpace(target: EventTarget | null): boolean {
 }
 
 /**
- * Editor keyboard map (spec 04 R6.4, R7.1). Space play/pause · J/K/L shuttle · ←/→ one frame
- * · ⇧←/→ one second · ⌘Z / ⇧⌘Z · Delete/Backspace delete slot · ⌘D duplicate · Esc deselect.
+ * Editor keyboard map (spec 04 R6.4, R7.1 + spec 45 R3.3–R3.4).
+ * Space play/pause · S split at playhead · J/K/L shuttle · ←/→ one frame · ⇧←/→ one second
+ * · ⌘Z / ⇧⌘Z · Delete/Backspace delete slot/clip/video segment · ⌘D duplicate · Esc deselect.
  * With a slot focused, arrows nudge the slot instead of the playhead.
  */
 export function useEditorKeys(clock: PlaybackClock): void {
@@ -67,6 +75,12 @@ export function useEditorKeys(clock: PlaybackClock): void {
           shuttle = 0;
           clock.toggle();
           return;
+        case 's':
+        case 'S':
+          if (e.altKey) return;
+          e.preventDefault();
+          splitAtPlayhead(clock.currentMs);
+          return;
         case 'k':
         case 'K':
           shuttle = 0;
@@ -98,13 +112,25 @@ export function useEditorKeys(clock: PlaybackClock): void {
           if (s.selectedSlotId) {
             e.preventDefault();
             s.exec(deleteSlot(s.selectedSlotId));
+          } else if (s.selectedItem?.kind === 'stockOverlay') {
+            e.preventDefault();
+            s.exec(removeStockOverlay(s.selectedItem.id));
+          } else if (s.selectedItem?.kind === 'stockAudio') {
+            e.preventDefault();
+            s.exec(removeStockAudio(s.selectedItem.id));
+          } else if (s.selectedItem?.kind === 'videoSegment') {
+            e.preventDefault();
+            void cutVideoSegment(s.selectedItem, clock);
           }
           return;
         case 'Escape':
           // Leave draw mode first; the next Esc deselects (spec 09 R8.1). The note layer handles
           // its own draft (a bubble being typed in) before this runs.
           if (s.drawMode) s.setDrawMode(false);
-          else s.select(null);
+          else {
+            s.select(null);
+            s.selectItem(null);
+          }
           return;
       }
     };

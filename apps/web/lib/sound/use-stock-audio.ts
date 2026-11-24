@@ -1,6 +1,6 @@
 'use client';
 
-import type { StockAudioClip } from '@motionpop/schemas';
+import { audibleStockAudio, type StockAudioClip } from '@motionpop/schemas';
 import { useEffect, useRef } from 'react';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
 import type { PlaybackClock } from '@/lib/editor/playback';
@@ -51,8 +51,11 @@ async function decodeClipBuffer(src: string): Promise<AudioBuffer | null> {
 
 let activeAudition: AudioBufferSourceNode | null = null;
 
-/** Plays a single stock audio clip immediately (e.g. clicking play on the timeline or right after placing an SFX). */
-export async function auditionStockAudio(src: string, volume = 0.9): Promise<void> {
+/**
+ * Plays a single stock audio clip immediately (e.g. clicking play on the timeline or right after
+ * placing an SFX), honoring `offsetMs` for split/trimmed clips.
+ */
+export async function auditionStockAudio(src: string, volume = 0.9, offsetMs = 0): Promise<void> {
   const ctx = getAudioContext();
   if (!ctx) return;
   if (ctx.state === 'suspended') {
@@ -76,18 +79,21 @@ export async function auditionStockAudio(src: string, volume = 0.9): Promise<voi
   source.onended = () => {
     if (activeAudition === source) activeAudition = null;
   };
-  source.start(0, 0, Math.min(buf.duration, 12));
+  const offsetSec = Math.max(0, offsetMs / 1000) % Math.max(0.05, buf.duration);
+  const durSec = Math.min(Math.max(0.05, buf.duration - offsetSec), 12);
+  source.start(0, offsetSec, durSec);
 }
 
 /**
- * Sample-accurate Web Audio API playback engine for the `Stock Audio` timeline layer.
+ * Sample-accurate Web Audio API playback engine for multi-lane `Stock Audio` tracks (spec 45).
  * Works identically for BOTH talking-head Reel projects and Voiceover/Motion projects:
  * - Pre-decodes placed clips into cached AudioBuffers for 0 ms latency.
- * - Schedules every active & upcoming clip on the Web Audio hardware clock when playing.
- * - Re-syncs cleanly on seek/scrub, and stops immediately on pause or unmount.
+ * - Filters out muted lanes via `audibleStockAudio`.
+ * - Honors `sourceOffsetMs` on split & left-trimmed clips on start, scrub, and loop.
  */
 export function useStockAudio(clock: PlaybackClock): void {
   const clips = useEditor((s) => s.project?.stockAudio);
+  const lanes = useEditor((s) => s.project?.stockAudioLanes);
   const playing = useEditor((s) => s.playing);
   const sourcesRef = useRef<AudioBufferSourceNode[]>([]);
   const lastFrameRef = useRef<{ wall: number; ms: number } | null>(null);
@@ -129,7 +135,7 @@ export function useStockAudio(clock: PlaybackClock): void {
     }
   }, [clips]);
 
-  // Schedule all placed stock audio clips from `fromMs`.
+  // Schedule all audible stock audio clips from `fromMs`.
   const scheduleFrom = (fromMs: number, list: readonly StockAudioClip[] | undefined) => {
     stopAll();
     if (!list || list.length === 0) return;
@@ -161,8 +167,9 @@ export function useStockAudio(clock: PlaybackClock): void {
 
         const source = ctx.createBufferSource();
         source.buffer = buffer;
+        const baseOffsetSec = Math.max(0, (clip.sourceOffsetMs ?? 0) / 1000);
         const clipLenSec = (clip.endMs - clip.startMs) / 1000;
-        if (clip.kind === 'music' && clipLenSec > buffer.duration) {
+        if (clip.kind === 'music' && baseOffsetSec + clipLenSec > buffer.duration) {
           source.loop = true;
         }
 
@@ -172,7 +179,7 @@ export function useStockAudio(clock: PlaybackClock): void {
         gain.connect(ctx.destination);
 
         if (clip.startMs <= nowMs) {
-          const offsetSec = (nowMs - clip.startMs) / 1000;
+          const offsetSec = baseOffsetSec + (nowMs - clip.startMs) / 1000;
           const remainingSec = Math.max(0.02, (clip.endMs - nowMs) / 1000);
           const safeOffset = source.loop ? offsetSec % Math.max(0.05, buffer.duration) : offsetSec;
           if (!source.loop && safeOffset >= buffer.duration) continue;
@@ -183,9 +190,15 @@ export function useStockAudio(clock: PlaybackClock): void {
           source.start(baseCtxTime, safeOffset, playDur);
         } else {
           const delaySec = (clip.startMs - nowMs) / 1000;
-          const playDur = source.loop ? clipLenSec : Math.min(clipLenSec, buffer.duration);
+          const safeOffset = source.loop
+            ? baseOffsetSec % Math.max(0.05, buffer.duration)
+            : baseOffsetSec;
+          if (!source.loop && safeOffset >= buffer.duration) continue;
+          const playDur = source.loop
+            ? clipLenSec
+            : Math.min(clipLenSec, buffer.duration - safeOffset);
           if (playDur <= 0.01) continue;
-          source.start(baseCtxTime + delaySec, 0, playDur);
+          source.start(baseCtxTime + delaySec, safeOffset, playDur);
         }
 
         sourcesRef.current.push(source);
@@ -193,7 +206,7 @@ export function useStockAudio(clock: PlaybackClock): void {
     })();
   };
 
-  // Start/stop when `playing` or `clips` changes.
+  // Start/stop when `playing`, `clips`, or lane mutes change.
   useEffect(() => {
     const epochRef = scheduleEpochRef;
     if (!playing) {
@@ -204,13 +217,13 @@ export function useStockAudio(clock: PlaybackClock): void {
     }
     const startMs = clock.currentMs;
     lastFrameRef.current = { wall: performance.now(), ms: startMs };
-    scheduleFrom(startMs, clips);
+    scheduleFrom(startMs, audibleStockAudio({ stockAudio: clips, stockAudioLanes: lanes }));
     return () => {
       epochRef.current++;
       stopAll();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- scheduleFrom uses refs and stable helpers
-  }, [playing, clips, clock]);
+  }, [playing, clips, lanes, clock]);
 
   // Re-schedule immediately if the user seeks/scrubs while playing.
   useEffect(() => {
@@ -225,7 +238,8 @@ export function useStockAudio(clock: PlaybackClock): void {
       if (!prev) return;
       const expected = prev.ms + (now - prev.wall);
       if (Math.abs(ms - expected) > 220) {
-        scheduleFrom(ms, editorStore.getState().project?.stockAudio);
+        const proj = editorStore.getState().project;
+        scheduleFrom(ms, proj ? audibleStockAudio(proj) : undefined);
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- scheduleFrom uses refs and stable helpers

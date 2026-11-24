@@ -6,6 +6,8 @@ import {
   exportAvailability,
   isSafeId,
   renderPaths,
+  stockAudioPathFor,
+  stockOverlayPathFor,
   toRenderStatus,
   videoPathFor,
   voicePathFor,
@@ -68,11 +70,28 @@ const LOCAL_VIDEO_EXT: Readonly<Record<string, 'mp4' | 'mov' | 'webm'>> = {
   'video/webm': 'webm',
 };
 
+const LOCAL_STOCK_OV_EXT: Readonly<
+  Record<string, 'mp4' | 'mov' | 'webm' | 'png' | 'jpg' | 'webp'>
+> = {
+  'video/mp4': 'mp4',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+};
+
+export interface LocalStockMediaFiles {
+  overlays?: Readonly<Record<string, LocalVoice>>;
+  audio?: Readonly<Record<string, LocalVoice>>;
+}
+
 export async function createLocalRender(
   deps: LocalDeps,
   requestText: string,
   voice: LocalVoice | null,
   video: LocalVoice | null = null,
+  stockFiles: LocalStockMediaFiles = {},
 ): Promise<HandlerResult> {
   if (Buffer.byteLength(requestText, 'utf8') > MAX_BODY_BYTES) return apiError('too-large');
   let raw: unknown;
@@ -112,6 +131,45 @@ export async function createLocalRender(
     const candidate = `users/${LOCAL_USER}/video/${project.id}/source-${vHash}.${vExt}`;
     if (videoPathFor(LOCAL_USER, project.id).test(candidate)) videoPath = candidate;
   }
+
+  const stockOverlayPaths: Record<string, string> = {};
+  const stockBlobsToWrite = new Map<string, Buffer>();
+  if (stockFiles.overlays) {
+    const ovRe = stockOverlayPathFor(LOCAL_USER, project.id);
+    for (const [clipId, file] of Object.entries(stockFiles.overlays).slice(0, 64)) {
+      if (!isSafeId(clipId) || file.size <= 0 || file.bytes.length <= 0) continue;
+      const mime = file.type.split(';')[0]?.trim().toLowerCase() ?? '';
+      const ovExt = LOCAL_STOCK_OV_EXT[mime] ?? (mime.startsWith('image/') ? 'jpg' : 'mp4');
+      const ovHash = createHash('sha256').update(file.bytes).digest('hex').slice(0, 16);
+      const path = `users/${LOCAL_USER}/video/${project.id}/stock-ov-${ovHash}.${ovExt}`;
+      if (!ovRe.test(path)) continue;
+      stockOverlayPaths[clipId] = path;
+      stockBlobsToWrite.set(path, file.bytes);
+    }
+  }
+
+  const stockAudioPaths: Record<string, string> = {};
+  if (stockFiles.audio) {
+    const auRe = stockAudioPathFor(LOCAL_USER, project.id);
+    for (const [clipId, file] of Object.entries(stockFiles.audio).slice(0, 96)) {
+      if (
+        !isSafeId(clipId) ||
+        file.size <= 0 ||
+        file.bytes.length <= 0 ||
+        file.bytes.length > MAX_VOICE_BYTES
+      ) {
+        continue;
+      }
+      const mime = file.type.split(';')[0]?.trim().toLowerCase() ?? '';
+      const auExt = VOICE_EXT[mime] ?? 'mp3';
+      const auHash = createHash('sha256').update(file.bytes).digest('hex').slice(0, 16);
+      const path = `users/${LOCAL_USER}/audio/${project.id}/stock-au-${auHash}.${auExt}`;
+      if (!auRe.test(path)) continue;
+      stockAudioPaths[clipId] = path;
+      stockBlobsToWrite.set(path, file.bytes);
+    }
+  }
+
   let inputPath: string;
   try {
     inputPath = renderPaths(LOCAL_USER, project.id, renderId).input;
@@ -119,6 +177,8 @@ export async function createLocalRender(
     return apiError('invalid');
   }
 
+  const isReel = Boolean(project.reel && project.video);
+  const transparent = Boolean(options.transparent) && !isReel;
   const doc = RenderDocSchema.parse({
     schemaVersion: 1,
     ownerId: LOCAL_USER,
@@ -129,6 +189,7 @@ export async function createLocalRender(
     resolution: options.resolution,
     captions: options.captions,
     music: options.music,
+    ...(transparent ? { transparent: true } : {}),
     durationMs: project.durationMs,
     slotCount: available.renderable,
     status: 'queued',
@@ -138,11 +199,16 @@ export async function createLocalRender(
     inputPath,
     voicePath,
     ...(videoPath ? { videoPath } : {}),
+    ...(Object.keys(stockOverlayPaths).length > 0 ? { stockOverlayPaths } : {}),
+    ...(Object.keys(stockAudioPaths).length > 0 ? { stockAudioPaths } : {}),
     createdAt: deps.now(),
   });
   try {
     await deps.putBlob(voicePath, voice.bytes);
     if (videoPath && video) await deps.putBlob(videoPath, video.bytes);
+    for (const [path, bytes] of stockBlobsToWrite) {
+      await deps.putBlob(path, bytes);
+    }
     await deps.putBlob(inputPath, JSON.stringify(project));
     deps.createDoc(renderId, doc);
     await deps.launch(renderId);

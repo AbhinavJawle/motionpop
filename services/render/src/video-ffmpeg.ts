@@ -45,7 +45,7 @@ const ffHex = (hex: string | undefined): string => {
  * producing `[outLabel]` with crisp rounded corners (matching browser preview `borderRadius`).
  * When `topOnly` is true, only the top two corners are arched (`split-top-stage`, spec 23).
  */
-function roundedCornerFilter(
+export function roundedCornerFilter(
   inLabel: string,
   outLabel: string,
   bw: number,

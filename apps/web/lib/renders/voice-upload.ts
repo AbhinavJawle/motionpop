@@ -1,7 +1,11 @@
 import {
+  audibleStockAudio,
   isSafeId,
   mediaClipPathFor,
+  stockAudioPathFor,
+  stockOverlayPathFor,
   videoPathFor,
+  visibleStockOverlays,
   voicePathFor,
   type EditorProject,
 } from '@motionpop/schemas';
@@ -200,6 +204,145 @@ export async function uploadReferencedMediaClips(
       await storage.upload(path, blob, CLIP_MIME[ext]);
     }
     out[clip.id] = path;
+  }
+  return out;
+}
+
+async function resolveStoredMediaBlob(src: string, store: AudioStore): Promise<Blob | null> {
+  if (isIdbAudioRef(src) || isStorageAudioRef(src)) {
+    return (await store.get(src).catch(() => null)) ?? null;
+  }
+  if (src.startsWith('/')) {
+    try {
+      const res = await fetch(src);
+      return res.ok ? await res.blob() : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+/**
+ * Uploads every blob referenced by visible `project.stockOverlays` for cloud/emulator export
+ * (spec 45 R5.1), deduplicating uploads when split clips share the same source ref.
+ */
+export async function uploadStockOverlays(
+  uid: string,
+  project: EditorProject,
+  store: AudioStore = appAudioStore(),
+  remote: () => Promise<RemoteAudio> = firebaseRemoteAudio,
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  const visible = visibleStockOverlays(project);
+  if (!isSafeId(uid) || !isSafeId(project.id) || visible.length === 0) return out;
+  const storage = await remote();
+  const re = stockOverlayPathFor(uid, project.id);
+  const uploadedBySrc = new Map<string, string>();
+  for (const clip of visible) {
+    const cached = uploadedBySrc.get(clip.src);
+    if (cached) {
+      out[clip.id] = cached;
+      continue;
+    }
+    const blob = await resolveStoredMediaBlob(clip.src, store);
+    if (!blob || blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) continue;
+    const base = (blob.type || clip.mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
+    const ext =
+      CLIP_EXT[base] ??
+      (clip.kind === 'photo' || clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
+    const path = `users/${uid}/video/${project.id}/stock-ov-${await hash16(await blob.arrayBuffer())}.${ext}`;
+    if (!re.test(path)) continue;
+    if (!(await storage.exists(path).catch(() => false))) {
+      await storage.upload(path, blob, CLIP_MIME[ext]);
+    }
+    uploadedBySrc.set(clip.src, path);
+    out[clip.id] = path;
+  }
+  return out;
+}
+
+/**
+ * Uploads every blob referenced by audible `project.stockAudio` for cloud/emulator export
+ * (spec 45 R5.1), deduplicating uploads when split clips share the same source ref.
+ */
+export async function uploadStockAudio(
+  uid: string,
+  project: EditorProject,
+  store: AudioStore = appAudioStore(),
+  remote: () => Promise<RemoteAudio> = firebaseRemoteAudio,
+): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  const audible = audibleStockAudio(project);
+  if (!isSafeId(uid) || !isSafeId(project.id) || audible.length === 0) return out;
+  const storage = await remote();
+  const re = stockAudioPathFor(uid, project.id);
+  const uploadedBySrc = new Map<string, string>();
+  for (const clip of audible) {
+    const cached = uploadedBySrc.get(clip.src);
+    if (cached) {
+      out[clip.id] = cached;
+      continue;
+    }
+    const blob = await resolveStoredMediaBlob(clip.src, store);
+    if (!blob || blob.size <= 0 || blob.size > MAX_VOICE_BYTES) continue;
+    const ext = voiceExtFor(blob.type || clip.mimeType) ?? 'mp3';
+    const path = `users/${uid}/audio/${project.id}/stock-au-${await hash16(await blob.arrayBuffer())}.${ext}`;
+    if (!re.test(path)) continue;
+    if (!(await storage.exists(path).catch(() => false))) {
+      await storage.upload(path, blob, CANONICAL_TYPE[ext]);
+    }
+    uploadedBySrc.set(clip.src, path);
+    out[clip.id] = path;
+  }
+  return out;
+}
+
+/** Resolves visible stock overlay blobs for offline multipart export (spec 45 R5.1). */
+export async function resolveStockOverlayBlobs(
+  project: EditorProject,
+  store: AudioStore = appAudioStore(),
+): Promise<Record<string, { blob: Blob; ext: string }>> {
+  const out: Record<string, { blob: Blob; ext: string }> = {};
+  const cache = new Map<string, { blob: Blob; ext: string }>();
+  for (const clip of visibleStockOverlays(project)) {
+    const cached = cache.get(clip.src);
+    if (cached) {
+      out[clip.id] = cached;
+      continue;
+    }
+    const blob = await resolveStoredMediaBlob(clip.src, store);
+    if (!blob || blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) continue;
+    const base = (blob.type || clip.mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
+    const ext =
+      CLIP_EXT[base] ??
+      (clip.kind === 'photo' || clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
+    const entry = { blob, ext };
+    cache.set(clip.src, entry);
+    out[clip.id] = entry;
+  }
+  return out;
+}
+
+/** Resolves audible stock audio blobs for offline multipart export (spec 45 R5.1). */
+export async function resolveStockAudioBlobs(
+  project: EditorProject,
+  store: AudioStore = appAudioStore(),
+): Promise<Record<string, { blob: Blob; ext: string }>> {
+  const out: Record<string, { blob: Blob; ext: string }> = {};
+  const cache = new Map<string, { blob: Blob; ext: string }>();
+  for (const clip of audibleStockAudio(project)) {
+    const cached = cache.get(clip.src);
+    if (cached) {
+      out[clip.id] = cached;
+      continue;
+    }
+    const blob = await resolveStoredMediaBlob(clip.src, store);
+    if (!blob || blob.size <= 0 || blob.size > MAX_VOICE_BYTES) continue;
+    const ext = voiceExtFor(blob.type || clip.mimeType) ?? 'mp3';
+    const entry = { blob, ext };
+    cache.set(clip.src, entry);
+    out[clip.id] = entry;
   }
   return out;
 }

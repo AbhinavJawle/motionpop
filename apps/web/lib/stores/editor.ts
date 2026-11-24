@@ -39,12 +39,19 @@ export interface Generating {
   startedAt: number;
 }
 
+/** A selected stock media clip, stock audio clip, or main video segment on the timeline (spec 45). */
+export type SelectedTimelineItem =
+  | { kind: 'stockOverlay'; id: string }
+  | { kind: 'stockAudio'; id: string }
+  | { kind: 'videoSegment'; startMs: number; endMs: number };
+
 export interface EditorState {
   project: EditorProject | null;
   /** Increments on every `load`, so autosave can tell a load from an edit. */
   loadCount: number;
   history: History;
   selectedSlotId: string | null;
+  selectedItem: SelectedTimelineItem | null;
   playheadMs: number;
   playing: boolean;
   view: View & { fit: boolean };
@@ -75,6 +82,7 @@ export interface EditorState {
   undo(): void;
   redo(): void;
   select(slotId: string | null): void;
+  selectItem(item: SelectedTimelineItem | null): void;
   setPlayhead(ms: number): void;
   setPlaying(playing: boolean): void;
   setView(view: Partial<EditorState['view']>): void;
@@ -104,6 +112,15 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
           if (s.selectedSlotId && !project.slots.some((x) => x.id === s.selectedSlotId)) {
             s.selectedSlotId = null;
           }
+          if (s.selectedItem?.kind === 'stockOverlay') {
+            const id = s.selectedItem.id;
+            if (!(project.stockOverlays ?? []).some((c) => c.id === id)) s.selectedItem = null;
+          } else if (s.selectedItem?.kind === 'stockAudio') {
+            const id = s.selectedItem.id;
+            if (!(project.stockAudio ?? []).some((c) => c.id === id)) s.selectedItem = null;
+          } else if (s.selectedItem?.kind === 'videoSegment' && !project.video) {
+            s.selectedItem = null;
+          }
         });
 
       return {
@@ -111,6 +128,7 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         loadCount: 0,
         history: emptyHistory,
         selectedSlotId: null,
+        selectedItem: null,
         playheadMs: 0,
         playing: false,
         view: { pxPerMs: 0.1, scrollMs: 0, fit: true },
@@ -129,6 +147,7 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
             s.loadCount += 1;
             s.history = emptyHistory;
             s.selectedSlotId = null;
+            s.selectedItem = null;
             s.playheadMs = 0;
             s.playing = false;
             s.dragPreview = null;
@@ -177,6 +196,12 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         select: (slotId) =>
           set((s) => {
             s.selectedSlotId = slotId;
+            if (slotId !== null) s.selectedItem = null;
+          }),
+        selectItem: (item) =>
+          set((s) => {
+            s.selectedItem = item;
+            if (item !== null) s.selectedSlotId = null;
           }),
         setPlayhead: (ms) =>
           set((s) => {

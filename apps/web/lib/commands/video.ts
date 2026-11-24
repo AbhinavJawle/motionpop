@@ -1,4 +1,6 @@
 import {
+  tileReelScenes,
+  videoDisplaySegments,
   type EditorProject,
   type MediaClip,
   type OverlayAnchor,
@@ -170,6 +172,106 @@ export function addVideoCut(cut: VideoCut): Command {
       return produce(p, (d) => {
         if (!d.video) return;
         d.video.cuts = d.video.cuts.filter((c) => c.id !== cut.id);
+      });
+    },
+  };
+}
+
+const MIN_VIDEO_SPLIT_MARGIN_MS = 250;
+const MAX_VIDEO_SPLITS = 64;
+
+/** Add a non-destructive manual razor split point on the source video clock (spec 45 R2.4). */
+export function splitVideoAt(sourceMs: number): Command {
+  let prevSplits: number[] | undefined;
+  return {
+    label: 'Split video',
+    do(p) {
+      const vid = requireVideo(p);
+      const at = Math.round(sourceMs);
+      if (!Number.isFinite(at)) {
+        throw new CommandRejected('Invalid video split timestamp');
+      }
+      const existing = vid.splits ?? [];
+      if (existing.length >= MAX_VIDEO_SPLITS) {
+        throw new CommandRejected(`Up to ${MAX_VIDEO_SPLITS} video splits per project`);
+      }
+      const segs = videoDisplaySegments(vid.originalDurationMs, vid.cuts, existing);
+      const hit = segs.find(
+        (s) =>
+          at >= s.startMs + MIN_VIDEO_SPLIT_MARGIN_MS && at <= s.endMs - MIN_VIDEO_SPLIT_MARGIN_MS,
+      );
+      if (!hit) {
+        throw new CommandRejected(
+          'Move the playhead at least 0.25s inside a video segment to split',
+        );
+      }
+      prevSplits = vid.splits;
+      return produce(p, (d) => {
+        if (!d.video) return;
+        d.video.splits = [...(d.video.splits ?? []), at].sort((a, b) => a - b);
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (!d.video) return;
+        if (prevSplits === undefined) delete d.video.splits;
+        else d.video.splits = prevSplits;
+      });
+    },
+  };
+}
+
+/** Merge two adjacent video segments by removing a manual split seam (spec 45 R2.4). */
+export function removeVideoSplit(sourceMs: number): Command {
+  let prevSplits: number[] | undefined;
+  return {
+    label: 'Merge video split',
+    do(p) {
+      const vid = requireVideo(p);
+      const existing = vid.splits ?? [];
+      if (!existing.includes(sourceMs)) {
+        throw new CommandRejected('Video split point not found');
+      }
+      prevSplits = vid.splits;
+      const next = existing.filter((s) => s !== sourceMs);
+      return produce(p, (d) => {
+        if (!d.video) return;
+        if (next.length === 0) delete d.video.splits;
+        else d.video.splits = next;
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (!d.video) return;
+        if (prevSplits === undefined) delete d.video.splits;
+        else d.video.splits = prevSplits;
+      });
+    },
+  };
+}
+
+/** Delete a video cut cleanly (undoable). */
+export function removeVideoCut(cutId: string): Command {
+  let prevCuts: VideoCut[] | undefined;
+  return {
+    label: 'Remove video cut',
+    do(p) {
+      const vid = requireVideo(p);
+      if (!vid.cuts.some((c) => c.id === cutId)) {
+        throw new CommandRejected(`cut "${cutId}" does not exist`);
+      }
+      prevCuts = vid.cuts;
+      return produce(p, (d) => {
+        if (!d.video) return;
+        d.video.cuts = d.video.cuts.filter((c) => c.id !== cutId);
+      });
+    },
+    undo(p) {
+      if (!prevCuts) return p;
+      const restore = prevCuts;
+      return produce(p, (d) => {
+        if (!d.video) return;
+        d.video.cuts = restore;
       });
     },
   };
@@ -584,6 +686,9 @@ export function applyResplicedAudio(next: {
   let prevTranscript: EditorProject['transcript'] | undefined;
   let prevSlots: EditorProject['slots'] | undefined;
   let prevStages: VideoStageSegment[] | undefined;
+  let prevStockOverlays: EditorProject['stockOverlays'] | undefined;
+  let prevStockAudio: EditorProject['stockAudio'] | undefined;
+  let prevReel: EditorProject['reel'] | undefined;
   return {
     label: 'Re-sync audio to cuts',
     do(p) {
@@ -592,6 +697,9 @@ export function applyResplicedAudio(next: {
       prevTranscript = p.transcript;
       prevSlots = p.slots;
       prevStages = p.video?.stages;
+      prevStockOverlays = p.stockOverlays;
+      prevStockAudio = p.stockAudio;
+      prevReel = p.reel;
       const wordCount = next.words.length;
       return produce(p, (d) => {
         d.durationMs = Math.max(100, Math.round(next.durationMs));
@@ -604,7 +712,7 @@ export function applyResplicedAudio(next: {
           cleaned: next.hasCuts,
         };
         delete d.transcript.prosody;
-        // Clamp slots & stages cleanly to the new cleaned duration and word range.
+        // Clamp slots, stages, stock clips & reel scenes cleanly to the new cleaned duration.
         const maxWord = Math.max(0, wordCount - 1);
         d.slots = d.slots
           .filter((s) => s.startMs < d.durationMs)
@@ -621,6 +729,25 @@ export function applyResplicedAudio(next: {
             .map((st) => ({ ...st, endMs: Math.min(d.durationMs, st.endMs) }))
             .filter((st) => st.endMs > st.startMs);
         }
+        if (d.stockOverlays) {
+          const clamped = d.stockOverlays
+            .filter((c) => c.startMs < d.durationMs)
+            .map((c) => ({ ...c, endMs: Math.min(d.durationMs, c.endMs) }))
+            .filter((c) => c.endMs > c.startMs);
+          if (clamped.length === 0) delete d.stockOverlays;
+          else d.stockOverlays = clamped;
+        }
+        if (d.stockAudio) {
+          const clamped = d.stockAudio
+            .filter((c) => c.startMs < d.durationMs)
+            .map((c) => ({ ...c, endMs: Math.min(d.durationMs, c.endMs) }))
+            .filter((c) => c.endMs > c.startMs);
+          if (clamped.length === 0) delete d.stockAudio;
+          else d.stockAudio = clamped;
+        }
+        if (d.reel && d.reel.scenes.length > 0) {
+          d.reel.scenes = tileReelScenes(d.reel.scenes, d.durationMs);
+        }
       });
     },
     undo(p) {
@@ -633,6 +760,12 @@ export function applyResplicedAudio(next: {
           if (prevStages === undefined) delete d.video.stages;
           else d.video.stages = prevStages as typeof d.video.stages;
         }
+        if (prevStockOverlays === undefined) delete d.stockOverlays;
+        else d.stockOverlays = prevStockOverlays as typeof d.stockOverlays;
+        if (prevStockAudio === undefined) delete d.stockAudio;
+        else d.stockAudio = prevStockAudio as typeof d.stockAudio;
+        if (prevReel === undefined) delete d.reel;
+        else d.reel = prevReel as typeof d.reel;
       });
     },
   };

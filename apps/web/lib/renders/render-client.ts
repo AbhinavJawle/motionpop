@@ -14,8 +14,12 @@ import {
 import { getAuthClient, getDb, getStorageClient } from '../firebase/client';
 import { apiHeaders } from '../users/bootstrap-client';
 import {
+  resolveStockAudioBlobs,
+  resolveStockOverlayBlobs,
   resolveVideoBlob,
   uploadReferencedMediaClips,
+  uploadStockAudio,
+  uploadStockOverlays,
   uploadVideo,
   uploadVoice,
   VoiceError,
@@ -104,6 +108,7 @@ export function toView(renderId: string, raw: unknown): RenderView | null {
     resolution: r['resolution'],
     durationMs: r['durationMs'],
     ...(typeof r['sizeBytes'] === 'number' ? { sizeBytes: r['sizeBytes'] } : {}),
+    ...(r['transparent'] === true ? { transparent: true } : {}),
   };
   const parsed = RenderStatusResponseSchema.safeParse(candidate);
   if (!parsed.success) return null;
@@ -123,8 +128,20 @@ export function offlineRenderClient(): RenderClient {
       const form = new FormData();
       form.set('request', JSON.stringify({ requestId, options, expectedCost, project }));
       form.set('voice', voice, 'voice');
-      const videoBlob = await resolveVideoBlob(project).catch(() => null);
+      const isReel = Boolean(project.reel && project.video);
+      const skipSourceVideo = Boolean(options.transparent) && !isReel;
+      const videoBlob = skipSourceVideo ? null : await resolveVideoBlob(project).catch(() => null);
       if (videoBlob) form.set('video', videoBlob, 'source.mp4');
+      const [ovBlobs, auBlobs] = await Promise.all([
+        resolveStockOverlayBlobs(project).catch(() => ({})),
+        resolveStockAudioBlobs(project).catch(() => ({})),
+      ]);
+      for (const [id, { blob, ext }] of Object.entries(ovBlobs)) {
+        form.set(`stockOv:${id}`, blob, `stock-ov.${ext}`);
+      }
+      for (const [id, { blob, ext }] of Object.entries(auBlobs)) {
+        form.set(`stockAu:${id}`, blob, `stock-au.${ext}`);
+      }
       try {
         return await parseStartResponse(
           await fetch('/api/local-renders', { method: 'POST', body: form }),
@@ -193,12 +210,16 @@ export function cloudRenderClient(): RenderClient {
       let voicePath: string;
       let videoPath: string | undefined;
       let clipPaths: Record<string, string> | undefined;
+      let stockOverlayPaths: Record<string, string> | undefined;
+      let stockAudioPaths: Record<string, string> | undefined;
       try {
         const auth = await getAuthClient();
         if (!auth.currentUser) return { ok: false, error: 'unauthorized' };
         uid = auth.currentUser.uid;
         voicePath = await uploadVoice(uid, project.id, voice);
-        if (project.video) {
+        const isReel = Boolean(project.reel && project.video);
+        const skipSourceVideo = Boolean(options.transparent) && !isReel;
+        if (project.video && !skipSourceVideo) {
           const videoBlob = await resolveVideoBlob(project).catch(() => null);
           if (videoBlob) {
             const uploaded = await uploadVideo(uid, project.id, videoBlob).catch(() => null);
@@ -207,6 +228,13 @@ export function cloudRenderClient(): RenderClient {
           const uploadedClips = await uploadReferencedMediaClips(uid, project).catch(() => ({}));
           if (Object.keys(uploadedClips).length > 0) clipPaths = uploadedClips;
         }
+        // Upload visible Stock Media & audible Stock Audio across ALL project modes (spec 45 R5.1).
+        const [uploadedOv, uploadedAu] = await Promise.all([
+          uploadStockOverlays(uid, project).catch(() => ({})),
+          uploadStockAudio(uid, project).catch(() => ({})),
+        ]);
+        if (Object.keys(uploadedOv).length > 0) stockOverlayPaths = uploadedOv;
+        if (Object.keys(uploadedAu).length > 0) stockAudioPaths = uploadedAu;
         // The job reads pictures from the account's media folder; make sure each one is there.
         // A picture that won't upload renders as its scene's image-free form.
         await Promise.all(
@@ -232,6 +260,8 @@ export function cloudRenderClient(): RenderClient {
             voicePath,
             ...(videoPath ? { videoPath } : {}),
             ...(clipPaths ? { clipPaths } : {}),
+            ...(stockOverlayPaths ? { stockOverlayPaths } : {}),
+            ...(stockAudioPaths ? { stockAudioPaths } : {}),
           }),
         });
         return await parseStartResponse(res);

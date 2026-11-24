@@ -1,6 +1,6 @@
 'use client';
 
-import { Maximize, Pause, Play, Plus, SkipBack, SkipForward } from 'lucide-react';
+import { Maximize, Pause, Play, Plus, Scissors, SkipBack, SkipForward } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useRef } from 'react';
 import { Slider } from '@/components/ui/slider';
@@ -10,6 +10,7 @@ import { buttonMotion } from '@/lib/motion/presets';
 import { clampScroll, DEFAULT_ZOOM_LIMITS, fitView } from '@/lib/timeline/geometry';
 import { addSlot } from '@/lib/commands';
 import { slotAtPlayhead } from '@/lib/timeline/add-graphic';
+import { splitAtPlayhead } from '@/lib/timeline/edit-actions';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 import { FilmButton } from './film-button';
 import { useFrame, useTimeline } from './timeline-context';
@@ -81,6 +82,18 @@ export function TimelineHeader() {
           >
             <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
             Add graphic
+          </motion.button>
+        </Tooltip>
+        <Tooltip content="Split video, stock media, or audio at the playhead (S)">
+          <motion.button
+            type="button"
+            data-testid="timeline-split-btn"
+            {...buttonMotion}
+            onClick={() => splitAtPlayhead(clock.currentMs)}
+            className="ml-2 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border-[1.5px] border-edge bg-paper px-2.5 text-[12px] leading-4 font-medium text-ink shadow-[2px_2px_0_var(--color-hard)] transition hover:bg-mist"
+          >
+            <Scissors className="size-3.5 text-flame" strokeWidth={1.75} aria-hidden />
+            Split
           </motion.button>
         </Tooltip>
       </div>

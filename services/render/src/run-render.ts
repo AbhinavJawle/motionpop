@@ -13,11 +13,17 @@ import { compileReel } from '@motionpop/motion/reel';
 import { mediaHashOf, mediaStoragePath, musicPathFor, reelMediaOf } from '@motionpop/schemas';
 import {
   EditorProjectSchema,
+  audibleStockAudio,
   isSafeId,
   keptSourceSegments,
   mediaClipPathFor,
+  renderContainerFor,
+  renderMimeType,
   renderPaths,
+  stockAudioPathFor,
+  stockOverlayPathFor,
   videoPathFor,
+  visibleStockOverlays,
   voicePathFor,
   type EditorProject,
   type RenderDoc,
@@ -40,6 +46,7 @@ import {
 } from './ports';
 import { ProgressThrottle, mapProgress } from './progress';
 import { THUMB_LONG_SIDE, thumbnailTimeMs } from './thumbnail';
+import type { ResolvedStockAudio, ResolvedStockOverlay } from './stock-ffmpeg';
 
 export const HEARTBEAT_MS = 10_000;
 /** The longest voice we accept, whatever the project says (design §8 step 2). */
@@ -132,7 +139,6 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       return parsed.data;
     });
     if (!paths) throw new RenderStepError('internal', 'no paths');
-    const outPaths: RenderPaths = paths;
 
     // 2b. The sound bed (effects, music). It only adds to the voice, so a failure here logs and
     // the export goes on with the voice alone rather than failing the whole render.
@@ -217,10 +223,14 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
 
     // 2e. Source video for video projects (spec 18 R7.1, spec 19 R5.1), downloaded from owner's folder.
     // Reels (spec 25) play it inside the composition, so it lands in the composition folder.
+    // Transparent WebM exports (spec 47) skip source footage so NLE editors get alpha overlays.
     const reelMode = Boolean(project.reel && project.video);
+    const transparentMode = Boolean(doc.transparent) && !reelMode;
+    const outContainer = transparentMode ? 'webm' : 'mp4';
+    const finalPaths = renderPaths(doc.ownerId, doc.projectId, renderId, outContainer);
     let sourceVideoFile: string | null = null;
     let reelVideoRel: string | null = null;
-    if (project.video && (ffmpeg.compositeVideo || reelMode)) {
+    if (project.video && !transparentMode && (ffmpeg.compositeVideo || reelMode)) {
       const candidate =
         doc.videoPath ??
         (project.video.src.startsWith('storage:')
@@ -264,7 +274,9 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       throw new RenderStepError('input-missing', 'the source video could not be read');
     }
     const videoComposite =
-      !reelMode && Boolean(project.video && sourceVideoFile && ffmpeg.compositeVideo);
+      !reelMode &&
+      !transparentMode &&
+      Boolean(project.video && sourceVideoFile && ffmpeg.compositeVideo);
 
     // 2f. Secondary Media Bin clips referenced by video stages (spec 21 R5.3).
     const downloadedClips: Record<string, { path: string; isVideo: boolean; durationMs?: number }> =
@@ -322,7 +334,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       const input = projectCompileInput(project, {
         mode: 'render',
         format: doc.format,
-        background: videoComposite ? 'transparent' : 'style',
+        background: videoComposite || transparentMode ? 'transparent' : 'style',
         ...(videoComposite ? {} : { voiceSrc: 'assets/voice.wav' }),
         ...(bedSrc && !videoComposite ? { bedSrc } : {}),
         // The job computes the caption groups itself from the snapshot (spec 12 R4.5).
@@ -357,7 +369,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     }
 
     // 4b. Produce, with progress through the throttle and the store as the abort switch.
-    const out = join(deps.workDir, 'video.mp4');
+    const out = join(deps.workDir, transparentMode ? 'video.webm' : 'video.mp4');
     const overlayOut = join(deps.workDir, 'overlay.webm');
     const throttle = new ProgressThrottle();
     let writes: Promise<void> = Promise.resolve();
@@ -380,7 +392,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
           outPath: videoComposite ? overlayOut : out,
           format: doc.format,
           resolution: doc.resolution,
-          ...(videoComposite ? { container: 'webm' as const } : {}),
+          ...(videoComposite || transparentMode ? { container: 'webm' as const } : {}),
           signal,
           onProgress,
         });
@@ -412,10 +424,100 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         }),
       );
     }
+    // 4b'. Multi-lane Stock Media & Stock Audio export parity (spec 45 R5.3): runs across all
+    // project modes (motion, video, reel) right before loudness normalization when clips exist.
+    if (ffmpeg.compositeStockLayers && (doc.stockOverlayPaths || doc.stockAudioPaths)) {
+      const dims = expectedSize(doc.format, doc.resolution);
+      const ovRe = stockOverlayPathFor(doc.ownerId, doc.projectId);
+      const auRe = stockAudioPathFor(doc.ownerId, doc.projectId);
+      const downloadedByPath = new Map<string, string>();
+      let dlIdx = 0;
+
+      const downloadOnce = async (storagePath: string, prefix: string): Promise<string | null> => {
+        const cached = downloadedByPath.get(storagePath);
+        if (cached) return cached;
+        const ext = storagePath.slice(storagePath.lastIndexOf('.'));
+        const dest = join(deps.workDir, `${prefix}-${dlIdx++}${ext}`);
+        try {
+          await blobs.download(storagePath, dest);
+          downloadedByPath.set(storagePath, dest);
+          return dest;
+        } catch (e) {
+          log.error({ event: `${prefix}-missing`, renderId, error: errorText(e) });
+          return null;
+        }
+      };
+
+      const resolvedOverlays: ResolvedStockOverlay[] = [];
+      if (doc.stockOverlayPaths) {
+        for (const clip of visibleStockOverlays(project)) {
+          const storagePath = doc.stockOverlayPaths[clip.id];
+          if (!storagePath || !ovRe.test(storagePath)) continue;
+          const localPath = await downloadOnce(storagePath, 'stock-ov');
+          if (!localPath) continue;
+          resolvedOverlays.push({
+            id: clip.id,
+            path: localPath,
+            isVideo: clip.kind === 'video' || clip.mimeType.startsWith('video/'),
+            startMs: clip.startMs,
+            endMs: clip.endMs,
+            sourceOffsetMs: clip.sourceOffsetMs ?? 0,
+            ...(clip.clipDurationMs !== undefined ? { clipDurationMs: clip.clipDurationMs } : {}),
+            layout: clip.layout,
+            track: clip.track ?? 0,
+          });
+        }
+      }
+
+      const resolvedAudio: ResolvedStockAudio[] = [];
+      if (doc.stockAudioPaths) {
+        for (const clip of audibleStockAudio(project)) {
+          const storagePath = doc.stockAudioPaths[clip.id];
+          if (!storagePath || !auRe.test(storagePath)) continue;
+          const localPath = await downloadOnce(storagePath, 'stock-au');
+          if (!localPath) continue;
+          resolvedAudio.push({
+            id: clip.id,
+            path: localPath,
+            kind: clip.kind,
+            startMs: clip.startMs,
+            endMs: clip.endMs,
+            sourceOffsetMs: clip.sourceOffsetMs ?? 0,
+            volume: clip.volume,
+            track: clip.track ?? 0,
+          });
+        }
+      }
+
+      if (resolvedOverlays.length > 0 || resolvedAudio.length > 0) {
+        const stockOut = join(
+          deps.workDir,
+          transparentMode ? 'video-stock.webm' : 'video-stock.mp4',
+        );
+        await step('render-failed', 'compositing stock layers', async () => {
+          await ffmpeg.compositeStockLayers!({
+            baseVideoPath: out,
+            outMp4Path: stockOut,
+            ...(transparentMode ? { container: 'webm' as const } : {}),
+            width: dims.width,
+            height: dims.height,
+            fps: 30,
+            durationMs: project.durationMs,
+            overlays: resolvedOverlays,
+            audioClips: resolvedAudio,
+          });
+          await rename(stockOut, out);
+        });
+      }
+    }
+
     // 4c. Loudness (spec 27 R3.3): social platforms play at about −14 LUFS. A failure keeps the
     // mix as rendered (it is still a good file).
     if (ffmpeg.normalizeLoudness) {
-      const levelled = join(deps.workDir, 'video-levelled.mp4');
+      const levelled = join(
+        deps.workDir,
+        transparentMode ? 'video-levelled.webm' : 'video-levelled.mp4',
+      );
       try {
         await ffmpeg.normalizeLoudness({ src: out, dest: levelled, lufs: -14, truePeakDb: -1 });
         await rename(levelled, out);
@@ -464,20 +566,20 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     await step('upload-failed', 'uploading', async () => {
       if ((await store.progress(renderId, 'encoding', 96)) === 'inactive') abort.abort();
       if (signal.aborted) throw new RenderAbortedError();
-      await blobs.upload(outPaths.output, out, {
-        contentType: 'video/mp4',
-        contentDisposition: contentDisposition(doc.title),
+      await blobs.upload(finalPaths.output, out, {
+        contentType: renderMimeType(outContainer),
+        contentDisposition: contentDisposition(doc.title, outContainer),
         cacheControl: 'private, max-age=0',
       });
-      await blobs.upload(outPaths.thumb, thumb, {
+      await blobs.upload(finalPaths.thumb, thumb, {
         contentType: 'image/jpeg',
         cacheControl: 'private, max-age=0',
       });
     });
     await step('internal', 'finishing', async () => {
       const done = await store.markDone(renderId, {
-        outputPath: outPaths.output,
-        thumbPath: outPaths.thumb,
+        outputPath: finalPaths.output,
+        thumbPath: finalPaths.thumb,
         sizeBytes: size,
       });
       if (done === 'inactive') throw new RenderAbortedError();
@@ -525,7 +627,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
 
 function expectedPaths(doc: RenderDoc, renderId: string): RenderPaths {
   try {
-    return renderPaths(doc.ownerId, doc.projectId, renderId);
+    return renderPaths(doc.ownerId, doc.projectId, renderId, renderContainerFor(doc));
   } catch {
     throw new RenderStepError('input-missing', 'the render ids are not valid');
   }

@@ -1,6 +1,11 @@
 'use client';
 
-import { isMediaStageMode, type MediaClip, type StockOverlayClip } from '@motionpop/schemas';
+import {
+  isMediaStageMode,
+  resolvedMediaLanes,
+  type MediaClip,
+  type StockOverlayClip,
+} from '@motionpop/schemas';
 import {
   Film,
   Image as ImageIcon,
@@ -122,6 +127,25 @@ function makeStockOverlayFromBinClip(
     provider: 'upload',
     ...(clip.summary ? { attribution: clip.summary.slice(0, 200) } : {}),
   };
+}
+
+function pickOpenMediaTrack(
+  project: {
+    stockMediaLanes?: readonly { index: number; hidden?: boolean }[] | undefined;
+    stockOverlays?: readonly Pick<StockOverlayClip, 'startMs' | 'endMs' | 'track'>[] | undefined;
+  },
+  startMs: number,
+  endMs: number,
+): number {
+  const lanes = resolvedMediaLanes(project).filter((l) => !l.hidden);
+  const existing = project.stockOverlays ?? [];
+  for (const lane of lanes) {
+    const collides = existing.some(
+      (c) => (c.track ?? 0) === lane.index && c.startMs < endMs && c.endMs > startMs,
+    );
+    if (!collides) return lane.index;
+  }
+  return lanes[0]?.index ?? 0;
 }
 
 function makeStockMediaClip(
@@ -351,6 +375,8 @@ export function MediaPanelBody() {
         cur.durationMs,
         defaultLayout,
       );
+      const openTrack = pickOpenMediaTrack(cur, overlay.startMs, overlay.endMs);
+      if (openTrack > 0) overlay.track = openTrack;
       const room = Math.max(0, MAX_MEDIA_BIN_CLIPS - (cur.mediaBin?.length ?? 0));
       if (room > 0) {
         const clip = makeStockMediaClip(item, src, blob.type, stockQ);
@@ -376,6 +402,8 @@ export function MediaPanelBody() {
     const defaultLayout: StockOverlayClip['layout'] =
       cur.reel || cur.format === '9:16' ? 'top' : 'card';
     const overlay = makeStockOverlayFromBinClip(clip, playhead, cur.durationMs, defaultLayout);
+    const openTrack = pickOpenMediaTrack(cur, overlay.startMs, overlay.endMs);
+    if (openTrack > 0) overlay.track = openTrack;
     exec(addStockOverlay(overlay));
     seekPreview(overlay.startMs);
     toast.success(

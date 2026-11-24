@@ -1,6 +1,12 @@
 'use client';
 
-import type { EditorProject, RenderOptions } from '@motionpop/schemas';
+import {
+  audibleStockAudio,
+  visibleStockOverlays,
+  type EditorProject,
+  type Format,
+  type RenderOptions,
+} from '@motionpop/schemas';
 import { AnimatePresence, motion } from 'motion/react';
 import { Modal } from '@/components/ui/modal';
 import { easeOutSoft } from '@/lib/motion/presets';
@@ -18,12 +24,14 @@ export interface ExportDialogProps {
   options: RenderOptions;
   optionsState: ExportOptionsState;
   renderView: RenderView | null;
+  startedAtMs?: number | null;
   startError: string | null;
   free: boolean;
   client: RenderClient;
   isActiveRender: boolean;
   onOptions: (next: RenderOptions) => void;
   onExport: () => void;
+  onExportAnother?: (format: Format) => void;
   onRetry: () => void;
   onClose: () => void;
 }
@@ -37,6 +45,9 @@ export function ExportDialog(p: ExportDialogProps) {
   const body: 'options' | 'progress' | 'error' | 'ready' =
     p.view === 'starting' ? 'progress' : p.view;
   const ready = body === 'ready' && p.renderView !== null;
+  const isReel = Boolean(p.project.reel && p.project.video);
+  const hasStockLayers =
+    visibleStockOverlays(p.project).length > 0 || audibleStockAudio(p.project).length > 0;
   return (
     <Modal
       open={p.open}
@@ -45,13 +56,21 @@ export function ExportDialog(p: ExportDialogProps) {
       description={ready ? undefined : 'A little voice. Ready for the world.'}
       hideHeading={ready}
       className={
-        ready ? 'min-h-[638px] px-8 pt-0 pb-[33px]' : 'min-h-[768px] px-8 pt-[29px] pb-[23px]'
+        ready
+          ? 'max-h-[90dvh] min-h-[min(638px,90dvh)] overflow-x-hidden overflow-y-auto px-8 pt-0 pb-[33px]'
+          : 'max-h-[90dvh] min-h-[min(768px,90dvh)] overflow-x-hidden overflow-y-auto px-8 pt-[29px] pb-[23px]'
       }
       closeClassName={ready ? 'top-[20px] right-[26px]' : 'top-[24px] right-[26px]'}
       contentClassName={ready ? 'mt-[56px]' : 'mt-[23px]'}
     >
       {ready && p.renderView ? (
-        <ReadyView view={p.renderView} project={p.project} client={p.client} />
+        <ReadyView
+          view={p.renderView}
+          project={p.project}
+          client={p.client}
+          isReel={isReel}
+          {...(p.onExportAnother ? { onExportAnother: p.onExportAnother } : {})}
+        />
       ) : (
         <>
           <ProjectCard
@@ -69,6 +88,7 @@ export function ExportDialog(p: ExportDialogProps) {
             >
               {body === 'options' && (
                 <OptionsView
+                  project={p.project}
                   options={p.options}
                   onOptions={p.onOptions}
                   state={p.optionsState}
@@ -76,7 +96,13 @@ export function ExportDialog(p: ExportDialogProps) {
                   onExport={p.onExport}
                 />
               )}
-              {body === 'progress' && <ProgressView view={p.renderView} />}
+              {body === 'progress' && (
+                <ProgressView
+                  view={p.renderView}
+                  hasStockLayers={hasStockLayers}
+                  startedAtMs={p.startedAtMs ?? null}
+                />
+              )}
               {body === 'error' && (
                 <ErrorView
                   view={p.renderView}

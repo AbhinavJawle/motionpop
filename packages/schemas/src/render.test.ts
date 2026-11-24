@@ -115,9 +115,11 @@ describe('RenderOptionsSchema', () => {
     }
   });
 
-  it('rejects 4K, transparent and unknown keys (they are "Later")', () => {
+  it('accepts optional transparent boolean (spec 47) and rejects 4K and unknown keys', () => {
+    expect(RenderOptionsSchema.safeParse({ ...good, transparent: true }).success).toBe(true);
+    expect(RenderOptionsSchema.safeParse({ ...good, transparent: false }).success).toBe(true);
     expect(RenderOptionsSchema.safeParse({ ...good, resolution: '4k' }).success).toBe(false);
-    expect(RenderOptionsSchema.safeParse({ ...good, transparent: false }).success).toBe(false);
+    expect(RenderOptionsSchema.safeParse({ ...good, extraFlag: true }).success).toBe(false);
     expect(RenderOptionsSchema.safeParse({ ...good, format: '4:3' }).success).toBe(false);
   });
 });
@@ -256,6 +258,10 @@ describe('renderPaths', () => {
     expect(p.inputDir).toBe(`${p.dir}input/`);
     expect(p.output).toBe(`${p.dir}video.mp4`);
     expect(p.thumb).toBe(`${p.dir}thumb.jpg`);
+
+    const webm = renderPaths('alice', 'p1', 'rAbC_-1', 'webm');
+    expect(webm.output).toBe(`${webm.dir}video.webm`);
+    expect(webm.thumb).toBe(`${webm.dir}thumb.jpg`);
   });
 
   it.each(['', '..', 'a/b', 'a b', 'a.b', 'é', 'x'.repeat(129)])('throws on id %j', (bad) => {

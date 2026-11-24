@@ -26,14 +26,17 @@ describe('export store', () => {
     expect(s.getState().view?.progress).toBe(30);
   });
 
-  it('closing during a render keeps it', () => {
+  it('closing during a render keeps it and preserves startedAtMs', () => {
     const s = createExportStore();
     s.getState().openFromButton();
+    s.getState().beginStart();
+    const startedAt = s.getState().startedAtMs;
+    expect(startedAt).toBeTypeOf('number');
     s.getState().follow('r1', view('rendering', 10));
     s.getState().close();
-    expect(s.getState()).toMatchObject({ open: false, renderId: 'r1' });
+    expect(s.getState()).toMatchObject({ open: false, renderId: 'r1', startedAtMs: startedAt });
     s.getState().openFromButton();
-    expect(s.getState()).toMatchObject({ open: true, renderId: 'r1' });
+    expect(s.getState()).toMatchObject({ open: true, renderId: 'r1', startedAtMs: startedAt });
   });
 
   it('closing a finished render forgets it, and the button starts fresh', () => {

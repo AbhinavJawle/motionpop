@@ -28,10 +28,10 @@ describe('parseJudgeEmails', () => {
 });
 
 describe('planBootstrap', () => {
-  it('gives a new creator the free plan and 20 credits with a signup entry', () => {
+  it('gives a new creator the free plan and 15 credits with a signup entry', () => {
     const plan = planBootstrap(profile(), judges, APP_CONFIG_DEFAULTS);
-    expect(plan.user).toMatchObject({ plan: 'free', credits: 20, displayName: 'creator' });
-    expect(plan.tx).toEqual({ delta: 20, reason: 'signup', balanceAfter: 20 });
+    expect(plan.user).toMatchObject({ plan: 'free', credits: 15, displayName: 'creator' });
+    expect(plan.tx).toEqual({ delta: 15, reason: 'signup', balanceAfter: 15 });
   });
 
   it('grants the judge plan to a verified allow-listed email, case-insensitively', () => {

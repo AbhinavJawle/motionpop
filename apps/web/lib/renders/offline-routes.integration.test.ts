@@ -3,7 +3,7 @@
 // and ffmpeg over the in-memory store and a temp folder). Skipped when a tool is missing; in CI
 // (`CI` set) a missing tool is a failure.
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -28,10 +28,16 @@ const project = (() => {
   };
 })();
 
-function requestJson(): string {
+function requestJson(extraOptions: Record<string, unknown> = {}): string {
   return JSON.stringify({
     requestId: crypto.randomUUID(),
-    options: { format: '9:16', resolution: '720p', captions: false, music: false },
+    options: {
+      format: '9:16',
+      resolution: '720p',
+      captions: false,
+      music: false,
+      ...extraOptions,
+    },
     expectedCost: 0,
     project,
   });
@@ -97,10 +103,89 @@ describe.skipIf(!mustRun && missing.length > 0)('offline routes with a real rend
       const file = await getFile(new Request('http://localhost/x'), ctx(created.renderId));
       expect(file.status).toBe(200);
       expect(file.headers.get('content-type')).toBe('video/mp4');
+      expect(file.headers.get('accept-ranges')).toBe('bytes');
       expect(file.headers.get('content-disposition')).toMatch(/^attachment; filename="/);
       const bytes = Buffer.from(await file.arrayBuffer());
       expect(bytes.subarray(4, 8).toString('latin1')).toBe('ftyp');
       expect(bytes.length).toBeGreaterThan(10_000);
+
+      // Safari/Chrome inline <video> scrubbing uses byte-range requests (206 Partial Content).
+      const partial = await getFile(
+        new Request('http://localhost/x', { headers: { range: 'bytes=0-15' } }),
+        ctx(created.renderId),
+      );
+      expect(partial.status).toBe(206);
+      expect(partial.headers.get('content-range')).toBe(`bytes 0-15/${bytes.length}`);
+      expect(Buffer.from(await partial.arrayBuffer())).toEqual(bytes.subarray(0, 16));
+
+      const oob = await getFile(
+        new Request('http://localhost/x', { headers: { range: `bytes=${bytes.length}-` } }),
+        ctx(created.renderId),
+      );
+      expect(oob.status).toBe(416);
+    },
+    TIMEOUT,
+  );
+
+  it(
+    'renders a transparent alpha WebM end to end: video/webm, .webm filename, and VP9 alpha stream (spec 47)',
+    async () => {
+      const res = await post(form(requestJson({ transparent: true })));
+      expect(res.status).toBe(201);
+      const created = (await res.json()) as { renderId: string };
+      const final = await untilFinal(created.renderId);
+      expect(final).toMatchObject({ status: 'done', progress: 100, transparent: true });
+
+      const file = await getFile(new Request('http://localhost/x'), ctx(created.renderId));
+      expect(file.status).toBe(200);
+      expect(file.headers.get('content-type')).toBe('video/webm');
+      expect(file.headers.get('accept-ranges')).toBe('bytes');
+      expect(file.headers.get('content-disposition')).toMatch(/^attachment; filename=".*\.webm"/);
+      const bytes = Buffer.from(await file.arrayBuffer());
+      // WebM / EBML magic header: 0x1A 0x45 0xDF 0xA3
+      expect([...bytes.subarray(0, 4)]).toEqual([0x1a, 0x45, 0xdf, 0xa3]);
+      expect(bytes.length).toBeGreaterThan(2_000);
+
+      // Verify the rendered WebM actually carries a VP9 stream with alpha_mode=1 (yuva420p).
+      const probePath = join(await mkdtemp(join(tmpdir(), 'mp-webm-probe-')), 'out.webm');
+      await writeFile(probePath, bytes);
+      const probed = spawnSync('ffprobe', [
+        '-v',
+        'error',
+        '-print_format',
+        'json',
+        '-show_streams',
+        probePath,
+      ]);
+      expect(probed.status).toBe(0);
+      const parsed = JSON.parse(probed.stdout.toString('utf8')) as {
+        streams: Array<{ codec_type: string; codec_name?: string; tags?: Record<string, string> }>;
+      };
+      const videoStream = parsed.streams.find((s) => s.codec_type === 'video');
+      expect(videoStream?.codec_name).toBe('vp9');
+      expect(videoStream?.tags?.['alpha_mode'] ?? videoStream?.tags?.['ALPHA_MODE']).toBe('1');
+
+      // Decode frame 0 corner pixel with libvpx-vp9 to verify true pixel-level transparency (alpha === 0).
+      const rgba = spawnSync('ffmpeg', [
+        '-loglevel',
+        'error',
+        '-c:v',
+        'libvpx-vp9',
+        '-i',
+        probePath,
+        '-frames:v',
+        '1',
+        '-vf',
+        'format=rgba,crop=1:1:0:0',
+        '-f',
+        'rawvideo',
+        '-pix_fmt',
+        'rgba',
+        '-',
+      ]);
+      expect(rgba.status).toBe(0);
+      expect(rgba.stdout.length).toBe(4);
+      expect(rgba.stdout[3]).toBe(0);
     },
     TIMEOUT,
   );

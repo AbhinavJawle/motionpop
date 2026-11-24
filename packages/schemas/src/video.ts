@@ -172,6 +172,8 @@ export const VideoTrackSchema = z.object({
   /** Compact JPEG keyframe data URL captured at probe time for dashboard/editor thumbnails (spec 41). */
   posterUrl: z.string().max(120_000).optional(),
   cuts: z.array(VideoCutSchema).default([]),
+  /** Non-destructive manual razor split points on the source clock (spec 45 R1.3). */
+  splits: z.array(IntMsSchema).max(64).optional(),
   punchIns: z.array(VideoPunchInSchema).default([]),
   stages: z.array(VideoStageSegmentSchema).optional(),
   defaultOverlayAnchor: OverlayAnchorSchema.default('top-right'),
@@ -241,6 +243,54 @@ export function keptSourceSegments(
 export function cleanedDurationFromSegments(segments: readonly KeptSegment[]): number {
   const last = segments[segments.length - 1];
   return last ? last.timelineEndMs : 0;
+}
+
+/** One selectable, cuttable display segment on the main Video track (spec 45 R1.3). */
+export interface VideoDisplaySegment extends KeptSegment {
+  /** Stable key derived from source range. */
+  key: string;
+  /** Zero-based display order along the cleaned timeline. */
+  index: number;
+  /** True when the start boundary of this segment is a manual split seam (mergeable). */
+  splitAtStart: boolean;
+}
+
+/**
+ * Partitions `keptSourceSegments` at any interior manual split points (`splits`, on the source
+ * clock). Returned segments are strictly sorted, non-overlapping, non-empty, and their timeline
+ * durations always sum to `cleanedDurationFromSegments(keptSourceSegments(...))`.
+ */
+export function videoDisplaySegments(
+  originalDurationMs: number,
+  cuts: ReadonlyArray<Pick<VideoCut, 'startMs' | 'endMs' | 'enabled'>>,
+  splits: readonly number[] | undefined,
+): VideoDisplaySegment[] {
+  const kept = keptSourceSegments(originalDurationMs, cuts);
+  const sortedSplits = [...new Set((splits ?? []).map((n) => Math.floor(n)))].sort((a, b) => a - b);
+  const out: VideoDisplaySegment[] = [];
+  let timeline = 0;
+
+  for (const seg of kept) {
+    const interior = sortedSplits.filter((s) => s > seg.startMs && s < seg.endMs);
+    const bounds = [seg.startMs, ...interior, seg.endMs];
+    for (let i = 0; i < bounds.length - 1; i++) {
+      const startMs = bounds[i]!;
+      const endMs = bounds[i + 1]!;
+      if (endMs <= startMs) continue;
+      const dur = endMs - startMs;
+      out.push({
+        key: `${startMs}-${endMs}`,
+        index: out.length,
+        startMs,
+        endMs,
+        timelineStartMs: timeline,
+        timelineEndMs: timeline + dur,
+        splitAtStart: i > 0,
+      });
+      timeline += dur;
+    }
+  }
+  return out;
 }
 
 /**

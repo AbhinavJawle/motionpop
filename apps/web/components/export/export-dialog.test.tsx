@@ -160,7 +160,7 @@ describe('export dialog, options view (R1.1–R1.13)', () => {
     );
   });
 
-  it('captions and sound are live switches; transparent is off, disabled and says why (R1.5, R1.7)', () => {
+  it('captions, transparent WebM, and sound are live switches; 4K stays Soon (R1.5, R1.7, spec 47)', () => {
     render(<Harness />);
     const all = screen.getAllByRole('switch');
     expect(all.map((s) => s.getAttribute('aria-label'))).toEqual([
@@ -169,15 +169,21 @@ describe('export dialog, options view (R1.1–R1.13)', () => {
       'Include music and effects',
     ]);
     expect((all[0] as HTMLButtonElement).disabled).toBe(false);
+    expect((all[1] as HTMLButtonElement).disabled).toBe(false);
     expect((all[2] as HTMLButtonElement).disabled).toBe(false);
-    for (const s of [all[1] as HTMLButtonElement]) {
-      expect(s.getAttribute('aria-checked')).toBe('false');
-      expect((s as HTMLButtonElement).disabled).toBe(true);
-      const why = document.getElementById(s.getAttribute('aria-describedby') ?? '');
-      expect(why?.textContent?.length).toBeGreaterThan(5);
-    }
-    expect(screen.getAllByText('Soon').length).toBe(2); // transparent and 4K
+    expect(all[1]!.getAttribute('aria-checked')).toBe('false');
+    expect(screen.getAllByText('Soon').length).toBe(1); // 4K only
     expect(screen.getByText('Exports as WebM with alpha when enabled.')).toBeTruthy();
+    expect(screen.getByText('MP4 · H.264 · 30 fps')).toBeTruthy();
+
+    fireEvent.click(all[1]!);
+    expect(all[1]!.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText('WebM · VP9 Alpha · 30 fps')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Exports WebM with alpha (VP9 · yuva420p) for Premiere, Resolve & Final Cut.',
+      ),
+    ).toBeTruthy();
   });
 
   it('says how many slots are left out and still allows the export (R1.8)', () => {
@@ -261,6 +267,115 @@ describe('export dialog, options view (R1.1–R1.13)', () => {
     render(<Harness onExport={onExport} />);
     fireEvent.click(screen.getByRole('button', { name: 'Export video' }));
     expect(onExport).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows accurate Reel scene count, locks Reel format to 9:16, and displays multi-track layers summary (spec 46 R4)', () => {
+    const reelProject = {
+      ...fixtureProject({ slots: [], durationMs: 12_000 }),
+      format: '9:16' as const,
+      video: {
+        src: 'idb:v',
+        width: 1080,
+        height: 1920,
+        originalDurationMs: 14_000,
+        cuts: [
+          {
+            id: 'c1',
+            startMs: 1000,
+            endMs: 3000,
+            kind: 'manual' as const,
+            reason: 'Manual cut',
+            enabled: true,
+          },
+        ],
+        punchIns: [],
+        defaultOverlayAnchor: 'top-right' as const,
+      },
+      reel: {
+        v: 1 as const,
+        look: 'mono' as const,
+        focus: { x: 0.5, y: 0.5 },
+        captions: true,
+        scenes: [
+          {
+            id: 'r1',
+            startMs: 0,
+            endMs: 6000,
+            layout: 'split' as const,
+            content: { template: 'headline' as const, title: 'Hook' },
+          },
+          {
+            id: 'r2',
+            startMs: 6000,
+            endMs: 12_000,
+            layout: 'speaker' as const,
+            content: { template: 'none' as const },
+          },
+        ],
+      },
+      stockOverlays: [
+        {
+          id: 'ov1',
+          name: 'Drone',
+          src: 'idb:d',
+          kind: 'video' as const,
+          mimeType: 'video/mp4',
+          startMs: 0,
+          endMs: 3000,
+          layout: 'card' as const,
+          provider: 'upload' as const,
+        },
+      ],
+      stockAudio: [
+        {
+          id: 'sa1',
+          name: 'Whoosh',
+          src: 'idb:w',
+          kind: 'sfx' as const,
+          mimeType: 'audio/mpeg',
+          startMs: 500,
+          endMs: 1500,
+          volume: 0.9,
+        },
+      ],
+    };
+    render(
+      <ExportDialog
+        open
+        view="options"
+        project={reelProject}
+        options={{ ...base, format: '9:16' }}
+        optionsState={stateFor({ project: reelProject }, { ...base, format: '9:16' })}
+        renderView={null}
+        startError={null}
+        free={false}
+        client={{} as RenderClient}
+        isActiveRender={false}
+        onOptions={() => {}}
+        onExport={() => {}}
+        onRetry={() => {}}
+        onClose={() => {}}
+      />,
+    );
+    expect(screen.getByText('12 sec · 2 scenes')).toBeTruthy();
+    expect(screen.getByText('Vertical 9:16 reel')).toBeTruthy();
+    expect(screen.getByTestId('export-layers-summary').textContent).toContain(
+      '1 media overlay · 1 audio clip · 1 cut',
+    );
+    expect(screen.getByTestId('options-subtitle-strip')).toBeTruthy();
+    const formats = screen.getByRole('radiogroup', { name: 'Format' });
+    expect(within(formats).getByRole('radio', { name: /16:9/ }).getAttribute('aria-disabled')).toBe(
+      'true',
+    );
+    expect(within(formats).getByRole('radio', { name: /1:1/ }).getAttribute('aria-disabled')).toBe(
+      'true',
+    );
+    // Transparent WebM is disabled on Reels (baked speaker footage) without adding a Soon pill.
+    const transparentSwitch = screen.getByRole('switch', {
+      name: 'Transparent background (for editors)',
+    }) as HTMLButtonElement;
+    expect(transparentSwitch.disabled).toBe(true);
+    expect(screen.getAllByText('Soon').length).toBe(1);
   });
 });
 

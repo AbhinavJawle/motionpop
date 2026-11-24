@@ -130,4 +130,126 @@ describe('Stock Media & Stock Audio timeline layers (React 19 + Zustand stabilit
     expect(screen.getByTestId('audio-tab-search')).toBeTruthy();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
+
+  it('adds extra visual & audio lanes, toggles hide/mute, splits clips with sourceOffsetMs, and removes extra lanes cleanly', () => {
+    const base = fc.sample(projectArb, 1)[0]!;
+    base.durationMs = 8000;
+    base.voiceover.durationMs = 8000;
+    delete base.stockOverlays;
+    delete base.stockAudio;
+    editorStore.getState().load(base);
+    editorStore.getState().exec(
+      addStockOverlay({
+        id: 'ov-split-1',
+        name: 'Mountain Drone',
+        src: 'idb:drone',
+        kind: 'video',
+        mimeType: 'video/mp4',
+        startMs: 1000,
+        endMs: 5000,
+        clipDurationMs: 10_000,
+        layout: 'card',
+        provider: 'upload',
+      }),
+    );
+    editorStore.getState().exec(
+      addStockAudio({
+        id: 'sa-split-1',
+        name: 'Pulse Beat',
+        src: 'idb:pulse',
+        kind: 'music',
+        mimeType: 'audio/mpeg',
+        startMs: 0,
+        endMs: 6000,
+        volume: 0.3,
+      }),
+    );
+
+    const clock = new PlaybackClock(editorStore);
+    clock.seek(2500);
+    render(
+      <>
+        <StockOverlaysLayer />
+        <Timeline clock={clock} peaks={null} bucketMs={100} />
+      </>,
+    );
+
+    // Add an extra Stock Media lane and Stock Audio lane
+    fireEvent.click(screen.getByTestId('add-media-lane-btn'));
+    fireEvent.click(screen.getByTestId('add-audio-lane-btn'));
+    expect(screen.getByText('Media 2')).toBeTruthy();
+    expect(screen.getByText('Audio 2')).toBeTruthy();
+
+    // Hide lane 0 & mute lane 0
+    fireEvent.click(screen.getByLabelText('Hide Stock Media'));
+    expect(editorStore.getState().project?.stockMediaLanes?.[0]?.hidden).toBe(true);
+    fireEvent.click(screen.getByLabelText('Show Stock Media'));
+
+    fireEvent.click(screen.getByLabelText('Mute Stock Audio'));
+    expect(editorStore.getState().project?.stockAudioLanes?.[0]?.muted).toBe(true);
+    fireEvent.click(screen.getByLabelText('Unmute Stock Audio'));
+
+    // Split stock overlay at playhead (2500ms) via the header Split button
+    fireEvent.click(screen.getByTestId('timeline-split-btn'));
+    const overlays = editorStore.getState().project?.stockOverlays ?? [];
+    expect(overlays).toHaveLength(2);
+    expect(overlays[0]).toMatchObject({ id: 'ov-split-1', startMs: 1000, endMs: 2500 });
+    expect(overlays[1]).toMatchObject({ startMs: 2500, endMs: 5000, sourceOffsetMs: 1500 });
+
+    // Select stock audio clip & split at 2500ms
+    editorStore.getState().selectItem({ kind: 'stockAudio', id: 'sa-split-1' });
+    fireEvent.click(screen.getByTestId('timeline-split-btn'));
+    const audios = editorStore.getState().project?.stockAudio ?? [];
+    expect(audios).toHaveLength(2);
+    expect(audios[0]).toMatchObject({ id: 'sa-split-1', startMs: 0, endMs: 2500 });
+    expect(audios[1]).toMatchObject({ startMs: 2500, endMs: 6000, sourceOffsetMs: 2500 });
+
+    // Remove the extra lanes
+    fireEvent.click(screen.getByLabelText('Remove Media 2 track'));
+    fireEvent.click(screen.getByLabelText('Remove Audio 2 track'));
+    expect(screen.queryByText('Media 2')).toBeNull();
+    expect(screen.queryByText('Audio 2')).toBeNull();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+    clock.dispose();
+  });
+
+  it('splits the main video track into selectable segments and merges manual split seams cleanly', () => {
+    const base = fc.sample(projectArb, 1)[0]!;
+    base.durationMs = 8000;
+    base.voiceover.durationMs = 8000;
+    base.video = {
+      src: 'idb:main-vid',
+      width: 1080,
+      height: 1920,
+      originalDurationMs: 8000,
+      cuts: [],
+      punchIns: [],
+      defaultOverlayAnchor: 'top-right',
+    };
+    delete base.stockOverlays;
+    delete base.stockAudio;
+    editorStore.getState().load(base);
+
+    const clock = new PlaybackClock(editorStore);
+    clock.seek(3000);
+    render(<Timeline clock={clock} peaks={null} bucketMs={100} />);
+
+    // Split main video at 3000ms
+    fireEvent.click(screen.getByTestId('timeline-split-btn'));
+    expect(editorStore.getState().project?.video?.splits).toEqual([3000]);
+    expect(screen.getByTestId('video-segment-0')).toBeTruthy();
+    expect(screen.getByTestId('video-segment-1')).toBeTruthy();
+
+    // Selecting segment 1 exposes both Split and Cut controls; clicking Cut adds a manual VideoCut
+    fireEvent.click(screen.getByTestId('video-segment-1'));
+    expect(screen.getByLabelText('Cut video segment')).toBeTruthy();
+
+    // Merge split seam back
+    fireEvent.click(screen.getByLabelText('Merge video split at 3.0s'));
+    expect(editorStore.getState().project?.video?.splits).toBeUndefined();
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
+
+    clock.dispose();
+  });
 });

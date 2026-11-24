@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import type { Ffmpeg, MediaProbe } from './ports';
 import { buildVideoCompositeArgs } from './video-ffmpeg';
+import { buildStockCompositeArgs } from './stock-ffmpeg';
 
 const run = promisify(execFile);
 
@@ -13,10 +14,13 @@ const ProbeJson = z.object({
     .array(
       z.object({
         codec_type: z.string(),
+        codec_name: z.string().optional(),
+        pix_fmt: z.string().optional(),
         width: z.number().optional(),
         height: z.number().optional(),
         nb_read_frames: z.string().optional(),
         nb_frames: z.string().optional(),
+        tags: z.record(z.string(), z.string()).optional(),
       }),
     )
     .default([]),
@@ -30,6 +34,8 @@ export function parseProbe(json: string): MediaProbe {
   const seconds = Number(j.format.duration ?? 'NaN');
   const frameText = video?.nb_read_frames ?? video?.nb_frames;
   const frames = frameText !== undefined ? Number(frameText) : Number.NaN;
+  const alphaTag = video?.tags?.['alpha_mode'] ?? video?.tags?.['ALPHA_MODE'];
+  const alphaMode = alphaTag === '1' || video?.pix_fmt === 'yuva420p';
   return {
     durationMs: Number.isFinite(seconds) ? Math.round(seconds * 1000) : 0,
     audioStreams: j.streams.filter((s) => s.codec_type === 'audio').length,
@@ -37,6 +43,9 @@ export function parseProbe(json: string): MediaProbe {
     ...(video?.width !== undefined ? { width: video.width } : {}),
     ...(video?.height !== undefined ? { height: video.height } : {}),
     ...(Number.isFinite(frames) ? { frames } : {}),
+    ...(video?.codec_name ? { codecName: video.codec_name } : {}),
+    ...(video?.pix_fmt ? { pixFmt: video.pix_fmt } : {}),
+    ...(alphaMode ? { alphaMode: true } : {}),
   };
 }
 
@@ -91,6 +100,8 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
       );
     },
     async frame({ video, atMs, destJpg, longSide }) {
+      const isWebm = video.toLowerCase().endsWith('.webm');
+      const scaleFilter = `scale='if(gt(iw,ih),${longSide},-2)':'if(gt(iw,ih),-2,${longSide})'`;
       await run(
         ffmpeg,
         [
@@ -99,12 +110,13 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
           '-y',
           '-ss',
           (atMs / 1000).toFixed(3),
+          ...(isWebm ? ['-c:v', 'libvpx-vp9'] : []),
           '-i',
           video,
           '-frames:v',
           '1',
           '-vf',
-          `scale='if(gt(iw,ih),${longSide},-2)':'if(gt(iw,ih),-2,${longSide})'`,
+          isWebm ? `${scaleFilter},format=rgba,premultiply=inplace=1,format=yuvj420p` : scaleFilter,
           '-q:v',
           '3',
           destJpg,
@@ -115,7 +127,11 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
     async compositeVideo(args) {
       await run(ffmpeg, buildVideoCompositeArgs(args), { timeout: timeout * 4 });
     },
+    async compositeStockLayers(args) {
+      await run(ffmpeg, buildStockCompositeArgs(args), { timeout: timeout * 4 });
+    },
     async normalizeLoudness({ src, dest, lufs, truePeakDb }) {
+      const isWebm = dest.toLowerCase().endsWith('.webm');
       const target = `I=${lufs}:TP=${truePeakDb}:LRA=11`;
       const { stderr } = await run(
         ffmpeg,
@@ -153,12 +169,9 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
           'copy',
           '-af',
           filter,
-          '-c:a',
-          'aac',
-          '-b:a',
-          '192k',
-          '-movflags',
-          '+faststart',
+          ...(isWebm
+            ? ['-metadata:s:v:0', 'alpha_mode=1', '-c:a', 'libopus', '-b:a', '192k']
+            : ['-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart']),
           dest,
         ],
         { timeout: timeout * 2 },

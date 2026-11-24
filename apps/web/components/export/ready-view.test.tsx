@@ -180,4 +180,109 @@ describe('ready view (R5.1–R5.3)', () => {
     const still = render(<ReadyView view={view} project={project} client={client()} />);
     expect(still.container.querySelectorAll('[data-confetti]').length).toBe(0);
   });
+
+  it('displays file size, opens inline MP4 player, downloads .srt/.vtt/cover, and triggers Export another format (spec 46 R1–R2)', async () => {
+    const onExportAnother = vi.fn();
+    const downloadUrl = vi.fn(async () => 'https://signed.example/video.mp4');
+    render(
+      <ReadyView
+        view={{ ...view, sizeBytes: 4_823_450 }}
+        project={project}
+        client={client({
+          downloadUrl,
+          thumbnailUrl: async () => '/api/local-renders/r1/thumb',
+        })}
+        onExportAnother={onExportAnother}
+      />,
+    );
+
+    expect(screen.getByText('1080p · 16:9 · 18 sec · 4.6 MB')).toBeTruthy();
+    expect(screen.getByTestId('publish-kit')).toBeTruthy();
+
+    // Open inline MP4 preview player
+    fireEvent.click(screen.getByTestId('ready-watch-btn'));
+    const videoEl = await screen.findByTestId('ready-video-player');
+    expect(videoEl.getAttribute('src')).toBe('https://signed.example/video.mp4');
+    expect(downloadUrl).toHaveBeenCalledWith('r1');
+
+    // Export another format button (9:16 & 1:1 shown when 16:9 finished)
+    fireEvent.click(screen.getByRole('button', { name: '9:16' }));
+    expect(onExportAnother).toHaveBeenCalledWith('9:16');
+  });
+
+  it('shows inline recovery UI if <video> playback errors and retries cleanly', async () => {
+    const downloadUrl = vi
+      .fn<() => Promise<string>>()
+      .mockResolvedValueOnce('https://signed.example/expired.mp4')
+      .mockResolvedValueOnce('https://signed.example/fresh.mp4');
+    render(<ReadyView view={view} project={project} client={client({ downloadUrl })} />);
+
+    fireEvent.click(screen.getByTestId('ready-watch-btn'));
+    const videoEl = await screen.findByTestId('ready-video-player');
+    fireEvent.error(videoEl);
+
+    expect(screen.getByRole('alert').textContent).toContain("Couldn't play this video inline");
+    fireEvent.click(screen.getByRole('button', { name: 'Retry preview' }));
+    const refreshed = await screen.findByTestId('ready-video-player');
+    expect(refreshed.getAttribute('src')).toBe('https://signed.example/fresh.mp4');
+    expect(downloadUrl).toHaveBeenCalledTimes(2);
+  });
+
+  it('reuses a fetched blob URL when Download is clicked after Watch (no double fetch)', async () => {
+    const clicked: { href: string; download: string }[] = [];
+    const orig = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+      clicked.push({ href: this.href, download: this.download });
+    };
+    const downloadUrl = vi.fn(async () => 'blob:http://localhost/mp4-1');
+    render(<ReadyView view={view} project={project} client={client({ downloadUrl })} />);
+
+    fireEvent.click(screen.getByTestId('ready-watch-btn'));
+    await screen.findByTestId('ready-video-player');
+    fireEvent.click(screen.getByRole('button', { name: 'Download video' }));
+    await waitFor(() => expect(clicked.length).toBe(1));
+    HTMLAnchorElement.prototype.click = orig;
+
+    expect(downloadUrl).toHaveBeenCalledTimes(1);
+    expect(clicked[0]?.href).toBe('blob:http://localhost/mp4-1');
+  });
+
+  it('disables .srt and .vtt buttons when transcript only has whitespace words', () => {
+    const emptyCaptionProject = {
+      ...project,
+      transcript: {
+        ...project.transcript,
+        words: [{ i: 0, text: '   ', startMs: 0, endMs: 300, conf: 1, filler: false }],
+      },
+    };
+    render(<ReadyView view={view} project={emptyCaptionProject} client={client()} />);
+    expect(
+      (screen.getByRole('button', { name: /\.srt captions/ }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+    expect(
+      (screen.getByRole('button', { name: /\.vtt captions/ }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  it('renders .webm filename, Alpha WebM badge, and checkerboard preview for transparent renders (spec 47)', async () => {
+    const downloadUrl = vi.fn(async () => 'https://signed.example/overlay.webm');
+    const { container } = render(
+      <ReadyView
+        view={{ ...view, title: 'Overlay Graphic', transparent: true, sizeBytes: 2_097_152 }}
+        project={project}
+        client={client({ downloadUrl })}
+      />,
+    );
+    expect(screen.getByText('Overlay Graphic.webm')).toBeTruthy();
+    expect(screen.getByText('Alpha WebM')).toBeTruthy();
+    expect(screen.getByText('1080p · 16:9 · 18 sec · 2.0 MB')).toBeTruthy();
+
+    fireEvent.click(screen.getByTestId('ready-watch-btn'));
+    const videoEl = await screen.findByTestId('ready-video-player');
+    expect(videoEl.getAttribute('src')).toBe('https://signed.example/overlay.webm');
+    expect(container.querySelector('[data-checkerboard="true"]')).toBeTruthy();
+    expect(
+      screen.getByText('Playing your final transparent WebM · alpha channel verified'),
+    ).toBeTruthy();
+  });
 });

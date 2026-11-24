@@ -1,6 +1,12 @@
 'use client';
 
-import { audioOf, type AudioSetting, type MusicId, type StockAudioClip } from '@motionpop/schemas';
+import {
+  audioOf,
+  resolvedAudioLanes,
+  type AudioSetting,
+  type MusicId,
+  type StockAudioClip,
+} from '@motionpop/schemas';
 import {
   Check,
   Copy,
@@ -114,6 +120,7 @@ function makeStockAudioClip(
       mimeType: mimeType || 'audio/mpeg',
       startMs,
       endMs,
+      clipDurationMs: rawDurMs,
       volume: 0.9,
       ...(track.creditLine ? { attribution: track.creditLine.slice(0, 220) } : {}),
     };
@@ -126,9 +133,29 @@ function makeStockAudioClip(
     mimeType: mimeType || 'audio/mpeg',
     startMs: 0,
     endMs: dur,
+    ...(track.durationS > 0 ? { clipDurationMs: Math.round(track.durationS * 1000) } : {}),
     volume: 0.28,
     ...(track.creditLine ? { attribution: track.creditLine.slice(0, 220) } : {}),
   };
+}
+
+function pickOpenAudioTrack(
+  project: {
+    stockAudioLanes?: readonly { index: number; muted?: boolean }[] | undefined;
+    stockAudio?: readonly Pick<StockAudioClip, 'startMs' | 'endMs' | 'track'>[] | undefined;
+  },
+  startMs: number,
+  endMs: number,
+): number {
+  const lanes = resolvedAudioLanes(project).filter((l) => !l.muted);
+  const existing = project.stockAudio ?? [];
+  for (const lane of lanes) {
+    const collides = existing.some(
+      (c) => (c.track ?? 0) === lane.index && c.startMs < endMs && c.endMs > startMs,
+    );
+    if (!collides) return lane.index;
+  }
+  return lanes[0]?.index ?? 0;
 }
 
 /** A slider that previews locally and commits one command when the hand stops (one undo). */
@@ -323,6 +350,8 @@ export function AudioPanelBody() {
         editorStore.getState().playheadMs,
         cur.durationMs,
       );
+      const openTrack = pickOpenAudioTrack(cur, clip.startMs, clip.endMs);
+      if (openTrack > 0) clip.track = openTrack;
       exec(addStockAudio(clip));
       void auditionStockAudio(src, clip.volume);
       toast.success(

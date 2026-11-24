@@ -254,6 +254,39 @@ describe('export controller: the flow of one render', () => {
     await flush();
     expect(f.start).toHaveBeenCalledTimes(1);
   });
+
+  it('Export another format resets back to options with the clicked format pre-selected (spec 46 R1.3)', async () => {
+    const f = setup('offline');
+    act(() => exportStore.getState().openFromButton());
+    clickExport();
+    await flush();
+    act(() => f.push({ status: 'done', progress: 100, format: '16:9' }));
+    expect(
+      await screen.findByRole('heading', { level: 3, name: 'Your video is ready' }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: '9:16' }));
+    expect(screen.getByRole('radio', { name: '9:16' }).getAttribute('aria-checked')).toBe('true');
+
+    clickExport();
+    await flush();
+    expect(f.start).toHaveBeenCalledTimes(2);
+    expect(f.start.mock.calls[1]?.[0].options.format).toBe('9:16');
+  });
+
+  it('enabling Transparent background sends transparent: true and shows .webm when ready (spec 47)', async () => {
+    const f = setup('offline');
+    act(() => exportStore.getState().openFromButton());
+    fireEvent.click(screen.getByRole('switch', { name: 'Transparent background (for editors)' }));
+    clickExport();
+    await flush();
+    expect(f.start).toHaveBeenCalledTimes(1);
+    expect(f.start.mock.calls[0]?.[0].options.transparent).toBe(true);
+
+    act(() => f.push({ status: 'done', progress: 100, transparent: true }));
+    expect(await screen.findByText('Fixture.webm')).toBeTruthy();
+    expect(screen.getByText('Alpha WebM')).toBeTruthy();
+  });
 });
 
 describe('export controller: toasts with the modal closed (R4.5, R6.2)', () => {
