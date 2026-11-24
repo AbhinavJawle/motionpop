@@ -3,8 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { APP_CONFIG_DEFAULTS, costOf } from '@motionpop/schemas';
 import { GENERATE_COST } from './component-fill';
 import { editPatchTask } from './edit-patch';
+import { pipQuickTask } from './pip-quick';
 import { promptPrefill } from './prompt-prefill';
 import { recipeResolveTask } from './recipe-resolve';
+import { reelDraftLocalTask } from '../reel/draft-local';
+import { reelNoteLocalTask } from '../reel/note-local';
 import { slotsDetectCost } from './slots-detect';
 import { transcribeCloudCost } from './transcribe-cloud';
 
@@ -24,10 +27,17 @@ describe('task costs equal costOf (C8)', () => {
     expect(promptPrefill.cloudFallback).toBe(false);
   });
 
-  it('recipe.resolve is always free and never reaches the cloud (spec 39 review #1)', () => {
-    expect(recipeResolveTask.cloudCost({} as never)).toBe(0);
-    expect(recipeResolveTask.cloudFallback).toBe(false);
-    expect(recipeResolveTask.mode({} as never, {} as never)).toBe('ONLY_ON_DEVICE');
+  it('recipe.resolve, reel.note.local, pip.quick and reel.draft are always free and on-device only', () => {
+    for (const task of [
+      recipeResolveTask,
+      reelNoteLocalTask(),
+      pipQuickTask(),
+      reelDraftLocalTask(),
+    ]) {
+      expect(task.cloudCost({} as never)).toBe(0);
+      expect(task.cloudFallback).toBe(false);
+      expect(task.mode({} as never, {} as never)).toBe('ONLY_ON_DEVICE');
+    }
   });
 
   it('slots.detect is one credit per started 200 words', () => {

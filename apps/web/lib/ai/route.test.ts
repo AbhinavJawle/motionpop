@@ -421,3 +421,43 @@ describe('chooseRoute: film (spec 07b R5.5, R6)', () => {
     });
   });
 });
+
+describe('chooseRoute: Gemini BYOK (spec 42)', () => {
+  it('routes cloud tasks at 0 Motionpop credits even when balance is 0 or signed out', () => {
+    const r = route({
+      task: 'generate',
+      cloudAvailable: false,
+      balance: 0,
+      cloudCost: 3,
+      byok: true,
+    });
+    expect(r).toEqual({
+      kind: 'cloud',
+      mode: 'ONLY_IN_CLOUD',
+      allowCloud: false,
+      credits: 0,
+      insufficient: false,
+      byok: true,
+    });
+    expect(chipFor(r)).toEqual({ route: 'cloud', credits: 0, byok: true });
+  });
+
+  it('still keeps on-device Gemini Nano first for edits when ready and preferred', () => {
+    expect(
+      route({ task: 'edit.patch', availability: 'available', preferOnDevice: true, byok: true })
+        .kind,
+    ).toBe('device');
+    expect(route({ task: 'edit.patch', availability: 'unavailable', byok: true })).toMatchObject({
+      kind: 'cloud',
+      credits: 0,
+      byok: true,
+    });
+  });
+
+  it('still requires a connection when offline', () => {
+    expect(route({ task: 'generate', online: false, byok: true })).toEqual({
+      kind: 'disabled',
+      reason: 'Needs connection',
+    });
+  });
+});

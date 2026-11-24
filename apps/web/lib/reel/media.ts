@@ -2,6 +2,7 @@ import {
   ImageSubjectSchema,
   directReel,
   generateImageWithFirebase,
+  generateImageWithGeminiByok,
   reviewReelEdit,
   type EditChoices,
   type ReelDirectBrief,
@@ -22,6 +23,8 @@ import {
   type ReelWord,
 } from '@motionpop/schemas';
 import { abortError, isAbortError, raceAbort, throwIfAborted } from '@/lib/abort';
+import { useAIStatusStore } from '@/lib/ai/ai-status';
+import { getByokKey } from '@/lib/ai/byok';
 import { emitAIUsage, getRouter } from '@/lib/ai/router-client';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
 import { spendWithUi } from '@/lib/credits/spend-with-ui';
@@ -270,26 +273,29 @@ export async function resolveReelMedia(
       paid.add(spent.txId);
       illustrations++;
       const cost = costOf('image', 1, cfg);
+      const charged = spent.cost;
+      const byokKey = !deps.generate ? getByokKey() : null;
       const t0 = performance.now();
       try {
         // Cancelled while the spend was in flight: hand it back before any call is made.
         throwIfAborted(signal);
-        const r = await raceAbort(
-          (deps.generate ?? generateImageWithFirebase)(getAILogic, cfg.modelImage, {
-            subject: parsed.data,
-            recipe: reelIllustrationRecipe(look),
-            keyed: false,
-            aspect: '1:1',
-          }),
-          signal,
-        );
+        const imgInput = {
+          subject: parsed.data,
+          recipe: reelIllustrationRecipe(look),
+          keyed: false,
+          aspect: '1:1' as const,
+        };
+        const call = byokKey
+          ? generateImageWithGeminiByok(byokKey, cfg.modelImage, imgInput)
+          : (deps.generate ?? generateImageWithFirebase)(getAILogic, cfg.modelImage, imgInput);
+        const r = await raceAbort(call, signal);
         // Cancelled while the picture was made: it is dropped (the caller refunds every spend).
         throwIfAborted(signal);
         report({
           task: 'image.generate',
           ranOn: 'cloud',
-          model: cfg.modelImage,
-          credits: cost,
+          model: r.model,
+          credits: charged,
           cloudCost: cost,
           latencyMs: Math.round(performance.now() - t0),
           ok: true,
@@ -332,13 +338,21 @@ export async function directReelPaid(
     /** The creator's choices, enforced on the plan from either director (spec 39 R5.7). */
     choices?: EditChoices;
   },
-  deps: { credits: CreditsClient | null; config?: Partial<ReelCfg>; free?: boolean },
+  deps: {
+    credits: CreditsClient | null;
+    config?: Partial<ReelCfg>;
+    free?: boolean;
+    /** Override for Chrome Gemini Nano availability (defaults to `useAIStatusStore`). */
+    onDeviceReady?: boolean;
+    /** Optional router override for tests. */
+    getRouter?: () => Promise<Awaited<ReturnType<typeof getRouter>>>;
+  },
   /**
    * Cancels the call. Nothing is spent when it has already fired; a cancel after the spend hands
    * the price back and throws an `AbortError` instead of returning a plan (spec 39 R6.9).
    */
   signal?: AbortSignal,
-): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }> {
+): Promise<{ plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string }> {
   throwIfAborted(signal);
   const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
   // The choices apply to the free plan too; the brief is only text for the cloud director.
@@ -353,16 +367,27 @@ export async function directReelPaid(
     ...(params.frames?.length ? { frames: params.frames } : {}),
     ...(params.brief ? { brief: params.brief } : {}),
   };
+  const onDeviceReady =
+    deps.onDeviceReady ?? useAIStatusStore.getState().availability === 'available';
+  const router = await (deps.getRouter ?? getRouter)().catch(() => null);
+  const deviceOrAuto = async () => {
+    throwIfAborted(signal);
+    const out =
+      router && onDeviceReady
+        ? await raceAbort(directReel(router, { ...base, preferOnDevice: true }), signal)
+        : await directReel(null, base);
+    throwIfAborted(signal);
+    return out;
+  };
   if (deps.free || !deps.credits || cfg.killSwitch || params.words.length < 4)
-    return directReel(null, base);
-  const router = await getRouter().catch(() => null);
+    return deviceOrAuto();
   if (!router) return directReel(null, base);
   const spent = await spendWithUi(
     deps.credits,
     { action: 'reel', key: newSpendKey(), refId: params.refId },
     cfg,
   );
-  if (!spent?.ok) return directReel(null, base);
+  if (!spent?.ok) return deviceOrAuto();
   const credits = deps.credits;
   let refunded = false;
   const refundOnce = async () => {
@@ -374,7 +399,10 @@ export async function directReelPaid(
   try {
     // Cancelled while the spend was in flight: hand it back before any call is made.
     throwIfAborted(signal);
-    r = await raceAbort(directReel(router, withFrames), signal);
+    r = await raceAbort(
+      directReel(router, { ...withFrames, fallbackOnDevice: onDeviceReady }),
+      signal,
+    );
     // Cancelled just as the plan arrived: it is dropped, never returned.
     throwIfAborted(signal);
   } catch (e) {

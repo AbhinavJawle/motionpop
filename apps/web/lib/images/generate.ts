@@ -3,6 +3,7 @@ import {
   IMAGE_RECIPE_VERSION,
   ImageSubjectSchema,
   generateImageWithFirebase,
+  generateImageWithGeminiByok,
   type UsageEvent,
 } from '@motionpop/ai';
 import {
@@ -13,6 +14,7 @@ import {
   type ImageAsset,
 } from '@motionpop/schemas';
 import { create } from 'zustand';
+import { getByokKey } from '@/lib/ai/byok';
 import { emitAIUsage } from '@/lib/ai/router-client';
 import { setSlotImage, type Command } from '@/lib/commands';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
@@ -130,15 +132,20 @@ async function generateNow(deps: ImageDeps, req: ImageRequest): Promise<ImageOut
       : { ok: false, reason: 'Couldn’t reserve the credits' };
 
   const report = deps.onUsage ?? emitAIUsage;
+  const byokKey = !deps.generate ? getByokKey() : null;
+  const charged = spent.cost;
   const t0 = performance.now();
   setBusy(req.slotId, subject.data);
   try {
-    const r = await (deps.generate ?? generateImageWithFirebase)(getAILogic, cfg.modelImage, {
+    const imgInput = {
       subject: subject.data,
       recipe,
       keyed: tryKey,
-      aspect: '1:1',
-    });
+      aspect: '1:1' as const,
+    };
+    const r = byokKey
+      ? await generateImageWithGeminiByok(byokKey, cfg.modelImage, imgInput)
+      : await (deps.generate ?? generateImageWithFirebase)(getAILogic, cfg.modelImage, imgInput);
     const raw = new Blob([r.bytes.slice().buffer], { type: r.mimeType });
     const img = await (deps.process ?? processImage)(raw, tryKey);
     const src = await putImage(hash, img.blob);
@@ -156,8 +163,8 @@ async function generateNow(deps: ImageDeps, req: ImageRequest): Promise<ImageOut
     report({
       task: 'image.generate',
       ranOn: 'cloud',
-      model: cfg.modelImage,
-      credits: cost,
+      model: r.model,
+      credits: charged,
       cloudCost: cost,
       latencyMs: Math.round(performance.now() - t0),
       ok: true,
@@ -165,10 +172,10 @@ async function generateNow(deps: ImageDeps, req: ImageRequest): Promise<ImageOut
     // The slot may have been deleted or changed to a graphic without pictures meanwhile.
     const now = deps.getProject()?.slots.find((s) => s.id === req.slotId);
     if (!now || imageRoleOf(now.componentId) === null) {
-      return { ok: true, asset, reused: false, credits: cost };
+      return { ok: true, asset, reused: false, credits: charged };
     }
     apply(asset);
-    return { ok: true, asset, reused: false, credits: cost };
+    return { ok: true, asset, reused: false, credits: charged };
   } catch (err) {
     console.warn('Picture generation failed', err);
     report({

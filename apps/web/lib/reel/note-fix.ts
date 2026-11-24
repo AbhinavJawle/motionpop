@@ -1,10 +1,13 @@
 import {
   applyReelCompose,
   applyReelNote,
+  applyReelNoteLocal,
   reelComposeTask,
   reelNoteContext,
   reelNoteInput,
+  reelNoteLocalInput,
   runReelNote,
+  runReelNoteLocal,
   type ReelComposeInput,
   type ReelComposeOutput,
   type ReelNoteContext,
@@ -98,6 +101,14 @@ export interface ReelNoteFixDeps {
     assets: ReelCustomAssets,
     allowNumbers: string[],
   ) => Promise<CustomReport>;
+  /** Optional cloud fallback route when `route` is on-device and `autoEscalate` is enabled. */
+  cloudRoute?: Route;
+  /**
+   * When true (e.g. Pip's already-approved `editScene` step), an on-device escalation or failure
+   * automatically continues to cloud Gemini. Direct frame notes leave this false so a mint
+   * `⚡ free · on-device` chip never silently spends credits (spec 09 D-035).
+   */
+  autoEscalate?: boolean;
   /** The steps of a fix that writes a new graphic, for the UI. */
   onStage?: (stage: 'compose' | 'check' | 'repair') => void;
 }
@@ -113,8 +124,8 @@ export async function runReelNoteFix(
   route: Route,
 ): Promise<ReelNoteOutcome> {
   if (route.kind === 'disabled') return { kind: 'blocked', reason: route.reason };
-  // Reel notes run on the strong cloud model only (spec 30).
-  if (route.kind !== 'cloud') return { kind: 'blocked', reason: 'Needs cloud AI' };
+  if (route.kind !== 'cloud' && route.kind !== 'device')
+    return { kind: 'blocked', reason: 'Needs cloud AI' };
   const project = deps.store.getState().project;
   const reel = project?.reel;
   const index = reel?.scenes.findIndex((s) => s.id === sceneId) ?? -1;
@@ -123,8 +134,6 @@ export async function runReelNoteFix(
   if (!project || !reel || !scene || !note) return { kind: 'changed' };
   const text = note.text.trim();
   if (text === '') return { kind: 'blocked', reason: 'Type what to change' };
-
-  if (!deps.credits) return { kind: 'blocked', reason: 'Sign in to use cloud AI' };
 
   // Read the preview at the note's own frame, before any wait: paused, on the note's time (a
   // press of Space or a scrub during the spend would otherwise show the model another frame).
@@ -137,6 +146,94 @@ export async function runReelNoteFix(
   const seen: { target: ReelTarget; image?: string | undefined } = await Promise.resolve()
     .then(() => deps.look(region, cropRect(region), sceneId))
     .catch(() => ({ target: { parts: [], texts: [], pictures: [] } }));
+
+  const words = project.transcript.words.map((w) => ({
+    text: w.text,
+    startMs: w.startMs,
+    endMs: w.endMs,
+  }));
+  const ctx = reelNoteContext(scene, words, reel.look);
+  const showsHook = index === 0 && reel.hook !== undefined && reel.look === 'mono';
+  const image = jpegBase64(seen.image);
+  const stale = () => {
+    const nowReel = deps.store.getState().project?.reel;
+    const nowScene = nowReel?.scenes.find((s) => s.id === sceneId);
+    const nowNote = nowScene?.notes?.find((n) => n.id === noteId);
+    return (
+      !nowReel ||
+      !nowScene ||
+      !nowNote ||
+      nowNote.status !== 'open' ||
+      sceneJson(nowScene) !== sceneJson(scene) ||
+      nowReel.hook !== reel.hook ||
+      nowReel.look !== reel.look
+    );
+  };
+
+  // Hybrid AI fast path: try multimodal on-device Gemini Nano first (0 credits, works offline).
+  // Direct frame notes never silently charge credits (D-035): when Nano escalates or fails, the
+  // bubble surfaces the reason + one-click "Try in the cloud". Callers with pre-approved credit
+  // spend (Pip's `editScene` plan step) pass `autoEscalate: true` to seamlessly continue to cloud.
+  if (route.kind === 'device') {
+    const canAutoEscalate =
+      Boolean(deps.autoEscalate) && deps.cloudRoute?.kind === 'cloud' && Boolean(deps.credits);
+    const router = await deps.getRouter().catch(() => null);
+    if (!router) {
+      if (!canAutoEscalate) return { kind: 'device-failed' };
+    } else {
+      let escalateMessage: string | null = null;
+      let threw = false;
+      try {
+        const localInput = reelNoteLocalInput(ctx, {
+          noteText: text,
+          caption: seen.target.caption,
+          hook: showsHook ? reel.hook : undefined,
+          image,
+        });
+        const localRes = await runReelNoteLocal(router, localInput);
+        if (stale()) return { kind: 'changed' };
+        const applied = applyReelNoteLocal(ctx, localRes.output, {
+          hook: showsHook ? reel.hook : undefined,
+        });
+        if (applied.changed && !applied.escalate) {
+          const ok = deps.store.getState().exec(
+            composite('Fix note', [
+              fixReelScene(sceneId, {
+                scene: applied.scene,
+                ...(applied.hook !== undefined ? { hook: applied.hook } : {}),
+                ...(applied.captions.length ? { captions: applied.captions } : {}),
+              }),
+              setReelNoteStatus(sceneId, noteId, 'fixed'),
+            ]),
+          );
+          if (ok) {
+            return {
+              kind: 'applied',
+              ms: localRes.latencyMs,
+              ranOn: 'device',
+              message: applied.message,
+              pictures: 0,
+            };
+          }
+        }
+        escalateMessage =
+          applied.message || 'Needs cloud AI for a full graphic rewrite or custom animation.';
+      } catch {
+        threw = true;
+      }
+      if (!canAutoEscalate) {
+        if (threw) return { kind: 'device-failed' };
+        return {
+          kind: 'escalate',
+          message:
+            escalateMessage ||
+            'Needs cloud AI for a full graphic rewrite or custom animation.',
+        };
+      }
+    }
+  }
+
+  if (!deps.credits) return { kind: 'blocked', reason: 'Sign in to use cloud AI' };
 
   const spent = await spendWithUi(
     deps.credits,
@@ -168,14 +265,6 @@ export async function runReelNoteFix(
       return failed();
     }
 
-    const words = project.transcript.words.map((w) => ({
-      text: w.text,
-      startMs: w.startMs,
-      endMs: w.endMs,
-    }));
-    const ctx = reelNoteContext(scene, words, reel.look);
-    const showsHook = index === 0 && reel.hook !== undefined && reel.look === 'mono';
-    const image = jpegBase64(seen.image);
     let input;
     try {
       input = reelNoteInput(ctx, {
@@ -201,20 +290,6 @@ export async function runReelNoteFix(
     }
 
     // The scene or the note moved on while the model worked: never overwrite what the user did.
-    const stale = () => {
-      const nowReel = deps.store.getState().project?.reel;
-      const nowScene = nowReel?.scenes.find((s) => s.id === sceneId);
-      const nowNote = nowScene?.notes?.find((n) => n.id === noteId);
-      return (
-        !nowReel ||
-        !nowScene ||
-        !nowNote ||
-        nowNote.status !== 'open' ||
-        sceneJson(nowScene) !== sceneJson(scene) ||
-        nowReel.hook !== reel.hook ||
-        nowReel.look !== reel.look
-      );
-    };
     if (stale()) {
       await refund();
       return { kind: 'changed' };

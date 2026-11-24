@@ -22,6 +22,15 @@ service cloud.firestore {
         && s.defaultFormat in ['16:9', '9:16', '1:1'];
     }
 
+    function validUserSkill(s) {
+      return s is map
+        && s.name is string && s.name.size() >= 2 && s.name.size() <= 60
+        && s.markdown is string && s.markdown.size() >= 20 && s.markdown.size() <= 16000
+        && s.target in ['both', 'reel', 'film']
+        && (!('blurb' in s) || (s.blurb is string && s.blurb.size() <= 180))
+        && (!('sourceUrl' in s) || (s.sourceUrl is string && s.sourceUrl.size() <= 300));
+    }
+
     function projectOwner(pid) {
       return get(/databases/$(database)/documents/projects/$(pid)).data.ownerId;
     }
@@ -59,6 +68,10 @@ service cloud.firestore {
       }
       match /styles/{id} {
         allow read, write: if isOwner(uid);
+      }
+      match /skills/{id} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) && validUserSkill(request.resource.data);
       }
     }
 

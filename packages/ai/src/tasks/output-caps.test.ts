@@ -12,13 +12,16 @@ import {
 } from './film';
 import { noteFixTask } from './note-fix';
 import { pipPlanTask } from './pip-plan';
+import { pipQuickTask } from './pip-quick';
 import { promptPrefill } from './prompt-prefill';
 import { recipeResolveTask } from './recipe-resolve';
 import { slotsDetect } from './slots-detect';
 import { transcribeCloud } from './transcribe-cloud';
 import type { TaskDef } from '../router';
 import { reelComposeTask } from '../reel/compose';
+import { reelDraftLocalTask } from '../reel/draft-local';
 import { reelNoteTask } from '../reel/note';
+import { reelNoteLocalTask } from '../reel/note-local';
 
 /** Every cloud task definition the package ships (spec 13b R3.5). */
 function allTasks(): TaskDef<never, unknown>[] {
@@ -35,8 +38,11 @@ function allTasks(): TaskDef<never, unknown>[] {
     reelBuildTask(() => [], ''),
     noteFixTask(none),
     reelNoteTask(),
+    reelNoteLocalTask(),
+    reelDraftLocalTask(),
     reelComposeTask(() => [], ''),
     pipPlanTask(),
+    pipQuickTask(),
     promptPrefill,
     recipeResolveTask,
     slotsDetect,
@@ -57,8 +63,11 @@ const EXPECTED: Record<string, number> = {
   'reel.build': 8192,
   'note.fix': 1024,
   'reel.note': 8192,
+  'reel.note.local': 512,
+  'reel.draft': 1024,
   'reel.compose': 24576,
   'pip.plan': 4096,
+  'pip.quick': 512,
   'prompt.prefill': 512,
   'recipe.resolve': 300,
   'slots.detect': 4096,

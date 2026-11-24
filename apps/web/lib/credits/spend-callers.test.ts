@@ -33,6 +33,7 @@ const ALLOWED = new Set([
   'lib/reel/media.ts',
   'lib/slots/custom.ts',
   // The credits layer itself.
+  'lib/credits/byok-credits.ts',
   'lib/credits/spend-with-ui.ts',
   'lib/credits/server-credits.ts',
   'lib/credits/local-credits.ts',

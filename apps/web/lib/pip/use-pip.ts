@@ -1,6 +1,6 @@
 'use client';
 
-import { pipPlanTask } from '@motionpop/ai';
+import { pipPlanTask, pipQuickToModelOutput, runPipQuick } from '@motionpop/ai';
 import {
   APP_CONFIG_DEFAULTS,
   type AppConfig,
@@ -96,6 +96,8 @@ export interface SendDeps {
   credits: CreditsClient | null;
   getRouter: () => Promise<Router | null>;
   route: Route;
+  /** Optional on-device route: when `'device'`, Pip tries Gemini Nano (`pip.quick`) free first. */
+  deviceRoute?: Route;
   config?: Pick<AppConfig, 'creditCosts' | 'imageCredits' | 'exportCredits'>;
   /** Optional model id override (defaults to the Pip model selector's active model). */
   model?: string;
@@ -130,6 +132,37 @@ export async function sendToPip(deps: SendDeps, text: string, scope: PipScope): 
   };
 
   try {
+    // Hybrid AI fast path: try on-device Gemini Nano (`pip.quick`) free before spending cloud
+    // credits. Simple edits (look, captions, theme, audio, format, brand, single slot) land
+    // locally and even offline; complex multi-step requests return `escalate: true` for cloud.
+    if (deps.deviceRoute?.kind === 'device') {
+      const localRouter = await deps.getRouter().catch(() => null);
+      if (localRouter) {
+        try {
+          const quickRes = await runPipQuick(localRouter, input);
+          const modelOut = pipQuickToModelOutput(quickRes.output);
+          if (modelOut) {
+            const plan = enforcePlan(modelOut, project, 'device');
+            if (plan.steps.length > 0) {
+              push({
+                role: 'pip',
+                text: plan.reply,
+                scope,
+                plan,
+                planState: 'proposed',
+                ranOn: 'device',
+                model: quickRes.model,
+                credits: 0,
+              });
+              return;
+            }
+          }
+        } catch {
+          // Seamless fallthrough to cloud `pip.plan` (or code planner when offline).
+        }
+      }
+    }
+
     if (deps.route.kind !== 'cloud' || !deps.credits) {
       fromCode(
         deps.route.kind === 'disabled'

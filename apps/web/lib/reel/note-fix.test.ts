@@ -156,12 +156,98 @@ describe('runReelNoteFix (spec 29 R4)', () => {
     expect(store.getState().project).toEqual(before);
   });
 
-  it('runs on the strong cloud model only: a device route is blocked and spends nothing (spec 30)', async () => {
-    const { deps, credits, seen } = setup(titleAnswer);
+  it('runs simple reel notes free on-device via Gemini Nano (0 credits) and respects D-035 (never silently charges)', async () => {
+    const localEdit = {
+      action: 'edit',
+      message: 'Updated title on-device',
+      field: 'title',
+      to: 'Faster with Nano',
+    };
+    const { store, deps, credits } = setup((id: string) =>
+      id === 'reel.note.local' ? localEdit : titleAnswer,
+    );
+    const before = store.getState().project;
     const r = await runReelNoteFix(deps, 'r1', 'n1', DEVICE);
-    expect(r).toEqual({ kind: 'blocked', reason: 'Needs cloud AI' });
-    expect(seen).toHaveLength(0);
+    expect(r.kind).toBe('applied');
+    if (r.kind === 'applied') {
+      expect(r.ranOn).toBe('device');
+      expect(r.message).toBe('Updated title on-device');
+    }
     expect(credits.balance()).toBe(50);
+    expect((store.getState().project!.reel!.scenes[0]!.content as { title: string }).title).toBe(
+      'Faster with Nano',
+    );
+    // Fully undoable in one step.
+    store.getState().undo();
+    expect(store.getState().project).toEqual(before);
+
+    // Direct frame note (`autoEscalate` false): when Nano escalates, NEVER silently spends credits!
+    const directEscalate = setup(
+      (id: string) =>
+        id === 'reel.note.local'
+          ? { action: 'escalate', message: 'Needs cloud for custom chart' }
+          : titleAnswer,
+      { cloudRoute: CLOUD },
+    );
+    const rDirect = await runReelNoteFix(directEscalate.deps, 'r1', 'n1', DEVICE);
+    expect(rDirect).toEqual({ kind: 'escalate', message: 'Needs cloud for custom chart' });
+    expect(directEscalate.credits.balance()).toBe(50);
+
+    // Direct frame note when Nano throws returns `device-failed` with 0 credits spent.
+    const directFail = setup(
+      (id: string) => {
+        if (id === 'reel.note.local') throw new Error('Nano unavailable');
+        return titleAnswer;
+      },
+      { cloudRoute: CLOUD },
+    );
+    const rFail = await runReelNoteFix(directFail.deps, 'r1', 'n1', DEVICE);
+    expect(rFail).toEqual({ kind: 'device-failed' });
+    expect(directFail.credits.balance()).toBe(50);
+
+    // Pre-approved caller (Pip's `editScene` step passes `autoEscalate: true`): auto-escalates to cloud.
+    const pipEscalate = setup(
+      (id: string) =>
+        id === 'reel.note.local'
+          ? { action: 'escalate', message: 'Needs cloud' }
+          : titleAnswer,
+      { cloudRoute: CLOUD, autoEscalate: true },
+    );
+    const rPip = await runReelNoteFix(pipEscalate.deps, 'r1', 'n1', DEVICE);
+    expect(rPip.kind).toBe('applied');
+    if (rPip.kind === 'applied') expect(rPip.ranOn).toBe('cloud');
+    expect(pipEscalate.credits.balance()).toBe(49);
+  });
+
+  it('on-device reel note updates caption words free offline and guards stale scenes', async () => {
+    const capEdit = {
+      action: 'edit',
+      message: 'Fixed icachi to Ikigai',
+      field: 'caption',
+      from: 'icachi',
+      to: 'Ikigai',
+    };
+    const { store, deps } = setup(
+      (id: string) => (id === 'reel.note.local' ? capEdit : titleAnswer),
+      { credits: null },
+    );
+    const r = await runReelNoteFix(deps, 'r1', 'n1', DEVICE);
+    expect(r).toMatchObject({ kind: 'applied', ranOn: 'device' });
+    expect(store.getState().project!.transcript.words[2]!.text).toBe('Ikigai');
+
+    // Stale scene during on-device Nano inference returns `changed` without clobbering newer edit.
+    const staleCase = setup((id: string) => {
+      if (id === 'reel.note.local') {
+        staleCase.store
+          .getState()
+          .exec(fixReelScene('r1', { scene: { ...staleCase.scene(), tag: 'EDITED' } }));
+        return { action: 'edit', message: 'Tag', field: 'tag', to: 'OLD' };
+      }
+      return titleAnswer;
+    });
+    const rStale = await runReelNoteFix(staleCase.deps, 'r1', 'n1', DEVICE);
+    expect(rStale).toEqual({ kind: 'changed' });
+    expect(staleCase.scene().tag).toBe('EDITED');
   });
 
   it('"none" leaves the scene, refunds, and passes the reason on', async () => {

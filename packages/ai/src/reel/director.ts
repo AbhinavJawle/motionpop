@@ -20,6 +20,7 @@ import {
 import { z } from 'zod';
 import type { Router, TaskDef } from '../router';
 import { autoReelPlan } from './auto';
+import { draftReelOnDevice } from './draft-local';
 import { cut } from './text';
 import { ReelDirectBriefSchema, type ReelDirectBrief } from './brief';
 import { applyEditChoices, type EditChoices } from './edit-choices';
@@ -884,8 +885,9 @@ function medianFocus(keys: readonly { x: number; y: number }[]): { x: number; y:
 }
 
 /**
- * Directs a reel: the cloud director when a router is available, otherwise (or on any failure)
- * the deterministic `autoReelPlan`. Returns the plan and where it came from.
+ * Directs a reel: the cloud director when online with credits, an on-device Gemini Nano draft
+ * (`reel.draft`) when `preferOnDevice` is requested or cloud fails, and deterministic
+ * `autoReelPlan` when no model is available. Returns the plan and where it came from.
  */
 export async function directReel(
   router: Router | null,
@@ -894,6 +896,10 @@ export async function directReel(
     words: readonly ReelWord[];
     durationMs: number;
     model?: string;
+    /** When true, skip the cloud director and run the compact on-device Gemini Nano draft. */
+    preferOnDevice?: boolean;
+    /** When true, try on-device Gemini Nano draft if the cloud director fails before `autoReelPlan`. */
+    fallbackOnDevice?: boolean;
     /** Keyframes of the footage on the reel clock (spec 27 R2.1). */
     frames?: readonly { atMs: number; base64: string }[];
     /** The creator's recipe and choices, as text for the director (spec 39 R3.5). */
@@ -901,13 +907,18 @@ export async function directReel(
     /** The creator's choices, enforced on the plan from either director (spec 39 R5.7). */
     choices?: EditChoices;
   },
-): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }> {
+): Promise<{ plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string }> {
   const { look, words, durationMs, choices } = params;
   const frames = (params.frames ?? []).slice(0, 6);
   const enforce = (plan: ReelPlan): ReelPlan =>
     choices ? applyEditChoices(plan, words, durationMs, choices) : plan;
   const auto = (): ReelPlan => enforce(autoReelPlan(words, durationMs, look));
   if (!router || words.length < 4) return { plan: auto(), source: 'auto' };
+  if (params.preferOnDevice) {
+    const draft = await draftReelOnDevice(router, { look, words, durationMs });
+    if (draft) return { plan: enforce(draft), source: 'device' };
+    return { plan: auto(), source: 'auto' };
+  }
   try {
     const input: ReelDirectInput = {
       look,
@@ -934,10 +945,15 @@ export async function directReel(
       source: 'cloud',
     };
   } catch (e) {
+    const error = e instanceof Error ? e.message : String(e);
+    if (params.fallbackOnDevice) {
+      const draft = await draftReelOnDevice(router, { look, words, durationMs });
+      if (draft) return { plan: enforce(draft), source: 'device', error };
+    }
     return {
       plan: auto(),
       source: 'auto',
-      error: e instanceof Error ? e.message : String(e),
+      error,
     };
   }
 }

@@ -21,6 +21,8 @@ export interface SpendRequestInput {
 }
 
 export interface CreditsClient {
+  /** True when user-supplied Gemini BYOK is active (cloud Gemini actions cost 0 Motionpop credits). */
+  readonly isByok?: boolean;
   /** The balance, or null while it is not known yet. */
   balance(): number | null;
   subscribe(fn: (balance: number | null) => void): () => void;

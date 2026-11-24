@@ -108,21 +108,29 @@ export async function runReelNoteFixWithUi(
 }
 
 /**
- * The route and the runner a reel note bubble needs. Reel notes run on the strong cloud model
- * (spec 30): 1 credit, plus the custom price when the note needs a new motion graphic.
+ * The route and the runner a reel note bubble needs. Hybrid AI: runs simple single-scene tweaks
+ * free on-device with Chrome Gemini Nano (`route.kind === 'device'`), and seamlessly escalates
+ * complex template swaps or custom motion graphics to cloud Gemini (`cloudRoute`).
  */
 export function useReelNoteFix() {
+  const route = useRoute('note.fix');
   const cloudRoute = useRoute('note.fix', { forceCloud: true });
-  const route = cloudRoute;
   const { client: credits } = useCreditsClient();
   const config = useAppConfig();
-  const run = (sceneId: string, noteId: string, r: Route = route) =>
+  const run = (
+    sceneId: string,
+    noteId: string,
+    r: Route = route,
+    opts?: { autoEscalate?: boolean },
+  ) =>
     runReelNoteFixWithUi(
       {
         store: editorStore,
         credits,
         getRouter,
         config,
+        cloudRoute,
+        ...(opts?.autoEscalate ? { autoEscalate: true } : {}),
         fetchMedia: (plan, look) => {
           const p = editorStore.getState().project;
           return resolveReelMedia(plan, look, p?.id ?? 'reel', {

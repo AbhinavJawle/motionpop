@@ -50,6 +50,8 @@ export interface RouteInput {
   cloudCost: number;
   /** The user clicked "Try in the cloud". */
   forceCloud?: boolean;
+  /** True when a browser-local Gemini BYOK key is active (0 Motionpop credits). */
+  byok?: boolean;
 }
 
 export type Route =
@@ -60,6 +62,7 @@ export type Route =
       allowCloud: false;
       credits: number;
       insufficient: boolean;
+      byok?: true;
     }
   /** Deterministic code (the prefill template, the scene's safe defaults). */
   | { kind: 'local' }
@@ -70,6 +73,16 @@ const disabled = (reason: BlockedReason): Route => ({ kind: 'disabled', reason }
 
 function cloudRoute(i: RouteInput): Route {
   if (!i.online) return disabled('Needs connection');
+  if (i.byok) {
+    return {
+      kind: 'cloud',
+      mode: 'ONLY_IN_CLOUD',
+      allowCloud: false,
+      credits: 0,
+      insufficient: false,
+      byok: true,
+    };
+  }
   if (!i.cloudAvailable) return disabled(i.cloudBlockedReason ?? 'Sign in to use cloud AI');
   if (i.killSwitch) return disabled('Cloud AI is paused');
   return {
@@ -115,12 +128,16 @@ export function chooseRoute(i: RouteInput): Route {
   return cloudRoute(i);
 }
 
-/** The chip shown before the action: mint `⚡ free · on-device`, violet `☁ N`, or none. */
+/** The chip shown before the action: mint `⚡ free · on-device`, violet `☁ N`, `BYOK · 0`, or none. */
 export function chipFor(
   r: Route,
-): { route: 'device' } | { route: 'cloud'; credits: number } | null {
+): { route: 'device' } | { route: 'cloud'; credits: number; byok?: true } | null {
   if (r.kind === 'device') return { route: 'device' };
-  if (r.kind === 'cloud') return { route: 'cloud', credits: r.credits };
+  if (r.kind === 'cloud') {
+    return r.byok
+      ? { route: 'cloud', credits: 0, byok: true }
+      : { route: 'cloud', credits: r.credits };
+  }
   return null;
 }
 

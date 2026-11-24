@@ -15,7 +15,10 @@ import { directPlan } from './tasks/direct-plan';
 import { editContext } from './edit/edit-doc';
 import { editPatchTask } from './tasks/edit-patch';
 import { noteFixTask } from './tasks/note-fix';
+import { pipQuickTask } from './tasks/pip-quick';
 import { promptPrefill } from './tasks/prompt-prefill';
+import { reelDraftLocalTask } from './reel/draft-local';
+import { reelNoteLocalTask } from './reel/note-local';
 import { slotsDetect, slotsDetectInput } from './tasks/slots-detect';
 import { transcribeCloud } from './tasks/transcribe-cloud';
 
@@ -279,6 +282,46 @@ const CASES: Case[] = [
         language: 'en',
       }),
   },
+  {
+    id: 'reel.note.local',
+    run: () =>
+      measure(reelNoteLocalTask(), {
+        look: 'mono' as const,
+        noteText: 'change 40 to 92 and make it dark',
+        sceneTemplate: 'counter',
+        sceneLayout: 'split' as const,
+        sceneBg: 'light' as const,
+        sceneTag: 'STATS',
+        sceneTexts: ['40%', 'Revenue grew'],
+        sceneValue: 40,
+        hook: 'Six tools',
+        caption: 'revenue grew forty percent',
+      }),
+  },
+  {
+    id: 'pip.quick',
+    run: () =>
+      measure(pipQuickTask(), {
+        message: 'switch to cream look and hide captions',
+        format: '9:16' as const,
+        styleId: 'editorial-cream',
+        captionsOn: true,
+        hasReel: true,
+        reelLook: 'mono' as const,
+        reelCaptions: true,
+        sceneRefs: ['r1 (headline)', 'r2 (counter)'],
+        slotRefs: [],
+      }),
+  },
+  {
+    id: 'reel.draft',
+    run: () =>
+      measure(reelDraftLocalTask(), {
+        look: 'mono' as const,
+        durationMs: 24_000,
+        words: TEXT.map((t, i) => [i, t] as [number, string]),
+      }),
+  },
 ];
 
 /** Real violations today: task id → rule → why. Claude Code fixes these when scenes are wired in. */
@@ -322,7 +365,10 @@ describe('task schema rules (ai-tasks.md)', () => {
         'direct.plan',
         'edit.patch',
         'note.fix',
+        'pip.quick',
         'prompt.prefill',
+        'reel.draft',
+        'reel.note.local',
         'slots.detect',
         'transcribe.cloud',
       ].sort(),
@@ -338,9 +384,10 @@ describe('task schema rules (ai-tasks.md)', () => {
     for (const r of results) expect(r.systemChars + r.promptChars).toBeGreaterThan(0);
   });
 
-  it('edit.patch and note.fix prompts stay far inside the on-device limit (9,216 tokens, image not counted)', () => {
+  it('on-device task prompts stay far inside the on-device limit (9,216 tokens, image not counted)', () => {
     // About 4 characters per token: 8,000 characters is roughly 2,000 tokens, leaving room for the structured-output schema and the picture.
-    for (const r of results.filter((x) => x.id === 'edit.patch' || x.id === 'note.fix')) {
+    const ON_DEVICE = new Set(['edit.patch', 'note.fix', 'reel.note.local', 'pip.quick', 'reel.draft']);
+    for (const r of results.filter((x) => ON_DEVICE.has(x.id))) {
       expect(r.systemChars + r.promptChars, r.id).toBeLessThan(8000);
     }
   });

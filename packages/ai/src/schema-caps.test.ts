@@ -2,9 +2,12 @@ import { PipModelOutputSchema, ResolvedRecipeSchema } from '@motionpop/schemas';
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { reelDirectJsonSchema } from './reel/director';
+import { reelDraftJsonSchema, ReelDraftOutputSchema } from './reel/draft-local';
 import { reelEditJsonSchema, ReelEditOutputSchema } from './reel/edit';
 import { reelNoteJsonSchema, ReelNoteOutputSchema } from './reel/note';
+import { reelNoteLocalJsonSchema, ReelNoteLocalOutputSchema } from './reel/note-local';
 import { pipPlanJsonSchema, type PipPlanInput } from './tasks/pip-plan';
+import { pipQuickJsonSchema, PipQuickOutputSchema } from './tasks/pip-quick';
 import { recipeResolveJsonSchema } from './tasks/recipe-resolve';
 
 /**
@@ -88,9 +91,12 @@ const PIP_INPUT: PipPlanInput = {
 const SCHEMAS: Record<string, Json> = {
   'reel.direct': reelDirectJsonSchema(),
   'reel.note': reelNoteJsonSchema(),
+  'reel.note.local': reelNoteLocalJsonSchema(),
+  'reel.draft': reelDraftJsonSchema(),
   'reel.edit': reelEditJsonSchema(),
   'recipe.resolve': recipeResolveJsonSchema(),
   'pip.plan': pipPlanJsonSchema(PIP_INPUT),
+  'pip.quick': pipQuickJsonSchema(),
 };
 
 describe('structured-output string caps (spec 39 AI QA)', () => {
@@ -158,6 +164,49 @@ describe('structured-output string caps (spec 39 AI QA)', () => {
         at(SCHEMAS['recipe.resolve']!, 'directorNotes'),
         ResolvedRecipeSchema.shape.directorNotes,
         400,
+      ],
+      // reel.note.local
+      [at(SCHEMAS['reel.note.local']!, 'message'), ReelNoteLocalOutputSchema.shape.message, 140],
+      [at(SCHEMAS['reel.note.local']!, 'to'), ReelNoteLocalOutputSchema.shape.to, 80],
+      [at(SCHEMAS['reel.note.local']!, 'from'), ReelNoteLocalOutputSchema.shape.from, 80],
+      // pip.quick
+      [at(SCHEMAS['pip.quick']!, 'reply'), PipQuickOutputSchema.shape.reply, 180],
+      [
+        at(SCHEMAS['pip.quick']!, 'steps', '[]', 'label'),
+        PipQuickOutputSchema.shape.steps.unwrap().element.shape.label,
+        90,
+      ],
+      [
+        at(SCHEMAS['pip.quick']!, 'steps', '[]', 'choice'),
+        PipQuickOutputSchema.shape.steps.unwrap().element.shape.choice,
+        120,
+      ],
+      [
+        at(SCHEMAS['pip.quick']!, 'steps', '[]', 'slot'),
+        PipQuickOutputSchema.shape.steps.unwrap().element.shape.slot,
+        16,
+      ],
+      [
+        at(SCHEMAS['pip.quick']!, 'steps', '[]', 'instruction'),
+        PipQuickOutputSchema.shape.steps.unwrap().element.shape.instruction,
+        160,
+      ],
+      // reel.draft
+      [at(SCHEMAS['reel.draft']!, 'hook'), ReelDraftOutputSchema.shape.hook, 48],
+      [
+        at(SCHEMAS['reel.draft']!, 'beats', '[]', 'title'),
+        ReelDraftOutputSchema.shape.beats.element.shape.title,
+        48,
+      ],
+      [
+        at(SCHEMAS['reel.draft']!, 'beats', '[]', 'kicker'),
+        ReelDraftOutputSchema.shape.beats.element.shape.kicker,
+        28,
+      ],
+      [
+        at(SCHEMAS['reel.draft']!, 'beats', '[]', 'suffix'),
+        ReelDraftOutputSchema.shape.beats.element.shape.suffix,
+        8,
       ],
     ];
     for (const [json, zod, expected] of cases) {

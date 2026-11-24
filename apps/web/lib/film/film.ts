@@ -461,6 +461,11 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
         : undefined);
 
     let film: FilmResult;
+    const skillNote =
+      project.edit?.userSkill &&
+      (project.edit.userSkill.target === 'both' || project.edit.userSkill.target === 'film')
+        ? `CUSTOM SKILL (${project.edit.userSkill.name}):\n${project.edit.userSkill.instructions}`
+        : undefined;
     try {
       film = await makeFilm(
         {
@@ -472,6 +477,7 @@ export async function makeFilmForProject(deps: FilmDeps, route: Route): Promise<
           ...(frames.length ? { frames } : {}),
           ...(directMediaBin.length ? { mediaBin: directMediaBin } : {}),
           ...(stressedWords.length ? { stressedWords } : {}),
+          ...(skillNote ? { note: skillNote.slice(0, 3200) } : {}),
         },
         {
           router,

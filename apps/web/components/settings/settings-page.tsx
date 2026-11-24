@@ -23,8 +23,13 @@ export function SettingsPage() {
 
   // The section in view (scroll spy) and the one named by the URL hash.
   useEffect(() => {
-    const hash = window.location.hash.slice(1) as SectionId;
-    if (SECTIONS.some((s) => s.id === hash)) {
+    const rawHash = window.location.hash.slice(1);
+    if (rawHash === 'byok') {
+      setTimeout(() => {
+        document.getElementById('byok')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }, 120);
+    } else if (SECTIONS.some((s) => s.id === rawHash)) {
+      const hash = rawHash as SectionId;
       // The scroll spy below picks the section up once it is in view.
       setTimeout(() => scrollToSection(hash), 120);
     }

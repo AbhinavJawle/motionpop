@@ -7,6 +7,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('.', import.meta.url)),
+      // Keep a single `firebase/ai` module across workspace packages (`@motionpop/ai` and
+      // `@motionpop/web` have different pnpm peer hashes) so `vi.mock('firebase/ai')` intercepts both.
+      'firebase/ai': fileURLToPath(new URL('./node_modules/firebase/ai/dist/index.mjs', import.meta.url)),
       // `server-only` throws outside a React Server environment; tests import server modules
       // directly (the rules config does the same).
       'server-only': fileURLToPath(new URL('./rules/empty-module.ts', import.meta.url)),

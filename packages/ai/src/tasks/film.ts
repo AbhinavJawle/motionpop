@@ -75,7 +75,7 @@ export const FilmDirectInputSchema = z.object({
   mediaBin: z.array(DirectMediaClipSchema).max(24).optional(),
   /** Word indices with detected vocal emphasis from on-device prosody (spec 20). */
   stressedWords: z.array(z.number().int().nonnegative()).max(60).optional(),
-  note: z.string().trim().max(500).optional(),
+  note: z.string().trim().max(3200).optional(),
 });
 export type FilmDirectInput = z.infer<typeof FilmDirectInputSchema>;
 

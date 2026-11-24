@@ -1,4 +1,14 @@
-import { pipPlanJsonSchema, pipPlanTask } from '@motionpop/ai';
+import {
+  pipPlanJsonSchema,
+  pipPlanTask,
+  pipQuickToModelOutput,
+  reelDraftLocalTask,
+  reelNoteLocalTask,
+  pipQuickTask,
+  type Router,
+  type RunResult,
+  type TaskDef,
+} from '@motionpop/ai';
 import { fixtureProject } from '@motionpop/motion/testing/project-fixture';
 import {
   EditorProjectSchema,
@@ -8,11 +18,13 @@ import {
   type ReelPlan,
 } from '@motionpop/schemas';
 import { describe, expect, it, vi } from 'vitest';
-import { pipAnswer } from '@/lib/ai/fake-router';
+import { createFakeRouter, pipAnswer } from '@/lib/ai/fake-router';
 import type { Route } from '@/lib/ai/route';
+import { LocalCredits } from '@/lib/credits/local-credits';
 import { createEditorStore } from '@/lib/stores/editor';
 import { applyPlan, type ApplyDeps } from './apply';
 import { chipsFor, codePlan, enforcePlan, pipInput, sceneRefs, sceneText } from './plan';
+import { newConversation, sendToPip, usePip } from './use-pip';
 
 // Spec 37: Pip on a video reel.
 
@@ -329,5 +341,220 @@ describe('applyPlan on a reel (R2, R3)', () => {
     const r = await applyPlan(deps(store, { reelMusic }), plan, () => {});
     expect(reelMusic).toHaveBeenCalledWith('warm piano');
     expect(r.changes).toBe(1);
+  });
+});
+
+describe('hybrid on-device Pip (`pip.quick`) + fake router end-to-end', () => {
+  const DEVICE: Route = { kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: false };
+  const CLOUD: Route = {
+    kind: 'cloud',
+    mode: 'ONLY_IN_CLOUD',
+    allowCloud: false,
+    credits: 2,
+    insufficient: false,
+  };
+  const OFFLINE: Route = { kind: 'disabled', reason: 'Needs connection' };
+
+  function stubRouter(answer: (id: string) => unknown): Router {
+    return {
+      async run<I, O>(task: TaskDef<I, O>): Promise<RunResult<O>> {
+        const output = task.output.parse(answer(task.id));
+        return {
+          output,
+          ranOn: task.id === 'pip.quick' ? 'device' : 'cloud',
+          model: task.id === 'pip.quick' ? 'gemini-nano' : 'gemini-cloud',
+          costCredits: task.id === 'pip.quick' ? 0 : 2,
+          latencyMs: 6,
+          attempts: 1,
+          cached: false,
+        };
+      },
+    };
+  }
+
+  it('every pip.quick reel action survives enforcePlan without being dropped', () => {
+    const p = project();
+    const modelOut = pipQuickToModelOutput({
+      escalate: false,
+      reply: 'Updated look, theme, captions, sound, music, and cleared r2.',
+      steps: [
+        { action: 'setReelLook', label: 'Cream look', choice: 'cream' },
+        { action: 'setReelTheme', label: 'Warm accent', choice: '#FF5A36 bold' },
+        { action: 'setCaptions', label: 'Captions off', choice: 'off' },
+        { action: 'setSound', label: 'Quieter SFX', choice: 'quieter' },
+      ],
+    });
+    expect(modelOut).not.toBeNull();
+    const enforced = enforcePlan(modelOut!, p, 'device');
+    expect(enforced.dropped).toEqual([]);
+    expect(enforced.steps.map((s) => s.action)).toEqual([
+      'setReelLook',
+      'setReelTheme',
+      'setCaptions',
+      'setSound',
+    ]);
+    expect(enforced.steps[1]!.theme).toEqual({ accent: '#FF5A36', background: 'bold' });
+    expect(enforced.steps.every((s) => s.credits === 0)).toBe(true);
+
+    // Also test setMusic + clearScene on the same reel.
+    const modelOut2 = pipQuickToModelOutput({
+      escalate: false,
+      reply: 'Music and clear scene',
+      steps: [
+        { action: 'setMusic', label: 'Calm pad', choice: 'calm-pad' },
+        { action: 'clearScene', label: 'Clear r2', slot: 'r2' },
+      ],
+    });
+    const enforced2 = enforcePlan(modelOut2!, p, 'device');
+    expect(enforced2.dropped).toEqual([]);
+    expect(enforced2.steps.map((s) => s.action)).toEqual(['setMusic', 'clearScene']);
+  });
+
+  it('sendToPip runs simple commands on-device (0 credits, works offline) and escalates complex ones to cloud', async () => {
+    const p = project();
+    const store = createEditorStore(() => 1000);
+    store.getState().load(p);
+    const credits = new LocalCredits(20);
+
+    // 1. Offline + Nano ready: simple command succeeds on-device with 0 credits!
+    newConversation();
+    const cloudSpy = vi.fn();
+    await sendToPip(
+      {
+        store,
+        credits,
+        route: OFFLINE,
+        deviceRoute: DEVICE,
+        getRouter: async () =>
+          stubRouter((id) => {
+            if (id === 'pip.quick') {
+              return {
+                escalate: false,
+                reply: 'Switched to cream on-device!',
+                steps: [{ action: 'setReelLook', label: 'Switch to cream', choice: 'cream' }],
+              };
+            }
+            cloudSpy();
+            throw new Error('should not call cloud');
+          }),
+      },
+      'switch to cream look',
+      { kind: 'video' },
+    );
+    const last1 = usePip.getState().messages.at(-1)!;
+    expect(last1.ranOn).toBe('device');
+    expect(last1.credits).toBe(0);
+    expect(last1.plan?.steps[0]?.action).toBe('setReelLook');
+    expect(cloudSpy).not.toHaveBeenCalled();
+    expect(credits.balance()).toBe(20);
+
+    // 2. Online + Nano escalates: seamlessly hands off to cloud `pip.plan` (2 credits).
+    newConversation();
+    await sendToPip(
+      {
+        store,
+        credits,
+        route: CLOUD,
+        deviceRoute: DEVICE,
+        getRouter: async () =>
+          stubRouter((id) => {
+            if (id === 'pip.quick') return { escalate: true, reply: 'Needs cloud', steps: [] };
+            return out([
+              {
+                action: 'editScene',
+                slot: 'r2',
+                instruction: 'redesign as an animated chart',
+                label: 'Redesign r2',
+              },
+            ]);
+          }),
+      },
+      'redesign scene 2 as a custom animated bar chart',
+      { kind: 'video' },
+    );
+    const last2 = usePip.getState().messages.at(-1)!;
+    expect(last2.ranOn).toBe('cloud');
+    expect(last2.credits).toBe(2);
+    expect(credits.balance()).toBe(18);
+
+    // 3. Offline + Nano throws: cleanly falls back to code planner with 0 credits.
+    newConversation();
+    await sendToPip(
+      {
+        store,
+        credits: null,
+        route: OFFLINE,
+        deviceRoute: DEVICE,
+        getRouter: async () =>
+          stubRouter(() => {
+            throw new Error('Nano crashed');
+          }),
+      },
+      'turn captions off',
+      { kind: 'video' },
+    );
+    const last3 = usePip.getState().messages.at(-1)!;
+    expect(last3.ranOn).toBe('code');
+    expect(last3.credits).toBe(0);
+    expect(last3.plan?.steps[0]?.action).toBe('setCaptions');
+  });
+
+  it('fake router handles reel.note.local, pip.quick, and reel.draft deterministically and respects ?device=off', async () => {
+    const router = createFakeRouter({ latencyMs: 0, sleep: async () => {} });
+    const noteRes = await router.run(reelNoteLocalTask(), {
+      look: 'mono',
+      noteText: 'make background dark',
+      sceneTemplate: 'headline',
+      sceneLayout: 'split',
+      sceneTexts: ['Revenue doubled'],
+    });
+    expect(noteRes.ranOn).toBe('device');
+    expect(noteRes.output).toMatchObject({ action: 'edit', bg: 'dark' });
+
+    const pipRes = await router.run(pipQuickTask(), {
+      message: 'switch to cream and make colours vibrant',
+      format: '9:16',
+      styleId: 'editorial-cream',
+      captionsOn: true,
+      hasReel: true,
+      reelLook: 'mono',
+      sceneRefs: ['r1 (headline)'],
+      slotRefs: [],
+    });
+    expect(pipRes.ranOn).toBe('device');
+    expect(pipRes.output.escalate).toBe(false);
+    expect(pipRes.output.steps.length).toBeGreaterThanOrEqual(2);
+
+    const draftRes = await router.run(reelDraftLocalTask(), {
+      look: 'mono' as const,
+      durationMs: 9000,
+      words: [
+        [0, 'Revenue'] as [number, string],
+        [1, 'grew'] as [number, string],
+        [2, 'forty'] as [number, string],
+        [3, 'percent'] as [number, string],
+        [4, 'last'] as [number, string],
+        [5, 'year'] as [number, string],
+      ],
+    });
+    expect(draftRes.ranOn).toBe('device');
+    expect(draftRes.output.beats.length).toBeGreaterThanOrEqual(2);
+
+    const offRouter = createFakeRouter({
+      search: '?device=off',
+      latencyMs: 0,
+      sleep: async () => {},
+    });
+    await expect(
+      offRouter.run(pipQuickTask(), {
+        message: 'switch to cream',
+        format: '9:16',
+        styleId: 'editorial-cream',
+        captionsOn: true,
+        hasReel: true,
+        sceneRefs: [],
+        slotRefs: [],
+      }),
+    ).rejects.toThrow(/On-device AI is off/);
   });
 });

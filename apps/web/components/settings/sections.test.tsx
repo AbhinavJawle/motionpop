@@ -166,6 +166,16 @@ describe('AISection', () => {
     expect(screen.getByTestId('usage-chart')).toBeTruthy();
     expect(screen.getByText('Usage is reported by your browser.')).toBeTruthy();
   });
+
+  it('renders the BYOK Gemini API key configuration card inside AI & models', () => {
+    render(<AISection variant="page" />);
+    expect(screen.getByTestId('byok-section')).toBeTruthy();
+    expect(screen.getByLabelText('Gemini API key')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Save & test key' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Get a key in AI Studio/i }).getAttribute('href')).toBe(
+      'https://aistudio.google.com/apikey',
+    );
+  });
 });
 
 describe('CreditsSection', () => {

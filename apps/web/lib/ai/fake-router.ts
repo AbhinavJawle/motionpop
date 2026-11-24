@@ -421,6 +421,112 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
         output = prefillAnswer(input as PromptPrefillInput);
       } else if (task.id === 'pip.plan') {
         output = pipAnswer(input as PipPlanInput);
+      } else if (task.id === 'pip.quick') {
+        const q = input as {
+          message: string;
+          hasReel: boolean;
+          reelLook?: 'mono' | 'cream';
+          sceneRefs?: string[];
+          slotRefs?: string[];
+        };
+        const m = q.message.toLowerCase();
+        const steps: Array<{
+          action: string;
+          label: string;
+          choice?: string;
+          slot?: string;
+          instruction?: string;
+        }> = [];
+        if (q.hasReel && /cream|editorial/.test(m))
+          steps.push({ action: 'setReelLook', label: 'Switch to cream', choice: 'cream' });
+        if (q.hasReel && /\bmono\b|minimal/.test(m))
+          steps.push({ action: 'setReelLook', label: 'Switch to mono', choice: 'mono' });
+        if (/caption/.test(m))
+          steps.push({
+            action: 'setCaptions',
+            label: 'Update captions',
+            choice: /\boff\b|remove|hide/.test(m) ? 'off' : 'on',
+          });
+        if (/sound|sfx|effect/.test(m))
+          steps.push({
+            action: 'setSound',
+            label: 'Update sound effects',
+            choice: /\boff\b|remove/.test(m)
+              ? 'off'
+              : /louder|more/.test(m)
+                ? 'louder'
+                : /quieter|softer/.test(m)
+                  ? 'quieter'
+                  : 'on',
+          });
+        if (/music/.test(m))
+          steps.push({
+            action: 'setMusic',
+            label: 'Change music',
+            choice: /\boff\b|remove/.test(m)
+              ? 'none'
+              : /upbeat|pulse/.test(m)
+                ? 'steady-pulse'
+                : 'calm-pad',
+          });
+        if (q.hasReel && /colou?r|gradient|vibrant|warm/.test(m))
+          steps.push({
+            action: 'setReelTheme',
+            label: 'Warm accent gradient',
+            choice: /bold|vivid|vibrant/.test(m) ? 'bold' : 'soft',
+            instruction: '#FF5A36 #7C5CFF',
+          });
+        if (/vertical|9:16/.test(m))
+          steps.push({ action: 'setFormat', label: 'Switch to 9:16', choice: '9:16' });
+        if (/square|1:1/.test(m))
+          steps.push({ action: 'setFormat', label: 'Switch to 1:1', choice: '1:1' });
+        output =
+          steps.length > 0 && !/animation|custom|redesign|chart|graphic/.test(m)
+            ? { escalate: false, reply: 'Done on-device!', steps: steps.slice(0, 4) }
+            : { escalate: true, reply: 'Needs cloud Pip.', steps: [] };
+      } else if (task.id === 'reel.note.local') {
+        const n = input as { noteText: string; sceneTemplate: string };
+        const m = n.noteText.toLowerCase();
+        if (/custom|chart|animation|illustrat|rocket|redesign|new graphic/.test(m)) {
+          output = { action: 'escalate', message: 'Needs cloud AI for a new graphic.' };
+        } else if (/\bdark\b/.test(m)) {
+          output = { action: 'edit', message: 'Switched to dark background.', bg: 'dark' };
+        } else if (/\bcream\b/.test(m)) {
+          output = { action: 'edit', message: 'Switched to cream background.', bg: 'cream' };
+        } else if (/\bcard\b/.test(m)) {
+          output = { action: 'edit', message: 'Switched to card layout.', layout: 'card' };
+        } else if (n.sceneTemplate === 'counter' && /\d/.test(m)) {
+          const num = /\d+(?:\.\d+)?/.exec(m)?.[0] ?? '98';
+          output = { action: 'edit', message: `Updated counter to ${num}.`, field: 'value', to: num };
+        } else {
+          const say = /(?:say|change to|title)\s+["“]?([^"”]{2,60})["”]?/i.exec(n.noteText)?.[1];
+          output = {
+            action: 'edit',
+            message: 'Updated text on-device.',
+            field: 'title',
+            to: (say ?? n.noteText).trim().slice(0, 60),
+          };
+        }
+      } else if (task.id === 'reel.draft') {
+        const d = input as { words: [number, string][] };
+        const total = d.words.length;
+        const mid = Math.max(1, Math.floor(total / 2));
+        const end = Math.max(mid + 1, total - 2);
+        const firstPhrase = d.words
+          .slice(0, 4)
+          .map(([, w]) => w)
+          .join(' ')
+          .slice(0, 40);
+        output = {
+          hook: firstPhrase || 'Quick Takeaway',
+          beats: [
+            { fromWord: 0, template: 'headline', title: firstPhrase || 'Key Point', kicker: 'INTRO' },
+            { fromWord: Math.min(mid, total - 1), template: 'punch', title: 'Big Shift', kicker: 'WHY' },
+            ...(end < total
+              ? [{ fromWord: end, template: 'cta', title: 'NOW', kicker: 'Try' }]
+              : []),
+          ],
+        };
       } else if (task.id === 'custom.compose') {
         output = customAnswer(input as { brief: string; words: string });
       } else if (task.id === 'film.direct' || task.id === 'reel.direct') {

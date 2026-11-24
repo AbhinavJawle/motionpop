@@ -11,7 +11,7 @@ import { directReelPaid, resolveReelMedia, resolveReelMusic } from './media';
  */
 export async function regenerateReel(
   opts: { free?: boolean; credits?: CreditsClient | null } = {},
-): Promise<'cloud' | 'auto'> {
+): Promise<'cloud' | 'device' | 'auto'> {
   const { project } = editorStore.getState();
   if (!project?.reel) throw new Error('This project has no reel');
   const words = project.transcript.words.map((w) => ({

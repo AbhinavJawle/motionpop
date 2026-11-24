@@ -27,4 +27,5 @@ export * from './film';
 export * from './hash';
 export * from './video';
 export * from './reel';
+export * from './skill';
 export * from './edit-config';

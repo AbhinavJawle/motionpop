@@ -1,5 +1,6 @@
 import {
   speakWithFirebase,
+  speakWithGeminiByok,
   ttsMinutes,
   type PartCache,
   type SpeakInput,
@@ -7,6 +8,7 @@ import {
 } from '@motionpop/ai';
 import { idbPartCache } from './part-cache';
 import { isAbortError, raceAbort, throwIfAborted } from '@/lib/abort';
+import { getByokKey } from '@/lib/ai/byok';
 import { emitAIUsage } from '@/lib/ai/router-client';
 import { APP_CONFIG_DEFAULTS, costOf, type AppConfig } from '@motionpop/schemas';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
@@ -75,30 +77,40 @@ export async function generateVoice(
   }
   // TTS calls the model directly (audio out is not a router task), so it reports its own usage.
   const report = deps.onUsage ?? emitAIUsage;
+  const byokKey = !deps.speak ? getByokKey() : null;
+  const charged = spent.cost;
   const cost = costOf('tts', minutes, cfg);
   const t0 = performance.now();
   try {
     // Cancelled while the spend was in flight: hand it back before any call is made.
     throwIfAborted(signal);
-    const r = await raceAbort(
-      (deps.speak ?? speakWithFirebase)(
-        getAILogic,
-        cfg.modelTts,
-        { ...input, text },
-        undefined,
-        deps.onPart,
-        deps.partCache === undefined ? idbPartCache() : (deps.partCache ?? undefined),
-      ),
-      signal,
-    );
+    const cache = deps.partCache === undefined ? idbPartCache() : (deps.partCache ?? undefined);
+    const call = byokKey
+      ? speakWithGeminiByok(
+          byokKey,
+          cfg.modelTts,
+          { ...input, text },
+          undefined,
+          deps.onPart,
+          cache,
+        )
+      : (deps.speak ?? speakWithFirebase)(
+          getAILogic,
+          cfg.modelTts,
+          { ...input, text },
+          undefined,
+          deps.onPart,
+          cache,
+        );
+    const r = await raceAbort(call, signal);
     // Cancelled just as the voice arrived: it is dropped, never returned.
     throwIfAborted(signal);
     const file = pcmToWavFile(r.pcm, r.sampleRate, 'script-voice.wav');
     report({
       task: 'tts.generate',
       ranOn: 'cloud',
-      model: cfg.modelTts,
-      credits: cost,
+      model: r.model,
+      credits: charged,
       cloudCost: cost,
       latencyMs: Math.round(r.latencyMs),
       ok: true,
@@ -107,7 +119,7 @@ export async function generateVoice(
       ok: true,
       file,
       durationMs: Math.round((r.pcm.length / r.sampleRate) * 1000),
-      credits: costOf('tts', minutes, cfg),
+      credits: charged,
       latencyMs: r.latencyMs,
     };
   } catch (err) {

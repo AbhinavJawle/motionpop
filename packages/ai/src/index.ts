@@ -18,6 +18,7 @@ export * from './tasks/note-fix';
 export * from './tasks/prompt-prefill';
 export * from './tasks/recipe-resolve';
 export * from './tasks/pip-plan';
+export * from './tasks/pip-quick';
 export * from './tasks/custom-compose';
 export * from './tasks/film';
 export * from './tasks/film-vision-critic';
@@ -40,7 +41,25 @@ export {
 } from './reel/brief';
 export { REEL_DIRECT_SYSTEM_V3, reelDirectPromptV3 } from './reel/prompt';
 export * from './reel/note';
+export * from './reel/note-local';
+export * from './reel/draft-local';
 export * from './reel/compose';
 export * from './skills/recipes';
 export * from './skills/registry';
 export * from './skills/slot-sequences';
+export * from './skills/user-skill';
+export {
+  ByokModelModeSchema,
+  byokModelFor,
+  chromeOnDeviceProvider,
+  GEMINI_API_BASE,
+  GeminiApiKeySchema,
+  geminiByokProvider,
+  generateImageWithGeminiByok,
+  redactApiKey,
+  speakWithGeminiByok,
+  testGeminiApiKey,
+  type ByokModelMode,
+  type GeminiByokProviderOptions,
+  type KeyTestResult,
+} from './providers/gemini-byok';

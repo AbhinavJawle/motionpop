@@ -21,6 +21,7 @@ export function routeInputFrom(s: {
   cloudBlockedReason: string | null;
   balance: number | null;
   forceCloud?: boolean;
+  byok?: boolean;
 }): RouteInput {
   const reason =
     s.cloudBlockedReason === 'Cloud AI is coming soon' ||
@@ -40,6 +41,7 @@ export function routeInputFrom(s: {
     balance: s.balance,
     cloudCost: cloudCostFor(s.task, s.config),
     ...(s.forceCloud ? { forceCloud: true } : {}),
+    ...(s.byok ? { byok: true } : {}),
   };
 }
 
@@ -50,7 +52,7 @@ export function routeInputFrom(s: {
 export function useRoute(task: RoutedTask, opts: { forceCloud?: boolean } = {}): Route {
   const { availability, online } = useAIStatus();
   const { preferOnDevice } = usePreferOnDevice();
-  const { cloudAvailable, cloudBlockedReason } = useCreditsClient();
+  const { cloudAvailable, cloudBlockedReason, byok } = useCreditsClient();
   const balance = useCreditsBalance();
   const config = useAppConfig();
   return chooseRoute(
@@ -64,6 +66,7 @@ export function useRoute(task: RoutedTask, opts: { forceCloud?: boolean } = {}):
       cloudBlockedReason,
       balance,
       ...(opts.forceCloud ? { forceCloud: true } : {}),
+      ...(byok ? { byok: true } : {}),
     }),
   );
 }

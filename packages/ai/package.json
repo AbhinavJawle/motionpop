@@ -6,6 +6,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./firebase": "./src/providers/firebase.ts",
+    "./byok": "./src/providers/gemini-byok.ts",
     "./music": "./src/providers/music.ts"
   },
   "scripts": {

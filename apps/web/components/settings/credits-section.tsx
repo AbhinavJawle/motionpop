@@ -1,9 +1,10 @@
 'use client';
 
-import { Cloud } from 'lucide-react';
+import { Cloud, KeyRound } from 'lucide-react';
 import { useState } from 'react';
 import { NumberRoll } from '@/components/ui/number-roll';
 import { Shimmer } from '@/components/ui/shimmer';
+import { useByok } from '@/lib/ai/byok';
 import { cn } from '@/lib/cn';
 import { useCreditsBalance } from '@/lib/credits/use-credits-client';
 import { useCredits } from '@/lib/credits/use-credits';
@@ -23,6 +24,7 @@ import { SectionCard, type SettingsVariant } from './section-card';
 export function CreditsSection({ variant, nowMs }: { variant: SettingsVariant; nowMs?: number }) {
   const balance = useCreditsBalance();
   const { plan } = useCredits();
+  const { active: byokActive } = useByok();
   const config = useAppConfig();
   const ledger = useLedger(balance);
   // Fixed when the section opens; the ledger itself is re-read when the balance changes.
@@ -54,6 +56,23 @@ export function CreditsSection({ variant, nowMs }: { variant: SettingsVariant; n
           </p>
         </div>
       </div>
+
+      {byokActive && (
+        <div
+          className={cn(
+            'mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-xs leading-4',
+            variant === 'page'
+              ? 'border-2 border-ink bg-[#d1fae5] text-ink'
+              : 'bg-mint-tint text-mint-ink',
+          )}
+        >
+          <KeyRound className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+          <span>
+            Your Gemini API key (BYOK) is active — cloud Gemini tasks use{' '}
+            <strong>0 Motionpop credits</strong>.
+          </span>
+        </div>
+      )}
 
       <p className="label-caps mt-5 text-[10px]">What things cost</p>
       <ul className="mt-2 divide-y divide-white/6" aria-label="Credit costs">
@@ -123,6 +142,14 @@ export function CreditsSection({ variant, nowMs }: { variant: SettingsVariant; n
 
       <p className="mt-4 text-[10px] leading-[13px] text-text-3">
         Credits never go below zero. Failed cloud work is refunded.
+      </p>
+      <p className="mt-1 text-[10px] leading-[13px] text-text-3">
+        Prefer 0-credit runs? Turn on free on-device Gemini Nano or add your own Gemini API key
+        (BYOK) in{' '}
+        <a href="#byok" className="underline hover:text-text">
+          AI &amp; models
+        </a>
+        .
       </p>
     </SectionCard>
   );
