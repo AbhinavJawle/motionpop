@@ -59,7 +59,7 @@ export function ProjectCard({
         aria-label={`Open ${project.title}`}
         className="block aspect-video w-full overflow-hidden rounded-t-[10px] border-b-2 border-ink outline-none focus-visible:ring-4 focus-visible:ring-flame focus-visible:ring-inset"
       >
-        <ProjectPoster styleId={project.styleId} title={project.title} className="h-full w-full" />
+        <ProjectPoster project={project} size="md" className="h-full w-full" />
       </button>
       <div className="flex flex-1 flex-col px-4 pt-3.5 pb-4">
         <div className="flex items-start justify-between gap-3">
@@ -106,8 +106,8 @@ export function ProjectRow({
         className="flex min-w-0 flex-1 items-center gap-4 rounded-lg text-left outline-none focus-visible:ring-2 focus-visible:ring-flame"
       >
         <ProjectPoster
-          styleId={project.styleId}
-          title={project.title}
+          project={project}
+          size="sm"
           className="h-11 w-[78px] shrink-0 rounded-[5px] border-2 border-ink"
         />
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold">{project.title}</span>

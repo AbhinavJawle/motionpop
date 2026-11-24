@@ -613,7 +613,7 @@
             </Node>
         </Node>
 
-        <LinearAnimation fps="60" duration="240" loopValue="loop" name="Groove Loop" id="0:2">
+        <LinearAnimation fps="40" duration="240" loopValue="loop" name="Groove Loop" id="0:2">
             <KeyedObject objectId="0:6004">
                 <KeyedProperty property="scaleY">
                     <KeyFrameDouble value="1.2369" frame="0" interpolationType="cubicValue"><CubicValueInterpolator x1="0.33333334" y1="1.3370" x2="0.6666667" y2="1.4209"/></KeyFrameDouble>

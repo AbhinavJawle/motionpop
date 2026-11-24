@@ -39,8 +39,16 @@ async function hasWebGpu(): Promise<boolean> {
   }
 }
 
-async function create(device: Device, id: string) {
+/**
+ * A WebGPU pipeline that stays silent this long (no download progress, not ready) is stuck: seen
+ * in the spec 39 lab, where headless Chrome downloaded the files and then never finished creating
+ * the WebGPU session, so preparation sat at 35 % forever. WASM takes over.
+ */
+export const GPU_STALL_MS = 45_000;
+
+async function create(device: Device, id: string, onActivity?: () => void) {
   const onProgress = (p: ProgressInfo) => {
+    onActivity?.();
     if (p.status === 'progress_total') {
       post({
         type: 'progress',
@@ -68,11 +76,26 @@ function load(id: string) {
   loaded ??= (async () => {
     const t0 = performance.now();
     if (await hasWebGpu()) {
+      let watchdog: ReturnType<typeof setInterval> | undefined;
       try {
-        const asr = await create('webgpu', id);
+        let last = performance.now();
+        const stalled = new Promise<never>((_, reject) => {
+          watchdog = setInterval(() => {
+            if (performance.now() - last > GPU_STALL_MS)
+              reject(new Error(`WebGPU pipeline silent for ${GPU_STALL_MS / 1000} s`));
+          }, 1000);
+        });
+        const asr = await Promise.race([
+          create('webgpu', id, () => {
+            last = performance.now();
+          }),
+          stalled,
+        ]);
         return { asr, device: 'webgpu' as const, loadMs: performance.now() - t0 };
       } catch (err) {
         console.warn('[whisper] WebGPU failed, falling back to WASM', err);
+      } finally {
+        clearInterval(watchdog);
       }
     }
     const asr = await create('wasm', id);

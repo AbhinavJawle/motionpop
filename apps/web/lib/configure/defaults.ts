@@ -65,7 +65,7 @@ export function withRecipe(
   const skill = builtInSkills.recipe(recipeOf({ recipeId, resolved: edit.resolved }));
   if (!skill) return { ...edit, recipeId };
   if (kind === 'video') {
-    const style = styleFor(recipeId, '');
+    const style = styleFor(recipeId, lookHint ?? '');
     return {
       ...edit,
       recipeId,

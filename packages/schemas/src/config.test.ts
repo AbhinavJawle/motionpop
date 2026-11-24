@@ -1,6 +1,13 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { APP_CONFIG_DEFAULTS, AppConfigSchema, isPipModelId, PIP_MODEL_CHOICES, parseRemoteConfig, PipModelIdSchema } from './config';
+import {
+  APP_CONFIG_DEFAULTS,
+  AppConfigSchema,
+  isPipModelId,
+  PIP_MODEL_CHOICES,
+  parseRemoteConfig,
+  PipModelIdSchema,
+} from './config';
 
 describe('Pip model choices (spec 18 R3)', () => {
   it('defaults the strong model to gemini-4-neon, the first Pip choice', () => {

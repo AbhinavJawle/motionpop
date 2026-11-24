@@ -1,0 +1,903 @@
+{
+ "id": "coffee",
+ "title": "Coffee",
+ "durationMs": 63921,
+ "audio": "coffee-voice.m4a",
+ "words": [
+  {
+   "text": "Why",
+   "startMs": 0,
+   "endMs": 180
+  },
+  {
+   "text": "does",
+   "startMs": 180,
+   "endMs": 420
+  },
+  {
+   "text": "the",
+   "startMs": 420,
+   "endMs": 650
+  },
+  {
+   "text": "whole",
+   "startMs": 650,
+   "endMs": 910
+  },
+  {
+   "text": "world",
+   "startMs": 910,
+   "endMs": 1220
+  },
+  {
+   "text": "run",
+   "startMs": 1220,
+   "endMs": 1400
+  },
+  {
+   "text": "on",
+   "startMs": 1400,
+   "endMs": 1520
+  },
+  {
+   "text": "one",
+   "startMs": 1520,
+   "endMs": 1700
+  },
+  {
+   "text": "little",
+   "startMs": 1700,
+   "endMs": 2070
+  },
+  {
+   "text": "bean?",
+   "startMs": 2070,
+   "endMs": 2550
+  },
+  {
+   "text": "People",
+   "startMs": 2550,
+   "endMs": 3460
+  },
+  {
+   "text": "drink",
+   "startMs": 3460,
+   "endMs": 3700
+  },
+  {
+   "text": "about",
+   "startMs": 3700,
+   "endMs": 4270
+  },
+  {
+   "text": "2",
+   "startMs": 4270,
+   "endMs": 4480
+  },
+  {
+   "text": "billion",
+   "startMs": 4480,
+   "endMs": 4880
+  },
+  {
+   "text": "cups",
+   "startMs": 4880,
+   "endMs": 5200
+  },
+  {
+   "text": "of",
+   "startMs": 5200,
+   "endMs": 5340
+  },
+  {
+   "text": "coffee",
+   "startMs": 5340,
+   "endMs": 5860
+  },
+  {
+   "text": "every",
+   "startMs": 5860,
+   "endMs": 6160
+  },
+  {
+   "text": "single",
+   "startMs": 6160,
+   "endMs": 6570
+  },
+  {
+   "text": "day.",
+   "startMs": 6570,
+   "endMs": 6970
+  },
+  {
+   "text": "It",
+   "startMs": 6970,
+   "endMs": 7110
+  },
+  {
+   "text": "started",
+   "startMs": 7110,
+   "endMs": 7590
+  },
+  {
+   "text": "in",
+   "startMs": 7590,
+   "endMs": 7730
+  },
+  {
+   "text": "Ethiopia.",
+   "startMs": 7730,
+   "endMs": 8470
+  },
+  {
+   "text": "Traders",
+   "startMs": 8470,
+   "endMs": 8950
+  },
+  {
+   "text": "carried",
+   "startMs": 8950,
+   "endMs": 9570
+  },
+  {
+   "text": "it",
+   "startMs": 9570,
+   "endMs": 9660
+  },
+  {
+   "text": "across",
+   "startMs": 9660,
+   "endMs": 9980
+  },
+  {
+   "text": "the",
+   "startMs": 9980,
+   "endMs": 10180
+  },
+  {
+   "text": "sea",
+   "startMs": 10180,
+   "endMs": 10430
+  },
+  {
+   "text": "to",
+   "startMs": 10430,
+   "endMs": 10560
+  },
+  {
+   "text": "Yemen,",
+   "startMs": 10560,
+   "endMs": 11120
+  },
+  {
+   "text": "then",
+   "startMs": 11120,
+   "endMs": 11360
+  },
+  {
+   "text": "on",
+   "startMs": 11360,
+   "endMs": 11550
+  },
+  {
+   "text": "to",
+   "startMs": 11550,
+   "endMs": 11680
+  },
+  {
+   "text": "Turkey,",
+   "startMs": 11680,
+   "endMs": 12160
+  },
+  {
+   "text": "Italy,",
+   "startMs": 12160,
+   "endMs": 12560
+  },
+  {
+   "text": "and",
+   "startMs": 12560,
+   "endMs": 12810
+  },
+  {
+   "text": "Brazil.",
+   "startMs": 12810,
+   "endMs": 13250
+  },
+  {
+   "text": "Today,",
+   "startMs": 13250,
+   "endMs": 13650
+  },
+  {
+   "text": "Brazil",
+   "startMs": 13650,
+   "endMs": 14000
+  },
+  {
+   "text": "grows",
+   "startMs": 14000,
+   "endMs": 14290
+  },
+  {
+   "text": "more",
+   "startMs": 14290,
+   "endMs": 14520
+  },
+  {
+   "text": "coffee",
+   "startMs": 14520,
+   "endMs": 14860
+  },
+  {
+   "text": "than",
+   "startMs": 14860,
+   "endMs": 15090
+  },
+  {
+   "text": "any",
+   "startMs": 15090,
+   "endMs": 15560
+  },
+  {
+   "text": "other",
+   "startMs": 15560,
+   "endMs": 15660
+  },
+  {
+   "text": "country.",
+   "startMs": 15660,
+   "endMs": 16240
+  },
+  {
+   "text": "Look",
+   "startMs": 16240,
+   "endMs": 17120
+  },
+  {
+   "text": "at",
+   "startMs": 17120,
+   "endMs": 17200
+  },
+  {
+   "text": "what",
+   "startMs": 17200,
+   "endMs": 17360
+  },
+  {
+   "text": "happens",
+   "startMs": 17360,
+   "endMs": 17760
+  },
+  {
+   "text": "to",
+   "startMs": 17760,
+   "endMs": 17920
+  },
+  {
+   "text": "one",
+   "startMs": 17920,
+   "endMs": 18110
+  },
+  {
+   "text": "cup.",
+   "startMs": 18110,
+   "endMs": 18570
+  },
+  {
+   "text": "The",
+   "startMs": 18570,
+   "endMs": 18680
+  },
+  {
+   "text": "farmer",
+   "startMs": 18680,
+   "endMs": 19060
+  },
+  {
+   "text": "gets",
+   "startMs": 19060,
+   "endMs": 19310
+  },
+  {
+   "text": "10",
+   "startMs": 19310,
+   "endMs": 19690
+  },
+  {
+   "text": "cents.",
+   "startMs": 19690,
+   "endMs": 20200
+  },
+  {
+   "text": "The",
+   "startMs": 20200,
+   "endMs": 20390
+  },
+  {
+   "text": "roaster",
+   "startMs": 20390,
+   "endMs": 20820
+  },
+  {
+   "text": "gets",
+   "startMs": 20820,
+   "endMs": 21380
+  },
+  {
+   "text": "50",
+   "startMs": 21380,
+   "endMs": 21470
+  },
+  {
+   "text": "cents.",
+   "startMs": 21470,
+   "endMs": 21980
+  },
+  {
+   "text": "The",
+   "startMs": 21980,
+   "endMs": 22190
+  },
+  {
+   "text": "cafe",
+   "startMs": 22190,
+   "endMs": 22420
+  },
+  {
+   "text": "charges",
+   "startMs": 22420,
+   "endMs": 22870
+  },
+  {
+   "text": "$4.",
+   "startMs": 22870,
+   "endMs": 23440
+  },
+  {
+   "text": "Home",
+   "startMs": 23440,
+   "endMs": 24180
+  },
+  {
+   "text": "brewing",
+   "startMs": 24180,
+   "endMs": 25520
+  },
+  {
+   "text": "versus",
+   "startMs": 25520,
+   "endMs": 25940
+  },
+  {
+   "text": "the",
+   "startMs": 25940,
+   "endMs": 26170
+  },
+  {
+   "text": "cafe.",
+   "startMs": 26170,
+   "endMs": 26640
+  },
+  {
+   "text": "One",
+   "startMs": 26640,
+   "endMs": 26840
+  },
+  {
+   "text": "dollar",
+   "startMs": 26840,
+   "endMs": 27270
+  },
+  {
+   "text": "a",
+   "startMs": 27270,
+   "endMs": 27340
+  },
+  {
+   "text": "cup",
+   "startMs": 27340,
+   "endMs": 27550
+  },
+  {
+   "text": "at",
+   "startMs": 27550,
+   "endMs": 27680
+  },
+  {
+   "text": "home,",
+   "startMs": 27680,
+   "endMs": 28110
+  },
+  {
+   "text": "five",
+   "startMs": 28110,
+   "endMs": 28390
+  },
+  {
+   "text": "dollars",
+   "startMs": 28390,
+   "endMs": 28980
+  },
+  {
+   "text": "out.",
+   "startMs": 28980,
+   "endMs": 29300
+  },
+  {
+   "text": "Same",
+   "startMs": 29300,
+   "endMs": 29580
+  },
+  {
+   "text": "bean,",
+   "startMs": 29580,
+   "endMs": 30000
+  },
+  {
+   "text": "five",
+   "startMs": 30000,
+   "endMs": 30280
+  },
+  {
+   "text": "times",
+   "startMs": 30280,
+   "endMs": 30630
+  },
+  {
+   "text": "the",
+   "startMs": 30630,
+   "endMs": 30860
+  },
+  {
+   "text": "price.",
+   "startMs": 30860,
+   "endMs": 31440
+  },
+  {
+   "text": "Three",
+   "startMs": 32320,
+   "endMs": 32320
+  },
+  {
+   "text": "reasons",
+   "startMs": 32320,
+   "endMs": 32590
+  },
+  {
+   "text": "we",
+   "startMs": 32590,
+   "endMs": 32780
+  },
+  {
+   "text": "can't",
+   "startMs": 32780,
+   "endMs": 33250
+  },
+  {
+   "text": "quit.",
+   "startMs": 33250,
+   "endMs": 33910
+  },
+  {
+   "text": "The",
+   "startMs": 33910,
+   "endMs": 34190
+  },
+  {
+   "text": "caffeine,",
+   "startMs": 34190,
+   "endMs": 35190
+  },
+  {
+   "text": "the",
+   "startMs": 35190,
+   "endMs": 35780
+  },
+  {
+   "text": "ritual,",
+   "startMs": 35780,
+   "endMs": 36080
+  },
+  {
+   "text": "and",
+   "startMs": 36080,
+   "endMs": 36210
+  },
+  {
+   "text": "the",
+   "startMs": 36210,
+   "endMs": 36340
+  },
+  {
+   "text": "excuse",
+   "startMs": 36340,
+   "endMs": 36610
+  },
+  {
+   "text": "to",
+   "startMs": 36610,
+   "endMs": 36720
+  },
+  {
+   "text": "meet",
+   "startMs": 36720,
+   "endMs": 36880
+  },
+  {
+   "text": "someone.",
+   "startMs": 36880,
+   "endMs": 37360
+  },
+  {
+   "text": "In",
+   "startMs": 38320,
+   "endMs": 38320
+  },
+  {
+   "text": "1450,",
+   "startMs": 38320,
+   "endMs": 38500
+  },
+  {
+   "text": "coffee",
+   "startMs": 38500,
+   "endMs": 38970
+  },
+  {
+   "text": "reached",
+   "startMs": 38970,
+   "endMs": 39440
+  },
+  {
+   "text": "Yemen.",
+   "startMs": 39440,
+   "endMs": 40010
+  },
+  {
+   "text": "In",
+   "startMs": 40010,
+   "endMs": 40140
+  },
+  {
+   "text": "1650,",
+   "startMs": 40140,
+   "endMs": 41150
+  },
+  {
+   "text": "the",
+   "startMs": 41150,
+   "endMs": 41410
+  },
+  {
+   "text": "first",
+   "startMs": 41410,
+   "endMs": 41820
+  },
+  {
+   "text": "coffee",
+   "startMs": 41820,
+   "endMs": 42150
+  },
+  {
+   "text": "house",
+   "startMs": 42150,
+   "endMs": 42600
+  },
+  {
+   "text": "opened",
+   "startMs": 42600,
+   "endMs": 42950
+  },
+  {
+   "text": "in",
+   "startMs": 42950,
+   "endMs": 43080
+  },
+  {
+   "text": "England.",
+   "startMs": 43080,
+   "endMs": 43920
+  },
+  {
+   "text": "In",
+   "startMs": 43920,
+   "endMs": 44180
+  },
+  {
+   "text": "1971,",
+   "startMs": 44180,
+   "endMs": 45280
+  },
+  {
+   "text": "the",
+   "startMs": 45280,
+   "endMs": 45430
+  },
+  {
+   "text": "first",
+   "startMs": 45430,
+   "endMs": 45690
+  },
+  {
+   "text": "big",
+   "startMs": 45690,
+   "endMs": 45930
+  },
+  {
+   "text": "coffee",
+   "startMs": 45930,
+   "endMs": 46150
+  },
+  {
+   "text": "chain",
+   "startMs": 46150,
+   "endMs": 46410
+  },
+  {
+   "text": "opened",
+   "startMs": 46410,
+   "endMs": 46720
+  },
+  {
+   "text": "in",
+   "startMs": 46720,
+   "endMs": 46820
+  },
+  {
+   "text": "Seattle.",
+   "startMs": 46820,
+   "endMs": 47360
+  },
+  {
+   "text": "A",
+   "startMs": 47360,
+   "endMs": 47460
+  },
+  {
+   "text": "barista",
+   "startMs": 47460,
+   "endMs": 48150
+  },
+  {
+   "text": "in",
+   "startMs": 48150,
+   "endMs": 48740
+  },
+  {
+   "text": "Rome",
+   "startMs": 48740,
+   "endMs": 48790
+  },
+  {
+   "text": "once",
+   "startMs": 48790,
+   "endMs": 49200
+  },
+  {
+   "text": "told",
+   "startMs": 49200,
+   "endMs": 49680
+  },
+  {
+   "text": "me,",
+   "startMs": 49680,
+   "endMs": 49900
+  },
+  {
+   "text": "\"You",
+   "startMs": 49900,
+   "endMs": 49960
+  },
+  {
+   "text": "don't",
+   "startMs": 49960,
+   "endMs": 50080
+  },
+  {
+   "text": "drink",
+   "startMs": 50080,
+   "endMs": 50400
+  },
+  {
+   "text": "coffee.",
+   "startMs": 50400,
+   "endMs": 51050
+  },
+  {
+   "text": "You",
+   "startMs": 51050,
+   "endMs": 51200
+  },
+  {
+   "text": "drink",
+   "startMs": 51200,
+   "endMs": 51530
+  },
+  {
+   "text": "the",
+   "startMs": 51530,
+   "endMs": 51720
+  },
+  {
+   "text": "morning.\"",
+   "startMs": 51720,
+   "endMs": 52460
+  },
+  {
+   "text": "This",
+   "startMs": 52460,
+   "endMs": 52730
+  },
+  {
+   "text": "is",
+   "startMs": 52730,
+   "endMs": 52860
+  },
+  {
+   "text": "the",
+   "startMs": 52860,
+   "endMs": 53060
+  },
+  {
+   "text": "photo",
+   "startMs": 53060,
+   "endMs": 53400
+  },
+  {
+   "text": "that",
+   "startMs": 53400,
+   "endMs": 53860
+  },
+  {
+   "text": "sums",
+   "startMs": 53860,
+   "endMs": 53930
+  },
+  {
+   "text": "it",
+   "startMs": 53930,
+   "endMs": 54060
+  },
+  {
+   "text": "up.",
+   "startMs": 54060,
+   "endMs": 54390
+  },
+  {
+   "text": "A",
+   "startMs": 54390,
+   "endMs": 54450
+  },
+  {
+   "text": "long",
+   "startMs": 54450,
+   "endMs": 54720
+  },
+  {
+   "text": "line",
+   "startMs": 54720,
+   "endMs": 55030
+  },
+  {
+   "text": "of",
+   "startMs": 55030,
+   "endMs": 55120
+  },
+  {
+   "text": "people",
+   "startMs": 55120,
+   "endMs": 55590
+  },
+  {
+   "text": "outside",
+   "startMs": 55590,
+   "endMs": 55920
+  },
+  {
+   "text": "a",
+   "startMs": 55920,
+   "endMs": 56040
+  },
+  {
+   "text": "cafe",
+   "startMs": 56040,
+   "endMs": 56330
+  },
+  {
+   "text": "at",
+   "startMs": 56330,
+   "endMs": 56570
+  },
+  {
+   "text": "7am,",
+   "startMs": 56570,
+   "endMs": 57050
+  },
+  {
+   "text": "all",
+   "startMs": 57050,
+   "endMs": 57310
+  },
+  {
+   "text": "waiting",
+   "startMs": 57310,
+   "endMs": 57860
+  },
+  {
+   "text": "for",
+   "startMs": 57860,
+   "endMs": 58100
+  },
+  {
+   "text": "the",
+   "startMs": 58100,
+   "endMs": 58340
+  },
+  {
+   "text": "same",
+   "startMs": 58340,
+   "endMs": 58680
+  },
+  {
+   "text": "small",
+   "startMs": 58680,
+   "endMs": 59320
+  },
+  {
+   "text": "cup.",
+   "startMs": 59320,
+   "endMs": 59570
+  },
+  {
+   "text": "One",
+   "startMs": 59570,
+   "endMs": 59800
+  },
+  {
+   "text": "bean,",
+   "startMs": 59800,
+   "endMs": 60320
+  },
+  {
+   "text": "500",
+   "startMs": 60320,
+   "endMs": 61030
+  },
+  {
+   "text": "years,",
+   "startMs": 61030,
+   "endMs": 61600
+  },
+  {
+   "text": "and",
+   "startMs": 61600,
+   "endMs": 61840
+  },
+  {
+   "text": "it",
+   "startMs": 61840,
+   "endMs": 62000
+  },
+  {
+   "text": "still",
+   "startMs": 62000,
+   "endMs": 62410
+  },
+  {
+   "text": "wins",
+   "startMs": 62410,
+   "endMs": 62820
+  },
+  {
+   "text": "every",
+   "startMs": 62820,
+   "endMs": 63550
+  },
+  {
+   "text": "morning.",
+   "startMs": 63550,
+   "endMs": 63680
+  }
+ ]
+}

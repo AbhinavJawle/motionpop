@@ -1,6 +1,6 @@
 'use client';
 
-import { AudioLines, Film, Music, Sparkles, Type } from 'lucide-react';
+import { AudioLines, Film, Image as ImageIcon, Music, Sparkles, Type, Volume2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PlaybackClock } from '@/lib/editor/playback';
 import { cn } from '@/lib/cn';
@@ -11,6 +11,8 @@ import { AudioTrack } from './audio-track';
 import { PlayheadCapsule, PlayheadLine, usePlayheadVar } from './playhead';
 import { Ruler } from './ruler';
 import { SlotsTrack } from './slots-track';
+import { StockAudioTrack } from './stock-audio-track';
+import { StockMediaTrack } from './stock-media-track';
 import {
   TimelineContext,
   TL,
@@ -24,7 +26,7 @@ import { VideoTrack } from './video-track';
 import { VoiceTrack } from './voice-track';
 import { WordsTrack } from './words-track';
 
-type TrackRowId = 'slots' | 'video' | 'words' | 'voice' | 'audio';
+type TrackRowId = 'slots' | 'video' | 'stockMedia' | 'words' | 'voice' | 'audio' | 'stockAudio';
 
 const BASE_ROWS: readonly {
   id: TrackRowId;
@@ -35,9 +37,23 @@ const BASE_ROWS: readonly {
   tone?: string;
 }[] = [
   { id: 'slots', label: 'Graphics', surface: 'bg-track-b', icon: Sparkles, tone: 'text-violet' },
-  { id: 'words', label: 'Words', surface: 'bg-track-a', icon: Type },
-  { id: 'voice', label: 'Voice', surface: 'bg-track-b', icon: AudioLines, tone: 'text-voice' },
-  { id: 'audio', label: 'Sound', surface: 'bg-track-a', icon: Music, tone: 'text-sound' },
+  {
+    id: 'stockMedia',
+    label: 'Stock Media',
+    surface: 'bg-track-a',
+    icon: ImageIcon,
+    tone: 'text-mint',
+  },
+  { id: 'words', label: 'Words', surface: 'bg-track-b', icon: Type },
+  { id: 'voice', label: 'Voice', surface: 'bg-track-a', icon: AudioLines, tone: 'text-voice' },
+  { id: 'audio', label: 'Sound', surface: 'bg-track-b', icon: Music, tone: 'text-sound' },
+  {
+    id: 'stockAudio',
+    label: 'Stock Audio',
+    surface: 'bg-track-a',
+    icon: Volume2,
+    tone: 'text-flame',
+  },
 ];
 
 const VIDEO_ROWS: readonly {
@@ -50,9 +66,23 @@ const VIDEO_ROWS: readonly {
 }[] = [
   { id: 'slots', label: 'Graphics', surface: 'bg-track-b', icon: Sparkles, tone: 'text-violet' },
   { id: 'video', label: 'Video', surface: 'bg-track-a', icon: Film, tone: 'text-flame' },
-  { id: 'words', label: 'Words', surface: 'bg-track-b', icon: Type },
-  { id: 'voice', label: 'Voice', surface: 'bg-track-a', icon: AudioLines, tone: 'text-voice' },
-  { id: 'audio', label: 'Sound', surface: 'bg-track-b', icon: Music, tone: 'text-sound' },
+  {
+    id: 'stockMedia',
+    label: 'Stock Media',
+    surface: 'bg-track-b',
+    icon: ImageIcon,
+    tone: 'text-mint',
+  },
+  { id: 'words', label: 'Words', surface: 'bg-track-a', icon: Type },
+  { id: 'voice', label: 'Voice', surface: 'bg-track-b', icon: AudioLines, tone: 'text-voice' },
+  { id: 'audio', label: 'Sound', surface: 'bg-track-a', icon: Music, tone: 'text-sound' },
+  {
+    id: 'stockAudio',
+    label: 'Stock Audio',
+    surface: 'bg-track-b',
+    icon: Volume2,
+    tone: 'text-flame',
+  },
 ];
 
 /**
@@ -231,6 +261,9 @@ function TimeArea({
               <VideoTrack />
             </Row>
           )}
+          <Row geom={layout.rows.stockMedia} rulerTop={layout.rows.ruler.top} label="Stock Media">
+            <StockMediaTrack />
+          </Row>
           <Row geom={layout.rows.words} rulerTop={layout.rows.ruler.top} label="Words">
             <WordsTrack />
           </Row>
@@ -239,6 +272,9 @@ function TimeArea({
           </Row>
           <Row geom={layout.rows.audio} rulerTop={layout.rows.ruler.top} label="Audio">
             <AudioTrack />
+          </Row>
+          <Row geom={layout.rows.stockAudio} rulerTop={layout.rows.ruler.top} label="Stock Audio">
+            <StockAudioTrack />
           </Row>
           <PlayheadLine />
           <PlayheadCapsule />

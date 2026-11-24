@@ -1,5 +1,6 @@
 'use client';
 
+import { RecipeIdSchema } from '@motionpop/schemas';
 import { Mic, Upload } from 'lucide-react';
 import { btn, paper, PaperPage, poster } from '@/components/paper/kit';
 import { motion } from 'motion/react';
@@ -40,11 +41,24 @@ export function StartScreen() {
   const [draft, update] = useStartDraft();
   const [busy, setBusy] = useState(false);
 
-  // `?style=` from a Try-a-style card preselects the style (R6.2).
+  // `?style=`, `?recipe=`, and `?skill=` from `/styles`, `/recipes`, or `/skills` preselect the draft (spec 11, 40, 43).
   const style = search.get('style');
+  const recipeParam = search.get('recipe');
+  const skillParam = search.get('skill');
   useEffect(() => {
-    if (style && style !== draft.styleId) update({ styleId: style });
-  }, [style, draft.styleId, update]);
+    const parsedRecipe = recipeParam ? RecipeIdSchema.safeParse(recipeParam) : null;
+    const recipe = parsedRecipe?.success ? parsedRecipe.data : undefined;
+    const patch: Partial<typeof draft> = {};
+    if (style && style !== draft.styleId) patch.styleId = style;
+    if (recipe && recipe !== draft.recipeId) {
+      patch.recipeId = recipe;
+      if (draft.userSkillId) patch.userSkillId = undefined;
+    }
+    if (skillParam && skillParam !== draft.userSkillId) {
+      patch.userSkillId = skillParam;
+    }
+    if (Object.keys(patch).length > 0) update(patch);
+  }, [style, recipeParam, skillParam, draft.styleId, draft.recipeId, draft.userSkillId, update]);
 
   const go = async (
     work: () => Promise<{ ok: true } | { ok: false; message: string }>,

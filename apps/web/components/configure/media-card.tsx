@@ -37,6 +37,7 @@ export function pipLine(job: Job): string {
   if (job.prep.stage === 'failed') return 'Hmm, that one slipped.';
   if (job.script) return 'Your words are ready!';
   if (job.prep.stage === 'ready') return 'Got every word!';
+  if (job.prep.model !== undefined) return 'Warming up my ears…';
   if (job.prep.stage === 'transcribing') return 'Listening closely…';
   return job.kind === 'video' ? 'Reading your video…' : 'Reading your audio…';
 }
@@ -131,7 +132,13 @@ export function MediaCard({ job, onRemove }: { job: Job; onRemove: () => void })
         <div className="mt-auto pt-5">
           <div className="mb-1.5 flex items-baseline justify-between text-[12px]">
             <span className={cn('font-semibold', failed && 'text-error')}>
-              {failed ? job.prep.error : ready ? 'Ready' : `Preparing ${job.prep.pct}%`}
+              {failed
+                ? job.prep.error
+                : ready
+                  ? 'Ready'
+                  : job.prep.model !== undefined
+                    ? `Getting speech ready, first time only (${job.prep.model}%)`
+                    : `Preparing ${job.prep.pct}%`}
             </span>
             <span className="text-black/50">{failed ? '' : 'free · on this device'}</span>
           </div>

@@ -169,6 +169,8 @@ export const VideoTrackSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   originalDurationMs: z.number().int().positive(),
+  /** Compact JPEG keyframe data URL captured at probe time for dashboard/editor thumbnails (spec 41). */
+  posterUrl: z.string().max(120_000).optional(),
   cuts: z.array(VideoCutSchema).default([]),
   punchIns: z.array(VideoPunchInSchema).default([]),
   stages: z.array(VideoStageSegmentSchema).optional(),
@@ -419,12 +421,52 @@ export function stageBoxForMode(
       return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 0, dim: 0, opacity: 1 };
     case 'split-left':
       return vertical
-        ? { x: 0.05, y: 0.04, w: 0.9, h: 0.42, radiusFrac: 0.028, shadow: 0.42, blurPx: 0, dim: 0, opacity: 1 }
-        : { x: 0.03, y: 0.06, w: 0.43, h: 0.88, radiusFrac: 0.024, shadow: 0.42, blurPx: 0, dim: 0, opacity: 1 };
+        ? {
+            x: 0.05,
+            y: 0.04,
+            w: 0.9,
+            h: 0.42,
+            radiusFrac: 0.028,
+            shadow: 0.42,
+            blurPx: 0,
+            dim: 0,
+            opacity: 1,
+          }
+        : {
+            x: 0.03,
+            y: 0.06,
+            w: 0.43,
+            h: 0.88,
+            radiusFrac: 0.024,
+            shadow: 0.42,
+            blurPx: 0,
+            dim: 0,
+            opacity: 1,
+          };
     case 'split-right':
       return vertical
-        ? { x: 0.05, y: 0.54, w: 0.9, h: 0.42, radiusFrac: 0.028, shadow: 0.42, blurPx: 0, dim: 0, opacity: 1 }
-        : { x: 0.54, y: 0.06, w: 0.43, h: 0.88, radiusFrac: 0.024, shadow: 0.42, blurPx: 0, dim: 0, opacity: 1 };
+        ? {
+            x: 0.05,
+            y: 0.54,
+            w: 0.9,
+            h: 0.42,
+            radiusFrac: 0.028,
+            shadow: 0.42,
+            blurPx: 0,
+            dim: 0,
+            opacity: 1,
+          }
+        : {
+            x: 0.54,
+            y: 0.06,
+            w: 0.43,
+            h: 0.88,
+            radiusFrac: 0.024,
+            shadow: 0.42,
+            blurPx: 0,
+            dim: 0,
+            opacity: 1,
+          };
     case 'pip': {
       const pw = vertical ? 0.32 : 0.23;
       const ph = vertical ? 0.2 : 0.27;
@@ -435,13 +477,43 @@ export function stageBoxForMode(
       return { x, y, w: pw, h: ph, radiusFrac: 0.022, shadow: 0.52, blurPx: 0, dim: 0, opacity: 1 };
     }
     case 'backdrop':
-      return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 10, dim: 0.56, opacity: 1 };
+      return {
+        x: 0,
+        y: 0,
+        w: 1,
+        h: 1,
+        radiusFrac: 0,
+        shadow: 0,
+        blurPx: 10,
+        dim: 0.56,
+        opacity: 1,
+      };
     case 'cutaway':
       return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 0, dim: 0, opacity: 0 };
     case 'split-top-broll':
       return vertical
-        ? { x: 0.04, y: 0.54, w: 0.92, h: 0.42, radiusFrac: 0.028, shadow: 0.44, blurPx: 0, dim: 0, opacity: 1 }
-        : { x: 0.03, y: 0.08, w: 0.42, h: 0.84, radiusFrac: 0.024, shadow: 0.44, blurPx: 0, dim: 0, opacity: 1 };
+        ? {
+            x: 0.04,
+            y: 0.54,
+            w: 0.92,
+            h: 0.42,
+            radiusFrac: 0.028,
+            shadow: 0.44,
+            blurPx: 0,
+            dim: 0,
+            opacity: 1,
+          }
+        : {
+            x: 0.03,
+            y: 0.08,
+            w: 0.42,
+            h: 0.84,
+            radiusFrac: 0.024,
+            shadow: 0.44,
+            blurPx: 0,
+            dim: 0,
+            opacity: 1,
+          };
     case 'screen-showcase': {
       const pw = vertical ? 0.3 : 0.21;
       const ph = vertical ? 0.19 : 0.26;
@@ -456,7 +528,17 @@ export function stageBoxForMode(
     case 'media-card-pop':
       return vertical
         ? { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 2, dim: 0.22, opacity: 1 }
-        : { x: 0.03, y: 0.06, w: 0.45, h: 0.88, radiusFrac: 0.024, shadow: 0.4, blurPx: 0, dim: 0, opacity: 1 };
+        : {
+            x: 0.03,
+            y: 0.06,
+            w: 0.45,
+            h: 0.88,
+            radiusFrac: 0.024,
+            shadow: 0.4,
+            blurPx: 0,
+            dim: 0,
+            opacity: 1,
+          };
     case 'full':
     default:
       return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, blurPx: 0, dim: 0, opacity: 1 };
@@ -518,18 +600,95 @@ export function mediaBoxForMode(
   switch (mode) {
     case 'split-top-broll':
       return vertical
-        ? { x: 0.04, y: 0.04, w: 0.92, h: 0.47, radiusFrac: 0.028, shadow: 0.48, rotateX: 0, rotateY: 0, framed: false, zIndex: 1 }
-        : { x: 0.48, y: 0.08, w: 0.49, h: 0.84, radiusFrac: 0.024, shadow: 0.48, rotateX: 0, rotateY: 0, framed: false, zIndex: 1 };
+        ? {
+            x: 0.04,
+            y: 0.04,
+            w: 0.92,
+            h: 0.47,
+            radiusFrac: 0.028,
+            shadow: 0.48,
+            rotateX: 0,
+            rotateY: 0,
+            framed: false,
+            zIndex: 1,
+          }
+        : {
+            x: 0.48,
+            y: 0.08,
+            w: 0.49,
+            h: 0.84,
+            radiusFrac: 0.024,
+            shadow: 0.48,
+            rotateX: 0,
+            rotateY: 0,
+            framed: false,
+            zIndex: 1,
+          };
     case 'screen-showcase':
       return vertical
-        ? { x: 0.05, y: 0.09, w: 0.9, h: 0.56, radiusFrac: 0.026, shadow: 0.6, rotateX: 2.5, rotateY: -3.5, framed: true, zIndex: 0 }
-        : { x: 0.14, y: 0.09, w: 0.8, h: 0.78, radiusFrac: 0.022, shadow: 0.6, rotateX: 2.0, rotateY: -4.0, framed: true, zIndex: 0 };
+        ? {
+            x: 0.05,
+            y: 0.09,
+            w: 0.9,
+            h: 0.56,
+            radiusFrac: 0.026,
+            shadow: 0.6,
+            rotateX: 2.5,
+            rotateY: -3.5,
+            framed: true,
+            zIndex: 0,
+          }
+        : {
+            x: 0.14,
+            y: 0.09,
+            w: 0.8,
+            h: 0.78,
+            radiusFrac: 0.022,
+            shadow: 0.6,
+            rotateX: 2.0,
+            rotateY: -4.0,
+            framed: true,
+            zIndex: 0,
+          };
     case 'broll-full':
-      return { x: 0, y: 0, w: 1, h: 1, radiusFrac: 0, shadow: 0, rotateX: 0, rotateY: 0, framed: false, zIndex: 0 };
+      return {
+        x: 0,
+        y: 0,
+        w: 1,
+        h: 1,
+        radiusFrac: 0,
+        shadow: 0,
+        rotateX: 0,
+        rotateY: 0,
+        framed: false,
+        zIndex: 0,
+      };
     case 'media-card-pop':
       return vertical
-        ? { x: 0.08, y: 0.12, w: 0.84, h: 0.42, radiusFrac: 0.03, shadow: 0.62, rotateX: 1.5, rotateY: 2.5, framed: false, zIndex: 2 }
-        : { x: 0.51, y: 0.14, w: 0.45, h: 0.72, radiusFrac: 0.026, shadow: 0.62, rotateX: 1.5, rotateY: -3.0, framed: false, zIndex: 2 };
+        ? {
+            x: 0.08,
+            y: 0.12,
+            w: 0.84,
+            h: 0.42,
+            radiusFrac: 0.03,
+            shadow: 0.62,
+            rotateX: 1.5,
+            rotateY: 2.5,
+            framed: false,
+            zIndex: 2,
+          }
+        : {
+            x: 0.51,
+            y: 0.14,
+            w: 0.45,
+            h: 0.72,
+            radiusFrac: 0.026,
+            shadow: 0.62,
+            rotateX: 1.5,
+            rotateY: -3.0,
+            framed: false,
+            zIndex: 2,
+          };
     default:
       return null;
   }
@@ -583,7 +742,13 @@ export function mediaLayerRectAt(
 
   // Leaving a media beat into a non-media beat: glide out smoothly instead of popping off.
   if (!curBox) {
-    if (prev && prevBox && prev.clipId && cleanedMs >= cur.startMs && cleanedMs < cur.startMs + MEDIA_EXIT_MS) {
+    if (
+      prev &&
+      prevBox &&
+      prev.clipId &&
+      cleanedMs >= cur.startMs &&
+      cleanedMs < cur.startMs + MEDIA_EXIT_MS
+    ) {
       const t = easeOutQuint((cleanedMs - cur.startMs) / MEDIA_EXIT_MS);
       const liftY = lerp(0, 0.025, t);
       return {
@@ -614,12 +779,12 @@ export function mediaLayerRectAt(
 
   const curDur = Math.max(1, cur.endMs - cur.startMs);
   const curProg = clamp01((cleanedMs - cur.startMs) / curDur);
-  const targetZoom = cur.clipZoom ?? (cur.mode === 'screen-showcase' ? 1.45 : cur.mode === 'broll-full' ? 1.07 : 1.04);
+  const targetZoom =
+    cur.clipZoom ??
+    (cur.mode === 'screen-showcase' ? 1.45 : cur.mode === 'broll-full' ? 1.07 : 1.04);
   // Screen-showcase smoothly ramps into the UI focal region after a short settle, then eases gently.
   const zoomCurve =
-    cur.mode === 'screen-showcase'
-      ? easeInOutCubic(clamp01((curProg - 0.12) / 0.55))
-      : curProg;
+    cur.mode === 'screen-showcase' ? easeInOutCubic(clamp01((curProg - 0.12) / 0.55)) : curProg;
   const innerScale = lerp(1.0, targetZoom, zoomCurve);
 
   let x = curBox.x;
@@ -757,7 +922,9 @@ export function videoStageRectAt(
       w: lerp(prevBox.w, target.w, t),
       h: lerp(prevBox.h, target.h, t),
       radiusFrac: lerp(prevBox.radiusFrac, target.radiusFrac, t),
-      ...(target.topRadiusOnly || (t < 0.5 && prevBox.topRadiusOnly) ? { topRadiusOnly: true } : {}),
+      ...(target.topRadiusOnly || (t < 0.5 && prevBox.topRadiusOnly)
+        ? { topRadiusOnly: true }
+        : {}),
       shadow: lerp(prevBox.shadow, target.shadow, t),
       blurPx: lerp(prevBox.blurPx, target.blurPx, t),
       dim: lerp(prevBox.dim, target.dim, t),

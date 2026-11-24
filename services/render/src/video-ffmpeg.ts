@@ -283,7 +283,10 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
       const by = Math.max(0, Math.min(height - bh, Math.round(mBox.y * height)));
       const fx = Math.max(0.1, Math.min(0.9, s.clipFocusX ?? 0.5));
       const fy = Math.max(0.1, Math.min(0.9, s.clipFocusY ?? 0.45));
-      const zoom = Math.max(1, Math.min(2.2, s.clipZoom ?? (s.mode === 'screen-showcase' ? 1.4 : 1.0)));
+      const zoom = Math.max(
+        1,
+        Math.min(2.2, s.clipZoom ?? (s.mode === 'screen-showcase' ? 1.4 : 1.0)),
+      );
 
       // Zoomed scale dimensions before cropping around (fx, fy)
       const zw = even(bw * zoom);
@@ -297,10 +300,9 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
         ? `trim=start=${clipStartSec}:duration=${beatDurSec},setpts=PTS-STARTPTS+${sec(s.startMs)}/TB,`
         : `trim=duration=${beatDurSec},setpts=PTS-STARTPTS+${sec(s.startMs)}/TB,`;
 
-      const borderPad = mBox.framed
-        ? `,drawbox=x=0:y=0:w=iw:h=ih:color=0x262938@0.9:t=4`
-        : '';
-      const radiusPx = mBox.radiusFrac > 0 ? Math.round(mBox.radiusFrac * Math.min(width, height)) : 0;
+      const borderPad = mBox.framed ? `,drawbox=x=0:y=0:w=iw:h=ih:color=0x262938@0.9:t=4` : '';
+      const radiusPx =
+        mBox.radiusFrac > 0 ? Math.round(mBox.radiusFrac * Math.min(width, height)) : 0;
       const rawLay = radiusPx >= 4 ? `mraw${stepIdx}` : lay;
       const mediaPrep =
         `[${rawStream}]${trimPart}fps=${fps},` +

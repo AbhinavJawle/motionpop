@@ -1,22 +1,27 @@
 import Link from 'next/link';
 import { FORMATS, type Format } from '@motionpop/schemas';
 import { PipLoop } from '@/components/landing/pip-loop';
-import { btn, PaperPage, PipMark, poster, Sprockets } from '@/components/paper/kit';
+import { btn, paper, PaperPage, PipMark, poster, Sprockets } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
 import { secondsText } from '@/lib/renders/export-flow';
 
-/** The brand row at the top of the share page. */
+/** The black film-strip brand row at the top of the share page (spec 40). */
 function Brand() {
   return (
-    <header className="border-b-2 border-ink">
-      <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between px-6">
-        <Link href="/" className="flex items-center gap-2.5" aria-label="motionpop home">
-          <PipMark />
-          <span className="font-sans text-[22px] leading-none font-semibold tracking-[-0.03em]">
-            motionpop
-          </span>
-        </Link>
-        <Link href="/" className={btn('ink', 'sm')}>
+    <header className={paper.bar}>
+      <div className="mx-auto flex h-16 max-w-[1240px] items-center justify-between gap-4 px-6 lg:px-10">
+        <div className="flex items-center gap-6">
+          <Link href="/" className="flex items-center gap-2.5" aria-label="motionpop home">
+            <PipMark />
+            <span className="font-sans text-[22px] leading-none font-semibold tracking-[-0.03em]">
+              motionpop
+            </span>
+          </Link>
+          <Link href="/how-it-works" className={cn(paper.barLink, 'hidden sm:inline')}>
+            How it works
+          </Link>
+        </div>
+        <Link href="/" className={btn('flame', 'sm', true)}>
           Make your own
         </Link>
       </div>

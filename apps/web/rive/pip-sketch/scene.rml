@@ -991,7 +991,7 @@
             <Image x="-19.50" y="3.00" assetId="0:906" name="Tail"/>
         </Node>
 
-        <LinearAnimation fps="60" duration="240" loopValue="loop" name="Sketch Loop" id="0:2">
+        <LinearAnimation fps="45" duration="240" loopValue="loop" name="Sketch Loop" id="0:2">
             <KeyedObject objectId="0:4001">
                 <KeyedProperty property="scaleX">
                     <KeyFrameDouble value="0.0000" frame="0"/>

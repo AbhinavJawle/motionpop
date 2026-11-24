@@ -93,12 +93,14 @@ export const StoryBeatSchema = z.object({
   ),
   /** Optional external stock B-roll search query (Pexels / Wikimedia Commons, spec 23 R6). */
   brollQuery: z.preprocess(
-    (v) => (typeof v === 'string' && v.trim() && v.trim() !== 'none' ? v.trim().slice(0, 100) : undefined),
+    (v) =>
+      typeof v === 'string' && v.trim() && v.trim() !== 'none' ? v.trim().slice(0, 100) : undefined,
     z.string().min(2).max(100).optional(),
   ),
   /** Optional AI-generated studio cutout or editorial visual subject (`mp.image`, spec 23 R6). */
   imageSubject: z.preprocess(
-    (v) => (typeof v === 'string' && v.trim() && v.trim() !== 'none' ? v.trim().slice(0, 120) : undefined),
+    (v) =>
+      typeof v === 'string' && v.trim() && v.trim() !== 'none' ? v.trim().slice(0, 120) : undefined,
     z.string().min(3).max(120).optional(),
   ),
   /** True when `imageSubject` should be chroma-keyed into a floating cutout (spec 23 R6). */

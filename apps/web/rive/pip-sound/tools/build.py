@@ -819,9 +819,9 @@ track(ID_EYE_R, "scaleX", linear_keys(eye_scale_x, EYE_FRAMES, "{:.4f}"))
 track(ID_SMILE, "scaleX", hermite_keys(smile_scale_x, EVERY2, "{:.4f}"))
 track(ID_SMILE, "scaleY", hermite_keys(smile_scale_y, EVERY2, "{:.4f}"))
 
-# ---- Emit LinearAnimation ----
+# ---- Emit LinearAnimation (40 fps over 240 keys = 6.00 s = 80 BPM groovy bounce!) ----
 lines.append('')
-lines.append(f'        <LinearAnimation fps="{FPS}" duration="{L}" loopValue="loop" name="Groove Loop" id="0:2">')
+lines.append(f'        <LinearAnimation fps="40" duration="{L}" loopValue="loop" name="Groove Loop" id="0:2">')
 by_obj = {}
 for oid, prop, ks in TRACKS:
     by_obj.setdefault(oid, []).append((prop, ks))

@@ -217,3 +217,40 @@ describe('summarize: your style row', () => {
     expect(usesResolved({ recipeId: 'custom', customStyle: undefined })).toBe(true);
   });
 });
+
+describe('summarize: Gemini BYOK (spec 42)', () => {
+  it('prices video directing and illustrations at 0 credits with BYOK even signed out at 0 balance', () => {
+    const s = summarize(defaultEdit('video'), ctx({ signedIn: false, balance: 0, byok: true }));
+    expect(row(s, 'direct')).toMatchObject({
+      value: 'Free · your key',
+      credits: 0,
+      route: 'cloud',
+    });
+    expect(row(s, 'illustrations')).toMatchObject({
+      value: 'Free · your key',
+      credits: 0,
+      upTo: false,
+      route: 'cloud',
+    });
+    expect(s.total).toBe(0);
+    expect(s.totalUpTo).toBe(false);
+    expect(s.note).toContain('Gemini API key');
+  });
+
+  it('allows script voice generation at 0 credits with BYOK online, and still blocks offline', () => {
+    const edit = defaultEdit('voiceover', { source: 'tts' });
+    const online = summarize(
+      edit,
+      ctx({ kind: 'voiceover', script: { minutes: 3 }, signedIn: false, balance: 0, byok: true }),
+    );
+    expect(row(online, 'voice')).toMatchObject({ value: 'Free · your key', credits: 0 });
+    expect(online.total).toBe(0);
+    expect(online.block).toBeUndefined();
+
+    const offline = summarize(
+      edit,
+      ctx({ kind: 'voiceover', script: { minutes: 1 }, online: false, byok: true }),
+    );
+    expect(offline.block).toBe('Needs connection');
+  });
+});

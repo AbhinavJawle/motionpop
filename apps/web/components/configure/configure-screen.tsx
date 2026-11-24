@@ -4,6 +4,7 @@ import {
   builtInSkills,
   resolveByKeywords,
   resolveRecipe,
+  toUserSkillRef,
   ttsMinutes,
   type BuiltInRecipeId,
 } from '@motionpop/ai';
@@ -13,7 +14,10 @@ import type {
   RecipeId,
   ReelCaptionStyle,
   ReelHookStyle,
+  UserSkill,
 } from '@motionpop/schemas';
+import { Plus, Sparkles } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { PaperPage, paper } from '@/components/paper/kit';
@@ -28,6 +32,7 @@ import { LOOK_STILLS } from '@/lib/editor/look-stills';
 import { takePending } from '@/lib/intake/pending';
 import { discard, prepare, release, submit, useJobs, watch } from '@/lib/pipeline/jobs-store';
 import { useAppConfig, useOnline } from '@/lib/renders/hooks';
+import { getUserSkillById, useUserSkills } from '@/lib/skills/user-skills';
 
 import { CaptionArt, HookArt, LookArt, MoodArt, RecipeArt, StyleArt } from './art';
 import { MediaCard, pipLine } from './media-card';
@@ -81,7 +86,8 @@ export function ConfigureScreen() {
   const config = useAppConfig();
   const online = useOnline();
   const balance = useCreditsBalance();
-  const { client } = useCreditsClient();
+  const { client, byok } = useCreditsClient();
+  const { skills: userSkills } = useUserSkills();
   const [resolving, setResolving] = useState<'idle' | 'thinking' | 'device' | 'rules'>('idle');
   const resolveSeq = useRef(0);
   /** The words `edit.resolved` was made from, so Create can tell when it is out of date. */
@@ -126,11 +132,26 @@ export function ConfigureScreen() {
         setTtsSpeed(take.meta.tts?.speed ?? 1);
         setJobId(id);
         const kind = useJobs.getState().jobs[id]?.kind ?? 'voiceover';
+        const preSkill = getUserSkillById(take.draft.userSkillId);
+        const initial = defaultEdit(kind, {
+          source: take.meta.source,
+          ...(preSkill
+            ? { recipeId: preSkill.baseRecipeId }
+            : take.draft.recipeId
+              ? { recipeId: take.draft.recipeId }
+              : {}),
+          ...(take.draft.styleId ? { lookHint: take.draft.styleId } : {}),
+        });
         setEdit(
-          defaultEdit(kind, {
-            source: take.meta.source,
-            ...(take.draft.styleId ? { lookHint: take.draft.styleId } : {}),
-          }),
+          preSkill
+            ? {
+                ...initial,
+                hookStyle: preSkill.hookStyle,
+                captions: { ...initial.captions, style: preSkill.captionStyle },
+                sound: { ...initial.sound, music: preSkill.music },
+                userSkill: toUserSkillRef(preSkill),
+              }
+            : initial,
         );
       });
     return () => {
@@ -152,9 +173,10 @@ export function ConfigureScreen() {
             balance,
             online,
             config,
+            ...(byok ? { byok: true } : {}),
           })
         : null,
-    [edit, kind, script, ttsSpeed, client, balance, online, config, resolving],
+    [edit, kind, script, ttsSpeed, client, balance, online, config, resolving, byok],
   );
 
   if (!job || !edit || !summary) {
@@ -300,6 +322,23 @@ export function ConfigureScreen() {
     } else setCreating(false);
   };
 
+  const toggleUserSkill = (sk: UserSkill) => {
+    setEdit((e) => {
+      if (!e) return e;
+      if (e.userSkill?.id === sk.id) {
+        return { ...e, userSkill: undefined };
+      }
+      const next = withRecipe(e, kind, sk.baseRecipeId);
+      return {
+        ...next,
+        hookStyle: sk.hookStyle,
+        captions: { ...next.captions, style: sk.captionStyle },
+        sound: { ...next.sound, music: sk.music },
+        userSkill: toUserSkillRef(sk),
+      };
+    });
+  };
+
   return (
     <PaperPage>
       <ProjectTopBar />
@@ -308,7 +347,7 @@ export function ConfigureScreen() {
           bubble={pipLine(job)}
           headline={video ? C.headlineVideo : C.headlineVoice}
           subline={C.subline}
-          pip={job.prep.stage === 'ready' ? 'juggle' : 'clapper'}
+          pip={job.prep.stage === 'transcribing' ? 'sound' : 'craft'}
         />
         <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-w-0 flex-col gap-8">
@@ -334,6 +373,44 @@ export function ConfigureScreen() {
                     placeholder={C.recipe.placeholder}
                   />
                 )}
+                {/* Modular database/imported user skills (Spec 43) */}
+                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border-2 border-dashed border-ink/35 bg-mist/40 px-3.5 py-2.5">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase">
+                    <Sparkles className="size-3.5 text-flame" strokeWidth={2} aria-hidden />
+                    Custom skills (SKILL.md)
+                  </span>
+                  {userSkills.map((sk) => {
+                    const active = edit.userSkill?.id === sk.id;
+                    return (
+                      <button
+                        key={sk.id}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => toggleUserSkill(sk)}
+                        className={cn(
+                          'inline-flex items-center gap-1.5 rounded-lg border-2 border-ink px-2.5 py-1 text-[12px] font-medium transition-colors',
+                          active
+                            ? 'bg-ink text-paper shadow-[2px_2px_0_#ff6a3d]'
+                            : 'bg-paper text-ink hover:bg-mist',
+                        )}
+                      >
+                        <span
+                          className="size-2.5 rounded-full border border-current"
+                          style={{ background: sk.accent }}
+                          aria-hidden
+                        />
+                        {sk.name}
+                      </button>
+                    );
+                  })}
+                  <Link
+                    href="/skills"
+                    className="inline-flex items-center gap-1 rounded-lg border border-ink bg-paper px-2.5 py-1 text-[11px] font-medium hover:bg-[#fde68a]"
+                  >
+                    <Plus className="size-3" strokeWidth={2} aria-hidden />
+                    {userSkills.length > 0 ? 'Manage / import' : 'Import SKILL.md'}
+                  </Link>
+                </div>
               </Section>
 
               <Section

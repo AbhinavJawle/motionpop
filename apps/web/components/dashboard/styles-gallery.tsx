@@ -1,82 +1,293 @@
 'use client';
 
+import { builtInSkills, type BuiltInRecipeId, type RecipeStyle } from '@motionpop/ai';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useMemo, useState } from 'react';
+import { StyleArt } from '@/components/configure/art';
+import { PipLoop } from '@/components/landing/pip-loop';
 import { AppBar } from '@/components/paper/app-bar';
 import { btn, paper, PaperPage, poster } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
 import { LOOK_STILLS } from '@/lib/editor/look-stills';
 import { styleOptions } from '@/lib/inspector/timing-view';
 
+type StyleCategory = 'all' | 'reel' | 'motion';
+
+interface ReelStyleCardData {
+  recipeId: BuiltInRecipeId;
+  recipeName: string;
+  recipeBlurb: string;
+  style: RecipeStyle;
+}
+
+const CAPTION_LABELS: Readonly<Record<RecipeStyle['captionStyle'], string>> = {
+  seam: 'Seam label captions',
+  pop: 'Bold pop captions',
+  editorial: 'Editorial italic captions',
+  boxed: 'Highlight box captions',
+  clean: 'Clean minimal captions',
+};
+
 /**
- * `/styles`: every look a creator can start from, with a still of the same scene in each, what
- * it feels like and its tags. "Start with this style" opens Start with the look chosen; a look
- * can also be changed any time in the editor's Styles panel.
+ * `/styles` (spec 14, updated in spec 40): every style a creator can start from, categorised into
+ * talking-head Reel styles (from `builtInSkills.recipes()`) and Motion graphic looks (for
+ * voiceovers, scripts and standalone graphics).
  */
 export function StylesGallery() {
   const router = useRouter();
-  const options = styleOptions();
+  const [category, setCategory] = useState<StyleCategory>('all');
+
+  const reelStyles = useMemo<ReelStyleCardData[]>(
+    () =>
+      builtInSkills.recipes().flatMap((recipe) =>
+        recipe.styles.map((style) => ({
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          recipeBlurb: recipe.blurb,
+          style,
+        })),
+      ),
+    [],
+  );
+  const motionLooks = useMemo(() => styleOptions(), []);
+
+  const showReels = category === 'all' || category === 'reel';
+  const showMotion = category === 'all' || category === 'motion';
+
+  const tabs: readonly { id: StyleCategory; label: string; count: number }[] = [
+    { id: 'all', label: 'All styles', count: reelStyles.length + motionLooks.length },
+    { id: 'reel', label: 'Reel styles', count: reelStyles.length },
+    { id: 'motion', label: 'Motion graphic looks', count: motionLooks.length },
+  ];
+
   return (
     <PaperPage>
       <AppBar active="styles" />
       <main className="mx-auto w-full max-w-[1240px] px-6 pt-14 pb-24 lg:px-10">
-        <div className="flex flex-wrap items-end justify-between gap-6 border-b-2 border-ink pb-8">
-          <div>
-            <h1 className={cn(poster, 'text-[clamp(56px,7vw,104px)]')}>
+        <header className="flex items-end justify-between gap-8 border-b-2 border-ink pb-8">
+          <div className="min-w-0 flex-1">
+            <h1 className={cn(poster, 'text-[clamp(52px,6.5vw,96px)]')}>
               Pick a look.
               <br />
               Every graphic follows it.
             </h1>
-            <p className="mt-5 max-w-[620px] text-[15px] leading-[1.65]">
-              A look sets the colours, type, textures, maps and how everything moves. You can switch
-              looks any time in the editor, and the whole video restyles in one step.
+            <p className="mt-4 max-w-[660px] text-[15px] leading-[1.65]">
+              Motionpop has two engines under one roof: <strong>Reel styles</strong> tuned for
+              talking-head videos, and <strong>Motion graphic looks</strong> for voiceovers, scripts
+              and standalone graphics. Switch any time in the editor and the whole video restyles in
+              one step.
             </p>
-          </div>
-        </div>
-        <div className="mt-10 grid gap-7 sm:grid-cols-2 xl:grid-cols-3">
-          {options.map((o) => {
-            const still = LOOK_STILLS[o.id];
-            return (
-              <article
-                key={o.id}
-                className={cn(paper.frame, paper.press, 'flex flex-col overflow-hidden')}
-              >
-                {still ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- small static stills
-                  <img
-                    src={still}
-                    alt=""
-                    className="block aspect-video w-full border-b-2 border-ink object-cover"
-                    loading="lazy"
-                  />
-                ) : (
-                  <LookSwatch colors={o.colors} name={o.name} />
-                )}
-                <div className="flex flex-1 flex-col px-5 pt-4 pb-5">
-                  <h2 className={cn(poster, 'text-[34px]')}>{o.name}</h2>
-                  <p className="mt-1.5 text-[13px] font-semibold">{o.tagline}</p>
-                  <p className="mt-2 text-[12px] leading-[1.6] text-black/65">{o.description}</p>
-                  <div className="mt-3 flex flex-wrap gap-1.5">
-                    {o.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-md border-2 border-ink px-1.5 py-px text-[11px]"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
+            <div role="tablist" aria-label="Style category" className="mt-6 flex flex-wrap gap-2.5">
+              {tabs.map((tab) => {
+                const active = category === tab.id;
+                return (
                   <button
+                    key={tab.id}
                     type="button"
-                    onClick={() => router.push(`/start?style=${encodeURIComponent(o.id)}`)}
-                    className={btn('ink', 'md', false, 'mt-auto self-start')}
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setCategory(tab.id)}
+                    className={btn(active ? 'ink' : 'paper', 'sm')}
                   >
-                    Start with this look
+                    <span>{tab.label}</span>
+                    <span
+                      className={cn(
+                        'rounded px-1.5 py-px text-[11px] tabular-nums',
+                        active ? 'bg-paper/20 text-paper' : 'bg-black/8 text-black/70',
+                      )}
+                    >
+                      {tab.count}
+                    </span>
                   </button>
+                );
+              })}
+            </div>
+          </div>
+          <PipLoop
+            name="plane"
+            className="hidden h-[168px] w-[250px] shrink-0 select-none md:block"
+          />
+        </header>
+
+        {showReels && (
+          <section aria-labelledby="styles-reels-title" className="mt-12">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-md border-2 border-ink bg-[#8dbceb] px-2 py-0.5 text-[11px] font-semibold uppercase">
+                    Talking-head video · 9:16
+                  </span>
+                  <span className="text-[12px] text-black/60 tabular-nums">
+                    {reelStyles.length} styles across {builtInSkills.recipes().length} recipes
+                  </span>
                 </div>
-              </article>
-            );
-          })}
-        </div>
+                <h2
+                  id="styles-reels-title"
+                  className={cn(poster, 'mt-3 text-[clamp(38px,4.5vw,56px)]')}
+                >
+                  Reel styles
+                </h2>
+                <p className="mt-2 max-w-[640px] text-[14px] leading-[1.6] text-black/75">
+                  Built for the template reel engine: split-screen stages, card reveals, speaker
+                  framing, synced kinetic captions and colour themes paired to each{' '}
+                  <Link href="/recipes" className={paper.link}>
+                    director recipe
+                  </Link>
+                  .
+                </p>
+              </div>
+              <Link href="/recipes" className={btn('paper', 'sm')}>
+                Explore recipes
+              </Link>
+            </div>
+
+            <div className="mt-7 grid gap-7 sm:grid-cols-2 xl:grid-cols-3">
+              {reelStyles.map(({ recipeId, recipeName, recipeBlurb, style }) => (
+                <article
+                  key={`${recipeId}:${style.id}`}
+                  className={cn(paper.frame, paper.press, 'flex flex-col overflow-hidden')}
+                >
+                  <div className="relative h-[220px] w-full overflow-hidden border-b-2 border-ink">
+                    <StyleArt style={style} />
+                    <Link
+                      href={`/recipes#${recipeId}`}
+                      className="absolute top-3 left-3 rounded-md border-2 border-ink bg-paper px-2 py-0.5 text-[11px] font-semibold shadow-[2px_2px_0_#000] transition-colors hover:bg-[#8dbceb]"
+                    >
+                      {recipeName}
+                    </Link>
+                    <div
+                      aria-hidden
+                      className="absolute right-3 bottom-3 flex items-center gap-1.5 rounded-full border-2 border-ink bg-paper px-2 py-1 shadow-[2px_2px_0_#000]"
+                    >
+                      {style.swatch.map((hex, idx) => (
+                        <span
+                          key={idx}
+                          className="size-3.5 rounded-full border border-ink"
+                          style={{ background: hex }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex flex-1 flex-col px-5 pt-4 pb-5">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <h3 className={cn(poster, 'text-[34px]')}>{style.name}</h3>
+                      <span className="text-[11px] text-black/55 uppercase">{style.look} look</span>
+                    </div>
+                    <p className="mt-1.5 text-[12px] leading-[1.6] text-black/70">{recipeBlurb}</p>
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      <span className="rounded-md border-2 border-ink px-1.5 py-px text-[11px]">
+                        {CAPTION_LABELS[style.captionStyle]}
+                      </span>
+                      <span className="rounded-md border-2 border-ink px-1.5 py-px text-[11px]">
+                        {style.theme?.background
+                          ? `${style.theme.background} ground`
+                          : 'house ground'}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        router.push(
+                          `/start?recipe=${encodeURIComponent(recipeId)}&style=${encodeURIComponent(style.id)}`,
+                        )
+                      }
+                      className={btn('ink', 'md', false, 'mt-5 self-start')}
+                    >
+                      Start reel with this style
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {showMotion && (
+          <section
+            aria-labelledby="styles-motion-title"
+            className={cn(showReels ? 'mt-16 border-t-2 border-ink pt-12' : 'mt-12')}
+          >
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-md border-2 border-ink bg-[#ff6a3d] px-2 py-0.5 text-[11px] font-semibold uppercase">
+                    Voiceover &amp; scripts · 16:9 · 9:16 · 1:1
+                  </span>
+                  <span className="text-[12px] text-black/60 tabular-nums">
+                    {motionLooks.length} full style packs
+                  </span>
+                </div>
+                <h2
+                  id="styles-motion-title"
+                  className={cn(poster, 'mt-3 text-[clamp(38px,4.5vw,56px)]')}
+                >
+                  Motion graphic looks
+                </h2>
+                <p className="mt-2 max-w-[640px] text-[14px] leading-[1.6] text-black/75">
+                  Full style packs for explainers, data stories and standalone graphics: palettes,
+                  bundled OFL typefaces, seeded paper textures, map styling, motion curves and
+                  paired{' '}
+                  <Link href="/skills" className={paper.link}>
+                    slot skills
+                  </Link>
+                  .
+                </p>
+              </div>
+              <Link href="/skills" className={btn('paper', 'sm')}>
+                Explore skills
+              </Link>
+            </div>
+
+            <div className="mt-7 grid gap-7 sm:grid-cols-2 xl:grid-cols-3">
+              {motionLooks.map((o) => {
+                const still = LOOK_STILLS[o.id];
+                return (
+                  <article
+                    key={o.id}
+                    className={cn(paper.frame, paper.press, 'flex flex-col overflow-hidden')}
+                  >
+                    {still ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- small static stills
+                      <img
+                        src={still}
+                        alt=""
+                        className="block aspect-video w-full border-b-2 border-ink object-cover"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <LookSwatch colors={o.colors} name={o.name} />
+                    )}
+                    <div className="flex flex-1 flex-col px-5 pt-4 pb-5">
+                      <h3 className={cn(poster, 'text-[34px]')}>{o.name}</h3>
+                      <p className="mt-1.5 text-[13px] font-semibold">{o.tagline}</p>
+                      <p className="mt-2 text-[12px] leading-[1.6] text-black/65">
+                        {o.description}
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {o.tags.map((t) => (
+                          <span
+                            key={t}
+                            className="rounded-md border-2 border-ink px-1.5 py-px text-[11px]"
+                          >
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/start?style=${encodeURIComponent(o.id)}`)}
+                        className={btn('ink', 'md', false, 'mt-5 self-start')}
+                      >
+                        Start with this look
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </main>
     </PaperPage>
   );

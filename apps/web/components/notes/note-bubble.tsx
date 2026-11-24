@@ -139,6 +139,8 @@ export function NoteView({
   fixedMessage,
   busy,
   notice,
+  canTryCloud = true,
+  cloudLabel = '1',
   onDelete,
   onReopen,
   onFixAgain,
@@ -153,6 +155,10 @@ export function NoteView({
   fixedMessage?: string | undefined;
   busy: boolean;
   notice: NoteNotice | null;
+  /** False when offline or signed out (hides the "Try in the cloud" action). */
+  canTryCloud?: boolean;
+  /** Credit label shown on the cloud escalation action (e.g. "1" or "1–6"). */
+  cloudLabel?: string;
   onDelete: () => void;
   onReopen: () => void;
   onFixAgain: () => void;
@@ -212,18 +218,33 @@ export function NoteView({
         </span>
       )}
       {!busy && !fixed && notice !== null && (
-        <span className="relative flex basis-full items-center gap-3 pb-0.5 pl-[23px] text-[10px] leading-[13px] text-text-2">
-          {notice.kind === 'escalate' && <span>{notice.message}</span>}
+        <span className="relative flex basis-full flex-wrap items-center gap-x-3 gap-y-1 pb-0.5 pl-[23px] text-[10px] leading-[13px] text-text-2">
+          {notice.kind === 'escalate' && (
+            <>
+              <span>{notice.message}</span>
+              {canTryCloud && (
+                <button
+                  type="button"
+                  onClick={onTryCloud}
+                  className="shrink-0 text-violet-ink hover:underline"
+                >
+                  Try in the cloud ☁ {cloudLabel}
+                </button>
+              )}
+            </>
+          )}
           {notice.kind === 'device-failed' && (
             <>
               <span>Couldn’t do that on your device.</span>
-              <button
-                type="button"
-                onClick={onTryCloud}
-                className="text-violet-ink hover:underline"
-              >
-                Try in the cloud ☁ 1
-              </button>
+              {canTryCloud && (
+                <button
+                  type="button"
+                  onClick={onTryCloud}
+                  className="shrink-0 text-violet-ink hover:underline"
+                >
+                  Try in the cloud ☁ {cloudLabel}
+                </button>
+              )}
             </>
           )}
           {notice.kind === 'failed' && <span>Couldn’t fix that note.</span>}

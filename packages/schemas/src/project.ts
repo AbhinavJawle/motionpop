@@ -288,6 +288,47 @@ export const AudioSettingSchema = z.object({
 export type AudioSetting = z.infer<typeof AudioSettingSchema>;
 export const DEFAULT_AUDIO: AudioSetting = AudioSettingSchema.parse({});
 
+/** How a placed stock video/photo overlay appears over the video preview. */
+export const StockOverlayLayoutSchema = z.enum(['card', 'full', 'top', 'pip']);
+export type StockOverlayLayout = z.infer<typeof StockOverlayLayoutSchema>;
+
+/** A stock video or photo placed directly on the Stock Media timeline layer. */
+export const StockOverlayClipSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    name: z.string().min(1).max(120),
+    /** Local IndexedDB / Storage blob ref from `appAudioStore()`. */
+    src: z.string().min(1),
+    kind: z.enum(['video', 'photo']),
+    mimeType: z.string().min(1).max(80),
+    startMs: IntMsSchema,
+    endMs: IntMsSchema,
+    clipDurationMs: IntMsSchema.optional(),
+    layout: StockOverlayLayoutSchema.default('card'),
+    provider: z.enum(['pixabay', 'pexels', 'wikimedia', 'upload']).default('pixabay'),
+    attribution: z.string().max(240).optional(),
+  })
+  .refine((c) => c.endMs > c.startMs, { message: 'endMs must be after startMs' });
+export type StockOverlayClip = z.infer<typeof StockOverlayClipSchema>;
+
+/** A stock sound effect or music clip placed directly on the Stock Audio timeline layer. */
+export const StockAudioClipSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    name: z.string().min(1).max(120),
+    /** Local IndexedDB / Storage blob ref from `appAudioStore()`. */
+    src: z.string().min(1),
+    kind: z.enum(['sfx', 'music']),
+    mimeType: z.string().min(1).max(80),
+    startMs: IntMsSchema,
+    endMs: IntMsSchema,
+    /** Linear playback gain (0..1.5). Default 0.9 for SFX, 0.28 for music. */
+    volume: z.number().min(0).max(1.5).default(0.9),
+    attribution: z.string().max(240).optional(),
+  })
+  .refine((c) => c.endMs > c.startMs, { message: 'endMs must be after startMs' });
+export type StockAudioClip = z.infer<typeof StockAudioClipSchema>;
+
 /** The project's audio settings, `DEFAULT_AUDIO` for projects saved before spec 12. */
 export function audioOf(p: { audio?: AudioSetting | undefined }): AudioSetting {
   return p.audio ?? DEFAULT_AUDIO;
@@ -365,6 +406,10 @@ export const EditorProjectBaseSchema = z.object({
   video: VideoTrackSchema.optional(),
   /** Secondary Media Bin clips: user-uploaded B-roll, screen recordings, screenshots & photos (spec 20). */
   mediaBin: z.array(MediaClipSchema).max(24).optional(),
+  /** Placed stock video/photo overlays rendered on the Stock Media timeline layer. */
+  stockOverlays: z.array(StockOverlayClipSchema).max(32).optional(),
+  /** Placed stock SFX and music clips rendered & played on the Stock Audio timeline layer. */
+  stockAudio: z.array(StockAudioClipSchema).max(48).optional(),
   /**
    * Talking-head reel (spec 25): scene templates over the speaker video, on the cleaned timeline.
    * When present with `video`, the preview and the export use the reel engine, not the slots.

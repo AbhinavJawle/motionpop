@@ -18,6 +18,8 @@ export interface SummaryContext {
   config: Pick<AppConfig, 'creditCosts' | 'imageCredits' | 'exportCredits' | 'killSwitch'>;
   /** Who read the creator's own words: Gemini Nano or the keyword resolver (R4.3). */
   resolvedBy?: 'device' | 'rules';
+  /** True when user-supplied Gemini BYOK key is saved in this browser (Spec 42). */
+  byok?: boolean;
 }
 
 /** The creator described their own recipe or style, so `resolved` is what the edit follows. */
@@ -55,17 +57,18 @@ export const REEL_ILLUSTRATIONS_MAX = 3;
 const credits = (n: number) => `${n} ${n === 1 ? 'credit' : 'credits'}`;
 
 export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
-  const paid = ctx.signedIn && ctx.online && !ctx.config.killSwitch;
+  const byok = Boolean(ctx.byok) && ctx.online;
+  const paid = byok || (ctx.signedIn && ctx.online && !ctx.config.killSwitch);
   const rows: SummaryRow[] = [];
   const free = (id: string, label: string, route: RowRoute = 'none', value = 'Free') =>
     rows.push({ id, label, value, credits: 0, route });
 
   if (ctx.script) {
-    const n = costOf('tts', Math.max(1, ctx.script.minutes), ctx.config);
+    const n = byok ? 0 : costOf('tts', Math.max(1, ctx.script.minutes), ctx.config);
     rows.push({
       id: 'voice',
       label: 'Voice from script',
-      value: credits(n),
+      value: byok ? 'Free · your key' : credits(n),
       credits: n,
       route: 'cloud',
     });
@@ -83,30 +86,42 @@ export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
       note: `${builtInSkills.recipe(r.recipeId)?.name ?? r.recipeId} · ${r.look} · ${r.captionStyle} captions`,
     });
   }
+  if (edit.userSkill) {
+    rows.push({
+      id: 'user-skill',
+      label: 'Custom skill',
+      value: 'Free · SKILL.md',
+      credits: 0,
+      route: 'none',
+      note: edit.userSkill.name,
+    });
+  }
   if (edit.sound.cleanup && !ctx.script) free('cleanup', 'Speech cleanup');
 
-  let note: string | undefined;
+  let note: string | undefined = byok
+    ? 'Using your Gemini API key (0 Motionpop credits).'
+    : undefined;
   if (ctx.kind === 'video') {
-    const reel = costOf('reel', 1, ctx.config);
+    const reel = byok ? 0 : costOf('reel', 1, ctx.config);
     if (paid)
       rows.push({
         id: 'direct',
         label: 'Reel directing',
-        value: credits(reel),
+        value: byok ? 'Free · your key' : credits(reel),
         credits: reel,
         route: 'cloud',
         note: edit.sound.cleanup ? 'Includes the retake check' : undefined,
       });
     else free('direct', 'Reel directing', 'device', 'Free director');
     if (edit.illustrations) {
-      const max = REEL_ILLUSTRATIONS_MAX * costOf('image', 1, ctx.config);
+      const max = byok ? 0 : REEL_ILLUSTRATIONS_MAX * costOf('image', 1, ctx.config);
       if (paid)
         rows.push({
           id: 'illustrations',
           label: 'AI illustrations',
-          value: `up to ${credits(max)}`,
+          value: byok ? 'Free · your key' : `up to ${credits(max)}`,
           credits: max,
-          upTo: true,
+          upTo: !byok,
           route: 'cloud',
         });
       else
@@ -131,16 +146,18 @@ export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
     free(
       'music',
       ctx.kind === 'video' ? 'AI soundtrack' : 'Music bed',
-      ctx.kind === 'video' && paid ? 'cloud' : 'none',
+      ctx.kind === 'video' && ctx.signedIn && ctx.online && !ctx.config.killSwitch
+        ? 'cloud'
+        : 'none',
     );
 
   const total = rows.reduce((s, r) => s + r.credits, 0);
   let block: string | undefined;
   if (ctx.script) {
     if (!ctx.online) block = 'Needs connection';
-    else if (!ctx.signedIn) block = 'Sign in to generate a voice';
-    else if (ctx.config.killSwitch) block = 'Voices are paused right now';
-    else if (ctx.balance !== null && ctx.balance < (rows[0]?.credits ?? 0))
+    else if (!byok && !ctx.signedIn) block = 'Sign in to generate a voice';
+    else if (!byok && ctx.config.killSwitch) block = 'Voices are paused right now';
+    else if (!byok && ctx.balance !== null && ctx.balance < (rows[0]?.credits ?? 0))
       block = 'Not enough credits for the voice';
   }
   return {

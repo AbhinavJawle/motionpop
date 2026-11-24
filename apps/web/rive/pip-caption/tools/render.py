@@ -7,8 +7,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-STEP = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 2
-L = 240
+STEP = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 10
+L = 600
 ENV = dict(os.environ, PATH=os.path.expanduser("~/.rive/bin") + ":" + os.environ["PATH"], RIVE_NO_TUI="1")
 PV = os.path.join(ROOT, "build", "pv")
 FR = os.path.join(ROOT, "build", "frames")
@@ -59,15 +59,15 @@ for f in frames:
 
 pm = lambda im: im[..., :3].astype(float) * im[..., 3:4] / 255.0
 seam = np.abs(pm(out[0]) - pm(out[L])).mean()
-# Measure motion across pixel-art step changes (every 4 frames = 15 fps beat!)
-beat_steps = [np.abs(pm(out[f]) - pm(out[f + 4])).mean() for f in range(0, L, 4) if f in out and (f + 4) in out]
+# Measure motion across pixel-art step changes (every 10 frames = 6 fps beat!)
+beat_steps = [np.abs(pm(out[f]) - pm(out[f + 10])).mean() for f in range(0, L, 10) if f in out and (f + 10) in out]
 print(
     f"frames: {len([f for f in frames if f < L])}, "
     f"seam error (frame {L} vs 0): {seam:.4f} "
-    f"(mean 15fps step motion: {np.mean(beat_steps):.3f}, min: {np.min(beat_steps):.3f}, max: {np.max(beat_steps):.3f})"
+    f"(mean 6fps step motion: {np.mean(beat_steps):.3f}, min: {np.min(beat_steps):.3f}, max: {np.max(beat_steps):.3f})"
 )
 
-pick = [0, 16, 24, 44, 56, 72, 80, 96, 108, 120, 132, 148, 168, 184, 196, 224]
+pick = [0, 40, 60, 110, 140, 180, 200, 240, 270, 300, 330, 370, 420, 460, 490, 560]
 pick = [min(frames[:-1], key=lambda x: abs(x - p)) for p in pick]
 union_a = np.max([out[f][..., 3] for f in frames[:-1]], axis=0)
 ys, xs = np.nonzero(union_a > 128)
@@ -97,30 +97,30 @@ if "--encode" in sys.argv:
     idx = sys.argv.index("--encode")
     crf = sys.argv[idx + 1] if len(sys.argv) > idx + 1 and sys.argv[idx + 1].isdigit() else "22"
     fs = sorted(glob.glob(os.path.join(FR, "f*.png")))
-    # Encode at EXACT 1:1 cropped native pixel dimensions (ZERO scaling blur, ZERO uneven nearest-neighbor stretch!)
+    # Encode at EXACT 1:1 cropped native pixel dimensions, cleanly stepped at 6 fps -> 30 fps (exact 5x hold per step!)
     w, h = cx1 - cx0, cy1 - cy0
     dst = os.path.join(ROOT, "build", "caption.webm")
-    fps_out = str(60 // STEP)
+    fps_in = str(60 // STEP)
     subprocess.run([
-        "ffmpeg", "-y", "-loglevel", "error", "-framerate", fps_out, "-i", os.path.join(FR, "f%03d.png"),
-        "-vf", f"crop={w}:{h}:{cx0}:{cy0}",
+        "ffmpeg", "-y", "-loglevel", "error", "-framerate", fps_in, "-i", os.path.join(FR, "f%03d.png"),
+        "-vf", f"crop={w}:{h}:{cx0}:{cy0}", "-r", "30",
         "-c:v", "libvpx-vp9", "-pix_fmt", "yuva420p", "-b:v", "0", "-crf", crf,
         "-row-mt", "1", "-deadline", "good", "-cpu-used", "1", "-auto-alt-ref", "0", "-an", dst,
     ], check=True)
     still = Image.open(fs[0]).crop((cx0, cy0, cx1, cy1))
     still.save(os.path.join(ROOT, "build", "caption.webp"), "WEBP", lossless=True, method=6)
-    print(f"encoded 1:1 native pixel art: {w}x{h} @ {fps_out}fps; webm {os.path.getsize(dst) / 1e6:.2f} MB; webp {os.path.getsize(os.path.join(ROOT, 'build', 'caption.webp')) / 1e3:.0f} kB")
+    print(f"encoded 1:1 native pixel art: {w}x{h} @ {fps_in}->30fps ({L/60:.2f}s); webm {os.path.getsize(dst) / 1e6:.2f} MB; webp {os.path.getsize(os.path.join(ROOT, 'build', 'caption.webp')) / 1e3:.0f} kB")
 
 if "--mp4" in sys.argv:
     w, h = cx1 - cx0, cy1 - cy0
     dst_mp4 = os.path.join(ROOT, "build", "caption.mp4")
-    fps_out = str(60 // STEP)
+    fps_in = str(60 // STEP)
     subprocess.run([
-        "ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "1", "-framerate", fps_out,
+        "ffmpeg", "-y", "-loglevel", "error", "-stream_loop", "1", "-framerate", fps_in,
         "-i", os.path.join(FR, "f%03d.png"),
         "-filter_complex",
-        f"color=c=0xFAF9F6:s={w}x{h}:r={fps_out}[bg];"
-        f"[0:v]crop={w}:{h}:{cx0}:{cy0}[fg];"
+        f"color=c=0xFAF9F6:s={w}x{h}:r=30[bg];"
+        f"[0:v]crop={w}:{h}:{cx0}:{cy0},fps=30[fg];"
         f"[bg][fg]overlay=shortest=1:format=auto,format=yuv420p",
         "-c:v", "libx264", "-crf", "16", "-pix_fmt", "yuv420p", "-an", dst_mp4,
     ], check=True)

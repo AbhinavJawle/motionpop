@@ -58,7 +58,15 @@ function JobCard({ job }: { job: Job }) {
       <div className="relative grid h-[96px] w-[128px] shrink-0 place-items-center overflow-hidden rounded-[8px] border-2 border-black bg-[#1d1d22]">
         {job.media.thumbUrl ? (
           // eslint-disable-next-line @next/next/no-img-element -- a data URL keyframe
-          <img src={job.media.thumbUrl} alt="" className="h-full w-full object-cover" />
+          <img
+            src={job.media.thumbUrl}
+            alt=""
+            className="h-full w-full object-cover object-[50%_26%]"
+          />
+        ) : job.script ? (
+          <div className="flex h-full w-full flex-col justify-center bg-paper px-2.5 py-2 text-ink">
+            <span className="line-clamp-3 font-mono text-[10px] leading-snug">{job.script}</span>
+          </div>
         ) : (
           <Icon className="size-7 text-[#fff]" strokeWidth={1.8} aria-hidden />
         )}

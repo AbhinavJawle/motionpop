@@ -286,7 +286,7 @@ export function RecordScreen() {
           bubble={phase.kind === 'review' ? C.reviewEyebrow : C.eyebrow}
           headline={phase.kind === 'review' ? C.reviewHeadline : C.headline}
           subline={phase.kind === 'review' ? C.reviewSubline : C.subline}
-          pip={phase.kind === 'review' ? 'juggle' : 'clapper'}
+          pip={phase.kind === 'review' ? 'juggle' : 'sound'}
         />
 
         <section

@@ -454,24 +454,24 @@ def chip_rot_deg(t):
 
 
 # ================================================================ 5. LIVELY KNITTED BODY, HEAD, HEM & FACE
-# Pip is focused, busy, energetic, wiggling, leaning into cuts, and bouncing with pride after cutting!
+# Pip is focused, busy, energetic, wiggling gently, leaning into cuts, and bouncing with pride after cutting!
 def body_dx_fn(t):
-    # Continuous lively side-to-side craftsman wiggle + lean slightly left toward film during cuts!
-    wiggle = 10.5 * math.sin(4 * W1 * t + 0.3) + 5.5 * math.sin(7 * W1 * t)
-    lean_l = -14.0 * env(t, 12, 28, 152, 174)
-    snip_jolt = -5.5 * snip_impulse(t)
-    happy_sway = 11.0 * bump(t, 166, 24, 1.0, 1.15)
+    # Calm, controlled craftsman sway + lean slightly left toward film during cuts!
+    wiggle = 6.5 * math.sin(4 * W1 * t + 0.3) + 1.8 * math.sin(7 * W1 * t)
+    lean_l = -12.0 * env(t, 12, 28, 152, 174)
+    snip_jolt = -4.0 * snip_impulse(t)
+    happy_sway = 9.0 * bump(t, 166, 24, 1.0, 1.15)
     return wiggle + lean_l + snip_jolt + happy_sway
 
 def body_dy_fn(t):
-    # Continuous buoyant mini-bounces + lean down/focused during snips + BIG satisfied celebration bounce!
-    bounce = -8.0 * abs(math.sin(5 * W1 * t + 0.15)) + 3.5
-    focus_dip = 11.0 * env(t, 20, 32, 66, 76) + 13.0 * env(t, 110, 120, 152, 160)
-    snip_dip = 8.5 * snip_impulse(t)
+    # Buoyant mini-bounces + lean down/focused during snips + satisfied celebration bounce!
+    bounce = -5.5 * abs(math.sin(5 * W1 * t + 0.15)) + 2.5
+    focus_dip = 9.5 * env(t, 20, 32, 66, 76) + 11.0 * env(t, 110, 120, 152, 160)
+    snip_dip = 7.0 * snip_impulse(t)
     # Satisfied craft bounce after final Snip 4 + offcut drop (f=154..194)!
-    antic = 10.0 * bump(t, 151, 9, 1.0, 1.4)
-    jump = -22.5 * bump(t, 159, 20, 1.0, 1.05)
-    rebound = 6.5 * bump(t, 177, 13, 1.0, 1.3) - 7.0 * bump(t, 188, 14, 1.0, 1.3)
+    antic = 9.0 * bump(t, 151, 9, 1.0, 1.4)
+    jump = -20.5 * bump(t, 159, 20, 1.0, 1.05)
+    rebound = 5.5 * bump(t, 177, 13, 1.0, 1.3) - 6.0 * bump(t, 188, 14, 1.0, 1.3)
     return bounce + focus_dip + snip_dip + antic + jump + rebound
 
 body_dx = sampled([body_dx_fn(fr) for fr in range(L)])
@@ -479,48 +479,48 @@ body_dy = sampled([body_dy_fn(fr) for fr in range(L)])
 
 # Torso sway rotation (degrees, - = CCW leaning toward screen-left film strip!)
 def body_rot_deg_fn(t):
-    wiggle = 4.2 * math.sin(4 * W1 * t + 0.6) + 2.4 * math.sin(8 * W1 * t)
-    lean_cut = -6.5 * env(t, 14, 30, 150, 168)
-    snip_nod = -3.8 * snip_impulse(t)
-    happy_tilt = 6.5 * bump(t, 162, 22, 1.0, 1.15)
+    wiggle = 2.4 * math.sin(4 * W1 * t + 0.6) + 0.6 * math.sin(8 * W1 * t)
+    lean_cut = -4.2 * env(t, 14, 30, 150, 168)
+    snip_nod = -2.2 * snip_impulse(t)
+    happy_tilt = 4.2 * bump(t, 162, 22, 1.0, 1.15)
     return wiggle + lean_cut + snip_nod + happy_tilt
 
 body_rot_deg = sampled([body_rot_deg_fn(fr) for fr in range(L)])
 
 # Juicy squash & stretch driven by vertical acceleration + snip punch + celebration pop!
-squash_spr = spring(lambda t: -D2(body_dy, t), hz=3.8, zeta=0.28, peak=0.055)
+squash_spr = spring(lambda t: -D2(body_dy, t), hz=3.8, zeta=0.32, peak=0.045)
 def body_scale_y(t):
     s = (1.0 + squash_spr(t)
-         - 0.045 * snip_impulse(t)
-         - 0.065 * bump(t, 151, 9, 1.0, 1.4)
-         + 0.088 * bump(t, 159, 18, 1.0, 1.1))
-    return min(max(s, 0.89), 1.11)
+         - 0.040 * snip_impulse(t)
+         - 0.055 * bump(t, 151, 9, 1.0, 1.4)
+         + 0.075 * bump(t, 159, 18, 1.0, 1.1))
+    return min(max(s, 0.90), 1.10)
 
 def body_scale_x(t):
     return 1.0 / math.sqrt(body_scale_y(t))
 
-# Independent HEAD tilt & focused nods (HeadBone local rotation in degrees!)
+# Subtle, charming HEAD tilt & focused nods (HeadBone local rotation in degrees — calm & natural, zero scary wobble!)
 def head_rot_deg_fn(t):
-    wiggle = 4.8 * math.sin(5 * W1 * t + 1.0)
-    # Focused head tilt toward the film strip while cutting + quick focused nod on every snip!
-    focus_tilt = -7.5 * env(t, 16, 30, 68, 78) - 9.0 * env(t, 110, 120, 152, 160)
-    # Curious slight right-tilt inspecting the advancing film strip (f=76..106)!
-    inspect = 6.0 * bump(t, 76, 30, 1.0, 1.1)
-    snip_nod = -6.5 * snip_impulse(t)
-    # Joyful happy head wiggle on satisfied bounce!
-    happy = 9.5 * bump(t, 161, 16, 1.0, 1.15) - 7.0 * bump(t, 175, 16, 1.0, 1.2)
+    wiggle = 1.2 * math.sin(3 * W1 * t + 0.8)
+    # Gentle focused head tilt toward the film strip while cutting + tiny focused nod on every snip!
+    focus_tilt = -2.8 * env(t, 16, 30, 68, 78) - 3.4 * env(t, 110, 120, 152, 160)
+    # Curious gentle right-tilt inspecting the advancing film strip (f=76..106)!
+    inspect = 2.4 * bump(t, 76, 30, 1.0, 1.1)
+    snip_nod = -2.2 * snip_impulse(t)
+    # Gentle happy head tilt on satisfied bounce!
+    happy = 3.5 * bump(t, 161, 16, 1.0, 1.15) - 2.5 * bump(t, 175, 16, 1.0, 1.2)
     return wiggle + focus_tilt + inspect + snip_nod + happy
 
 head_rot_deg = sampled([head_rot_deg_fn(fr) for fr in range(L)])
 
-# Fuzzy wool crown follow-through + chunky knitted hem springy sway!
+# Subtle plush wool crown settle (firm & cute, never floppy!) + gentle knitted hem sway!
 crown_rot_deg = spring(
-    lambda t: -1.3 * D2(head_rot_deg, t) - 0.7 * D2(body_rot_deg, t) - 0.3 * D2(body_dx, t),
-    hz=3.2, zeta=0.25, peak=8.0,
+    lambda t: -1.0 * D2(head_rot_deg, t) - 0.5 * D2(body_rot_deg, t) - 0.2 * D2(body_dx, t),
+    hz=3.2, zeta=0.48, peak=1.8,
 )
 hem_rot_deg = spring(
-    lambda t: 0.9 * D2(body_dx, t) - 1.2 * D2(body_rot_deg, t) + 1.8 * math.sin(4 * W1 * t - 0.9),
-    hz=2.8, zeta=0.25, peak=7.2,
+    lambda t: 0.8 * D2(body_dx, t) - 1.0 * D2(body_rot_deg, t) + 1.4 * math.sin(4 * W1 * t - 0.9),
+    hz=2.8, zeta=0.30, peak=5.8,
 )
 
 # 2.5D Face parallax + focused eye tracking + blinks + satisfied smile!
@@ -912,9 +912,9 @@ track(ID_EYE_R, "scaleX", linear_keys(eye_scale_x, EYE_FRAMES, "{:.4f}"))
 track(ID_SMILE, "scaleX", hermite_keys(smile_scale_x, EVERY3, "{:.4f}"))
 track(ID_SMILE, "scaleY", hermite_keys(smile_scale_y, EVERY3, "{:.4f}"))
 
-# ---- Emit LinearAnimation ----
+# ---- Emit LinearAnimation (50 fps over 240 keys = 4.80 s — slightly calmer craftsman cadence!) ----
 lines.append('')
-lines.append(f'        <LinearAnimation fps="{FPS}" duration="{L}" loopValue="loop" name="Craft Loop" id="0:2">')
+lines.append(f'        <LinearAnimation fps="50" duration="{L}" loopValue="loop" name="Craft Loop" id="0:2">')
 by_obj = {}
 for oid, prop, ks in TRACKS:
     by_obj.setdefault(oid, []).append((prop, ks))

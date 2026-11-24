@@ -21,7 +21,6 @@ import {
 import { AnimatePresence, motion, type Transition } from 'motion/react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { toast } from 'sonner';
-import { Pip } from '@/components/pip/pip';
 import { btn } from '@/components/paper/kit';
 import { PipOrb, type OrbMood } from './pip-orb';
 import { LeftPanel } from '@/components/editor/left-panel';
@@ -121,7 +120,15 @@ function PipPanelBody() {
 
   const send = (text: string) =>
     void sendToPip(
-      { store: editorStore, credits, getRouter, route, config, model: selectedModel },
+      {
+        store: editorStore,
+        credits,
+        getRouter,
+        route,
+        deviceRoute: editRoute,
+        config,
+        model: selectedModel,
+      },
       text,
       scope,
     );
@@ -135,8 +142,10 @@ function PipPanelBody() {
         doc: document,
         editRoute,
         generateRoute,
-        // Video reels (spec 37): scene edits run as frame notes on the strong model.
-        reelNote: (sceneId, noteId) => reelNoteFix.run(sceneId, noteId),
+        // Video reels (spec 37): try on-device Nano free first; auto-escalate to cloud since
+        // the Pip plan card already quoted the edit credit.
+        reelNote: (sceneId, noteId) =>
+          reelNoteFix.run(sceneId, noteId, reelNoteFix.route, { autoEscalate: true }),
         regenerateReel: () => regenerateReel({ credits }),
         reelMusic: (brief) => makeReelMusic(editorStore, brief),
       },
@@ -227,7 +236,7 @@ function PipPanelBody() {
                 role="status"
                 className="flex items-center gap-2 font-scrawl text-[19px] leading-6 text-ink"
               >
-                <Pip state="thinking" size={24} decorative />
+                <PipOrb mood="thinking" size={28} />
                 Pip is thinking…
               </div>
             )}
@@ -256,7 +265,18 @@ function PipPanelBody() {
         onTyping={setTyping}
       />
       <p className="mt-2.5 flex shrink-0 items-center justify-center gap-1 text-[11px] leading-[14px]">
-        {route.kind === 'cloud' ? (
+        {editRoute.kind === 'device' && route.kind === 'cloud' ? (
+          <span className="flex items-center gap-1 text-mint-ink">
+            <Zap className="size-3" strokeWidth={1.75} aria-hidden />
+            free · on-device first
+            <span className="text-text-3">· ☁ ~{route.credits} complex</span>
+          </span>
+        ) : editRoute.kind === 'device' ? (
+          <span className="flex items-center gap-1 text-mint-ink">
+            <Zap className="size-3" strokeWidth={1.75} aria-hidden />
+            free · on-device
+          </span>
+        ) : route.kind === 'cloud' ? (
           <span className="flex items-center gap-1 text-text-2">
             <Cloud className="size-3" strokeWidth={1.75} aria-hidden />~{route.credits} credits
           </span>
@@ -488,12 +508,19 @@ function Message({ m, onApply }: { m: PipEntry; onApply: (id: string) => void })
   return (
     <motion.div {...popIn} className="flex flex-col gap-2.5">
       <div className="flex items-center gap-2 text-[12px] leading-4">
-        <Pip state={m.planState === 'applied' ? 'done' : 'idle'} size={22} decorative />
+        <PipOrb mood={m.planState === 'applied' ? 'done' : 'idle'} size={26} />
         <span className="font-poster text-[19px] leading-none tracking-[0.02em] text-ink">Pip</span>
-        {m.model && (
-          <span className="rounded-full bg-mist px-1.5 py-0.5 text-[9.5px] text-text-3">
-            {pipModelLabel(m.model)}
+        {m.ranOn === 'device' ? (
+          <span className="inline-flex items-center gap-0.5 rounded-full bg-mint/20 px-1.5 py-0.5 text-[9.5px] font-medium text-mint-ink">
+            <Zap className="size-2.5" strokeWidth={2} aria-hidden />
+            Gemini Nano · free
           </span>
+        ) : (
+          m.model && (
+            <span className="rounded-full bg-mist px-1.5 py-0.5 text-[9.5px] text-text-3">
+              {pipModelLabel(m.model)}
+            </span>
+          )
         )}
       </div>
       <p className="border-l-[3px] border-pip pl-3 text-[12.5px] leading-[19px] text-text-body">

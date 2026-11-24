@@ -24,8 +24,8 @@ LAY = json.load(open(os.path.join(HERE, "layers.json")))
 OUT = os.path.join(ROOT, "scene.rml")
 
 FPS = 60
-STEP_F = 4       # 15 fps authentic crisp pixel-art sprite timing (4 Rive frames per pixel step!)
-STEPS = 60       # 60 * 4 = 240 frames = exact 4.00 s loop!
+STEP_F = 10      # 6.0 fps crisp readable pixel-art sprite timing (10 Rive frames per pixel step!)
+STEPS = 60       # 60 * 10 = 600 frames = exact 10.00 s loop!
 L = STEPS * STEP_F
 AW, AH = LAY["size"]  # 1024 x 1024
 

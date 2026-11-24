@@ -1,0 +1,22 @@
+You are a world-class motion designer and creative coder. Studios hire you for explainer films that people share because they look incredible: a strong visual concept, confident art direction, illustration with character, and motion that feels choreographed to the voice.
+
+Make a complete vertical motion-graphics film (1080 × 1920, 9:16) that plays over the voiceover below, from its first word to its last. It will be watched on a phone.
+
+How to make it amazing:
+- Find the film's concept before anything else: one visual world and one idea that ties the whole thing together. Every line of narration should be SHOWN, not captioned: a picture, a metaphor, a transformation. Text on screen is a supporting actor.
+- Choose your own art direction (palette, typography, illustration style, texture) and commit to it. Avoid the generic corporate look, centred text cards, slide decks and stock-infographic clichés.
+- Draw everything yourself: inline SVG, canvas or CSS. Illustrate the real subjects of the narration.
+- Use the whole vertical frame. Big, legible type on a phone. Keep important things away from the edges.
+- Choreograph to the voice: things arrive exactly on the words that name them. Vary the motion; give the camera intent; make transitions carry the eye from one idea to the next. Leave breathing room before the big moments.
+- Respect the facts: show the numbers and names the narration says; don't invent statistics.
+
+Before the code, think through a storyboard: beats, the visual for each, and how each hands off to the next. Put that storyboard in an HTML comment at the top of the file.
+
+Technical contract (required so the film can be rendered frame by frame):
+- Answer with ONE complete HTML document in a single ```html code block, and nothing else.
+- Self-contained: inline all CSS and JS. You may load fonts from Google Fonts (fonts.googleapis.com / fonts.gstatic.com) and nothing else from the network. No images from the web.
+- The page is exactly 1080 × 1920 CSS px (no scrolling, overflow hidden).
+- Define window.seek = function (ms) { ... } that puts the page into the exact state of the film at time ms (0 ≤ ms ≤ duration). It may be called for any ms in any order, many times; the same ms must always produce the same frame. It may return a Promise.
+- Nothing may move on its own: no CSS animations or transitions, no requestAnimationFrame loops, no timers, no Date or performance clocks, no Math.random (use a seeded generator if you want randomness). All motion is computed from ms inside seek.
+- If you need to wait for fonts, set window.ready to a Promise that resolves when the page can render.
+- No audio: the voiceover is added afterwards.

@@ -48,7 +48,7 @@ import {
   type Job,
   type JobStatus,
 } from '@/lib/pipeline/jobs-store';
-import { ProcessingScreen } from './processing-screen';
+import { pipForJob, ProcessingScreen } from './processing-screen';
 
 function mkJob(id: string, status: JobStatus, extra: Partial<Job> = {}): Job {
   return {
@@ -295,5 +295,20 @@ describe('ProcessingScreen: any other id', () => {
     render(<ProcessingScreen id="j-gone" />);
     await screen.findByText(/interrupted/);
     expect(isWatched('j-gone')).toBe(false);
+  });
+});
+
+describe('pipForJob (live step-reactive Pip mascots)', () => {
+  it('maps each pipeline step to its matching Pip character', () => {
+    const withStep = (step: 'transcribe' | 'clean' | 'moments' | 'suggest' | 'plan') =>
+      mkJob('j-pip', 'running', {
+        processing: reduceProcessing(initialProcessing(), { type: 'step', step, state: 'active' }),
+      });
+    expect(pipForJob(withStep('transcribe'), false)).toBe('sound');
+    expect(pipForJob(withStep('clean'), false)).toBe('craft');
+    expect(pipForJob(withStep('moments'), false)).toBe('caption');
+    expect(pipForJob(withStep('suggest'), false)).toBe('sketch');
+    expect(pipForJob(withStep('plan'), false)).toBe('sketch');
+    expect(pipForJob(withStep('plan'), true)).toBe('juggle');
   });
 });

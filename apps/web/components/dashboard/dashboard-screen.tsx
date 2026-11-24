@@ -6,9 +6,10 @@ import { AppBar } from '@/components/paper/app-bar';
 import { PaperPage } from '@/components/paper/kit';
 import { Shimmer } from '@/components/ui/shimmer';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
-import { dashboardStats, formatSavedWords } from '@/lib/dashboard/format';
+import { dashboardStats } from '@/lib/dashboard/format';
 import { useNow } from '@/lib/dashboard/use-now';
 import { useProjectList } from '@/lib/projects/use-project-list';
+import { AiModesBanner } from './ai-modes-banner';
 import { CaptureBar, type CaptureBarHandle } from './capture-bar';
 import { ContinueCard } from './continue-card';
 import { DropOverlay, useFileDrop } from './drop-layer';
@@ -22,8 +23,9 @@ import { WorkingSection } from './working-section';
 export const WRAP = 'mx-auto w-full max-w-[1240px] px-6 lg:px-10';
 
 /**
- * `/dashboard` (spec 11, redrawn in spec 35): the film-strip bar, a poster greeting with the
- * capture bar under it, the project you left, every project as a frame, and a strip of looks.
+ * `/dashboard` (spec 11, paper in spec 35, elevated studio layout in spec 42):
+ * film-strip navbar, slim top Hybrid AI & BYOK bar, compact studio greeting + AI KPIs,
+ * media-first AI upload/script launcher, and immediate above-the-fold recent projects.
  */
 export function DashboardScreen() {
   const now = useNow();
@@ -48,13 +50,11 @@ export function DashboardScreen() {
   return (
     <PaperPage className="relative">
       <AppBar active="projects" />
+      <AiModesBanner />
       <main className={WRAP}>
-        <GreetingHeader now={now} />
+        <GreetingHeader now={now} stats={stats} />
         <CaptureBar ref={capture} />
-        <p className="mt-5 min-h-[21px] text-[13px] text-black/60">
-          {stats ? C.week(stats.videos, stats.graphics, formatSavedWords(stats.savedMin)) : ''}
-        </p>
-        <div className="mt-14">
+        <div className="mt-6">
           <WorkingSection />
           {list.kind === 'loading' && <LoadingBody />}
           {list.kind === 'error' && (
@@ -65,14 +65,20 @@ export function DashboardScreen() {
           {empty && <EmptyCard drag={drag} onWake={() => capture.current?.focus()} />}
           {listing && (
             <>
-              {last && <ContinueCard project={last} now={now} />}
+              {last && (
+                <ContinueCard
+                  project={last}
+                  now={now}
+                  totalProjects={listing.projects.length + listing.damaged.length}
+                />
+              )}
               <ProjectsSection listing={listing} now={now} onChanged={() => void reload()} />
             </>
           )}
         </div>
         <TryAStyle />
       </main>
-      <footer className={`${WRAP} mt-24`}>
+      <footer className={`${WRAP} mt-20`}>
         <div className="flex items-center justify-between border-t-2 border-ink py-6 text-[12px]">
           <span>{C.footer.line}</span>
           <button
@@ -94,12 +100,12 @@ export function DashboardScreen() {
 function LoadingBody() {
   return (
     <div aria-busy="true" aria-label="Loading projects" className="flex flex-col gap-6">
-      <div className="relative h-[360px] overflow-hidden rounded-xl bg-mist">
+      <div className="relative h-[220px] overflow-hidden rounded-xl bg-mist">
         <Shimmer tone="neutral" />
       </div>
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {[0, 1, 2].map((i) => (
-          <div key={i} className="relative h-[260px] overflow-hidden rounded-xl bg-mist">
+          <div key={i} className="relative h-[240px] overflow-hidden rounded-xl bg-mist">
             <Shimmer tone="neutral" />
           </div>
         ))}

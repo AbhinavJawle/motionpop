@@ -1,10 +1,13 @@
 import {
   EditorProjectSchema,
   FormatSchema,
+  ProjectPreviewSchema,
+  SLOT_STATES_MAX,
   type EditorProject,
   type ProjectSummary,
 } from '@motionpop/schemas';
 import { z } from 'zod';
+import { buildProjectPreviewFromBody } from './preview';
 import { summarise } from './summary';
 
 /**
@@ -36,6 +39,7 @@ export const CloudProjectDocSchema = z.object({
   readySlotCount: IntMs,
   slotStates: z.array(z.enum(['ready', 'pending'])).max(12),
   graphicsGenerated: IntMs,
+  preview: ProjectPreviewSchema.optional(),
   lastOpenedAt: IntMs,
   createdAt: IntMs,
   updatedAt: IntMs,
@@ -87,6 +91,7 @@ export function toCloud(p: EditorProject, ownerId: string): CloudSet {
       readySlotCount: s.readySlotCount,
       slotStates: s.slotStates,
       graphicsGenerated: s.graphicsGenerated,
+      ...(s.preview ? { preview: s.preview } : {}),
       lastOpenedAt: s.lastOpenedAt,
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
@@ -170,7 +175,28 @@ export function summaryFromDoc(id: string, raw: unknown): ProjectSummary | null 
   if (!d.success) return null;
   const { ownerId, bodyJson, schemaVersion, ...summary } = d.data;
   void ownerId;
-  void bodyJson;
   void schemaVersion;
-  return { id, ...summary };
+  if (summary.preview) return { id, ...summary };
+  // Existing Firestore docs saved before spec 41 carry `video`/`reel`/`edit` inside `bodyJson`.
+  const body = parseJson(bodyJson);
+  const { preview, reelSceneCount } = buildProjectPreviewFromBody(
+    body,
+    summary.styleId,
+    summary.title,
+  );
+  if (reelSceneCount && reelSceneCount > 0 && summary.slotCount === 0) {
+    return {
+      id,
+      ...summary,
+      status: 'ready',
+      slotCount: reelSceneCount,
+      readySlotCount: reelSceneCount,
+      slotStates: Array.from(
+        { length: Math.min(SLOT_STATES_MAX, reelSceneCount) },
+        () => 'ready' as const,
+      ),
+      preview,
+    };
+  }
+  return { id, ...summary, preview };
 }

@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STEP = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else 2
-L = 240
+L = 288  # 240 keys @ 50 fps = exact 4.80 s = 288 ticks @ 60 Hz (144 frames @ 30 fps)
 ENV = dict(os.environ, PATH=os.path.expanduser("~/.rive/bin") + ":" + os.environ["PATH"], RIVE_NO_TUI="1")
 PV = os.path.join(ROOT, "build", "pv")
 FR = os.path.join(ROOT, "build", "frames")

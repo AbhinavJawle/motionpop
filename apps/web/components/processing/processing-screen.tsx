@@ -1,11 +1,11 @@
 'use client';
 
 import { AnimatePresence, motion } from 'motion/react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { PipLoop } from '@/components/landing/pip-loop';
-import { btn, Bubble, paper, PaperPage, PipMark, poster } from '@/components/paper/kit';
+import { PipLoop, type PipLoopName } from '@/components/landing/pip-loop';
+import { AppBar } from '@/components/paper/app-bar';
+import { btn, Bubble, paper, PaperPage, poster } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
 import { defaultEdit } from '@/lib/configure/defaults';
 import { CONFIGURE, handOffFile, handOffSample } from '@/lib/intake/hand-off';
@@ -48,6 +48,19 @@ function bubbleOf(job: Job | undefined, phase: Phase): string {
   if (job.status === 'cancelled') return 'Stopped. Nothing was saved.';
   if (job.status === 'queued') return 'Next in line!';
   return 'On it…';
+}
+
+/** Matches Pip's animation to the live pipeline stage so the mascot reflects the work in progress. */
+export function pipForJob(job: Job | undefined, done: boolean): PipLoopName {
+  if (done) return 'juggle';
+  if (!job) return 'clapper';
+  const steps = job.processing.steps;
+  if (steps.transcribe.state === 'active') return 'sound';
+  if (steps.clean.state === 'active') return 'craft';
+  if (steps.moments.state === 'active') return 'caption';
+  if (steps.suggest.state === 'active' || steps.plan.state === 'active') return 'sketch';
+  if (job.processing.slots.length > 0) return 'juggle';
+  return 'clapper';
 }
 
 /**
@@ -136,16 +149,7 @@ export function ProcessingScreen({ id }: { id: string }) {
 
   return (
     <PaperPage>
-      <header className="border-b-2 border-ink">
-        <div className="mx-auto flex h-16 max-w-[1240px] items-center px-6 lg:px-10">
-          <Link href="/dashboard" className="flex items-center gap-2.5" aria-label="motionpop home">
-            <PipMark />
-            <span className="font-sans text-[22px] leading-none font-semibold tracking-[-0.03em]">
-              motionpop
-            </span>
-          </Link>
-        </div>
-      </header>
+      <AppBar />
       <main className="mx-auto w-full max-w-[1000px] px-6 pb-20 lg:px-10">
         <section className="flex items-end justify-between gap-6 pt-12 pb-10">
           <div className="min-w-0">
@@ -184,8 +188,8 @@ export function ProcessingScreen({ id }: { id: string }) {
               </motion.span>
             </AnimatePresence>
             <PipLoop
-              name={done || (job?.processing.slots.length ?? 0) > 0 ? 'juggle' : 'clapper'}
-              className="absolute -right-3 -bottom-6 size-[150px] select-none"
+              name={pipForJob(shown ? job : undefined, done)}
+              className="absolute -right-3 -bottom-6 size-[160px] select-none"
             />
           </div>
         </section>

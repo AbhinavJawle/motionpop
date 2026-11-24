@@ -12,6 +12,7 @@ import { Timeline } from '@/components/timeline/timeline';
 import { PlaybackClock } from '@/lib/editor/playback';
 import { loadVoice, type LoadedVoice } from '@/lib/editor/voice';
 import { useSoundBed } from '@/lib/sound/use-sound-bed';
+import { useStockAudio } from '@/lib/sound/use-stock-audio';
 import { useVoiceState } from '@/lib/editor/voice-state';
 import { AudioElsewhereError } from '@/lib/audio/hybrid-audio-store';
 import { projectLibrary } from '@/lib/projects/use-project-list';
@@ -70,6 +71,7 @@ export function EditorScreen({
   useEffect(() => useEditorTheme.getState().hydrate(), []);
   useEditorKeys(clock);
   useSoundBed(clock, voice?.voiceLevelDb ?? null);
+  useStockAudio(clock);
   useAutoFill();
   // Spec 07c: free open-licence pictures arrive by themselves after the drafts.
   useAutoPictures();

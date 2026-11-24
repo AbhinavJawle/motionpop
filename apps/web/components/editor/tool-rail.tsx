@@ -9,7 +9,6 @@ import { useSettingsPanel } from '@/lib/editor/settings-panel';
 import { toggleRailPanel, useRailPanel } from '@/lib/editor/rail-panel';
 import { useEditor, type RailItem } from '@/lib/stores/editor';
 import { usePip } from '@/lib/pip/use-pip';
-import { PipAvatar } from '@/components/pip/pip-avatar';
 
 const ITEMS: readonly { id: RailItem; label: string; icon: LucideIcon | null }[] = [
   // Spec 38 R2.1: the editor is Pip-first; Pip's item leads the rail and wears Pip's face.
@@ -79,18 +78,25 @@ export function ToolRail() {
             {Icon ? (
               <Icon className="relative size-[18px]" strokeWidth={1.75} aria-hidden />
             ) : (
-              <span className="relative -my-0.5">
+              <span className="relative -my-0.5 flex size-6 items-center justify-center">
                 <span
                   aria-hidden
                   className={cn(
                     'absolute -inset-1.5 rounded-full blur-[6px] transition-opacity',
-                    active ? 'opacity-90' : 'opacity-60',
+                    active ? 'opacity-95' : 'opacity-70',
                   )}
                   style={{
                     background: 'conic-gradient(from 200deg, #8dbceb, #8b7cff, #ff6a3d, #8dbceb)',
                   }}
                 />
-                <PipAvatar size={22} ring={false} className="relative" />
+                {/* eslint-disable-next-line @next/next/no-img-element -- static plush mascot mark */}
+                <img
+                  src="/pip/plush.webp"
+                  alt=""
+                  aria-hidden
+                  draggable={false}
+                  className="relative h-6 w-auto object-contain select-none drop-shadow-[0_1px_4px_rgba(139,124,255,0.45)]"
+                />
               </span>
             )}
             <span className="relative font-mono text-[10px] leading-[12px] font-medium">

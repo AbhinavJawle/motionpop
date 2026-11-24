@@ -3,9 +3,11 @@
 import { compileProject, thumbnailTimeMs } from '@motionpop/motion/compiler';
 import { FORMATS, msToFrame, type EditorProject, type Format } from '@motionpop/schemas';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ProjectPoster } from '@/components/dashboard/project-poster';
 import { cn } from '@/lib/cn';
 import { loadCompositionAssets } from '@/lib/composition/assets';
 import { previewImages, projectCompileInput } from '@/lib/composition/project-to-compile';
+import { summarise } from '@/lib/projects/summary';
 
 type PlayerEl = HTMLElement & { seek(seconds: number): void };
 
@@ -55,11 +57,19 @@ export function VideoStill({
   const size = fitBox(format, boxW, boxH);
   const dim = FORMATS[format];
 
-  useEffect(() => {
-    void import('@hyperframes/player');
-  }, []);
+  const isVideoProject = Boolean(project.video);
+  const summary = useMemo(
+    () => (isVideoProject ? summarise(project) : null),
+    [isVideoProject, project],
+  );
 
   useEffect(() => {
+    if (isVideoProject) return;
+    void import('@hyperframes/player');
+  }, [isVideoProject]);
+
+  useEffect(() => {
+    if (isVideoProject) return;
     const el = ref.current;
     if (!el) return;
     let cancelled = false;
@@ -83,7 +93,22 @@ export function VideoStill({
     };
     // `key` captures every input change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, atMs]);
+  }, [key, atMs, isVideoProject]);
+
+  if (summary) {
+    return (
+      <div
+        className={cn(
+          'relative flex items-center justify-center overflow-hidden bg-frame',
+          className,
+        )}
+        style={{ width: boxW, height: boxH, borderRadius: radius }}
+        data-testid="video-still"
+      >
+        <ProjectPoster project={summary} size="md" className="h-full w-full" />
+      </div>
+    );
+  }
 
   return (
     <div

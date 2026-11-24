@@ -1,6 +1,7 @@
 'use client';
 
 import type { ProjectSummary } from '@motionpop/schemas';
+import { ArrowDown, ArrowRight, Sparkles } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { btn, paper, poster, Sprockets } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
@@ -9,21 +10,46 @@ import { clock, relativeTime } from '@/lib/dashboard/format';
 import { ProjectPoster, SlotTicks } from './project-poster';
 
 /**
- * "Pick up where you left off" (spec 35): the last opened project as the lead frame, its
- * picture on a strip of film, its graphics as storyboard ticks, and Resume.
+ * Compact lead studio card (Spec 35 + Spec 42): keeps your active AI project prominent while
+ * leaving room for the Recent Projects grid right above the fold on first glance.
  */
-export function ContinueCard({ project, now }: { project: ProjectSummary; now: number | null }) {
+export function ContinueCard({
+  project,
+  now,
+  totalProjects,
+}: {
+  project: ProjectSummary;
+  now: number | null;
+  totalProjects?: number;
+}) {
   const router = useRouter();
   const open = () => router.push(`/editor/${encodeURIComponent(project.id)}`);
   return (
     <section aria-labelledby="continue-title">
-      <h2 id="continue-title" className={cn(poster, 'text-[44px]')}>
-        {C.continue.title}
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <h2 id="continue-title" className={cn(poster, 'text-[28px] leading-none')}>
+            {C.continue.title}
+          </h2>
+          <span className="inline-flex items-center gap-1 rounded-md border border-ink bg-[#8dbceb] px-2 py-0.5 font-mono text-[10px] font-semibold uppercase">
+            <Sparkles className="size-3" strokeWidth={2} aria-hidden />
+            Last AI edit
+          </span>
+        </div>
+        {totalProjects !== undefined && totalProjects > 1 && (
+          <a
+            href="#recent-projects"
+            className="inline-flex items-center gap-1 text-[12px] font-medium underline decoration-[1.5px] underline-offset-4 hover:decoration-flame"
+          >
+            All {totalProjects} projects
+            <ArrowDown className="size-3" strokeWidth={2} aria-hidden />
+          </a>
+        )}
+      </div>
       <div
         className={cn(
           paper.frame,
-          'mt-5 grid overflow-hidden md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]',
+          'mt-3 grid overflow-hidden shadow-[4px_4px_0_#000] md:grid-cols-[340px_minmax(0,1fr)]',
         )}
       >
         <button
@@ -35,38 +61,57 @@ export function ContinueCard({ project, now }: { project: ProjectSummary; now: n
           <Sprockets />
           <span className="relative block aspect-video w-full overflow-hidden">
             <ProjectPoster
-              styleId={project.styleId}
-              title={project.title}
+              project={project}
+              size="lg"
               className="h-full w-full transition-transform duration-500 ease-out group-hover:scale-[1.02]"
             />
           </span>
           <Sprockets />
         </button>
-        <div className="flex flex-col p-7 lg:p-9">
-          <h3 className={cn(poster, 'line-clamp-3 text-[52px]')}>{project.title}</h3>
-          <dl className="mt-5 flex gap-10 text-[13px]">
-            <div>
-              <dt className="text-black/55">Length</dt>
-              <dd className="tabular">{clock(project.durationMs)}</dd>
+        <div className="flex flex-col justify-between gap-4 p-5 lg:px-6 lg:py-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <h3 className={cn(poster, 'line-clamp-2 text-[32px] leading-[0.95]')}>
+                {project.title}
+              </h3>
+              <dl className="mt-2.5 flex flex-wrap gap-x-6 gap-y-1 text-[12px]">
+                <div className="flex items-center gap-1.5">
+                  <dt className="text-black/55">Length</dt>
+                  <dd className="font-mono font-medium tabular">{clock(project.durationMs)}</dd>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <dt className="text-black/55">Edited</dt>
+                  <dd className="font-medium">
+                    {now === null ? '\u00a0' : relativeTime(project.updatedAt, now)}
+                  </dd>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <dt className="text-black/55">Format</dt>
+                  <dd className="rounded border border-ink bg-mist px-1.5 py-0.5 font-mono text-[10px] font-semibold">
+                    {project.format}
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <div>
-              <dt className="text-black/55">Edited</dt>
-              <dd>{now === null ? '\u00a0' : relativeTime(project.updatedAt, now)}</dd>
-            </div>
-          </dl>
-          <div className="mt-7">
-            <SlotTicks states={project.slotStates} size="lg" />
-            <p className="mt-2.5 text-[13px]">
-              {C.continue.ready(project.readySlotCount, project.slotCount)}
-            </p>
+            <button type="button" onClick={open} className={btn('ink', 'md', false, 'shrink-0')}>
+              {C.continue.resume}
+              <ArrowRight className="size-4" strokeWidth={2} aria-hidden />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={open}
-            className={btn('ink', 'lg', false, 'mt-9 self-start md:mt-auto')}
-          >
-            {C.continue.resume}
-          </button>
+
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-dashed border-black/15 pt-3">
+            <div>
+              <SlotTicks states={project.slotStates} size="lg" />
+              <p className="mt-1.5 text-[12px] text-black/75">
+                {project.preview?.kind === 'reel' && project.preview.reelSceneCount
+                  ? `${project.preview.reelSceneCount} AI ${project.preview.reelSceneCount === 1 ? 'scene' : 'scenes'} directed`
+                  : C.continue.ready(project.readySlotCount, project.slotCount)}
+              </p>
+            </div>
+            <span className="font-mono text-[11px] text-black/55 uppercase">
+              {project.preview?.kind === 'reel' ? 'AI Reel Engine' : 'AI Motion Graphics'}
+            </span>
+          </div>
         </div>
       </div>
     </section>

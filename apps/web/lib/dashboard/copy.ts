@@ -3,12 +3,13 @@ export const DASHBOARD_COPY = {
   nav: { projects: 'Projects', styles: 'Styles' },
   newProject: 'New project',
   capture: {
+    upload: 'Upload video or audio',
     hold: 'Hold to record',
     release: 'Release to finish',
-    hint: '…or paste a script, or drop a video or audio anywhere',
+    hint: 'Drop a video or audio file, or paste a script for AI motion graphics…',
     placeholder: 'Paste a script and press Enter',
     micDenied: "Pip can't hear you. Allow the microphone in the address bar, or upload instead.",
-    uploadInstead: 'Upload instead',
+    uploadInstead: 'Upload media',
   },
   empty: {
     title: 'Your first video is two minutes away',
@@ -23,19 +24,19 @@ export const DASHBOARD_COPY = {
     formats: 'MP4, MOV, WebM, MP3, WAV or M4A',
   },
   continue: {
-    title: 'Pick up where you left off',
-    resume: 'Resume',
+    title: 'Continue editing',
+    resume: 'Open AI editor',
     ready: (ready: number, total: number) =>
       total === 0
-        ? 'No graphics yet'
+        ? 'No AI graphics yet'
         : ready === total
-          ? `All ${total} graphics ready`
-          : `${ready} of ${total} graphics ready`,
+          ? `All ${total} AI graphics ready`
+          : `${ready} of ${total} AI graphics ready`,
   },
   week: (videos: number, graphics: number, saved: string) =>
     `This week: ${videos} ${videos === 1 ? 'video' : 'videos'}, ${graphics} ${graphics === 1 ? 'graphic' : 'graphics'}, ${saved} of editing saved.`,
   projects: {
-    title: 'Projects',
+    title: 'Recent projects',
     search: 'Search projects',
     noMatch: (q: string) => `No projects match “${q}”.`,
     sort: { edited: 'Last edited', created: 'Created', name: 'Name' },

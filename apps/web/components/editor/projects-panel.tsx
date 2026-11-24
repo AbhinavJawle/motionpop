@@ -5,7 +5,7 @@ import { Plus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { chipFor } from '@/components/dashboard/project-card';
-import { posterKindFor, StylePoster } from '@/components/dashboard/style-poster';
+import { ProjectPoster } from '@/components/dashboard/project-poster';
 import { Pip } from '@/components/pip/pip';
 import { StatusChip } from '@/components/ui/status-chip';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -130,11 +130,10 @@ function ProjectPanelRow({
           : 'border-line hover:bg-card-2',
       )}
     >
-      <StylePoster
-        kind={posterKindFor(project.styleId)}
-        headline={project.title}
-        loop={null}
-        className="h-10 w-[72px] shrink-0 rounded-md"
+      <ProjectPoster
+        project={project}
+        size="sm"
+        className="h-10 w-[72px] shrink-0 rounded-md border border-line"
       />
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[13px] leading-4 font-medium text-text">

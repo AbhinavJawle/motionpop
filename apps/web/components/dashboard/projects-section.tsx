@@ -63,11 +63,14 @@ export function ProjectsSection({
   const count = listing.projects.length + listing.damaged.length;
 
   return (
-    <section aria-labelledby="projects-title" className="mt-20">
-      <div className="flex flex-wrap items-end gap-x-6 gap-y-4 border-b-2 border-ink pb-4">
-        <h2 id="projects-title" className={cn(poster, 'flex items-center gap-3 text-[44px]')}>
+    <section id="recent-projects" aria-labelledby="projects-title" className="mt-8 scroll-mt-20">
+      <div className="flex flex-wrap items-end gap-x-6 gap-y-3 border-b-2 border-ink pb-3">
+        <h2
+          id="projects-title"
+          className={cn(poster, 'flex items-center gap-2.5 text-[34px] leading-none')}
+        >
           {C.projects.title}
-          <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border-2 border-ink px-1.5 font-mono text-[13px] leading-none font-semibold tracking-normal tabular">
+          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md border-2 border-ink px-1.5 font-mono text-[12px] leading-none font-semibold tracking-normal tabular">
             {count}
           </span>
         </h2>
@@ -126,7 +129,7 @@ export function ProjectsSection({
       {shown.length === 0 && damaged.length === 0 ? (
         <p className="py-16 text-center text-[14px]">{C.projects.noMatch(query.trim())}</p>
       ) : view === 'grid' ? (
-        <div className="mt-8 grid grid-cols-1 gap-7 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-5 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
           {shown.map((p) => (
             <ProjectCard key={p.id} project={p} now={now} onChanged={onChanged} />
           ))}

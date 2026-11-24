@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { RecipeIdSchema } from './edit-config';
 import { FormatSchema } from './format';
 import { WordSchema } from './transcript';
 
@@ -9,6 +10,10 @@ export const StartDraftSchema = z.object({
   /** True only when the creator explicitly clicked a format pill; otherwise uploaded videos auto-match their natural aspect ratio. */
   formatChosen: z.boolean().optional(),
   styleId: z.string().min(1).optional(),
+  /** Preselected recipe from `/recipes` or a reel style card on `/styles` (spec 40). */
+  recipeId: RecipeIdSchema.optional(),
+  /** Preselected user custom skill id from `/skills` or `/recipes` (spec 43). */
+  userSkillId: z.string().trim().min(2).max(64).optional(),
 });
 export type StartDraft = z.infer<typeof StartDraftSchema>;
 

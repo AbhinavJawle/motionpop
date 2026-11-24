@@ -1,4 +1,10 @@
-import { DEFAULT_IMAGE_RECIPE, ImageSubjectSchema, generateImageWithFirebase } from '@motionpop/ai';
+import {
+  DEFAULT_IMAGE_RECIPE,
+  ImageSubjectSchema,
+  generateImageWithFirebase,
+  generateImageWithGeminiByok,
+} from '@motionpop/ai';
+import { getByokKey } from '@/lib/ai/byok';
 import {
   APP_CONFIG_DEFAULTS,
   type Format,
@@ -13,9 +19,9 @@ import { processImage, sha256Hex } from '@/lib/images/process';
 import type { StockMediaItem } from '@/app/api/media/stock/route';
 
 /**
- * Fetches a license-free external stock video or photo via `/api/media/stock` (Pexels when
- * `PEXELS_API_KEY` is configured, with automatic zero-key Wikimedia Commons fallback), proxies it
- * cleanly into local IndexedDB (`appAudioStore`), and returns a ready `MediaClip` for Media Bin
+ * Fetches a license-free external stock video or photo via `/api/media/stock` (Pixabay when
+ * `PIXABAY_API_KEY` is configured, falling back to Pexels or zero-key Wikimedia Commons), proxies
+ * it cleanly into local IndexedDB (`appAudioStore`), and returns a ready `MediaClip` for Media Bin
  * preview + FFmpeg export (spec 23 R6.1).
  */
 export async function fetchStockMediaClip(
@@ -84,12 +90,16 @@ export async function generateReelImageAsset(
   const model = APP_CONFIG_DEFAULTS.modelImage;
 
   try {
-    const res = await generateImageWithFirebase(getAILogic, model, {
+    const byokKey = getByokKey();
+    const imgInput = {
       subject,
       recipe,
       keyed,
-      aspect: '1:1',
-    });
+      aspect: '1:1' as const,
+    };
+    const res = byokKey
+      ? await generateImageWithGeminiByok(byokKey, model, imgInput)
+      : await generateImageWithFirebase(getAILogic, model, imgInput);
     const rawBlob = new Blob([new Uint8Array(res.bytes)], { type: res.mimeType });
     const processed = await processImage(rawBlob, keyed);
     const hash = await sha256Hex(`${model}|${recipe}|${subject}|${keyed ? 1 : 0}`);

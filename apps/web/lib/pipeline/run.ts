@@ -91,7 +91,7 @@ import {
  */
 export interface PipelineReuse {
   /** The directed reel (cloud only: the free plan costs nothing to make again). */
-  reel?: { plan: ReelPlan; source: 'cloud' | 'auto'; error?: string };
+  reel?: { plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string };
   /** The pictures, with the plan they were found for (used only when the plan still asks for them). */
   media?: { plan: ReelPlan; assets: ImageAsset[] };
   /** The generated soundtrack (its `music.src`). */
@@ -192,7 +192,7 @@ export interface PipelineDeps {
     choices?: EditChoices;
     /** Fires when the job is cancelled: a charge made by this call is handed back (R6.9). */
     signal?: AbortSignal;
-  }): Promise<{ plan: ReelPlan; source: 'cloud' | 'auto'; error?: string }>;
+  }): Promise<{ plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string }>;
   /**
    * The cloud editor's review of the automatic retake cuts (spec 28 R3). Optional; without it
    * (or on failure) the rule-based edit stands.
@@ -637,6 +637,11 @@ export async function runPipeline(
           timingQuality: t.timingQuality,
           cleaned,
         });
+        const posterB64 = probe?.frames[0]?.base64;
+        const posterUrl =
+          posterB64 && posterB64.length <= 110_000
+            ? `data:image/jpeg;base64,${posterB64}`
+            : undefined;
         const candidate = {
           schemaVersion: 1,
           id,
@@ -662,6 +667,7 @@ export async function runPipeline(
             width: probe?.width ?? 1080,
             height: probe?.height ?? 1920,
             originalDurationMs: sourceMs,
+            ...(posterUrl ? { posterUrl } : {}),
             cuts: videoCuts,
             punchIns: [],
             defaultOverlayAnchor: 'top-right',
@@ -865,12 +871,18 @@ export async function runPipeline(
         : originalSrc;
       if (src !== originalSrc) written.push(src);
 
+      const videoPosterB64 = videoProbe?.frames[0]?.base64;
+      const videoPosterUrl =
+        videoPosterB64 && videoPosterB64.length <= 110_000
+          ? `data:image/jpeg;base64,${videoPosterB64}`
+          : undefined;
       const videoTrack: VideoTrack | undefined = isVideoInput
         ? {
             src: originalSrc,
             width: videoProbe?.width ?? 1920,
             height: videoProbe?.height ?? 1080,
             originalDurationMs: Math.max(1, videoProbe?.durationMs ?? audio.durationMs),
+            ...(videoPosterUrl ? { posterUrl: videoPosterUrl } : {}),
             cuts: videoPlan?.cuts ?? [],
             punchIns: videoPlan?.punchIns ?? [],
             defaultOverlayAnchor: videoPlan?.defaultOverlayAnchor ?? 'top-right',

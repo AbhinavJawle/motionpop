@@ -2,7 +2,7 @@
 
 import { TTS_VOICES, type TtsVoiceId } from '@motionpop/ai';
 import { costOf } from '@motionpop/schemas';
-import { ChevronLeft, Cloud } from 'lucide-react';
+import { ChevronLeft, Cloud, KeyRound } from 'lucide-react';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -61,7 +61,7 @@ export function ScriptScreen() {
   const [draft] = useStartDraft();
   const config = useAppConfig();
   const online = useOnline();
-  const { client } = useCreditsClient();
+  const { client, byok } = useCreditsClient();
   const [text, setText] = useState(() => search.get('text') ?? readScriptDraft());
   const over = text.length - SCRIPT_MAX_CHARS;
   const [voice, setVoice] = useState<TtsVoiceId>('Kore');
@@ -71,12 +71,12 @@ export function ScriptScreen() {
   const speed = SPEEDS.find((s) => s.id === speedId)?.speed ?? 1;
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   const moments = useMemo(() => scriptMoments(text), [text]);
-  const cost = costOf('tts', minutesFor(text || 'x', speed), config);
+  const cost = byok ? 0 : costOf('tts', minutesFor(text || 'x', speed), config);
   const block = generateBlock({
     words,
     over,
     online,
-    killSwitch: config.killSwitch,
+    killSwitch: byok ? false : config.killSwitch,
     signedIn: client !== null,
   });
 
@@ -128,7 +128,10 @@ export function ScriptScreen() {
                   ? `${moments.length} moment${moments.length === 1 ? '' : 's'} spotted!`
                   : 'Numbers make great graphics.'}
             </Bubble>
-            <PipLoop name="clapper" className="absolute -right-4 -bottom-8 size-[180px]" />
+            <PipLoop
+              name="sketch"
+              className="absolute -right-4 -bottom-8 h-[170px] w-[195px] select-none"
+            />
           </div>
         </div>
 
@@ -251,8 +254,17 @@ export function ScriptScreen() {
                 {busy ? 'One moment…' : 'Continue'}
                 {!busy && (
                   <span className="ml-1 flex items-center gap-1 rounded-md border-2 border-ink bg-paper px-1.5 py-0.5 text-[11px] leading-3">
-                    <Cloud className="size-3" strokeWidth={2} aria-hidden />
-                    {cost}
+                    {byok ? (
+                      <>
+                        <KeyRound className="size-3" strokeWidth={2} aria-hidden />
+                        BYOK · 0
+                      </>
+                    ) : (
+                      <>
+                        <Cloud className="size-3" strokeWidth={2} aria-hidden />
+                        {cost}
+                      </>
+                    )}
                   </span>
                 )}
               </button>

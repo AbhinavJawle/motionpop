@@ -74,13 +74,15 @@ function sceneText(s: ReelScene): string {
   }
 }
 
+const EMPTY_SCENES: readonly ReelScene[] = [];
+
 /**
  * The reel's scenes on the SLOTS row (spec 25): one card per scene, graphic scenes in violet,
  * speaker shots muted. A click moves the playhead to the scene.
  */
 export function ReelScenesTrack() {
   const { view, clock } = useTimeline();
-  const scenes = useEditor((s) => s.project?.reel?.scenes ?? []);
+  const scenes = useEditor((s) => s.project?.reel?.scenes ?? EMPTY_SCENES);
   return (
     <>
       {scenes.map((s) => {

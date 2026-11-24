@@ -33,6 +33,7 @@ import { PreviewBadge } from './preview-badge';
 import { PreviewProgress } from './preview-progress';
 import { PreviewPlayer } from './preview-player';
 import { ReelPreview } from './reel-preview';
+import { StockOverlaysLayer } from './stock-overlays-layer';
 import { VideoCutsBar } from './video-cuts-bar';
 
 const ASPECT: Record<Format, string> = { '16:9': '16 / 9', '9:16': '9 / 16', '1:1': '1 / 1' };
@@ -277,6 +278,7 @@ export function PreviewPane() {
           }
         >
           {isReel ? <ReelPreview /> : <PreviewPlayer />}
+          <StockOverlaysLayer />
           {isReel ? <ReelNotesLayer /> : <FrameNotesLayer />}
           <PreviewProgress />
           <PreviewBadge />

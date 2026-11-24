@@ -235,6 +235,10 @@ export function NotesOverlay(p: NotesOverlayProps) {
             {...(n.status === 'fixed' && messages[n.id] ? { fixedMessage: messages[n.id] } : {})}
             busy={fixing === n.id || (p.working === targetId && fixing === n.id)}
             notice={notices[n.id] ?? null}
+            canTryCloud={p.cloudRoute.kind === 'cloud'}
+            cloudLabel={
+              p.cost?.label ?? (p.cloudRoute.kind === 'cloud' ? String(p.cloudRoute.credits) : '1')
+            }
             onDelete={() => p.remove(n.id)}
             onReopen={() => {
               p.reopen(n.id);

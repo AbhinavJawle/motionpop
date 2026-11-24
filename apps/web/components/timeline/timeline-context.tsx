@@ -52,7 +52,8 @@ export const TL = {
   },
 } as const;
 
-export const VIDEO_ROW_HEIGHT = 48;
+export const VIDEO_ROW_HEIGHT = 44;
+export const STOCK_ROW_HEIGHT = 34;
 
 export interface TimelineRowGeometry {
   top: number;
@@ -60,8 +61,8 @@ export interface TimelineRowGeometry {
 }
 
 /**
- * Computes timeline height and row positions; voiceover-only projects keep exact Figma geometry
- * (300 px, 4 tracks), while video projects insert a dedicated 56 px `VIDEO` track under `SLOTS`.
+ * Computes timeline height and row positions with dedicated `Stock Media` and `Stock Audio`
+ * layers so creators can always place, see, drag, trim, and audition stock clips.
  */
 export function timelineLayout(hasVideo: boolean): {
   height: number;
@@ -69,24 +70,41 @@ export function timelineLayout(hasVideo: boolean): {
     ruler: TimelineRowGeometry;
     slots: TimelineRowGeometry;
     video?: TimelineRowGeometry;
+    stockMedia: TimelineRowGeometry;
     words: TimelineRowGeometry;
     voice: TimelineRowGeometry;
     audio: TimelineRowGeometry;
+    stockAudio: TimelineRowGeometry;
   };
 } {
-  if (!hasVideo) {
-    return { height: TL.height, rows: TL.rows };
+  let y = TL.rows.slots.top + TL.rows.slots.height;
+  let video: TimelineRowGeometry | undefined;
+  if (hasVideo) {
+    video = { top: y, height: VIDEO_ROW_HEIGHT };
+    y += VIDEO_ROW_HEIGHT;
   }
-  const shift = VIDEO_ROW_HEIGHT;
+  const stockMedia: TimelineRowGeometry = { top: y, height: STOCK_ROW_HEIGHT };
+  y += STOCK_ROW_HEIGHT;
+  const words: TimelineRowGeometry = { top: y, height: TL.rows.words.height };
+  y += TL.rows.words.height;
+  const voice: TimelineRowGeometry = { top: y, height: TL.rows.voice.height };
+  y += TL.rows.voice.height;
+  const audio: TimelineRowGeometry = { top: y, height: TL.rows.audio.height };
+  y += TL.rows.audio.height;
+  const stockAudio: TimelineRowGeometry = { top: y, height: STOCK_ROW_HEIGHT };
+  y += STOCK_ROW_HEIGHT;
+
   return {
-    height: TL.height + shift,
+    height: y + 18,
     rows: {
       ruler: TL.rows.ruler,
       slots: TL.rows.slots,
-      video: { top: TL.rows.slots.top + TL.rows.slots.height, height: shift },
-      words: { top: TL.rows.words.top + shift, height: TL.rows.words.height },
-      voice: { top: TL.rows.voice.top + shift, height: TL.rows.voice.height },
-      audio: { top: TL.rows.audio.top + shift, height: TL.rows.audio.height },
+      ...(video ? { video } : {}),
+      stockMedia,
+      words,
+      voice,
+      audio,
+      stockAudio,
     },
   };
 }

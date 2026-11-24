@@ -1,7 +1,9 @@
 'use client';
 
+import { decodeWav16 } from '@motionpop/motion/sfx';
 import { audioOf, type EditorProject } from '@motionpop/schemas';
 import { useEffect, useRef } from 'react';
+import { appAudioStore } from '@/lib/audio/app-audio-store';
 import type { PlaybackClock } from '@/lib/editor/playback';
 import { useEditor } from '@/lib/stores/editor';
 import { mixInWorker } from './bed-client';
@@ -15,9 +17,11 @@ export const BED_DEBOUNCE_MS = 300;
 export function bedRequestFor(
   project: EditorProject,
   voiceLevelDb: number,
+  ownMusicSamples?: Float32Array<ArrayBuffer>,
 ): Omit<BedRequest, 'type' | 'id'> {
   const audio = audioOf(project);
   const synth = audio.musicId === 'calm-pad' || audio.musicId === 'steady-pulse';
+  const own = audio.musicId === 'own' && audio.musicSrc && ownMusicSamples;
   return {
     project: {
       durationMs: project.durationMs,
@@ -55,7 +59,12 @@ export function bedRequestFor(
     },
     voiceSrc: project.voiceover.src,
     voiceLevelDb,
-    music: synth && audio.musicId ? { id: audio.musicId } : null,
+    music:
+      synth && audio.musicId
+        ? { id: audio.musicId }
+        : own
+          ? { id: 'own', src: audio.musicSrc, samples: ownMusicSamples }
+          : null,
   };
 }
 
@@ -97,11 +106,25 @@ export function useSoundBed(clock: PlaybackClock, voiceLevelDb: number | null): 
 
   useEffect(() => {
     if (!project || project.reel || voiceLevelDb === null) return;
-    const req = bedRequestFor(project, voiceLevelDb);
     const n = ++latest.current;
     const timer = setTimeout(() => {
       useBedState.setState({ status: 'mixing' });
-      void mixInWorker(req).then((res) => {
+      void (async () => {
+        let ownSamples: Float32Array<ArrayBuffer> | undefined;
+        const audio = audioOf(project);
+        if (audio.musicId === 'own' && audio.musicSrc) {
+          try {
+            const blob = await appAudioStore().get(audio.musicSrc);
+            if (blob) {
+              const pcm = decodeWav16(new Uint8Array(await blob.arrayBuffer()));
+              if (pcm) ownSamples = new Float32Array(pcm.samples);
+            }
+          } catch {
+            // Fall through without custom samples if storage read fails.
+          }
+        }
+        const req = bedRequestFor(project, voiceLevelDb, ownSamples);
+        const res = await mixInWorker(req);
         const el = elRef.current;
         if (n !== latest.current || !el) return;
         const prev = useBedState.getState().url;
@@ -133,7 +156,7 @@ export function useSoundBed(clock: PlaybackClock, voiceLevelDb: number | null): 
           });
         }
         if (prev && prev !== useBedState.getState().url) URL.revokeObjectURL(prev);
-      });
+      })();
     }, BED_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [project, voiceLevelDb, clock]);

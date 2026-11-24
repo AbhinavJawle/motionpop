@@ -279,7 +279,13 @@ describe('video stage choreography (spec 19)', () => {
 
   it('smoothly interpolates from full to split-left across STAGE_TRANSITION_MS', () => {
     const start = videoStageRectAt(3000, stages, [], 1920, 1080);
-    const mid = videoStageRectAt(3000 + Math.floor(STAGE_TRANSITION_MS / 2), stages, [], 1920, 1080);
+    const mid = videoStageRectAt(
+      3000 + Math.floor(STAGE_TRANSITION_MS / 2),
+      stages,
+      [],
+      1920,
+      1080,
+    );
     const settled = videoStageRectAt(3000 + STAGE_TRANSITION_MS + 100, stages, [], 1920, 1080);
     expect(start.w).toBeCloseTo(1920, 0);
     expect(mid.w).toBeLessThan(1920);
@@ -561,7 +567,14 @@ describe('multi-clip Media Bin & dual-layer choreography (spec 20)', () => {
 
   it('supports crisp 50/50 split-top-stage, top-card, clean stages, and exact face-centered cover crops (spec 24)', () => {
     const stages = stagesFromTimedBeats([
-      { id: 'b1', startMs: 0, endMs: 3000, videoStage: 'split-top-stage', focusX: 0.5, focusY: 0.85 },
+      {
+        id: 'b1',
+        startMs: 0,
+        endMs: 3000,
+        videoStage: 'split-top-stage',
+        focusX: 0.5,
+        focusY: 0.85,
+      },
       { id: 'b2', startMs: 3000, endMs: 6000, videoStage: 'top-card', focusX: 0.5, focusY: 0.35 },
       { id: 'b3', startMs: 6000, endMs: 9000, videoStage: 'clean', focusX: 0.5, focusY: 0.35 },
     ]);

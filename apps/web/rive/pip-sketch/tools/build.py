@@ -1156,9 +1156,9 @@ track(ID_TAIL, "x", hermite_keys(lambda t: TAIL0[0] + 0.55 * body_dx(t), EVERY3,
 track(ID_TAIL, "y", hermite_keys(lambda t: TAIL0[1] + 0.45 * body_dy(t), EVERY3, "{:.2f}"))
 track(ID_TAIL, "rotation", hermite_keys(lambda t: deg(tail_rot_deg(t)), EVERY2, "{:.5f}"))
 
-# ---- Emit LinearAnimation ----
+# ---- Emit LinearAnimation (45 fps over 240 keys = 5.33 s — natural readable sketching cadence!) ----
 lines.append('')
-lines.append(f'        <LinearAnimation fps="{FPS}" duration="{L}" loopValue="loop" name="Sketch Loop" id="0:2">')
+lines.append(f'        <LinearAnimation fps="45" duration="{L}" loopValue="loop" name="Sketch Loop" id="0:2">')
 by_obj = {}
 for oid, prop, ks in TRACKS:
     by_obj.setdefault(oid, []).append((prop, ks))

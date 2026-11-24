@@ -60,7 +60,8 @@ export interface Job {
   recipeLabel?: string;
   styleLabel?: string;
   status: JobStatus;
-  prep: { pct: number; stage: PrepStage; error?: string };
+  /** `model`: the speech model's first download, 0–100 (only while it downloads). */
+  prep: { pct: number; stage: PrepStage; error?: string; model?: number };
   processing: ProcessingState;
   createdAt: number;
   startedAt?: number;
@@ -329,7 +330,14 @@ async function runPrep(id: string, rt: Runtime, blob: Blob): Promise<void> {
     rt.transcriptReady = true;
   }
   const onProgress = (p: WhisperProgress) => {
-    if (p.stage !== 'transcribing' || p.percent === undefined) return;
+    // The first run downloads the speech model (minutes on a slow line): say so, with its percent.
+    if (p.stage === 'loading') {
+      if (p.percent === undefined) return;
+      const model = Math.min(99, Math.round(p.percent));
+      patch(id, (j) => (j.prep.stage === 'transcribing' ? { prep: { ...j.prep, model } } : {}));
+      return;
+    }
+    if (p.percent === undefined) return;
     const pct = 35 + Math.round((Math.min(100, p.percent) / 100) * 64);
     patch(id, (j) =>
       j.prep.stage === 'transcribing' ? { prep: { pct, stage: 'transcribing' } } : {},

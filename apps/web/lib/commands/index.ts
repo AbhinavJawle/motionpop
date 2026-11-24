@@ -67,3 +67,11 @@ export {
   setReelNoteStatus,
   type ReelSceneFix,
 } from './reel-notes';
+export {
+  addStockAudio,
+  addStockOverlay,
+  removeStockAudio,
+  removeStockOverlay,
+  updateStockAudio,
+  updateStockOverlay,
+} from './stock';

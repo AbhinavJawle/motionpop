@@ -5,6 +5,7 @@ import {
   ReelLookSchema,
   ReelThemeSchema,
 } from './reel';
+import { UserSkillRefSchema } from './skill';
 
 /**
  * What the creator chose on the configure screen (spec 39 §2.1). `ReelCaptionStyleSchema` and
@@ -60,6 +61,8 @@ export const EditConfigSchema = z
     illustrations: z.boolean(),
     /** What `recipe.resolve` made of the custom text (spec 39 R4). */
     resolved: ResolvedRecipeSchema.optional(),
+    /** Optional modular user skill selected on `/start/configure` (spec 43). */
+    userSkill: UserSkillRefSchema.optional(),
   })
   .strict();
 export type EditConfig = z.infer<typeof EditConfigSchema>;

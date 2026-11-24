@@ -36,7 +36,12 @@ describe('buildVideoCompositeArgs', () => {
     const fcIdx = args.indexOf('-filter_complex');
     expect(fcIdx).toBeGreaterThan(-1);
     const ovlIdx = args.indexOf('/tmp/overlay.webm');
-    expect(args.slice(ovlIdx - 3, ovlIdx + 1)).toEqual(['-c:v', 'libvpx-vp9', '-i', '/tmp/overlay.webm']);
+    expect(args.slice(ovlIdx - 3, ovlIdx + 1)).toEqual([
+      '-c:v',
+      'libvpx-vp9',
+      '-i',
+      '/tmp/overlay.webm',
+    ]);
     const graph = args[fcIdx + 1]!;
     expect(graph).toContain('concat=n=3:v=1:a=0[vbase]');
     expect(graph).toContain("overlay=0:0:enable='between(t,1.000,3.000)'[vzoom]");
@@ -78,17 +83,55 @@ describe('buildVideoCompositeArgs', () => {
       punchIns: [],
       bgColor: '#FAF8F5',
       stages: [
-        { id: 's1', startMs: 0, endMs: 2500, mode: 'full', focusX: 0.5, focusY: 0.35, scaleFrom: 1, scaleTo: 1.05 },
-        { id: 's2', startMs: 2500, endMs: 5000, mode: 'split-left', focusX: 0.48, focusY: 0.35, scaleFrom: 1, scaleTo: 1.04 },
-        { id: 's3', startMs: 5000, endMs: 7000, mode: 'backdrop', focusX: 0.5, focusY: 0.35, scaleFrom: 1.04, scaleTo: 1.08 },
-        { id: 's4', startMs: 7000, endMs: 9000, mode: 'cutaway', focusX: 0.5, focusY: 0.35, scaleFrom: 1, scaleTo: 1 },
+        {
+          id: 's1',
+          startMs: 0,
+          endMs: 2500,
+          mode: 'full',
+          focusX: 0.5,
+          focusY: 0.35,
+          scaleFrom: 1,
+          scaleTo: 1.05,
+        },
+        {
+          id: 's2',
+          startMs: 2500,
+          endMs: 5000,
+          mode: 'split-left',
+          focusX: 0.48,
+          focusY: 0.35,
+          scaleFrom: 1,
+          scaleTo: 1.04,
+        },
+        {
+          id: 's3',
+          startMs: 5000,
+          endMs: 7000,
+          mode: 'backdrop',
+          focusX: 0.5,
+          focusY: 0.35,
+          scaleFrom: 1.04,
+          scaleTo: 1.08,
+        },
+        {
+          id: 's4',
+          startMs: 7000,
+          endMs: 9000,
+          mode: 'cutaway',
+          focusX: 0.5,
+          focusY: 0.35,
+          scaleFrom: 1,
+          scaleTo: 1,
+        },
       ],
     });
     const graph = args[args.indexOf('-filter_complex') + 1]!;
     expect(graph).toContain('color=c=0xFAF8F5:s=1280x720');
     expect(graph).toContain('alphamerge=shortest=1');
     expect(graph).toContain('boxblur=10:2');
-    expect(graph).toContain('[vstaged][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]');
+    expect(graph).toContain(
+      '[vstaged][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]',
+    );
   });
 
   it('builds crisp 50/50 face-centered crop for split-top-stage and full-bleed top-card/clean (spec 24)', () => {
@@ -105,9 +148,36 @@ describe('buildVideoCompositeArgs', () => {
       punchIns: [],
       bgColor: '#FFFFFF',
       stages: [
-        { id: 's1', startMs: 0, endMs: 3000, mode: 'split-top-stage', focusX: 0.5, focusY: 0.92, scaleFrom: 1, scaleTo: 1.04 },
-        { id: 's2', startMs: 3000, endMs: 6000, mode: 'top-card', focusX: 0.5, focusY: 0.35, scaleFrom: 1, scaleTo: 1.03 },
-        { id: 's3', startMs: 6000, endMs: 9000, mode: 'clean', focusX: 0.5, focusY: 0.35, scaleFrom: 1, scaleTo: 1.08 },
+        {
+          id: 's1',
+          startMs: 0,
+          endMs: 3000,
+          mode: 'split-top-stage',
+          focusX: 0.5,
+          focusY: 0.92,
+          scaleFrom: 1,
+          scaleTo: 1.04,
+        },
+        {
+          id: 's2',
+          startMs: 3000,
+          endMs: 6000,
+          mode: 'top-card',
+          focusX: 0.5,
+          focusY: 0.35,
+          scaleFrom: 1,
+          scaleTo: 1.03,
+        },
+        {
+          id: 's3',
+          startMs: 6000,
+          endMs: 9000,
+          mode: 'clean',
+          focusX: 0.5,
+          focusY: 0.35,
+          scaleFrom: 1,
+          scaleTo: 1.08,
+        },
       ],
     });
     const graph = args[args.indexOf('-filter_complex') + 1]!;
@@ -116,7 +186,9 @@ describe('buildVideoCompositeArgs', () => {
     expect(graph).toContain('crop=1080:960:');
     expect(graph).toContain('ih*0.500-960/2');
     expect(graph).toContain('overlay=0:960:');
-    expect(graph).toContain('[vstaged][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]');
+    expect(graph).toContain(
+      '[vstaged][vovl]overlay=0:0:shortest=1:format=auto,format=yuv420p[vout]',
+    );
   });
 
   it('composites multi-clip Media Bin videos and screenshots for screen-showcase, split-top-broll, broll-full and media-card-pop (spec 21)', () => {

@@ -1,10 +1,12 @@
 'use client';
 
-import { isMediaStageMode, type MediaClip } from '@motionpop/schemas';
+import { isMediaStageMode, type MediaClip, type StockOverlayClip } from '@motionpop/schemas';
 import {
   Film,
   Image as ImageIcon,
+  Loader2,
   MonitorPlay,
+  Plus,
   Search,
   Sparkles,
   Trash2,
@@ -18,7 +20,15 @@ import { getRouter } from '@/lib/ai/router-client';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
 import { getAuthSnapshot } from '@/lib/auth/auth-store';
 import { cn } from '@/lib/cn';
-import { addMediaClips, removeMediaClip, setSlotMediaClip, updateMediaClips } from '@/lib/commands';
+import {
+  addMediaClips,
+  addStockOverlay,
+  composite,
+  removeMediaClip,
+  setSlotMediaClip,
+  updateMediaClips,
+} from '@/lib/commands';
+import { seekPreview } from '@/lib/editor/preview-bridge';
 import { addOwnImage, imageRoleOf } from '@/lib/images/generate';
 import { sceneFor } from '@/lib/motion/registry';
 import { usePipModel } from '@/lib/pip/model-store';
@@ -43,6 +53,98 @@ const HitSchema = z.object({
   attribution: z.string(),
 });
 type Hit = z.infer<typeof HitSchema>;
+
+const StockItemSchema = z.object({
+  id: z.string(),
+  provider: z.enum(['pixabay', 'pexels', 'wikimedia']),
+  kind: z.enum(['video', 'photo']),
+  url: z.string(),
+  previewUrl: z.string(),
+  mimeType: z.string(),
+  width: z.number(),
+  height: z.number(),
+  durationMs: z.number().optional(),
+  title: z.string(),
+  attribution: z.string(),
+  pageUrl: z.string().optional(),
+});
+type StockItem = z.infer<typeof StockItemSchema>;
+
+function makeStockOverlayFromItem(
+  item: StockItem,
+  src: string,
+  blobType: string,
+  playheadMs: number,
+  projectDurationMs: number,
+  defaultLayout: StockOverlayClip['layout'],
+): StockOverlayClip {
+  const isVideo = item.kind === 'video' || item.mimeType.startsWith('video/');
+  const dur = Math.max(1000, projectDurationMs);
+  const clipLen = isVideo ? Math.min(item.durationMs ?? 4500, 5000) : 3500;
+  const startMs = Math.max(0, Math.min(Math.max(0, dur - 800), Math.round(playheadMs)));
+  const endMs = Math.min(dur, Math.max(startMs + 800, startMs + Math.round(clipLen)));
+  return {
+    id: `ov-${crypto.randomUUID().slice(0, 8)}`,
+    name: item.title.slice(0, 80) || 'Stock clip',
+    src,
+    kind: isVideo ? 'video' : 'photo',
+    mimeType: item.mimeType || blobType || (isVideo ? 'video/mp4' : 'image/jpeg'),
+    startMs,
+    endMs,
+    ...(isVideo && item.durationMs ? { clipDurationMs: item.durationMs } : {}),
+    layout: defaultLayout,
+    provider: item.provider,
+    attribution: item.attribution,
+  };
+}
+
+function makeStockOverlayFromBinClip(
+  clip: MediaClip,
+  playheadMs: number,
+  projectDurationMs: number,
+  defaultLayout: StockOverlayClip['layout'],
+): StockOverlayClip {
+  const isVideo = clip.mimeType.startsWith('video/');
+  const dur = Math.max(1000, projectDurationMs);
+  const clipLen = isVideo ? Math.min(clip.durationMs ?? 4500, 5000) : 3500;
+  const startMs = Math.max(0, Math.min(Math.max(0, dur - 800), Math.round(playheadMs)));
+  const endMs = Math.min(dur, Math.max(startMs + 800, startMs + Math.round(clipLen)));
+  return {
+    id: `ov-${crypto.randomUUID().slice(0, 8)}`,
+    name: clip.name.slice(0, 80),
+    src: clip.src,
+    kind: isVideo ? 'video' : 'photo',
+    mimeType: clip.mimeType,
+    startMs,
+    endMs,
+    ...(isVideo && clip.durationMs ? { clipDurationMs: clip.durationMs } : {}),
+    layout: defaultLayout,
+    provider: 'upload',
+    ...(clip.summary ? { attribution: clip.summary.slice(0, 200) } : {}),
+  };
+}
+
+function makeStockMediaClip(
+  item: StockItem,
+  src: string,
+  blobType: string,
+  query: string,
+): MediaClip {
+  const isVideo = item.kind === 'video' || item.mimeType.startsWith('video/');
+  return {
+    id: `stock-${crypto.randomUUID().slice(0, 8)}`,
+    name: `${item.title.slice(0, 56)} (${item.provider})`,
+    src,
+    kind: isVideo ? 'broll' : 'photo',
+    mimeType: item.mimeType || blobType || (isVideo ? 'video/mp4' : 'image/jpeg'),
+    width: Math.max(1, item.width),
+    height: Math.max(1, item.height),
+    ...(isVideo && item.durationMs ? { durationMs: item.durationMs } : {}),
+    summary: `${item.title} — ${item.attribution}`,
+    tags: query.trim().toLowerCase().split(/\s+/).filter(Boolean).slice(0, 6),
+    indexedAt: Date.now(),
+  };
+}
 
 async function headers(): Promise<HeadersInit> {
   const a = getAuthSnapshot();
@@ -119,6 +221,11 @@ export function MediaPanelBody() {
   const [adding, setAdding] = useState<string | null>(null);
   const [uploadingClips, setUploadingClips] = useState(false);
   const [indexing, setIndexing] = useState(false);
+  const [stockQ, setStockQ] = useState('');
+  const [stockKind, setStockKind] = useState<'video' | 'photo'>('video');
+  const [stockItems, setStockItems] = useState<StockItem[] | null>(null);
+  const [stockState, setStockState] = useState<'idle' | 'searching' | 'failed'>('idle');
+  const [addingStockId, setAddingStockId] = useState<string | null>(null);
   const photoFile = useRef<HTMLInputElement>(null);
   const clipFile = useRef<HTMLInputElement>(null);
 
@@ -202,6 +309,78 @@ export function MediaPanelBody() {
     } finally {
       setUploadingClips(false);
     }
+  };
+
+  const searchStock = async (nextKind: 'video' | 'photo' = stockKind) => {
+    const words = stockQ.trim();
+    if (words.length < 2) return;
+    setStockState('searching');
+    try {
+      const orientation =
+        project.format === '9:16' ? 'portrait' : project.format === '16:9' ? 'landscape' : 'square';
+      const res = await fetch(
+        `/api/media/stock?q=${encodeURIComponent(words)}&kind=${nextKind}&orientation=${orientation}&limit=6`,
+      );
+      if (!res.ok) throw new Error(String(res.status));
+      const body = z.object({ items: z.array(StockItemSchema) }).parse(await res.json());
+      setStockItems(body.items);
+      setStockState('idle');
+    } catch {
+      setStockState('failed');
+    }
+  };
+
+  const addStockClip = async (item: StockItem) => {
+    const cur = editorStore.getState().project;
+    if (!cur) return;
+    setAddingStockId(item.id);
+    try {
+      const res = await fetch(`/api/media/stock?proxy=${encodeURIComponent(item.url)}`);
+      if (!res.ok) throw new Error(String(res.status));
+      const blob = await res.blob();
+      if (blob.size < 1024) throw new Error('empty');
+      const src = await appAudioStore().put(blob);
+      const playhead = editorStore.getState().playheadMs;
+      const defaultLayout: StockOverlayClip['layout'] =
+        cur.reel || cur.format === '9:16' ? 'top' : 'card';
+      const overlay = makeStockOverlayFromItem(
+        item,
+        src,
+        blob.type,
+        playhead,
+        cur.durationMs,
+        defaultLayout,
+      );
+      const room = Math.max(0, MAX_MEDIA_BIN_CLIPS - (cur.mediaBin?.length ?? 0));
+      if (room > 0) {
+        const clip = makeStockMediaClip(item, src, blob.type, stockQ);
+        exec(composite('Place stock visual', [addMediaClips([clip]), addStockOverlay(overlay)]));
+      } else {
+        exec(addStockOverlay(overlay));
+      }
+      seekPreview(overlay.startMs);
+      toast.success(
+        `Placed on Stock Media at ${(overlay.startMs / 1000).toFixed(1)}s (${item.attribution})`,
+      );
+    } catch {
+      toast('Couldn’t download that stock clip. Try another.');
+    } finally {
+      setAddingStockId(null);
+    }
+  };
+
+  const placeBinClipAtPlayhead = (clip: MediaClip) => {
+    const cur = editorStore.getState().project;
+    if (!cur) return;
+    const playhead = editorStore.getState().playheadMs;
+    const defaultLayout: StockOverlayClip['layout'] =
+      cur.reel || cur.format === '9:16' ? 'top' : 'card';
+    const overlay = makeStockOverlayFromBinClip(clip, playhead, cur.durationMs, defaultLayout);
+    exec(addStockOverlay(overlay));
+    seekPreview(overlay.startMs);
+    toast.success(
+      `Placed “${clip.name}” on Stock Media at ${(overlay.startMs / 1000).toFixed(1)}s`,
+    );
   };
 
   const search = async () => {
@@ -347,6 +526,131 @@ export function MediaPanelBody() {
             )}
           </div>
 
+          {/* Pixabay / stock B-roll & photos search */}
+          <div className="mt-3 rounded-xl border border-line bg-card p-2.5">
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-text-2">
+                Stock B-Roll &amp; Photos
+              </span>
+              <div className="flex items-center gap-1 rounded-md bg-card-2 p-0.5 text-[10.5px]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStockKind('video');
+                    if (stockQ.trim().length >= 2) void searchStock('video');
+                  }}
+                  className={cn(
+                    'rounded px-1.5 py-0.5 font-medium transition-colors',
+                    stockKind === 'video'
+                      ? 'bg-violet-sel text-text'
+                      : 'text-text-3 hover:text-text',
+                  )}
+                >
+                  Videos
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStockKind('photo');
+                    if (stockQ.trim().length >= 2) void searchStock('photo');
+                  }}
+                  className={cn(
+                    'rounded px-1.5 py-0.5 font-medium transition-colors',
+                    stockKind === 'photo'
+                      ? 'bg-violet-sel text-text'
+                      : 'text-text-3 hover:text-text',
+                  )}
+                >
+                  Photos
+                </button>
+              </div>
+            </div>
+            <form
+              className="flex items-center gap-2 rounded-chip bg-card-2 px-2.5 shadow-glass focus-within:shadow-violet-glow"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void searchStock();
+              }}
+            >
+              <Search className="size-3.5 shrink-0 text-text-3" strokeWidth={1.5} aria-hidden />
+              <input
+                value={stockQ}
+                onChange={(e) => setStockQ(e.target.value.slice(0, 100))}
+                placeholder={
+                  stockKind === 'video'
+                    ? 'Search Pixabay videos, e.g. neon city'
+                    : 'Search Pixabay photos, e.g. coffee desk'
+                }
+                aria-label="Search Pixabay stock media"
+                className="h-8 w-full bg-transparent text-[12px] text-text outline-none placeholder:text-text-3"
+              />
+              {stockState === 'searching' && (
+                <Loader2 className="size-3.5 shrink-0 animate-spin text-text-3" aria-hidden />
+              )}
+            </form>
+            {stockState === 'failed' && (
+              <p className="mt-2 text-[11px] text-warn">Stock search failed. Try again.</p>
+            )}
+            {stockItems && stockItems.length === 0 && stockState === 'idle' && (
+              <p className="mt-2 text-[11px] text-text-3">No stock results. Try simpler words.</p>
+            )}
+            {stockItems && stockItems.length > 0 && (
+              <>
+                <ul className="mt-2.5 grid grid-cols-2 gap-1.5">
+                  {stockItems.map((item) => {
+                    const busy = addingStockId === item.id;
+                    return (
+                      <li key={item.id}>
+                        <button
+                          type="button"
+                          disabled={addingStockId !== null}
+                          onClick={() => void addStockClip(item)}
+                          title={`${item.title} (${item.attribution})`}
+                          className="group relative block aspect-[4/3] w-full overflow-hidden rounded-lg border border-line bg-card-2 text-left disabled:opacity-60"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element -- temporary Pixabay search preview */}
+                          <img
+                            src={item.previewUrl}
+                            alt={item.title}
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                            className="size-full object-cover transition-transform group-hover:scale-105"
+                          />
+                          <span className="absolute top-1 right-1 inline-flex items-center gap-0.5 rounded bg-black/75 px-1.5 py-0.5 text-[9px] font-medium text-white">
+                            {busy ? (
+                              <Loader2 className="size-2.5 animate-spin" aria-hidden />
+                            ) : (
+                              <Plus className="size-2.5" aria-hidden />
+                            )}
+                            {busy ? 'Placing…' : 'Place'}
+                          </span>
+                          <span className="absolute inset-x-0 bottom-0 truncate bg-black/65 px-1.5 py-0.5 text-[9px] text-white/90">
+                            {item.kind === 'video' && item.durationMs
+                              ? `${Math.round(item.durationMs / 1000)}s · `
+                              : ''}
+                            {item.attribution}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <p className="mt-1.5 text-[10px] text-text-3">
+                  Royalty-free stock via{' '}
+                  <a
+                    href="https://pixabay.com"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    Pixabay
+                  </a>{' '}
+                  · downloaded locally when added.
+                </p>
+              </>
+            )}
+          </div>
+
           {mediaBin.length === 0 ? (
             <button
               type="button"
@@ -425,32 +729,41 @@ export function MediaPanelBody() {
                           : `${clip.width}×${clip.height}`}
                         {clip.moments?.length ? ` · ${clip.moments.length} focus` : ''}
                       </span>
-                      <button
-                        type="button"
-                        disabled={!slot}
-                        onClick={() => {
-                          if (!slot) return toast('Select a beat on the timeline first.');
-                          if (isUsedOnSelected) {
-                            exec(setSlotMediaClip(slot.id, null));
-                          } else {
-                            exec(
-                              setSlotMediaClip(slot.id, clip.id, {
-                                ...(activeStage && isMediaStageMode(activeStage)
-                                  ? { stageMode: activeStage }
-                                  : {}),
-                              }),
-                            );
-                          }
-                        }}
-                        className={cn(
-                          'rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-40',
-                          isUsedOnSelected
-                            ? 'bg-violet-sel text-text'
-                            : 'bg-white/8 text-text-2 hover:bg-white/14 hover:text-text',
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => placeBinClipAtPlayhead(clip)}
+                          className="rounded-md bg-mint/20 px-2 py-0.5 text-[11px] font-medium text-text transition-colors hover:bg-mint/35"
+                        >
+                          + Timeline
+                        </button>
+                        {slot && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isUsedOnSelected) {
+                                exec(setSlotMediaClip(slot.id, null));
+                              } else {
+                                exec(
+                                  setSlotMediaClip(slot.id, clip.id, {
+                                    ...(activeStage && isMediaStageMode(activeStage)
+                                      ? { stageMode: activeStage }
+                                      : {}),
+                                  }),
+                                );
+                              }
+                            }}
+                            className={cn(
+                              'rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors',
+                              isUsedOnSelected
+                                ? 'bg-violet-sel text-text'
+                                : 'bg-white/8 text-text-2 hover:bg-white/14 hover:text-text',
+                            )}
+                          >
+                            {isUsedOnSelected ? 'On beat ✓' : 'On beat'}
+                          </button>
                         )}
-                      >
-                        {isUsedOnSelected ? 'On this beat ✓' : 'Use on beat'}
-                      </button>
+                      </div>
                     </div>
                   </li>
                 );
