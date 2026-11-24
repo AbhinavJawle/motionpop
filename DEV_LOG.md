@@ -1196,3 +1196,84 @@ Template:
   - The e2e editor baselines are outdated and need re-capturing.
   - No reel screenshot.
   - No Kiro run. Nothing committed.
+
+## 2026-11-23 · Claude Code (`claude-opus-5-5`) · Spec 39 AI QA on the real models (lab project, paid calls approved)
+- **Ask (founder):** "you are allowed to do as many paid calls on the [lab] account … bullet proof everything related to ai use". Commits go only through kiro-cli, with no co-authors.
+- **Lab:**
+  - The worktree `motionpop-wt-qa` (branch `qa-39`) runs on dev servers :3211 (main) and :3212 (worktree).
+  - Driving: headless Playwright flows (video reel, voiceover, TTS script) plus editor probes for Pip, frame notes, Generate and quick edit.
+  - Model calls go through the film-lab `generate()` on the lab project. The founder's :3000 was never touched.
+- **Found and fixed:**
+  1. **Every reel fell back to the free director.**
+     - `minItems`/`maxItems` on the director's scenes and brands arrays made Vertex return 400 INVALID_ARGUMENT on every model.
+     - Fix: removed the bounds and kept the string caps. New `scripts/schema-live-check.ts` (41 schemas, all accepted) with a self-test. Kiro run10, c8e0729.
+  2. **Counter prefix/suffix as free text** produced zero-width spaces and "%40%+" in 4 of 14 runs.
+     - Fix: enums plus `tidyCounter` (17/18 first try), at least 1 scene per 10 s, and save/try CTAs need an object. Kiro run11, 6652090.
+  3. **Speech model:** download feedback and a fallback when the GPU stalls (0d6130e). Processing chip, reel music lane and finish flash (a4d881d).
+  4. **Pip couldn't see which words already had a graphic, and said "I've added…" before Apply.**
+     - Fix: slots now carry their word range. A covered `addSlot` becomes `updateSlot`, or `generateSlot` when it asks for another component. Replies are proposals.
+  5. **Pip couldn't change a reel's hook or caption style.** It spent credits rewriting a scene instead.
+     - Fix: new free action `setReelHook` (command, plan, apply, undo). Reel `setCaptions` takes seam/pop/editorial/boxed/clean as one undo.
+  6. **Pip generateSlot dropped its instruction.** "Big number for the 500 years" went to a quick edit, which can't change a type, and was skipped.
+     - Fix: `updateSlot` keeps the type. `generateSlot` can name a component (switched first, for free), and the instruction becomes the slot prompt. A type that can't be drafted is skipped with the reason before any credit is spent.
+     - Also fixed: two `addSlot`s with the same component at different words were deduped to one.
+  7. **Pip had no timeout.** Carbon took up to 14 min under load.
+     - Fix: a 90 s cap, then credits back and the quick planner.
+  8. **Quick edit:** a request that can only partly be done now patches the doable part and toasts "Done in part. …" (lab A/B confirmed).
+  10. **Film mode (first live run):** 12 beats, all ready, 15 credits, 344 s, on gemini-4-neon. The world stays consistent and the numbers are right (stills in `lab/w2-film`). The status sat on "Building beat 12 of 12" for the ~2 min vision check; it now says "Checking the film…".
+  9. **Processing:** chips say "cloud, free" or "cloud · 3 credits". The ETA counts down between events and says "Taking a little longer…" once overdue (it used to freeze on "~25s left" for 2 min).
+- **Verified live:**
+  - **reel.direct:** a 44 s talking head gave 18 scenes, a clean "100 K+" counter, 184 s job.
+  - **reel.edit:** 21/21, 1.4–3.7 s.
+  - **recipe.resolve:** 20/20.
+  - **pip.plan:**
+    - Earlier: 50/50 across 5 models.
+    - New behaviours: 38/40. Both misses are on flash-lite; one is fixed in code, the other is skipped with no charge.
+    - In the app: the hook changed and captions went boxed, the covered `addSlot` became "Update slot 5", "500 years" became a stat-punch (☁ 3 shown first).
+  - **Reel frame notes:** CTA changed to "Follow for part two".
+  - **Generate:** 3 credits, about 2 s.
+  - **Quick edits:** $4 → $5, speed 0.8.
+  - **Schema check:** after the Pip schema change, 41/41 accepted.
+- **Gates (worktree):**
+  - Schemas 386, ai 664 and web 1582 tests pass. Only the 3 known `generate-voice-cache` failures remain.
+  - tsc, eslint and prettier are clean.
+- **Not done / for the founder:**
+  - Kiro hit its monthly limit after run11. Items 4–9 sit uncommitted in `qa-39`; nothing was committed by hand.
+  - Inspector: the "Custom ☁3" chip sits under the Generate button with the Pip panel open (screenshot `w2-gen/edit-1.png`).
+  - The seam caption sits at 88.5 % of the height (a design call).
+  - The reel Pip greeting says "video" for a voiceover.
+  - Generate can take minutes in the worst case (180 s SDK cap × repairs).
+  - Spend went to the lab project, not the founder's. The film-lab ledger undercounts, so no exact figure.
+  - No Kiro run in this part.
+
+## 2026-11-23 · Antigravity (`gemini-4-neon`) · spec 40 unified film-strip navbar, categorised styles, recipes, skills & technical how-it-works
+- **Handoff & founder ask:** picked up immediately where Claude Code hit its weekly rate limit after editing `AppBar`. Kept the exact Spec 35 Paper & black film-strip design language untouched across every screen.
+- **Built (Spec 40 `40-nav-catalogue-how-it-works`):**
+  - **Persistent black film-strip navbar outside the editor:** kept `AppBar` with 5 tabs (`Projects`, `Styles`, `Recipes`, `Skills`, `How it works`; signed-out logo routes to `/`). Refactored `ProjectTopBar` (`/start`, `/start/record`, `/start/script`, `/start/configure`) to render `<AppBar />` on top + a slim `h-12` paper draft sub-bar (`← Home`, title, `16:9 / 9:16 / 1:1`, `Help`). Replaced plain white headers on `ProcessingScreen`, `LegalPage`, and `ShareVideo` with the black film-strip bar.
+  - **Draft `?recipe=` + reel `?style=` preselection:** added optional `recipeId` to `StartDraftSchema` (`packages/schemas/src/start.ts`), wired `?recipe=` in `StartScreen`, and honoured both `recipeId` and reel `styleId` hints in `ConfigureScreen` + `defaultEdit`.
+  - **Categorised `/styles`:** split `StylesGallery` into **Reel styles** (13 talking-head styles from `builtInSkills.recipes()` rendered with `<StyleArt>` and linked to `/start?recipe=...&style=...`) and **Motion graphic looks** (8 full style packs with existing stills), with `All` / `Reel styles` / `Motion graphic looks` filter tabs.
+  - **New `/recipes` tab:** detailed breakdown of all 5 built-in recipes (`builtInSkills.recipes()`) plus `"Describe your own"` on-device custom recipe (`recipe.resolve`), showing pacing, layout mix bar, hook pattern, visual grammar, preferred templates, `lyria-002` music brief, banned tropes, curated reel styles, source director skill (`skills/recipes/<id>.md`), and paired slot skills linking into `/skills`.
+  - **New `/skills` tab:** runtime catalog (`apps/web/lib/skills/catalog.ts`, CI-verified against `skills/*.md` and `skills/recipes/*.md`) displaying all 5 Reel Director Skills and 8 Motion-Graphic Slot Skills with share-of-duration shot-sequence bars, camera/emphasis/sound/voice-sync specs, and honest documentation of where skills live (versioned Markdown + `@motionpop/ai` registries, not a live Firestore collection yet) and how to add new ones.
+  - **New public `/how-it-works` route & landing update:** removed the `#how` ("One take. Three beats.") section and pointed landing `Nav`, `Footer`, and `Stitched` straight to `/how-it-works`. Built a judge-ready technical walkthrough leading with **On-Device Gemini Nano** (including a live Chrome Prompt API browser probe + setup button), 4 custom Paper-styled inline SVG diagrams (Hybrid AI Router, 4-Plane Frankenstein Stack, Dual-Engine Pipeline, Deterministic HyperFrames Parity), live `APP_CONFIG_DEFAULTS` task routing & pricing table, procedural audio/asset resolvers, Kiro spec-driven engineering, and security/credit safety.
+- **Verified:** `packages/schemas` (`project-doc.test.ts` 10/10 + typecheck), `apps/web` (11 test files, 63/63 tests including `catalog.test.ts` disk-to-registry parity, `tsc --noEmit` app + e2e, `eslint`, and Prettier). No Kiro CLI run in this session (logged honestly).
+
+## 2026-11-23 · Antigravity (`gemini-4-neon`) · spec 41 real content project thumbnails
+- **Founder ask:** project thumbnails across the site all showed identical hardcoded `/looks/*.jpg` `"40% Revenue grew since 2020"` demo stills completely unrelated to what's inside each project; replace them everywhere with real previews of each project's content (real video frames + opening reel graphic for talking-head videos, real hero graphic / transcript in look palette for voiceover projects).
+- **Built (Spec 41 `41-real-project-thumbnails`):**
+  - **Schema & capture:** added optional `posterUrl` to `VideoTrackSchema` (`packages/schemas/src/video.ts`), `ProjectPreviewSchema` to `ProjectSummaryFieldsSchema` (`packages/schemas/src/project-doc.ts`), and saved `probe.frames[0]` as `video.posterUrl` on new video uploads in `apps/web/lib/pipeline/run.ts`.
+  - **Real content extraction + existing project backfill:** added `apps/web/lib/projects/preview.ts` extracting hero scene copy across all 21 `ReelTemplate` variants, all 9 built motion-graphic scenes, photo assets, look/reel palettes, and first non-cut video timestamp. Wired into `summarise()` (`summary.ts`) and `summaryFromDoc()` (`cloud-docs.ts`) with automatic `bodyJson` backfill so all existing Firestore projects immediately display real previews and accurate reel scene counts (`Ready` + scene ticks) without re-saving.
+  - **Cached lazy video frame extractor:** added `apps/web/lib/projects/video-thumb.ts` (`useVideoThumb` + `useAssetThumb`) with in-memory + IndexedDB (`mp-project-thumbs`) caching and a concurrency-2 `<video>`/`<canvas>` frame extractor reading blobs from `appAudioStore()` for older projects lacking `video.posterUrl`.
+  - **Site-wide thumbnail surfaces:** rebuilt `ProjectPoster` (`apps/web/components/dashboard/project-poster.tsx`) to render face-centred video + opening reel graphic split frames (`md`/`lg`), crisp full-bleed real video frames (`sm`), and live miniature motion-graphic compositions in each project's real look palette. Wired into `ContinueCard`, `ProjectCard`, `ProjectRow`, editor `ProjectsPanelBody`, export `VideoStill` (fixing blank reel stills in the Export modal), and `WorkingSection` (face-centred crop + script snippet).
+- **Verified:** `packages/schemas` (`project-doc.test.ts`, `video.test.ts`, typecheck, lint), `apps/web` (`preview.test.ts`, `project-poster.test.tsx`, `library.test.ts`, `synced-library.test.ts`, `projects.test.ts`, `working-section.test.tsx`, `run.test.ts`, typecheck app + e2e, eslint, Prettier). No Kiro CLI run in this session.
+
+## 2026-11-23 — Spec 42: Safe Google AI Studio Gemini BYOK + Dashboard Hybrid AI Banner
+- Implemented browser-only Gemini BYOK provider in `packages/ai/src/providers/gemini-byok.ts` (`geminiByokProvider`, `testGeminiApiKey`, `byokModelFor`, `speakWithGeminiByok`, `generateImageWithGeminiByok`, `chromeOnDeviceProvider`, `redactApiKey`): sends user key strictly via `x-goog-api-key` HTTP header (never query params), scrubs keys from all error messages, preserves on-device Gemini Nano first for `PREFER_ON_DEVICE`/`ONLY_ON_DEVICE` tasks, and maps internal model IDs to public Google AI Studio models (`gemini-2.5-pro` / `gemini-2.5-flash` / `gemini-2.5-flash-preview-tts` / `gemini-2.5-flash-image`).
+- Added browser-local BYOK store (`apps/web/lib/ai/byok.ts`, `localStorage` only, cross-tab sync, Zod validation), `resetRouter()` auto-swap in `apps/web/lib/ai/router-client.ts`, zero-credit `ByokCredits` wrapper (`apps/web/lib/credits/byok-credits.ts`), and BYOK routing/pricing support across `route.ts`, `use-route.ts`, `CostChip`, `summary.ts`, `configure-screen.tsx`, `script-screen.tsx`, TTS, and image generation.
+- Surfaced both **BYOK** and **Local On-Device AI (Gemini Nano)** across Settings (`ByokCard` in `AISection`, banner/note in `CreditsSection`), Dashboard (`AiModesBanner` in `DashboardScreen`), `AppBar` (`BYOK` indicator pill), `/how-it-works` (Hero, `LiveNanoProbe`, Hybrid AI callout + Diagram 01, Routing matrix intro, Security card), and Landing copy (`HYBRID`, `PRICING`, `FAQ`).
+- Verified with Prettier, `tsc --noEmit` (`@motionpop/ai`, `@motionpop/web`, `e2e`), ESLint, and Vitest (`packages/ai` 10/10 + `apps/web` 12 suites / 122 tests).
+
+## 2026-11-23 — Spec 43: Modular User & Database Skills (`SKILL.md` Import + Firestore Registry)
+- Added `UserSkillSchema` and `UserSkillRefSchema` in `packages/schemas/src/skill.ts`, wired optional `userSkill` onto `EditConfigSchema` and `userSkillId` onto `StartDraftSchema`, and added owner-only `users/{uid}/skills/{id}` rule in `firestore.rules`.
+- Implemented `packages/ai/src/skills/user-skill.ts` (`parseSkillMarkdown`, `condenseSkillInstructions`, `toUserSkillRef`, `toRawGithubCandidates`, `EXAMPLE_SKILL_MARKDOWN`) + wired custom skill injection directly into `reel.direct` (`packages/ai/src/reel/brief.ts`) and `film.direct` (`packages/ai/src/tasks/film.ts`, `apps/web/lib/film/film.ts`).
+- Built SSRF-safe `/api/skills/import` route (HTTPS `github.com` / `raw.githubusercontent.com` allowlist, 128 KB cap, 8 s timeout) and bidirectional Firestore + `localStorage` store (`apps/web/lib/skills/user-skills.ts`).
+- Built `SkillImportModal` (paste `SKILL.md`, GitHub URL import, upload `.md`, or load example skill) and wired custom skills across `/skills`, `/recipes`, `/start?skill=<id>`, and `/start/configure` + SummaryPanel.

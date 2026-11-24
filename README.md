@@ -1,52 +1,60 @@
 # motionpop
 
-**Bring your voice. We'll bring the motion.**
+**AI short-form video editor. Immaculate motion graphics.**
 
-Motionpop is an AI motion-graphics editor for creators. Record, upload or paste a voiceover, and premium animated graphics (charts, numbers, titles, maps, callouts) appear synced to the exact words you speak. Click a slot to generate, type a quick edit, draw on a frame, or ask Pip, our ghost mascot, to change the whole video.
+Motionpop is an open-source, agentic AI video editor and motion-graphics studio built for **Desktop Chrome**. Drop raw talking-head video, a voiceover, or a script—**Pip** auto-cuts dead air, hiccups and repeated takes non-destructively, directs deterministic `seek(tMs)` HTML/SVG motion graphics synced to every spoken word, edits locally on your device with **Chrome Gemini Nano via Firebase AI Logic** at $0 cost, and exports pixel-identical 1080p MP4s and transparent WebM overlays.
 
-- **Graphics follow your voice.** Word-level timings place graphic slots exactly where you say "forty percent", "Tokyo" or a name.
-- **Premium by default.** A hand-crafted library of deterministic motion components and style packs, directed by readable director skills and filled in by AI.
-- **Hybrid AI.** Small edits run on-device with Gemini Nano through Firebase AI Logic: instant, free and private, even offline. Heavy creative work runs in the cloud. Every action shows where it runs and what it costs before it runs.
-- **Code-native superpowers.** One click to 9:16 (re-laid out, not cropped), captions on/off, export MP4.
+- **Auto-cuts raw talking-head video.** On-device Whisper WebGPU/WASM + 10 ms speech-energy mapping + LCS retake detection remove dead air, fillers, hiccups and repeated takes non-destructively—keeping your cleanest take.
+- **10 on-device Gemini Nano tasks.** Talking-head reel frame notes (`reel.note.local`), instant Pip commands (`pip.quick`), free/offline reel drafts (`reel.draft`), quick edits (`edit.patch`), slot frame notes (`note.fix`), custom recipe parsing (`recipe.resolve`), auto-fill, chunked slot detection, energy arcs and prompt prefill run locally in Chrome at **0 credits**, even offline.
+- **Dual deterministic engines (zero GSAP).** Reel Engine v3 (21 strict vertical templates, 4 stage layouts, 5 kinetic caption styles) + Motion-Graphic & Film Engine (9 responsive scenes, 8 OFL Style Packs, 16:9 / 9:16 / 1:1 zero-crop reflow)—compiled from Project JSON into one HyperFrames composition with **≤ 1.02% preview-vs-MP4 diff**.
+- **True Frankenstein stack.** Stitches Chrome Gemini Nano, Whisper WebGPU, Gemini 4 Neon, Gemini TTS, Nano Banana 2.1 art, Vertex AI Lyria 2 soundtracks, procedural Web Audio SFX, 6 real-world media/logo/screenshot/geo resolvers (Pixabay, Pexels, Wikimedia, Openverse, Simple Icons, Headless Chrome, Natural Earth `d3-geo`), Firestore-synced `SKILL.md` recipes, 7 Firebase products and Cloud Run FFmpeg rendering.
 
-> Status: in active development for **#BuildHybridAI 2026** (Firebase) and **Kiroween 2026** (Kiro). Plan: [`docs/plan.md`](docs/plan.md).
+> Built for **#BuildHybridAI 2026** (Firebase — Web / Chrome) and **#KiroweenHackathon26** (Kiro — Frankenstein Category) using **Antigravity**, **Kiro** (44 specs, 21 steering docs) and **8 official Firebase Agent Skills**. Interactive deep dive: `/how-it-works`.
 
-## How it works
+## How it works (The Frankenstein Monster)
 
 ```
-voice ─▶ Whisper word timings (on-device) ─▶ cleanup (ums, long pauses) ─▶ slot detection (Gemini Nano / cloud)
-      ─▶ motion components filled with params ─▶ HyperFrames composition ─▶ live preview ─▶ Cloud Run render ─▶ MP4
+raw video / voice / script
+  ─▶ Whisper WebGPU/WASM worker (word-level int ms)
+  ─▶ 10 ms speech map + LCS retake/hiccup/dead-air auto-cutter + vocal prosody
+  ─▶ Firebase AI Logic hybrid router:
+       • On-device Chrome Gemini Nano (10 tasks · 0 credits · offline)
+       • Cloud Gemini 4 Neon / Flash-Lite / TTS / Nano Banana 2.1 + Vertex AI Lyria 2
+       • Optional power-user BYOK (localStorage + x-goog-api-key, Nano still first)
+  ─▶ 6-source real-world visual resolvers (Pixabay · Pexels · Wikimedia · Openverse · Simple Icons · Chrome screenshots · d3-geo)
+  ─▶ Firestore-synced SKILL.md recipes + deterministic seek(tMs) HyperFrames composition
+  ─▶ 4-stage custom code & Vision QA gate ─▶ live preview ─▶ Cloud Run + FFmpeg ─▶ MP4 / alpha WebM
 ```
 
 | Layer | Tech |
 |---|---|
-| App | Next.js, React, TypeScript, Tailwind CSS, Motion (UI animation), Zustand |
-| AI | Firebase AI Logic hybrid inference: Gemini Nano on-device in Chrome + Gemini in the cloud; Gemini TTS; optional Claude for custom graphics |
-| Backend | Firebase Auth, Firestore, Cloud Storage, Remote Config, App Check, App Hosting |
-| Video | Our own deterministic motion core rendered with HyperFrames (player in the editor, producer on Cloud Run) |
-| Audio | Whisper in a Web Worker (transformers.js), Web Audio for cleanup, waveform peaks and synthesized SFX |
+| App | Next.js 16, React 19, TypeScript 6, Tailwind CSS 4, Motion (UI), Zustand + Immer (200-step undo) |
+| Hybrid AI (Default) | **Firebase AI Logic** (`AgentPlatformBackend("global")` + limited-use App Check tokens): 10 on-device Chrome Gemini Nano tasks + cloud `gemini-4-neon`, `gemini-3.5-flash-lite`, `gemini-3.8-flash-tts`, `gemini-nano-banana-2.1`, Vertex AI `lyria-002` music, optional Claude Tier-2 hook & optional browser-local BYOK |
+| Firebase Ecosystem (7 Products) | **AI Logic**, **App Check** (reCAPTCHA Enterprise + limited-use tokens), **Authentication**, **Firestore** (projects, custom `SKILL.md` DB sync, atomic server-only credit ledger), **Cloud Storage**, **Remote Config** (live routing & kill switch), **App Hosting** |
+| Motion & Video | Deterministic zero-GSAP `seek(tMs)` core (`packages/motion`) rendered with **HyperFrames** (opaque sandbox player in editor, `@hyperframes/producer` + FFmpeg on Cloud Run) |
+| Audio & Auto-Cut | Whisper WebGPU/WASM worker (`transformers.js`), 10 ms speech-energy map, LCS retake & dead-air EDL, 70–400 Hz vocal prosody, 14-take procedural Web Audio SFX synth & auto voice ducking |
+| Media & Skills | Pixabay, Pexels, Wikimedia Commons, Openverse (CC0/CC-BY), Simple Icons + Favicons, Headless Chrome screenshots, Natural Earth `d3-geo` maps, built-in + GitHub/Firestore `SKILL.md` recipes |
 
-## On-device AI in Chrome
+## On-device AI in Desktop Chrome
 
-Quick edits, frame notes and background auto-fill run on Gemini Nano in your browser through Firebase AI Logic: free, private and instant. Everything works without it; the app falls back to cloud AI and shows "Using cloud AI".
+Motionpop runs on **Firebase AI Logic out of the box** (no API key needed). On Desktop Chrome 139+ with Gemini Nano enabled, 10 editing tasks run locally at 0 credits and even offline; on other browsers, Firebase AI Logic automatically falls back to cloud Gemini.
 
-1. Use desktop Chrome 139 or newer.
+1. Use Desktop Chrome 139 or newer.
 2. Open `chrome://flags/#prompt-api-for-gemini-nano-multimodal-input`, set it to **Enabled** and relaunch Chrome.
-3. In motionpop, open **Settings › AI & models** and click **Set up on-device AI**. The first model download takes a few minutes and runs in the background.
-4. When the status reads "Ready", edits show the mint `⚡ free · on-device` chip.
+3. Open `/how-it-works` or **Settings › AI & models** and click **Set up Gemini Nano**.
+4. Once status reads **Gemini Nano READY**, edits display the mint `⚡ free · on-device` chip and keep working even offline.
 
 ## Repository
 
 ```
-apps/web           Next.js app (dashboard, start, editor, styles, landing)
-packages/schemas   zod schemas shared across the app
-packages/motion    motion core, components, style packs, HyperFrames compiler + runtime, SFX synth
-packages/ai        AI router (device vs cloud), tasks, prompts, cost accounting
-services/render    Cloud Run render service (HyperFrames producer)
-skills/            director skills (markdown) that direct each scene
-design/            Figma screens and CSS export (visual source of truth)
-.kiro/             Kiro steering, specs, agents, hooks, MCP settings, skills
-docs/              plan, decisions, third-party disclosure, demo scripts, write-ups
+apps/web           Next.js 16 app (landing, /how-it-works, dashboard, start, editor, recipes, skills, styles, settings)
+packages/schemas   Zod 4 schemas shared across browser, API and Cloud Run
+packages/motion    Deterministic motion core, 21 reel templates, 9 explainer scenes, 8 looks, HyperFrames compiler, procedural SFX
+packages/ai        Firebase AI Logic hybrid router, 20+ tasks (10 on-device Nano), prompts, schema/cap guards, Lyria 2, BYOK
+services/render    Cloud Run render service (@hyperframes/producer + FFmpeg parity compositor)
+skills/            5 Reel Director Recipes & 8 Motion-Graphic Slot Skills (Markdown)
+.kiro/             44 EARS specs, 21 steering docs, hooks, 8 Firebase Agent Skills & HyperFrames skills
+docs/              plan, decisions (D-001..D-087+), third-party disclosure, demo scripts, hackathon write-ups
 ```
 
 ## Development
@@ -57,13 +65,13 @@ Requires Node 24 and pnpm 11.
 pnpm install
 cp apps/web/.env.example apps/web/.env.local   # fill in Firebase web config; never commit real keys
 pnpm dev          # web app
-pnpm test         # unit + property-based tests
+pnpm test         # unit + fast-check property-based tests
 pnpm typecheck && pnpm lint
 ```
 
 ## How we build
 
-Spec-driven: steering in `.kiro/steering`, one spec per feature in `.kiro/specs/<NN-feature>/` (requirements → design → tasks). Development sessions are logged honestly: Claude Code sessions in [`DEV_LOG.md`](DEV_LOG.md), Kiro sessions in [`KIRO_LOG.md`](KIRO_LOG.md).
+Spec-driven with **Kiro**, **Antigravity**, and **8 official Firebase Agent Skills**: steering rules in `.kiro/steering`, 44 specs in `.kiro/specs/<NN-feature>/` (requirements → design → tasks), and honest engineering logs in [`DEV_LOG.md`](DEV_LOG.md) and [`KIRO_LOG.md`](KIRO_LOG.md).
 
 ## Third-party resources
 

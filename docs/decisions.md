@@ -432,3 +432,28 @@ Spec 11 R1 asked for projects in the account; design §2.1 stored each field as 
     - Video label: ember.
     - Each track's colours are tuned per theme.
   - **Pip:** the orb is one shared element (`layoutId`). It is 150 px in an empty chat and 38 px in the header after a message, or when the big orb scrolls out of view. It moves on a spring (instant under reduced motion), and a soft halo now surrounds it.
+
+## D-088 · 2026-11-23 · decided (spec 39 AI QA, Claude Code `claude-opus-5-5`) — Structured-output bounds are tested live; Pip gets the reel hook, caption styles and type switches
+- **Context:** a paid QA run on a lab Google Cloud project (founder approved, no charge to the founder) sent every AI task to the real models. Every reel was quietly falling back to the free director. Pip couldn't change a reel's hook or caption style, offered graphics on words that already had one, said plans were "done" before Apply, and sent "make it a big number" to a quick edit, which can't change a graphic's type.
+- **Decision:**
+  - **Schemas:**
+    - No `minItems`/`maxItems` on large `anyOf` arrays. On the reel scenes and brands arrays they made Vertex answer 400 INVALID_ARGUMENT on every model.
+    - String `maxLength` caps that match the zod limits are kept as a decoding guard; zod still validates.
+    - `packages/ai/scripts/schema-live-check.ts` sends every schema to every model it can run on, and has a self-test. Run it after any schema change.
+  - **Counters:** prefix and suffix are enums, and `tidyCounter` normalises the scale. With free text, 4 of 14 runs produced zero-width spaces or "%40%+".
+  - **Reels:** there is at least one scene per 10 s.
+  - **Pip:**
+    - Each slot shows Pip its word range. An `addSlot` on covered words becomes an `updateSlot`, or a `generateSlot` when the step asks for a different component.
+    - Replies are proposals, never "done".
+    - New free action `setReelHook`. Reels take the five caption styles through `setCaptions`.
+    - `updateSlot` keeps the kind of graphic. `generateSlot` can name a new component (switched first, for free), and its instruction becomes the slot prompt. Before, the instruction was dropped.
+    - A type that can't be drafted from the slot's words is skipped with the reason, before any credit is spent.
+    - A cloud plan that takes over 90 s (`PIP_PLAN_TIMEOUT_MS`) returns its credits, and the quick planner answers instead. Under load, Gemini 4 Carbon took up to 14 minutes and Pip stayed busy the whole time. The SDK's own cap is 180 s per call.
+  - **Quick edit:** a request that can only partly be done patches the doable part and says the rest ("Done in part. …"). It escalates only when none of it can be done.
+  - **Processing:**
+    - Step chips say "cloud, free" or "cloud · N credits".
+    - The ETA counts down between events and says "Taking a little longer…" once it runs more than 10 s past its estimate.
+    - Film mode says "Checking the film…" once every beat is in. The vision check runs then, for about 2 min live.
+- **Consequences:**
+  - `ai-tasks.md` steering is updated on `maxLength`.
+  - The work is in the `qa-39` worktree. Its last part is uncommitted, because Kiro reached its monthly limit and commits go only through Kiro.

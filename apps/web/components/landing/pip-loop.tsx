@@ -1,9 +1,10 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { cn } from '@/lib/cn';
 import { useStill } from '@/lib/motion/use-still';
 
-export type PipLoopName = 'clapper' | 'juggle' | 'plane';
+export type PipLoopName = 'clapper' | 'juggle' | 'plane' | 'caption' | 'sound' | 'craft' | 'sketch';
 
 /** Whether this browser shows VP9 alpha (Chrome, Edge, Firefox). Safari plays the file opaque. */
 function playsAlphaWebm(): boolean {
@@ -29,12 +30,18 @@ export function PipLoop({ name, className }: { name: PipLoopName; className?: st
   if (still || !alpha) {
     return (
       // eslint-disable-next-line @next/next/no-img-element -- a small static still
-      <img src={`/pip/${name}.webp`} alt="" aria-hidden className={className} draggable={false} />
+      <img
+        src={`/pip/${name}.webp`}
+        alt=""
+        aria-hidden
+        className={cn('object-contain', className)}
+        draggable={false}
+      />
     );
   }
   return (
     <video
-      className={className}
+      className={cn('object-contain', className)}
       src={`/pip/${name}.webm`}
       poster={`/pip/${name}.webp`}
       autoPlay

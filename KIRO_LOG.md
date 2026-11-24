@@ -3049,3 +3049,348 @@ Run overnight without the founder; Claude Code reviews it afterwards. Written fr
   - `?? packages/motion/scripts/film-lab/tts.ts`
   - `?? packages/motion/scripts/film-lab/words.ts`
 <!-- /kiro-session:sess_5c2219fa-2f67-40cf-a073-4c0de378ddfd -->
+
+<!-- kiro-session:sess_62c1cc24-6ccb-44ba-9514-d8f26714e30f -->
+### 2026-11-23 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-23T11:37:15.566Z · last stop: 2026-11-23T11:38:34.338Z · session: sess_62c1cc24-6ccb-44ba-9514-d8f26714e30f
+- commits since start: 
+  - ae7a776 feat(31-38): paper app screens, marketing site, Pip for reels, paper editor
+- uncommitted changes: 
+  - `M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_62c1cc24-6ccb-44ba-9514-d8f26714e30f -->
+
+<!-- kiro-session:sess_a48d34d4-d855-400b-9640-30e8b2285de0 -->
+### 2026-11-23 · Kiro CLI · agent: spec-reviewer (auto-logged by Stop hook)
+- started: unknown · last stop: 2026-11-23T11:45:21.021Z · session: sess_a48d34d4-d855-400b-9640-30e8b2285de0
+- commits since start: unknown (no start time recorded; see git log)
+- uncommitted changes: 
+  - `M .gitignore`
+  - ` M KIRO_LOG.md`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? .kiro/specs/39-video-first-recipes-and-background-processing/`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+<!-- /kiro-session:sess_a48d34d4-d855-400b-9640-30e8b2285de0 -->
+
+<!-- kiro-session:sess_5f1def66-b615-465a-a032-d80dbab1bba0 -->
+### 2026-11-23 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-23T11:46:49.922Z · last stop: 2026-11-23T11:50:45.273Z · session: sess_5f1def66-b615-465a-a032-d80dbab1bba0
+- commits since start: 
+  - ef69566 feat(39-video-first): task 1 edit config schemas
+  - 06046ec docs(39-video-first): spec, review fixes; builder commits carry no trailers
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_5f1def66-b615-465a-a032-d80dbab1bba0 -->
+
+<!-- kiro-session:sess_e1cf91a0-9ff9-4d54-88b2-15e1224d6c25 -->
+### 2026-11-23 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-23T11:51:28.878Z · last stop: 2026-11-23T11:56:47.853Z · session: sess_e1cf91a0-9ff9-4d54-88b2-15e1224d6c25
+- commits since start: 
+  - d49753d feat(39-video-first): task 3 slot shot sequences reach component.fill
+  - d9c23db feat(39-video-first): task 2 recipe and director skill registry
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_e1cf91a0-9ff9-4d54-88b2-15e1224d6c25 -->
+
+<!-- kiro-session:sess_fdab8901-f6f4-49cc-aeeb-877ded4b6040 -->
+### 2026-11-23 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-23T11:57:27.311Z · last stop: 2026-11-23T12:04:06.348Z · session: sess_fdab8901-f6f4-49cc-aeeb-877ded4b6040
+- commits since start: 
+  - 9ed1c75 feat(39-video-first): task 6 recipe brief in reel.direct
+  - 14076d7 feat(39-video-first): task 5 edit choices post-pass
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/motion/src/reel/captions.ts`
+  - ` M packages/motion/src/reel/mount.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+<!-- /kiro-session:sess_fdab8901-f6f4-49cc-aeeb-877ded4b6040 -->
+
+<!-- kiro-session:sess_7ec6cce3-1e49-4b37-ae91-cb8993e74019 -->
+### 2026-11-23 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-23T12:04:50.695Z · last stop: 2026-11-23T12:16:33.663Z · session: sess_7ec6cce3-1e49-4b37-ae91-cb8993e74019
+- commits since start: 
+  - 6645674 feat(39-video-first): task 8 pipeline honours the edit config
+  - b6f6bfb fix(39-video-first): task 9 reels never double-play a sound bed
+  - 75c1a9a feat(39-video-first): task 7 reel caption styles
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+  - ` M apps/web/app/(app)/layout.tsx`
+  - ` M apps/web/components/dashboard/capture-bar.tsx`
+  - ` M apps/web/components/dashboard/drop-layer.tsx`
+  - ` M apps/web/components/editor/voice-panel.tsx`
+  - ` M apps/web/components/start/record-screen.tsx`
+  - ` M apps/web/components/start/script-screen.tsx`
+  - ` M apps/web/components/start/start-screen.tsx`
+  - ` M apps/web/lib/intake/hand-off.ts`
+  - ` M apps/web/lib/intake/pending.ts`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? apps/web/app/(app)/start/configure/`
+  - `?? apps/web/components/configure/`
+  - `?? apps/web/components/jobs/`
+  - `?? apps/web/lib/configure/`
+  - `?? apps/web/lib/pipeline/eta.ts`
+  - `?? apps/web/lib/pipeline/jobs-store.ts`
+  - `?? apps/web/lib/transcribe/whisper-lock.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+<!-- /kiro-session:sess_7ec6cce3-1e49-4b37-ae91-cb8993e74019 -->
+
+<!-- kiro-session:sess_253cf009-ea75-438f-9b55-f942219c7ca1 -->
+### 2026-11-23 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-23T12:18:00.679Z · last stop: 2026-11-23T12:31:34.026Z · session: sess_253cf009-ea75-438f-9b55-f942219c7ca1
+- commits since start: 
+  - 1ec0dc0 feat(39-video-first): task 13 jobs host and list refresh
+  - 5feefa5 feat(39-video-first): task 12 background jobs store
+  - 3bbb3ed test(39-video-first): task 11 job ETA
+  - 1151ed4 feat(39-video-first): task 4 recipe.resolve
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+  - ` M apps/web/app/layout.tsx`
+  - ` M apps/web/components/dashboard/capture-bar.tsx`
+  - ` M apps/web/components/dashboard/dashboard-screen.tsx`
+  - ` M apps/web/components/dashboard/drop-layer.tsx`
+  - ` M apps/web/components/editor/voice-panel.tsx`
+  - ` M apps/web/components/processing/drop-zone.tsx`
+  - ` M apps/web/components/processing/processing-screen.tsx`
+  - ` M apps/web/components/processing/word-strip.tsx`
+  - ` M apps/web/components/start/record-screen.tsx`
+  - ` M apps/web/components/start/script-screen.tsx`
+  - ` M apps/web/components/start/start-screen.tsx`
+  - ` M apps/web/lib/audio/intake.test.ts`
+  - ` M apps/web/lib/audio/intake.ts`
+  - ` M apps/web/lib/dashboard/copy.ts`
+  - ` M apps/web/lib/intake/hand-off.ts`
+  - ` M apps/web/lib/intake/pending.ts`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? apps/web/app/(app)/start/configure/`
+<!-- /kiro-session:sess_253cf009-ea75-438f-9b55-f942219c7ca1 -->
+
+<!-- kiro-session:sess_ab3c669a-b333-4986-9052-cee922e8298d -->
+### 2026-11-23 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-23T12:32:01.502Z · last stop: 2026-11-23T12:52:36.899Z · session: sess_ab3c669a-b333-4986-9052-cee922e8298d
+- commits since start: 
+  - f809b1f feat(39-video-first): task 16 video-first copy
+  - 074fdc8 feat(39-video-first): task 15 dashboard working cards
+  - 3ac8ec0 feat(39-video-first): task 14 processing on the jobs store
+  - fb49baf feat(39-video-first): task 19 configure screen
+  - 820f70a feat(39-video-first): task 18 configure summary pricing
+  - 9afedd5 feat(39-video-first): task 17 entry points go to configure
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_ab3c669a-b333-4986-9052-cee922e8298d -->
+
+<!-- kiro-session:sess_9c672377-be9d-46b8-bfde-d54ebfc0cdf1 -->
+### 2026-11-23 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-23T12:53:27.601Z · last stop: 2026-11-23T13:13:32.291Z · session: sess_9c672377-be9d-46b8-bfde-d54ebfc0cdf1
+- commits since start: 
+  - 4bfcbc0 test(39-video-first): task 20 e2e configure to editor
+  - 829c378 feat(39-video-first): task 11b credit safety
+  - c4d226b feat(39-video-first): task 10 reel styles panel
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+  - ` M services/render/src/video-ffmpeg.ts`
+  - `?? docs/research/experiments/film-mode/coffee-script.txt`
+  - `?? docs/research/experiments/film-mode/coffee-voice.m4a`
+  - `?? docs/research/experiments/film-mode/coffee-voiceover.json`
+  - `?? docs/research/experiments/film-mode/raw-film-brief.txt`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-compare.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-carbon.jpg`
+  - `?? docs/research/experiments/film-mode/sheet-coffee-raw-hydrogen.jpg`
+  - `?? docs/research/film-mode-test.md`
+  - `?? packages/motion/scripts/film-lab/handfix.ts`
+  - `?? packages/motion/scripts/film-lab/oneshot.ts`
+  - `?? packages/motion/scripts/film-lab/raw.ts`
+  - `?? packages/motion/scripts/film-lab/record.ts`
+  - `?? packages/motion/scripts/film-lab/studio-smoke.ts`
+  - `?? packages/motion/scripts/film-lab/studio.ts`
+  - `?? packages/motion/scripts/film-lab/studio/`
+  - `?? packages/motion/scripts/film-lab/tts.ts`
+  - `?? packages/motion/scripts/film-lab/words.ts`
+<!-- /kiro-session:sess_9c672377-be9d-46b8-bfde-d54ebfc0cdf1 -->
+
+<!-- kiro-session:sess_cd4d8765-cf37-4c16-a9ec-98eda66bf0df -->
+### 2026-11-23 · Kiro CLI · agent: motionpop-builder (auto-logged by Stop hook)
+- started: 2026-11-23T14:08:58.489Z · last stop: 2026-11-23T14:17:57.170Z · session: sess_cd4d8765-cf37-4c16-a9ec-98eda66bf0df
+- commits since start: 
+  - cd19470 chore(39-video-first): AI QA lab scripts
+  - 8651da4 fix(39-video-first): AI QA default call to action
+  - c8e0729 fix(39-video-first): AI QA reel director scene coverage and string caps
+- uncommitted changes: 
+  - `M KIRO_LOG.md`
+  - ` M apps/web/components/configure/media-card.tsx`
+  - ` M apps/web/lib/pipeline/jobs-store.ts`
+  - ` M apps/web/public/pip/caption.webm`
+  - ` M apps/web/public/pip/sound.webm`
+  - ` M apps/web/public/pip/sound.webp`
+  - ` M apps/web/rive/pip-caption/scene.rml`
+  - ` M apps/web/rive/pip-caption/tools/build.py`
+  - ` M apps/web/rive/pip-caption/tools/render.py`
+  - ` M apps/web/rive/pip-craft/scene.rml`
+  - ` M apps/web/rive/pip-craft/tools/build.py`
+  - ` M apps/web/rive/pip-craft/tools/render.py`
+  - ` M apps/web/rive/pip-sketch/scene.rml`
+  - ` M apps/web/rive/pip-sketch/tools/build.py`
+  - ` M apps/web/rive/pip-sketch/tools/render.py`
+  - ` M apps/web/rive/pip-sound/scene.rml`
+  - ` M apps/web/rive/pip-sound/tools/build.py`
+  - ` M apps/web/rive/pip-sound/tools/render.py`
+  - ` M apps/web/workers/whisper.worker.ts`
+  - ` M packages/motion/scripts/film-lab/gemini.ts`
+  - ` M packages/schemas/src/config.test.ts`
+  - ` M packages/schemas/src/film.ts`
+  - ` M packages/schemas/src/video.test.ts`
+  - ` M packages/schemas/src/video.ts`
+  - ` M services/render/src/video-ffmpeg.test.ts`
+<!-- /kiro-session:sess_cd4d8765-cf37-4c16-a9ec-98eda66bf0df -->

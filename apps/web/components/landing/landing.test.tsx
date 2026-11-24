@@ -45,5 +45,8 @@ describe('Landing', () => {
     expect(screen.getByText('20 credits on sign-up')).toBeTruthy();
     expect(screen.getAllByText(/^\d+ credits$/).length).toBe(3);
     expect(screen.getByRole('link', { name: 'Privacy' }).getAttribute('href')).toBe('/privacy');
+    for (const a of screen.getAllByRole('link', { name: 'How it works' })) {
+      expect(a.getAttribute('href')).toBe('/how-it-works');
+    }
   });
 });

@@ -8,13 +8,12 @@ import {
   HelpCircle,
   Layers,
   MessageSquareText,
-  Mic,
   Palette,
   PenLine,
   Plus,
   Scissors,
+  ShieldCheck,
   Sparkles,
-  Users,
   Zap,
   type LucideIcon,
 } from 'lucide-react';
@@ -23,22 +22,21 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { cn } from '@/lib/cn';
 import {
-  AUDIENCES,
   CLOSER,
   FAQ,
   FEATURES,
   FOOTER,
   FRAME_NOTES,
   HERO,
-  HOW,
   HYBRID,
-  LOOKS,
   NAV,
   PLANS,
   PRICING,
+  REELS,
   REPO,
   STITCHED,
   TICKER,
+  WHY,
 } from './copy';
 import { display, hand } from './fonts';
 import s from './marketing.module.css';
@@ -218,9 +216,15 @@ function Nav() {
           <ul className="hidden items-center gap-6 lg:flex">
             {NAV.map((n) => (
               <li key={n.href}>
-                <a href={n.href} className={s.navLink}>
-                  {n.label}
-                </a>
+                {n.href.startsWith('/') ? (
+                  <Link href={n.href} className={s.navLink}>
+                    {n.label}
+                  </Link>
+                ) : (
+                  <a href={n.href} className={s.navLink}>
+                    {n.label}
+                  </a>
+                )}
               </li>
             ))}
           </ul>
@@ -244,8 +248,21 @@ function Hero() {
   return (
     <section className="relative isolate pb-20" aria-labelledby="hero-title">
       <HeroLight />
-      <div className={cn(WRAP, 'relative pt-10 sm:pt-12')}>
-        <h1 id="hero-title" className={cn(s.display, 'text-[clamp(64px,11.5vw,150px)]')}>
+      <div className={cn(WRAP, 'relative pt-8 sm:pt-10')}>
+        <Link
+          href="/how-it-works"
+          className={cn(
+            s.rise,
+            'inline-flex items-center gap-2 rounded-full border-2 border-black bg-white px-3.5 py-1 text-[12px] font-medium tracking-[0.02em] shadow-[2px_2px_0_#000] transition-transform hover:-translate-y-0.5',
+          )}
+        >
+          <span className="size-2 rounded-full bg-[var(--mint)] ring-2 ring-black/15" aria-hidden />
+          {HERO.badge}
+        </Link>
+        <h1
+          id="hero-title"
+          className={cn(s.display, 'mt-4 text-[clamp(48px,7.4vw,106px)] lg:max-w-[760px]')}
+        >
           {HERO.lines.map((line, i) => (
             <span
               key={line}
@@ -259,16 +276,16 @@ function Hero() {
         <div
           className={cn(
             s.rise,
-            'mt-6 grid items-end gap-8 md:mt-8 md:grid-cols-[minmax(0,1fr)_auto]',
+            'mt-6 grid items-end gap-8 md:mt-7 md:grid-cols-[minmax(0,1fr)_auto]',
           )}
           style={{ animationDelay: '420ms' }}
         >
           <div className="pb-1">
-            <p className="max-w-[540px] text-[16px] leading-[1.65]">{HERO.body}</p>
+            <p className="max-w-[560px] text-[16px] leading-[1.65]">{HERO.body}</p>
             <p className="mt-4 text-[13px] text-black/60">{HERO.note}</p>
           </div>
-          {/* Pip's headroom rises beside the headline instead of pushing the copy down */}
-          <div className="flex flex-col items-start gap-3 md:-mt-28 md:items-end">
+          {/* Pip's headroom rises cleanly in the open pocket to the right of the headline */}
+          <div className="flex flex-col items-start gap-3 md:-mt-20 md:items-end">
             <div className="relative isolate w-[320px] max-w-full">
               {/* an old projector puts Pip in the spotlight (desktop only) */}
               <Projector className="-z-10 hidden lg:block" />
@@ -290,7 +307,7 @@ function Ticker() {
   return (
     <div
       className={cn(s.ticker, 'overflow-hidden border-y-2 border-black bg-[var(--pip)]')}
-      aria-label="What you say, and the graphic Pip puts on it"
+      aria-label="What Pip hears or sees, and what it executes on the timeline"
     >
       <ul className={cn(s.tickerTrack, 'py-3.5')}>
         {items.map((t, i) => (
@@ -347,24 +364,24 @@ function Editor() {
       <figure className="relative mx-auto max-w-[1100px]">
         <div className={h.frame}>
           <div>
-            {/* A real screenshot of the editor, not a mock-up. */}
+            {/* A real screenshot of the new Paper/Reel editor, not a mock-up. */}
             {/* eslint-disable-next-line @next/next/no-img-element -- static screenshot */}
             <img
-              src="/landing/editor-studio.jpg"
-              alt="The Motionpop editor: graphics sit above the words of the transcript, a 40% stat plays in the preview, and the inspector shows what was said"
-              width={2160}
-              height={1350}
+              src="/landing/editor-reel.jpg"
+              alt="The Motionpop AI video editor: Pip with Gemini 4 Neon on the left, a vertical 9:16 talking-head reel with animated motion graphics in the center, and a multi-track timeline with automatic retake cuts and word-locked graphics below"
+              width={2880}
+              height={1800}
               className="block w-full"
             />
           </div>
         </div>
-        <StickyNote className="top-[6%] -left-[4%]" tilt={-3}>
+        <StickyNote className="top-[10%] -left-[3%]" tilt={-3}>
           {FRAME_NOTES.formats}
         </StickyNote>
-        <StickyNote className="top-[44%] -right-[5%]" tilt={2.5}>
+        <StickyNote className="top-[36%] -right-[4%]" tilt={2.5}>
           {FRAME_NOTES.edit}
         </StickyNote>
-        <StickyNote className="bottom-[14%] -left-[5%]" tilt={-2}>
+        <StickyNote className="bottom-[10%] -left-[4%]" tilt={-2}>
           {FRAME_NOTES.slot}
         </StickyNote>
       </figure>
@@ -372,62 +389,7 @@ function Editor() {
   );
 }
 
-/* ================================================================== how it works */
-
-function BeatVisual({ index }: { index: number }) {
-  if (index === 0) {
-    // Recording: a red dot, a timer, and the waveform of what was said.
-    const bars = [6, 14, 22, 12, 28, 34, 18, 10, 24, 38, 30, 16, 8, 20, 32, 26, 12, 6, 18, 28];
-    return (
-      <div className="flex h-full flex-col justify-center gap-4 px-8">
-        <span className="flex items-center gap-2 text-[13px]">
-          <span className="size-2.5 rounded-full bg-[var(--ember)]" /> Recording 00:12
-        </span>
-        <div className="flex h-12 items-center gap-[5px]" aria-hidden>
-          {bars.map((h, i) => (
-            <span key={i} className="w-[6px] rounded-full bg-black" style={{ height: h + 6 }} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-  if (index === 1) {
-    // The slot lands above "forty percent", with its reason.
-    return (
-      <div className="flex h-full flex-col justify-center gap-3 px-6">
-        <div className="ml-[22%] w-fit border-2 border-black bg-white px-3 py-2 shadow-[2px_2px_0_#000]">
-          <div className={cn(s.display, 'text-[20px] leading-none')}>Stat punch</div>
-          <div className="mt-1 text-[11px] leading-tight text-black/70">{HOW.reason}</div>
-        </div>
-        <p className="flex flex-wrap gap-x-2 text-[15px]">
-          {HOW.words.map((w) => (
-            <span
-              key={w}
-              className={cn(
-                (w === 'forty' || w === 'percent') &&
-                  'border-b-[3px] border-[var(--ember)] font-medium',
-              )}
-            >
-              {w}
-            </span>
-          ))}
-        </p>
-      </div>
-    );
-  }
-  return (
-    <video
-      className="block h-full w-full object-cover"
-      src="/landing/sample.mp4"
-      poster="/landing/sample-poster.jpg"
-      autoPlay
-      muted
-      loop
-      playsInline
-      aria-label="A video exported from Motionpop: the globe flies to Japan, then a stat lands, with captions"
-    />
-  );
-}
+/* ================================================================== band */
 
 /** A full-width band of the page: its colour and texture come from `className`. */
 function Band({
@@ -452,91 +414,46 @@ function Band({
   );
 }
 
-function How() {
-  const slants = [s.slantFirst, s.slantMid, s.slantLast];
-  return (
-    <Band id="how" labelledBy="how-title" className={s.ruled}>
-      <Head
-        id="how-title"
-        icon={Mic}
-        tone="var(--ember)"
-        time="00:04"
-        title={HOW.title}
-        body={HOW.body}
-      />
-      <div className="relative mt-12">
-        {/* Pip claps the take in */}
-        <PipLoop
-          name="clapper"
-          className="pointer-events-none absolute -top-[150px] right-0 z-10 hidden w-[200px] md:block lg:-top-[170px] lg:right-6 lg:w-[220px]"
-        />
-        <ol className="grid gap-6 md:grid-cols-3 md:gap-0">
-          {HOW.beats.map((b, i) => (
-            <li key={b.title} className={cn(s.outline, i > 0 && 'md:-ml-3')}>
-              <div className={cn(slants[i], 'flex h-full flex-col bg-white')}>
-                <div
-                  className={cn(
-                    'h-[220px] overflow-hidden bg-[var(--mist)]',
-                    i === 2 && 'bg-black',
-                  )}
-                >
-                  <BeatVisual index={i} />
-                </div>
-                <div className={cn('flex-1 px-7 pt-5 pb-7', i > 0 && 'md:pl-10')}>
-                  <span className="text-[12px] text-black/60 tabular-nums">{b.time}</span>
-                  <h3 className={cn(s.display, 'mt-1 text-[38px]')}>{b.title}</h3>
-                  <p className="mt-2 max-w-[340px] text-[14px] leading-[1.6] text-black/80">
-                    {b.body}
-                  </p>
-                </div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </div>
-      <div className="mt-10 flex justify-center">
-        <StartLink />
-      </div>
-    </Band>
-  );
-}
+/* ================================================================== real vertical reels */
 
-/* ================================================================== looks */
-
-function Looks() {
+function ReelsShowcase() {
   return (
-    <Band id="looks" labelledBy="looks-title" className={s.washEmber}>
+    <Band id="reels" labelledBy="reels-title" className={s.washEmber}>
       <Head
-        id="looks-title"
+        id="reels-title"
         icon={Palette}
         tone="var(--pip)"
         time="00:12"
-        title={LOOKS.title}
-        body={LOOKS.body}
+        title={REELS.title}
+        body={REELS.body}
       />
-      {/* the four looks as frames on one strip of film */}
-      <div className={cn(s.filmstrip, 'mt-14 lg:rotate-[-1.2deg]')}>
-        <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {LOOKS.items.map((l) => (
-            <li key={l.id}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- small static stills */}
+      {/* Four distinct 9:16 vertical reels rendered directly by Motionpop's reel engine */}
+      <ul className="mt-12 grid gap-7 sm:grid-cols-2 lg:grid-cols-4">
+        {REELS.items.map((r) => (
+          <li key={r.id} className="group flex flex-col">
+            <div className="relative aspect-[9/16] overflow-hidden rounded-[16px] border-2 border-black bg-black shadow-[6px_6px_0_#000] transition-transform duration-200 group-hover:-translate-y-1">
+              {/* eslint-disable-next-line @next/next/no-img-element -- real 9:16 reel preview */}
               <img
-                src={`/looks/${l.id}.jpg`}
-                alt={`The same 40% stat in the ${l.name} look`}
-                width={640}
-                height={360}
-                loading="lazy"
-                className="block aspect-video w-full rounded-[6px] object-cover"
+                src={r.src}
+                alt={`${r.name}: ${r.about}`}
+                width={720}
+                height={1280}
+                className="block size-full object-cover"
               />
-              <h3 className={cn(s.display, 'mt-4 text-[28px] text-white')}>{l.name}</h3>
-              <p className="mt-1 text-[13px] leading-[1.5] text-white/70">{l.about}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <h3 className={cn(s.display, 'text-[28px] leading-none')}>{r.name}</h3>
+              <span className="shrink-0 rounded-full border-2 border-black bg-white px-2.5 py-0.5 text-[11px] font-medium">
+                {r.tag}
+              </span>
+            </div>
+            <p className="mt-1.5 text-[13px] leading-[1.55] text-black/75">{r.about}</p>
+          </li>
+        ))}
+      </ul>
       <p className="mt-12 flex items-center gap-3 text-[14px]">
         <Sparkles className="size-4 shrink-0 text-[var(--ember)]" strokeWidth={1.75} aria-hidden />
-        {LOOKS.save}
+        {REELS.save}
       </p>
     </Band>
   );
@@ -559,14 +476,23 @@ function IconDot({ icon: Icon, tone }: { icon: LucideIcon; tone: string }) {
 function Hybrid() {
   return (
     <Band id="hybrid" labelledBy="hybrid-title" className={s.washSplit}>
-      <Head
-        id="hybrid-title"
-        icon={Zap}
-        tone="var(--mint)"
-        time="00:19"
-        title={HYBRID.title}
-        body={HYBRID.body}
-      />
+      <div className="relative">
+        <div className="md:pr-[200px] lg:pr-[230px]">
+          <Head
+            id="hybrid-title"
+            icon={Zap}
+            tone="var(--mint)"
+            time="00:19"
+            title={HYBRID.title}
+            body={HYBRID.body}
+          />
+        </div>
+        {/* Clapper Pip beside the Hybrid AI header */}
+        <PipLoop
+          name="clapper"
+          className="pointer-events-none absolute right-0 -bottom-4 z-10 hidden w-[160px] md:block lg:right-4 lg:w-[190px]"
+        />
+      </div>
       <div className="relative mt-16">
         <div className="absolute -top-10 left-1/2 z-10 hidden -translate-x-1/2 rotate-[-3deg] md:block">
           <Bubble right>{HYBRID.bubble}</Bubble>
@@ -629,7 +555,11 @@ function Plans() {
           <p className="mt-4 max-w-[480px] text-[15px] leading-[1.65] text-black/80">
             {PLANS.body}
           </p>
-          <StartLink className="mt-8" />
+          <div className="mt-8 flex flex-wrap items-end gap-6">
+            <StartLink />
+            {/* Idea Machine: Pip sketching out the whole-video plan in a notebook */}
+            <PipLoop name="sketch" className="hidden h-[120px] w-[135px] sm:block" />
+          </div>
         </div>
         <div className="relative">
           <Bubble className="absolute -top-9 -left-3 z-10 rotate-[-4deg] sm:-left-10">
@@ -703,23 +633,52 @@ function Feature({
 function Features() {
   const f = FEATURES.items;
   return (
-    <Band labelledBy="features-title" className={s.washSun}>
+    <Band id="engine" labelledBy="features-title" className={s.washSun}>
       <div className="relative">
-        <Head
-          id="features-title"
-          icon={Layers}
-          tone="var(--sun)"
-          time="00:33"
-          title={FEATURES.title}
-          body={FEATURES.body}
-        />
-        {/* Pip juggles the fiddly bits so you don't have to */}
+        <div className="md:pr-[240px] lg:pr-[280px]">
+          <Head
+            id="features-title"
+            icon={Layers}
+            tone="var(--sun)"
+            time="00:33"
+            title={FEATURES.title}
+            body={FEATURES.body}
+          />
+        </div>
+        {/* Pip juggles the moving pieces of the engine */}
         <PipLoop
           name="juggle"
-          className="pointer-events-none absolute right-0 -bottom-[58px] z-10 hidden w-[230px] md:block lg:right-10 lg:w-[260px]"
+          className="pointer-events-none absolute right-0 -bottom-[58px] z-10 hidden w-[230px] md:block lg:right-6 lg:w-[260px]"
         />
       </div>
       <ul className="mt-12 grid gap-6 md:grid-cols-6">
+        <Feature
+          className="md:col-span-3"
+          title={f.autocut.title}
+          body={f.autocut.body}
+          visual={
+            <div className="w-full max-w-[360px] space-y-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="flex h-11 flex-[1.2] items-center justify-center border-2 border-black bg-white px-2 text-[12px] font-medium">
+                  take 1
+                </span>
+                <span className="flex h-11 flex-1 items-center justify-center gap-1 border-2 border-dashed border-black/60 bg-[var(--ember)]/25 px-2 text-[11px] line-through">
+                  <Scissors className="size-3 shrink-0" strokeWidth={2} aria-hidden />
+                  retake
+                </span>
+                <span className="flex h-11 flex-[1.4] items-center justify-center border-2 border-black bg-[var(--mint)] px-2 text-[12px] font-bold shadow-[2px_2px_0_#000]">
+                  keep · 1.18×
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-[11px] text-black/70">
+                <span>non-destructive EDL</span>
+                <span className="rounded-full border border-black bg-white px-2 py-0.5 text-[11px] text-black">
+                  face-safe overlay zone
+                </span>
+              </div>
+            </div>
+          }
+        />
         <Feature
           className="md:col-span-3"
           title={f.notes.title}
@@ -752,40 +711,17 @@ function Features() {
           }
         />
         <Feature
-          className="md:col-span-3"
-          title={f.formats.title}
-          body={f.formats.body}
-          visual={
-            <div className="flex items-end gap-5">
-              {[
-                ['16:9', 'h-[72px] w-32'],
-                ['9:16', 'h-28 w-[63px]'],
-                ['1:1', 'size-[84px]'],
-              ].map(([label, size]) => (
-                <div key={label} className="flex flex-col items-center gap-2">
-                  <div
-                    className={cn(
-                      size,
-                      'flex items-center justify-center border-2 border-black bg-white',
-                    )}
-                  >
-                    <span className="h-2.5 w-1/2 rounded-full bg-[var(--ember)]" />
-                  </div>
-                  <span className="text-[12px]">{label}</span>
-                </div>
-              ))}
-            </div>
-          }
-        />
-        <Feature
           className="md:col-span-2"
           title={f.captions.title}
           body={f.captions.body}
           visual={
-            <span className="inline-flex items-center gap-2 rounded-lg border-2 border-black bg-black px-3 py-2 text-[20px] font-bold text-white">
-              grew <span className="rounded-md bg-[var(--ember)] px-1.5 text-black">forty</span>{' '}
-              percent
-            </span>
+            <div className="flex flex-col items-center gap-2">
+              <PipLoop name="caption" className="h-[74px] w-[74px]" />
+              <span className="inline-flex items-center gap-1.5 rounded-lg border-2 border-black bg-black px-2.5 py-1.5 text-[16px] font-bold text-white">
+                grew <span className="rounded-md bg-[var(--ember)] px-1.5 text-black">forty</span>{' '}
+                percent
+              </span>
+            </div>
           }
         />
         <Feature
@@ -803,7 +739,7 @@ function Features() {
                 a rocket made of bar charts
               </div>
               <div className="ml-auto flex w-fit items-center gap-1.5 rounded-full border-2 border-black bg-[var(--mint)] px-2.5 py-0.5 text-[12px]">
-                <Check className="size-3" strokeWidth={3} aria-hidden /> checked in a sandbox
+                <Check className="size-3" strokeWidth={3} aria-hidden /> lint + DOM gate passed
               </div>
             </div>
           }
@@ -829,36 +765,43 @@ function Features() {
           title={f.sound.title}
           body={f.sound.body}
           visual={
-            <div className="relative flex w-full max-w-[360px] items-center justify-between">
-              <span aria-hidden className="absolute inset-x-0 top-1/2 h-0.5 bg-black" />
-              {['tick', 'whoosh', 'pop', 'tick'].map((x, i) => (
-                <span
-                  key={i}
-                  className="relative rounded-full border-2 border-black bg-white px-3 py-1 text-[13px]"
-                >
-                  {x}
-                </span>
-              ))}
+            <div className="flex w-full max-w-[380px] items-center gap-4">
+              <PipLoop name="sound" className="h-[112px] w-[144px] shrink-0" />
+              <div className="relative flex flex-1 items-center justify-between">
+                <span aria-hidden className="absolute inset-x-0 top-1/2 h-0.5 bg-black" />
+                {['tick', 'whoosh', 'pop'].map((x, i) => (
+                  <span
+                    key={i}
+                    className="relative rounded-full border-2 border-black bg-white px-2.5 py-1 text-[12px]"
+                  >
+                    {x}
+                  </span>
+                ))}
+              </div>
             </div>
           }
         />
         <Feature
           className="md:col-span-3"
-          title={f.versions.title}
-          body={f.versions.body}
+          title={f.formats.title}
+          body={f.formats.body}
           visual={
-            <div className="flex items-center gap-3">
-              {[1, 2, 3, 4].map((v) => (
-                <div key={v} className="flex flex-col items-center gap-1.5">
-                  <span
+            <div className="flex items-end gap-5">
+              {[
+                ['16:9', 'h-[72px] w-32'],
+                ['9:16', 'h-28 w-[63px]'],
+                ['1:1', 'size-[84px]'],
+              ].map(([label, size]) => (
+                <div key={label} className="flex flex-col items-center gap-2">
+                  <div
                     className={cn(
-                      'flex h-12 w-20 items-center justify-center border-2 border-black bg-white text-[15px] font-bold',
-                      v === 4 && 'bg-[var(--ember)] shadow-[3px_3px_0_#000]',
+                      size,
+                      'flex items-center justify-center border-2 border-black bg-white',
                     )}
                   >
-                    {['32%', '38%', '40%', '40%'][v - 1]}
-                  </span>
-                  <span className="text-[11px]">v{v}</span>
+                    <span className="h-2.5 w-1/2 rounded-full bg-[var(--ember)]" />
+                  </div>
+                  <span className="text-[12px]">{label}</span>
                 </div>
               ))}
             </div>
@@ -869,26 +812,24 @@ function Features() {
   );
 }
 
-/* ================================================================== audiences */
+/* ================================================================== why deterministic */
 
-function Audiences() {
+function WhyDeterministic() {
   return (
-    <Band labelledBy="who-title" className={s.washDots}>
+    <Band labelledBy="why-title" className={s.washDots}>
       <div className="grid gap-12 lg:grid-cols-2">
         <div>
-          <Cue icon={Users} tone="var(--ember)" time="00:41" />
-          <h2 id="who-title" className={cn(s.display, 'mt-5 text-[clamp(44px,6.4vw,76px)]')}>
-            {AUDIENCES.title}
+          <Cue icon={ShieldCheck} tone="var(--ember)" time="00:41" />
+          <h2 id="why-title" className={cn(s.display, 'mt-5 text-[clamp(44px,6.4vw,76px)]')}>
+            {WHY.title}
           </h2>
-          <p className="mt-4 max-w-[420px] text-[15px] leading-[1.65] text-black/80">
-            {AUDIENCES.body}
-          </p>
+          <p className="mt-4 max-w-[440px] text-[15px] leading-[1.65] text-black/80">{WHY.body}</p>
         </div>
         <ul className="border-t-2 border-black lg:mt-16">
-          {AUDIENCES.items.map((a) => (
+          {WHY.items.map((a) => (
             <li key={a.title} className="border-b-2 border-black py-6">
               <h3 className={cn(s.display, 'text-[34px]')}>{a.title}</h3>
-              <p className="mt-1.5 max-w-[460px] text-[14px] leading-[1.6] text-black/80">
+              <p className="mt-1.5 max-w-[480px] text-[14px] leading-[1.6] text-black/80">
                 {a.body}
               </p>
             </li>
@@ -918,17 +859,12 @@ function Stitched() {
             body={STITCHED.body}
             invert
           />
-          {/* the monster, sewn together, wakes up */}
+          {/* Craftsman Pip: stitched wool, scissors & film strip */}
           <div className="relative hidden h-[260px] w-[300px] lg:block">
             <Bubble className="absolute top-0 left-0 z-10 rotate-[-6deg] text-black">
               {STITCHED.bubble}
             </Bubble>
-            {/* eslint-disable-next-line @next/next/no-img-element -- static mascot */}
-            <img
-              src="/pip/plush.webp"
-              alt=""
-              className="absolute right-0 bottom-0 h-[210px] w-auto"
-            />
+            <PipLoop name="craft" className="absolute right-0 bottom-0 h-[230px] w-[195px]" />
           </div>
         </div>
         <ul className="mt-14 grid gap-x-0 gap-y-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -948,14 +884,19 @@ function Stitched() {
             </li>
           ))}
         </ul>
-        <a
-          href={REPO}
-          target="_blank"
-          rel="noreferrer"
-          className={cn(s.btn, s.btnPaper, s.btnOnInk, 'mt-12')}
-        >
-          {STITCHED.cta}
-        </a>
+        <div className="mt-12 flex flex-wrap gap-4">
+          <Link href="/how-it-works" className={cn(s.btn, s.btnPaper, s.btnOnInk)}>
+            Explore the architecture
+          </Link>
+          <a
+            href={REPO}
+            target="_blank"
+            rel="noreferrer"
+            className={cn(s.btn, s.btnInk, s.btnOnInk)}
+          >
+            {STITCHED.cta}
+          </a>
+        </div>
       </div>
     </section>
   );
@@ -1099,9 +1040,15 @@ function Footer() {
           <ul className="flex flex-wrap gap-x-6 gap-y-2 text-[14px]">
             {NAV.map((n) => (
               <li key={n.href}>
-                <a href={n.href} className="text-white/80 hover:text-white">
-                  {n.label}
-                </a>
+                {n.href.startsWith('/') ? (
+                  <Link href={n.href} className="text-white/80 hover:text-white">
+                    {n.label}
+                  </Link>
+                ) : (
+                  <a href={n.href} className="text-white/80 hover:text-white">
+                    {n.label}
+                  </a>
+                )}
               </li>
             ))}
             <li>
@@ -1141,12 +1088,11 @@ export function Landing() {
       <main>
         <Hero />
         <Ticker />
-        <How />
-        <Looks />
+        <ReelsShowcase />
         <Hybrid />
         <Plans />
         <Features />
-        <Audiences />
+        <WhyDeterministic />
         <Stitched />
         <Pricing />
         <Faq />

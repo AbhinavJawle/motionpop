@@ -2,8 +2,8 @@ import { APP_CONFIG_DEFAULTS, costOf, exportCost } from '@motionpop/schemas';
 
 /**
  * Every word on the marketing site (spec 34), in page order, so the copy can be read and edited
- * in one place. Claims match the product: graphic types from `GRAPHIC_TYPES`, prices from the
- * config defaults.
+ * in one place. Claims match the product: engines, skills, looks and prices from the live config
+ * defaults.
  */
 
 const cfg = APP_CONFIG_DEFAULTS;
@@ -13,176 +13,191 @@ export const REPO = 'https://github.com/AbhinavJawle/motionpop';
 export const FREE_CREDITS = cfg.freeCredits;
 
 export const NAV = [
-  { href: '#how', label: 'How it works' },
-  { href: '#looks', label: 'Looks' },
+  { href: '/how-it-works', label: 'How it works' },
+  { href: '#reels', label: 'Reels' },
   { href: '#hybrid', label: 'Hybrid AI' },
+  { href: '#engine', label: 'Engine' },
   { href: '#pricing', label: 'Pricing' },
 ] as const;
 
 export const HERO = {
-  lines: ['You talk.', 'We make it move.'],
-  body: 'Record a thought, drop in a voiceover or paste a script. Pip, our friendly ghost, finds the moments in what you say and lands motion graphics on the exact word.',
-  secondary: 'Watch it work',
-  note: `${cfg.freeCredits} free credits to start. Quick edits are free forever.`,
+  badge: '#BuildHybridAI · #KiroweenHackathon26',
+  lines: ['AI short-form editor.', 'Immaculate motion.'],
+  body: 'The agentic AI video editor built for short-form reels and studio-grade motion graphics. Drop raw talking-head footage, a voiceover or a script—Pip auto-cuts retakes, directs animated scenes synced to every word, and edits locally on your device.',
+  secondary: 'See the editor',
+  note: `${cfg.freeCredits} free credits to start · Local Gemini Nano edits free forever · Open source (Apache-2.0)`,
 };
 
-/** What you say, and the graphic Pip puts on it. */
+/** What the AI editor hears or sees, and what it executes on the timeline. */
 export const TICKER: readonly { said: string; graphic: string }[] = [
-  { said: 'revenue grew forty percent', graphic: 'Stat punch' },
-  { said: 'we landed in Tokyo', graphic: 'Map' },
-  { said: 'sales doubled since 2020', graphic: 'Chart story' },
-  { said: 'three reasons why', graphic: 'List stack' },
-  { said: 'cash versus index funds', graphic: 'Versus' },
-  { said: 'from 1969 to today', graphic: 'Timeline' },
-  { said: 'as she put it', graphic: 'Quote' },
-  { said: 'here’s the thing', graphic: 'Hook statement' },
+  { said: 'stumbled retake + 2s pause', graphic: 'Auto-cut' },
+  { said: 'raw vertical talking-head', graphic: 'Directed 9:16 reel' },
+  { said: 'revenue grew ninety percent', graphic: 'Animated bar chart' },
+  { said: 'circled frame + “slower”', graphic: 'On-device patch' },
+  { said: 'imported SKILL.md', graphic: 'Custom edit style' },
+  { said: 'three steps to ship', graphic: 'Motion flow' },
+  { said: '“rocket made of bars”', graphic: 'Sandboxed code' },
+  { said: 'key punchline word', graphic: '1.15× punch-in' },
 ];
 
-/** Hand-written notes pinned to the product screenshot. */
+/** Hand-written notes pinned to the real reel editor screenshot. */
 export const FRAME_NOTES = {
-  slot: 'each graphic sits right above the words it belongs to',
-  edit: 'tweak it with a sentence. free, on your device',
-  formats: '16:9, 9:16 or 1:1 in one click',
+  formats: 'ask Pip anything — powered by Gemini 4 Neon',
+  edit: '9:16 reels + deterministic motion graphics',
+  slot: 'auto-cuts retakes & pauses non-destructively',
 };
 
-export const HOW = {
-  title: 'One take. Three beats.',
-  body: 'From a voice memo to a finished video, without touching a single keyframe.',
-  beats: [
-    {
-      time: '00:00',
-      title: 'Say the thing',
-      body: 'Record in the browser, upload a voiceover, or paste a script and pick a voice. The ums and long pauses come out on their own.',
-    },
-    {
-      time: '00:02',
-      title: 'Pip finds the moments',
-      body: 'Every word gets a timestamp. Every number, place and name gets a slot, with the reason written on it.',
-    },
-    {
-      time: '00:04',
-      title: 'It lands on the word',
-      body: 'Graphics fill in while you watch, timed to the syllable. Change one with a sentence, or let Pip direct the lot.',
-    },
-  ],
-  reason: 'You said “revenue grew forty percent”',
-  words: ['Our', 'revenue', 'grew', 'forty', 'percent', 'since', '2020.'],
-} as const;
-
-export const LOOKS = {
-  title: 'One sentence. Four personalities.',
-  body: 'Same voice, same words. Pick a look and every chart, title and caption changes its clothes.',
-  cta: 'Try a look',
+export const REELS = {
+  title: 'Real reels. Immaculate motion.',
+  body: 'Every cut below is compiled by Motionpop’s deterministic engine—real talking-head footage paired with frame-accurate charts, workflows, checklists and kinetic typography. Pick from 5 editing recipes, 8 looks, or import a Markdown SKILL.md straight from GitHub.',
   items: [
     {
-      id: 'editorial-explainer',
-      name: 'Editorial Explainer',
-      about: 'Clean, confident, highlighter in hand.',
+      id: 'reel-split',
+      src: '/landing/reel-split.jpg',
+      tag: 'Mono · Split',
+      name: 'AI Pipeline',
+      about: 'Talking-head reel with animated workflow diagrams and word-locked seam captions.',
     },
-    { id: 'field-notes', name: 'Field Notes', about: 'Red pen, handwriting, notebook energy.' },
-    { id: 'newsprint', name: 'Newsprint', about: 'Serif headlines, scissors and glue.' },
-    { id: 'paper-collage', name: 'Paper Collage', about: 'Torn card stock and bold blocks.' },
+    {
+      id: 'reel-cream',
+      src: '/landing/reel-cream.jpg',
+      tag: 'Cream · Chart',
+      name: 'Data Story',
+      about: 'Editorial cream bar charts synced directly to spoken stats and podcast narration.',
+    },
+    {
+      id: 'reel-card',
+      src: '/landing/reel-card.jpg',
+      tag: 'Card · Auto-Edit',
+      name: 'Creator Checklist',
+      about: 'Rounded studio card framed under live checklists and punchy pop captions.',
+    },
+    {
+      id: 'reel-tokyo',
+      src: '/landing/reel-tokyo.jpg',
+      tag: 'Full · Bleed',
+      name: 'Documentary Cut',
+      about: 'Full-bleed visual storytelling with bold timed statistics and boxed captions.',
+    },
   ],
-  save: 'Found the one? Save it as your style and Pip directs every video that way.',
+  save: 'Import your own SKILL.md from GitHub or save a custom look—Pip directs every future video your way.',
 } as const;
 
 export const HYBRID = {
-  title: 'Free when it’s small. Cloud when it’s big.',
-  body: 'Motionpop runs AI in two places, and it always tells you which one before you click.',
+  title: 'On-device speed. Cloud-scale direction.',
+  body: 'Hybrid AI is the architecture, not a checkbox. Motionpop routes every edit through one transparent router—local Chrome AI for instant free tweaks, frontier cloud Gemini for full video directing—and shows the route before you click.',
   device: {
-    title: 'Right here, in your browser',
-    body: 'Gemini Nano runs inside Chrome through Firebase AI Logic. Quick edits, frame notes and the first draft of every graphic cost nothing, never leave your machine and keep working offline.',
-    input: 'make it slower',
+    title: 'Local edge AI, in Chrome',
+    body: 'Whisper transcribes in a local WebGPU/WASM worker while Gemini Nano runs inside Chrome through Firebase AI Logic. Slot detection, auto-fill, quick edits and multimodal frame notes cost $0, stay on your machine and keep working offline.',
+    input: 'make it slower and highlight Q4',
     chip: 'free · on-device',
   },
   cloud: {
-    title: 'In the cloud, when it counts',
-    body: 'A polished graphic, a custom one or a voice for your script goes to Gemini in the cloud. The price is on the button before you press it, and a failed job gives the credits back.',
+    title: 'Frontier cloud, when it counts',
+    body: 'Full talking-head directing across 21 reel templates, multi-beat film storyboards, sandboxed custom motion code, Vision QA and Gemini TTS run in the cloud—or paste your own Google AI Studio Gemini key in Settings for 0 Motionpop credits.',
     button: 'Generate',
   },
-  bubble: 'No surprise bills. Ghost’s honour.',
+  bubble: 'Route shown before every click.',
 } as const;
 
 export const PLANS = {
-  title: 'Ask for the whole video.',
-  body: 'Talk to Pip like a teammate. Big requests come back as a plan you can read, apply in one go, or undo in one step.',
-  ask: 'Use my brand colours everywhere and make the titles punchier.',
-  planTitle: 'Here’s the plan',
+  title: 'One AI editor. The whole timeline.',
+  body: 'Direct Pip across video cuts, motion graphics, captions, music and brand tokens. Multi-step requests return an inspectable execution plan with exact credit cost—apply atomically, or revert the entire edit in one undo.',
+  ask: 'Cut the double takes, apply my brand colours across every scene, and make the opening hook punchier.',
+  planTitle: 'Execution plan · 3 steps',
   steps: [
-    'Swap the accent to your orange in 6 graphics',
-    'Rewrite 3 titles, shorter and louder',
-    'Match the captions to your brand',
+    'Trim 4 retakes & dead-air pauses non-destructively',
+    'Swap brand palette across 8 reel scenes & captions',
+    'Rewrite opening hook beat and re-verify DOM layout',
   ],
   apply: 'Apply all',
   undo: 'Undo',
-  bubble: 'On it, boss.',
+  bubble: 'Plan ready. 1-click undo.',
 } as const;
 
 export const FEATURES = {
-  title: 'The fiddly bits, handled.',
-  body: 'Everything between “nice idea” and “posted”.',
+  title: 'Built like an engine. Directed by AI.',
+  body: 'Everything between raw footage and a frame-accurate 1080p cut—checked by static linters, DOM layout gates and a Vision critic.',
   items: {
+    autocut: {
+      title: 'Auto-cut raw video & punch-ins',
+      body: 'Drop raw talking-head MP4, MOV or WebM footage. Motionpop trims silences, fillers, false starts and retakes non-destructively, adds punch-in zooms, and maps face-safe zones so graphics never cover you.',
+    },
     notes: {
-      title: 'Draw on the frame',
-      body: 'Circle what bugs you and scribble a note. Pip reads it and fixes that frame.',
+      title: 'Draw-on-frame multimodal editing',
+      body: 'Circle anything on the video canvas and leave a note. A cropped JPEG plus your instruction runs on-device with Gemini Nano for instant patches—or escalates to cloud for full scene rewrites.',
       scribble: 'make this slower',
     },
-    formats: {
-      title: 'Every format',
-      body: 'Switch between 16:9, 9:16 and 1:1. Every graphic lays itself out again, nothing cropped off.',
-    },
     captions: {
-      title: 'Captions, word by word',
-      body: 'Three caption styles that light up as you speak.',
+      title: 'Word-locked captions',
+      body: 'Local Whisper word timings drive animated captions that light up on the exact syllable across 5 reel and explainer styles.',
     },
     custom: {
-      title: 'Custom graphics from a sentence',
-      body: 'Not in the library? Describe it. The AI writes a new graphic in your look and tests it in a sandbox before it reaches your timeline.',
+      title: 'Sandboxed custom motion code',
+      body: 'Need a graphic outside the 21 templates? The agent writes deterministic seek(t) HTML/SVG code, runs static lint and DOM overflow/contrast checks, and self-repairs before it hits your timeline.',
     },
     film: {
-      title: 'Make it a film',
-      body: 'One button turns a voiceover into a directed piece: a storyboard, scenes built side by side, and a critic that checks every shot.',
+      title: 'Dual Reel & Film engines',
+      body: 'Direct a talking-head short across 21 vertical templates or storyboard a full multi-beat motion film with parallel scene builds and a Vision QA critic that inspects every shot.',
     },
     sound: {
-      title: 'Sound, made in code',
-      body: 'Pops and whooshes land on every entrance, tucked under your voice. No stock libraries.',
+      title: 'Procedural audio & soundtracks',
+      body: 'Pops, whooshes and ticks synthesized in code to land on every graphic entrance, plus Gemini TTS voiceovers and ducked soundtracks—zero stock hunting.',
     },
-    versions: {
-      title: 'Every change is a version',
-      body: 'Go back to any of them. Undo always works.',
+    formats: {
+      title: 'Deterministic reflow & parity',
+      body: 'Because every frame is compiled code—not melted diffusion pixels—switching 9:16, 16:9 and 1:1 reflows every graphic cleanly, and Cloud Run exports match preview pixel-for-pixel.',
     },
   },
 } as const;
 
-export const AUDIENCES = {
-  title: 'Not a video editor? Perfect.',
-  body: 'You bring the point of view. Pip brings it to life.',
+export const WHY = {
+  title: 'Why not black-box AI video?',
+  body: 'Pixel-diffusion video generators bake frames you can’t edit and mangle text. Motionpop edits real footage and compiles immaculate, inspectable motion graphics.',
   items: [
     {
-      title: 'Explainer creators',
-      body: 'Finance, tech, history, science. Your numbers turn into charts while you’re still talking.',
+      title: 'Editable down to the millisecond',
+      body: 'Every cut, word, chart value, colour and timing is structured JSON on an integer-millisecond timeline. Fix a number or swap a look in seconds—never re-roll a whole clip.',
     },
     {
-      title: 'Video editors',
-      body: 'Consistent graphics in minutes, exported ready to drop into your own cut.',
+      title: 'Verified before it reaches you',
+      body: 'Every AI output passes Zod schema validation, static determinism linting, off-screen DOM layout and contrast gates, and a Vision QA critic with automated repair.',
     },
     {
-      title: 'Founders and marketers',
-      body: 'Launch videos and data stories without hiring a studio or learning one.',
+      title: 'Built for real creator workflows',
+      body: 'Short-form creators, explainer channels and video editors export 1080p MP4s, transparent WebM overlays for external timelines, and reusable SKILL.md direction recipes.',
     },
   ],
 } as const;
 
 export const STITCHED = {
   title: 'Stitched together. Brought to life.',
-  body: 'Motionpop is a friendly monster made of very different parts, sewn into one creative tool. It’s open source, so you can count the stitches.',
+  body: 'Six specialized engines wired into one open-source AI video editor—local edge AI, frontier cloud models, deterministic rendering and spec-driven engineering. Count every stitch.',
   parts: [
-    { name: 'Whisper', job: 'hears every word, in a worker on your machine' },
-    { name: 'Gemini Nano', job: 'free edits in the browser, through Firebase AI Logic' },
-    { name: 'Gemini in the cloud', job: 'plans, voices and custom graphics' },
-    { name: 'Our motion engine', job: 'every frame is a pure function of time' },
-    { name: 'HyperFrames', job: 'renders the same composition to MP4' },
-    { name: 'Kiro', job: 'specs, steering and agents built it, one task at a time' },
+    {
+      name: 'Whisper WebGPU/WASM',
+      job: 'Word-level integer-ms transcription and speech cuts right in a local browser worker',
+    },
+    {
+      name: 'Gemini Nano + AI Logic',
+      job: 'Free, offline multimodal quick edits, frame notes and auto-fill in Chrome via Firebase AI Logic',
+    },
+    {
+      name: 'Gemini 4 Neon + Vision QA',
+      job: 'Agentic video directing, sandboxed custom motion code, Vision critic, TTS and bespoke art',
+    },
+    {
+      name: 'Deterministic Motion Core',
+      job: 'Pure seek(t) HTML/SVG components, 8 looks, 21 reel templates and procedural SFX',
+    },
+    {
+      name: 'HyperFrames + Cloud Run',
+      job: 'Preview-to-MP4 parity (≤ 1.02% diff) rendered from the exact same HTML composition',
+    },
+    {
+      name: 'Kiro Spec-Driven Build',
+      job: '43 EARS specs, steering rules, hooks and property-tested boundaries live in /.kiro',
+    },
   ],
   bubble: 'It’s alive!',
   cta: 'Read the source',
@@ -190,25 +205,29 @@ export const STITCHED = {
 
 export const PRICING = {
   title: 'Start free. Pay only for the cloud.',
-  body: 'No plans to compare. Credits pay for cloud work, and everything on your device is free.',
+  body: 'No tiers to decode. Credits pay only for cloud directing and generation—on-device Chrome AI and 1080p exports are free.',
   plan: 'Free plan',
   planNote: `${cfg.freeCredits} credits on sign-up`,
   perks: [
-    'Every look and every graphic type',
-    'Unlimited quick edits on your device',
-    'Exports up to 1080p with captions',
+    'Raw video auto-cut, 21 reel templates & 8 looks',
+    'Unlimited on-device Gemini Nano edits & SKILL.md imports',
+    'Free 1080p MP4 & transparent WebM overlay exports',
   ],
   rows: [
-    { label: 'Quick edits and auto-fill on your device', cost: 'Free' },
-    { label: 'Generate a graphic in the cloud', cost: credits(costOf('generate', 1, cfg)) },
-    { label: 'Custom graphic from a sentence', cost: credits(costOf('custom', 1, cfg)) },
-    { label: 'Voice from a script, per minute', cost: credits(costOf('tts', 1, cfg)) },
+    { label: 'Quick edits, frame notes & auto-fill on your device', cost: 'Free' },
+    { label: 'Direct a talking-head reel', cost: credits(costOf('reel', 1, cfg)) },
+    { label: 'Custom sandboxed motion graphic or cloud slot', cost: credits(costOf('custom', 1, cfg)) },
     {
-      label: 'Export 1080p MP4, per minute of video',
+      label: 'Direct a multi-beat AI motion film (per 30s)',
+      cost: credits(costOf('film', 1, cfg)),
+    },
+    {
+      label: 'Export 1080p MP4 with captions & audio',
       cost: credits(exportCost('1080p', 60_000, cfg.exportCredits)),
     },
   ],
-  footnote: 'The cost is on every button before you click. Failed generations are refunded.',
+  footnote:
+    'Exact route and credit cost show on every button before you click. Failed jobs refund automatically. Or bring your own Google AI Studio Gemini API key in Settings (stored only in your browser) to run cloud Gemini tasks at 0 Motionpop credits.',
 };
 
 export const FAQ = {
@@ -216,38 +235,42 @@ export const FAQ = {
   body: 'Straight answers. Pip insists.',
   items: [
     {
-      q: 'Do I need to know animation?',
-      a: 'No. You talk, Pip places the graphics, and you tweak them with words. There isn’t a keyframe in sight.',
+      q: 'What inputs can I start from?',
+      a: 'Drop raw talking-head video (MP4, MOV, WebM), upload a voiceover (MP3, WAV, M4A), record straight in the browser, or paste a script and generate narration with Gemini TTS.',
     },
     {
-      q: 'Can I use my own voice?',
-      a: 'That’s the whole idea. Record in the browser or upload an MP3, WAV or M4A. Rather type? Paste a script and pick a generated voice.',
+      q: 'How is this different from generative AI video tools?',
+      a: 'Generative video models bake pixels that hallucinate text and can’t be edited. Motionpop edits your real footage and compiles deterministic seek(t) HTML/SVG motion graphics on a millisecond timeline—so every cut, number, word, colour and aspect ratio stays editable with pixel-accurate preview-to-export parity.',
     },
     {
-      q: 'Which browser works best?',
-      a: 'Desktop Chrome, where the on-device AI lives. Other browsers work too: edits go to the cloud there, and Motionpop tells you when that happens.',
+      q: 'How does Hybrid AI work in the browser?',
+      a: 'In desktop Chrome with Gemini Nano enabled, Firebase AI Logic runs quick edits, draw-on-frame notes, slot detection and auto-fill locally at zero credit cost and even offline. Other browsers automatically fall back to cloud Gemini, and Motionpop always shows the route before you click.',
     },
     {
-      q: 'Can I change what Pip makes?',
-      a: 'Every word, number, colour and timing. Edit the fields, write a quick edit, or draw on the frame.',
+      q: 'What are SKILL.md director skills and recipes?',
+      a: 'Modular Markdown files that define pacing, look, hook style, captions and directing rules. Start from a built-in recipe, write your own skill, or import a SKILL.md directly from GitHub to direct every future video in your style.',
     },
     {
-      q: 'What do I get at the end?',
-      a: 'An MP4 up to 1080p in 16:9, 9:16 or 1:1, with captions and sound if you want them, plus a link to share it.',
+      q: 'Can I edit everything Pip generates?',
+      a: 'Every auto-cut, punch-in, caption, data point, colour and timing is non-destructive and versioned. Edit fields in the inspector, type a quick edit, circle anything on the frame, or ask Pip for a multi-step plan with single-click undo.',
     },
     {
-      q: 'Is it really open source?',
-      a: 'Yes, under Apache-2.0. Read it, fork it, send a ghost.',
+      q: 'Can I bring my own Gemini API key?',
+      a: 'Yes. Paste a Google AI Studio Gemini API key in Settings → AI & models. It stays only in your browser’s localStorage, calls Google directly via the x-goog-api-key header, keeps local on-device Gemini Nano first, and runs cloud Gemini tasks at 0 Motionpop credits.',
+    },
+    {
+      q: 'What do I export, and is it really open source?',
+      a: 'Export 720p or 1080p MP4s in 9:16, 16:9 or 1:1—or transparent WebM overlays to drop into another editor—plus shareable links. The full codebase and 43 Kiro specs are open source under Apache-2.0.',
     },
   ],
 } as const;
 
 export const CLOSER = {
-  title: 'Give that idea a little afterlife.',
-  body: 'Pip’s waiting by the mic.',
+  title: 'Drop raw footage. Ship immaculate motion.',
+  body: 'Open-source AI video editing, hybrid local + cloud inference, editable to the millisecond.',
 };
 
 export const FOOTER = {
-  tagline: 'Bring your voice. We’ll bring the motion.',
-  small: 'Open source under Apache-2.0. Works best in desktop Chrome.',
+  tagline: 'The AI video editor for short-form reels & immaculate motion graphics.',
+  small: 'Open source under Apache-2.0. Hybrid AI powered by Chrome Gemini Nano & Firebase AI Logic.',
 };
