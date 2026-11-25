@@ -150,5 +150,49 @@ describe('/api/media/stock (Pixabay primary + safe proxy)', () => {
       ),
     );
     expect(pivot.status).toBe(403);
+
+    // Apex pixabay.com HTML pages outside /get/ are rejected before fetching.
+    const htmlPage = await GET(
+      new Request('http://localhost:3000/api/media/stock?proxy=https://pixabay.com/photos/'),
+    );
+    expect(htmlPage.status).toBe(403);
+
+    // Unsafe upstream MIME types (e.g. SVG or HTML on wikimedia) are rejected with 415.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('<svg onload="alert(1)"/>', {
+          status: 200,
+          headers: { 'Content-Type': 'image/svg+xml' },
+        }),
+      ),
+    );
+    const svg = await GET(
+      new Request(
+        'http://localhost:3000/api/media/stock?proxy=https://upload.wikimedia.org/wikipedia/commons/test.svg',
+      ),
+    );
+    expect(svg.status).toBe(415);
+
+    // Safe binary media returns strict anti-XSS response headers.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(new Uint8Array([0xff, 0xd8, 0xff]), {
+          status: 200,
+          headers: { 'Content-Type': 'image/jpeg; charset=binary' },
+        }),
+      ),
+    );
+    const ok = await GET(
+      new Request(
+        'http://localhost:3000/api/media/stock?proxy=https://cdn.pixabay.com/photo/123.jpg',
+      ),
+    );
+    expect(ok.status).toBe(200);
+    expect(ok.headers.get('content-type')).toBe('image/jpeg');
+    expect(ok.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(ok.headers.get('content-security-policy')).toBe("default-src 'none'; sandbox");
+    expect(ok.headers.get('content-disposition')).toBe('attachment');
   });
 });

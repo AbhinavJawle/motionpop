@@ -73,7 +73,9 @@ export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
       route: 'cloud',
     });
   }
-  free('transcribe', 'Transcription', 'device', 'Free · on-device');
+  if (ctx.kind !== 'graphic') {
+    free('transcribe', 'Transcription', 'device', 'Free · on-device');
+  }
   if (edit.resolved && usesResolved(edit)) {
     const r = edit.resolved;
     const device = ctx.resolvedBy === 'device';
@@ -83,7 +85,10 @@ export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
       value: device ? 'Free · on-device' : 'Free · quick match',
       credits: 0,
       route: device ? 'device' : 'none',
-      note: `${builtInSkills.recipe(r.recipeId)?.name ?? r.recipeId} · ${r.look} · ${r.captionStyle} captions`,
+      note:
+        ctx.kind === 'graphic'
+          ? `${builtInSkills.recipe(r.recipeId)?.name ?? r.recipeId} · ${r.look}`
+          : `${builtInSkills.recipe(r.recipeId)?.name ?? r.recipeId} · ${r.look} · ${r.captionStyle} captions`,
     });
   }
   if (edit.userSkill) {
@@ -96,12 +101,49 @@ export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
       note: edit.userSkill.name,
     });
   }
-  if (edit.sound.cleanup && !ctx.script) free('cleanup', 'Speech cleanup');
+  if (ctx.kind !== 'graphic' && edit.sound.cleanup && !ctx.script) free('cleanup', 'Speech cleanup');
 
   let note: string | undefined = byok
     ? 'Using your Gemini API key (0 Motionpop credits).'
     : undefined;
-  if (ctx.kind === 'video') {
+  if (ctx.kind === 'graphic') {
+    const reel = byok ? 0 : costOf('reel', 1, ctx.config);
+    if (paid)
+      rows.push({
+        id: 'direct',
+        label: 'Motion graphic directing',
+        value: byok ? 'Free · your key' : credits(reel),
+        credits: reel,
+        route: 'cloud',
+        note: 'Bespoke custom scenes + visual QA',
+      });
+    else free('direct', 'Motion graphic directing', 'device', 'Free director');
+    if (edit.illustrations) {
+      const max = byok ? 0 : REEL_ILLUSTRATIONS_MAX * costOf('image', 1, ctx.config);
+      if (paid)
+        rows.push({
+          id: 'illustrations',
+          label: 'AI cutout visuals',
+          value: byok ? 'Free · your key' : `up to ${credits(max)}`,
+          credits: max,
+          upTo: !byok,
+          route: 'cloud',
+        });
+      else
+        rows.push({
+          id: 'illustrations',
+          label: 'AI cutout visuals',
+          value: 'Off · needs credits',
+          credits: 0,
+          route: 'none',
+        });
+    }
+    free('alpha', 'Transparent WebM export', 'none', 'Free');
+    if (!paid)
+      note = ctx.signedIn
+        ? 'Paid steps run their free versions.'
+        : 'Sign in or add a Gemini key for bespoke scenes and AI cutouts.';
+  } else if (ctx.kind === 'video') {
     const reel = byok ? 0 : costOf('reel', 1, ctx.config);
     if (paid)
       rows.push({
@@ -140,16 +182,18 @@ export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
   } else {
     free('plan', 'Graphics plan', 'device', 'Free · on-device');
   }
-  if (edit.captions.enabled) free('captions', 'Captions');
-  if (edit.sound.sfx) free('sfx', 'Sound effects');
-  if (edit.sound.music !== 'none')
-    free(
-      'music',
-      ctx.kind === 'video' ? 'AI soundtrack' : 'Music bed',
-      ctx.kind === 'video' && ctx.signedIn && ctx.online && !ctx.config.killSwitch
-        ? 'cloud'
-        : 'none',
-    );
+  if (ctx.kind !== 'graphic') {
+    if (edit.captions.enabled) free('captions', 'Captions');
+    if (edit.sound.sfx) free('sfx', 'Sound effects');
+    if (edit.sound.music !== 'none')
+      free(
+        'music',
+        ctx.kind === 'video' ? 'AI soundtrack' : 'Music bed',
+        ctx.kind === 'video' && ctx.signedIn && ctx.online && !ctx.config.killSwitch
+          ? 'cloud'
+          : 'none',
+      );
+  }
 
   const total = rows.reduce((s, r) => s + r.credits, 0);
   let block: string | undefined;

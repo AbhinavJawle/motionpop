@@ -2,6 +2,7 @@
 
 import {
   audioOf,
+  pickOpenTrack,
   resolvedAudioLanes,
   type AudioSetting,
   type MusicId,
@@ -28,12 +29,14 @@ import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Toggle } from '@/components/ui/toggle';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
+import { getAuthSnapshot } from '@/lib/auth/auth-store';
 import { cn } from '@/lib/cn';
 import { addStockAudio, composite, setAudio, setReelMusicBrief } from '@/lib/commands';
 import { useAppConfig } from '@/lib/renders/hooks';
 import { useBedState } from '@/lib/sound/bed-state';
 import { auditionStockAudio } from '@/lib/sound/use-stock-audio';
 import { editorStore, useEditor } from '@/lib/stores/editor';
+import { apiHeaders } from '@/lib/users/bootstrap-client';
 
 const MUSIC: { id: MusicId | null; label: string; hint: string; synth?: boolean }[] = [
   { id: null, label: 'No music', hint: 'Just your voice and the effects.' },
@@ -147,15 +150,12 @@ function pickOpenAudioTrack(
   startMs: number,
   endMs: number,
 ): number {
-  const lanes = resolvedAudioLanes(project).filter((l) => !l.muted);
-  const existing = project.stockAudio ?? [];
-  for (const lane of lanes) {
-    const collides = existing.some(
-      (c) => (c.track ?? 0) === lane.index && c.startMs < endMs && c.endMs > startMs,
-    );
-    if (!collides) return lane.index;
-  }
-  return lanes[0]?.index ?? 0;
+  return pickOpenTrack(
+    resolvedAudioLanes(project).filter((l) => !l.muted),
+    project.stockAudio ?? [],
+    startMs,
+    endMs,
+  );
 }
 
 /** A slider that previews locally and commits one command when the hand stops (one undo). */
@@ -264,7 +264,13 @@ export function AudioPanelBody() {
         if (opts.nextQ.trim()) params.set('q', opts.nextQ.trim());
         if (opts.nextTag) params.set('tag', opts.nextTag);
         if (opts.nextCursor) params.set('cursor', opts.nextCursor);
-        const res = await fetch(`/api/audio/search?${params.toString()}`, { signal: ac.signal });
+        const auth = getAuthSnapshot();
+        const headers =
+          auth.status === 'signed-in' ? await apiHeaders(() => auth.user.getIdToken()) : undefined;
+        const res = await fetch(`/api/audio/search?${params.toString()}`, {
+          signal: ac.signal,
+          ...(headers ? { headers } : {}),
+        });
         if (ac.signal.aborted) return;
         if (!res.ok) {
           const err = (await res.json().catch(() => ({}))) as { error?: string };
@@ -338,7 +344,13 @@ export function AudioPanelBody() {
     stopPreview();
     setApplyingId(track.id);
     try {
-      const res = await fetch(`/api/audio/download?id=${encodeURIComponent(track.id)}`);
+      const auth = getAuthSnapshot();
+      const headers =
+        auth.status === 'signed-in' ? await apiHeaders(() => auth.user.getIdToken()) : undefined;
+      const res = await fetch(
+        `/api/audio/download?id=${encodeURIComponent(track.id)}`,
+        headers ? { headers } : undefined,
+      );
       if (!res.ok) throw new Error(`Download failed (${res.status})`);
       const blob = await res.blob();
       if (blob.size < 256) throw new Error('empty');
@@ -369,8 +381,12 @@ export function AudioPanelBody() {
   const downloadTrack = async (track: SearchTrack) => {
     setDownloadingId(track.id);
     try {
+      const auth = getAuthSnapshot();
+      const headers =
+        auth.status === 'signed-in' ? await apiHeaders(() => auth.user.getIdToken()) : undefined;
       const res = await fetch(
         `/api/audio/download?id=${encodeURIComponent(track.id)}&quality=original`,
+        headers ? { headers } : undefined,
       );
       if (!res.ok) throw new Error(String(res.status));
       const blob = await res.blob();
@@ -715,28 +731,40 @@ export function AudioPanelBody() {
           <div className="-mx-1 mt-3 min-h-0 flex-1 overflow-y-auto px-1 pb-6">
             {!configured && (
               <div className="rounded-xl border border-line bg-card p-3.5 text-[12px] leading-[1.55] text-text-2">
-                <p className="font-semibold text-text">Connect your Uncommon Ear API key</p>
-                <p className="mt-1">
-                  Add{' '}
-                  <code className="rounded bg-white/8 px-1 py-0.5 text-[11px]">
-                    UNCOMMON_EAR_API_KEY
-                  </code>{' '}
-                  to{' '}
-                  <code className="rounded bg-white/8 px-1 py-0.5 text-[11px]">
-                    apps/web/.env.local
-                  </code>{' '}
-                  and restart the dev server to search free Creative Commons music &amp; sound
-                  effects.
-                </p>
-                <a
-                  href="https://uncommonear.com/docs/api"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-medium text-violet-ink underline underline-offset-2"
-                >
-                  Get a free Uncommon Ear key
-                  <ExternalLink className="size-3" aria-hidden />
-                </a>
+                {process.env.NODE_ENV === 'development' ? (
+                  <>
+                    <p className="font-semibold text-text">Connect your Uncommon Ear API key</p>
+                    <p className="mt-1">
+                      Add{' '}
+                      <code className="rounded bg-white/8 px-1 py-0.5 text-[11px]">
+                        UNCOMMON_EAR_API_KEY
+                      </code>{' '}
+                      to{' '}
+                      <code className="rounded bg-white/8 px-1 py-0.5 text-[11px]">
+                        apps/web/.env.local
+                      </code>{' '}
+                      and restart the dev server to search free Creative Commons music &amp; sound
+                      effects.
+                    </p>
+                    <a
+                      href="https://uncommonear.com/docs/api"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-medium text-violet-ink underline underline-offset-2"
+                    >
+                      Get a free Uncommon Ear key
+                      <ExternalLink className="size-3" aria-hidden />
+                    </a>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-semibold text-text">Audio library temporarily unavailable</p>
+                    <p className="mt-1">
+                      Search is offline right now. You can still upload your own music or sound
+                      effects.
+                    </p>
+                  </>
+                )}
               </div>
             )}
 

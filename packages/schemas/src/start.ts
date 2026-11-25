@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { RecipeIdSchema } from './edit-config';
 import { FormatSchema } from './format';
+import { ReelLookSchema } from './reel';
 import { WordSchema } from './transcript';
 
 /** What the Start screen collects before a voice exists (spec 11, design §2.5). */
@@ -52,10 +53,12 @@ export const PendingIntakeSchema = z
       })
       .optional(),
     /**
-     * A single graphic (no voice): the typed line's words with their timings on a silent track.
-     * The project gets one slot over the whole line and no captions.
+     * A single graphic (no voice): either a prompt describing the motion graphic (`graphicPrompt`)
+     * or legacy typed words on a silent track.
      */
     single: z.boolean().optional(),
+    graphicPrompt: z.string().trim().min(1).max(1000).optional(),
+    graphicLook: ReelLookSchema.optional(),
     words: z.array(WordSchema).max(60).optional(),
   })
   .superRefine((p, ctx) => {

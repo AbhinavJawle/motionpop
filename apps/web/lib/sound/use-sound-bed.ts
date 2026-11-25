@@ -107,57 +107,70 @@ export function useSoundBed(clock: PlaybackClock, voiceLevelDb: number | null): 
   useEffect(() => {
     if (!project || project.reel || voiceLevelDb === null) return;
     const n = ++latest.current;
+    let onCanPlay: (() => void) | null = null;
     const timer = setTimeout(() => {
       useBedState.setState({ status: 'mixing' });
       void (async () => {
-        let ownSamples: Float32Array<ArrayBuffer> | undefined;
-        const audio = audioOf(project);
-        if (audio.musicId === 'own' && audio.musicSrc) {
-          try {
-            const blob = await appAudioStore().get(audio.musicSrc);
-            if (blob) {
-              const pcm = decodeWav16(new Uint8Array(await blob.arrayBuffer()));
-              if (pcm) ownSamples = new Float32Array(pcm.samples);
+        try {
+          let ownSamples: Float32Array<ArrayBuffer> | undefined;
+          const audio = audioOf(project);
+          if (audio.musicId === 'own' && audio.musicSrc) {
+            try {
+              const blob = await appAudioStore().get(audio.musicSrc);
+              if (blob) {
+                const pcm = decodeWav16(new Uint8Array(await blob.arrayBuffer()));
+                if (pcm) ownSamples = new Float32Array(pcm.samples);
+              }
+            } catch {
+              // Fall through without custom samples if storage read fails.
             }
-          } catch {
-            // Fall through without custom samples if storage read fails.
+          }
+          const req = bedRequestFor(project, voiceLevelDb, ownSamples);
+          const res = await mixInWorker(req);
+          const el = elRef.current;
+          if (n !== latest.current || !el) return;
+          const prev = useBedState.getState().url;
+          if (res.type === 'bed') {
+            if (res.key === useBedState.getState().key) {
+              useBedState.setState({ status: 'ready', placements: res.placements });
+              return;
+            }
+            const bytes = res.wav.slice();
+            const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
+            el.src = url;
+            onCanPlay = () => clock.attachFollower(el);
+            el.addEventListener('canplay', onCanPlay, { once: true });
+            useBedState.setState({
+              status: 'ready',
+              key: res.key,
+              url,
+              wav: bytes,
+              placements: res.placements,
+            });
+          } else {
+            clock.attachFollower(null);
+            el.removeAttribute('src');
+            useBedState.setState({
+              status: res.type === 'none' ? 'none' : 'error',
+              key: null,
+              url: null,
+              wav: null,
+              placements: [],
+            });
+          }
+          if (prev && prev !== useBedState.getState().url) URL.revokeObjectURL(prev);
+        } catch {
+          if (n === latest.current) {
+            useBedState.setState({ status: 'error' });
           }
         }
-        const req = bedRequestFor(project, voiceLevelDb, ownSamples);
-        const res = await mixInWorker(req);
-        const el = elRef.current;
-        if (n !== latest.current || !el) return;
-        const prev = useBedState.getState().url;
-        if (res.type === 'bed') {
-          if (res.key === useBedState.getState().key) {
-            useBedState.setState({ status: 'ready', placements: res.placements });
-            return;
-          }
-          const bytes = res.wav.slice();
-          const url = URL.createObjectURL(new Blob([bytes], { type: 'audio/wav' }));
-          el.src = url;
-          el.addEventListener('canplay', () => clock.attachFollower(el), { once: true });
-          useBedState.setState({
-            status: 'ready',
-            key: res.key,
-            url,
-            wav: bytes,
-            placements: res.placements,
-          });
-        } else {
-          clock.attachFollower(null);
-          el.removeAttribute('src');
-          useBedState.setState({
-            status: res.type === 'none' ? 'none' : 'error',
-            key: null,
-            url: null,
-            wav: null,
-            placements: [],
-          });
-        }
-        if (prev && prev !== useBedState.getState().url) URL.revokeObjectURL(prev);
       })();
     }, BED_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      if (onCanPlay && elRef.current) {
+        elRef.current.removeEventListener('canplay', onCanPlay);
+      }
+    };
   }, [project, voiceLevelDb, clock]);
 }

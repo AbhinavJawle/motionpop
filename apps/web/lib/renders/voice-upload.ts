@@ -1,5 +1,6 @@
 import {
   audibleStockAudio,
+  isGraphicReel,
   isSafeId,
   mediaClipPathFor,
   stockAudioPathFor,
@@ -44,6 +45,14 @@ export async function resolveVoiceBlob(
   project: EditorProject,
   store: AudioStore = appAudioStore(),
 ): Promise<Blob> {
+  // Graphics-only projects have no spoken voiceover: synthesize a fresh silent WAV matching the
+  // current `project.durationMs` so adding/deleting/resizing scenes never fails VOICE_SLACK_MS or
+  // missing local IndexedDB blobs on synced devices.
+  if (isGraphicReel(project)) {
+    const rate = 24_000;
+    const samples = new Float32Array(Math.max(1, Math.round((project.durationMs * rate) / 1000)));
+    return new Blob([encodeWav(samples, rate)], { type: 'audio/wav' });
+  }
   const src = project.voiceover.src;
   const rate = synthRate(src);
   if (rate !== null) {
@@ -204,6 +213,28 @@ export async function uploadReferencedMediaClips(
       await storage.upload(path, blob, CLIP_MIME[ext]);
     }
     out[clip.id] = path;
+  }
+  return out;
+}
+
+/** Resolves Media Bin clip blobs referenced by `project.video.stages` for offline multipart export. */
+export async function resolveReferencedMediaClipBlobs(
+  project: EditorProject,
+  store: AudioStore = appAudioStore(),
+): Promise<Record<string, { blob: Blob; ext: string }>> {
+  const out: Record<string, { blob: Blob; ext: string }> = {};
+  if (!project.mediaBin?.length) return out;
+  const usedIds = new Set(
+    (project.video?.stages ?? []).map((s) => s.clipId).filter((id): id is string => Boolean(id)),
+  );
+  if (usedIds.size === 0) return out;
+  for (const clip of project.mediaBin) {
+    if (!usedIds.has(clip.id)) continue;
+    const blob = await resolveStoredMediaBlob(clip.src, store);
+    if (!blob || blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) continue;
+    const base = (blob.type || clip.mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
+    const ext = CLIP_EXT[base] ?? (clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
+    out[clip.id] = { blob, ext };
   }
   return out;
 }

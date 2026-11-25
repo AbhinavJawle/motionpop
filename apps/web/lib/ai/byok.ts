@@ -14,26 +14,31 @@ import { useSyncExternalStore } from 'react';
 
 export const BYOK_KEY_STORAGE = 'mp:byok-gemini-key';
 export const BYOK_MODE_STORAGE = 'mp:byok-gemini-mode';
+export const BYOK_MODEL_STORAGE = 'mp:byok-gemini-model';
 
 export interface ByokSnapshot {
   /** True when a valid Google AI Studio key is saved in this browser. */
   active: boolean;
   /** Masked preview safe for UI display (e.g. `AIza••••9xQp`), or null when unset. */
   maskedKey: string | null;
-  /** Preferred Gemini model tier for BYOK cloud calls. */
+  /** Preferred Gemini model tier for BYOK cloud calls when no specific model is selected. */
   modelMode: ByokModelMode;
+  /** Explicit Gemini model ID picked by the user (e.g. `gemini-2.5-pro`), or null for Auto preset. */
+  customModel: string | null;
 }
 
 const SERVER_SNAPSHOT: ByokSnapshot = {
   active: false,
   maskedKey: null,
   modelMode: 'balanced',
+  customModel: null,
 };
 
 const listeners = new Set<() => void>();
 let storageBound = false;
 let cachedKey: string | null | undefined;
 let cachedMode: ByokModelMode | undefined;
+let cachedCustomModel: string | null | undefined;
 let cachedSnapshot: ByokSnapshot = SERVER_SNAPSHOT;
 
 function readStorage(key: string): string | null {
@@ -71,13 +76,20 @@ function refreshCache(): void {
   const parsedMode = rawMode ? ByokModelModeSchema.safeParse(rawMode) : null;
   const nextMode: ByokModelMode = parsedMode?.success ? parsedMode.data : 'balanced';
 
-  if (cachedKey === nextKey && cachedMode === nextMode) return;
+  const rawCustom = readStorage(BYOK_MODEL_STORAGE)?.trim() ?? '';
+  const nextCustomModel = rawCustom && /^[a-z0-9._-]{2,80}$/i.test(rawCustom) ? rawCustom : null;
+
+  if (cachedKey === nextKey && cachedMode === nextMode && cachedCustomModel === nextCustomModel) {
+    return;
+  }
   cachedKey = nextKey;
   cachedMode = nextMode;
+  cachedCustomModel = nextCustomModel;
   cachedSnapshot = {
     active: nextKey !== null,
     maskedKey: nextKey ? maskApiKey(nextKey) : null,
     modelMode: nextMode,
+    customModel: nextCustomModel,
   };
 }
 
@@ -90,7 +102,12 @@ function bindStorageListener(): void {
   if (storageBound || typeof window === 'undefined') return;
   storageBound = true;
   window.addEventListener('storage', (e) => {
-    if (e.key === null || e.key === BYOK_KEY_STORAGE || e.key === BYOK_MODE_STORAGE) {
+    if (
+      e.key === null ||
+      e.key === BYOK_KEY_STORAGE ||
+      e.key === BYOK_MODE_STORAGE ||
+      e.key === BYOK_MODEL_STORAGE
+    ) {
       notify();
     }
   });
@@ -113,6 +130,12 @@ export function getByokModelMode(): ByokModelMode {
   return cachedMode ?? 'balanced';
 }
 
+export function getByokModel(): string | null {
+  if (typeof window === 'undefined') return null;
+  refreshCache();
+  return cachedCustomModel ?? null;
+}
+
 /** Validates and saves the user's Google AI Studio Gemini API key locally in this browser. */
 export function setByokKey(rawKey: string): { ok: true } | { ok: false; message: string } {
   const parsed = GeminiApiKeySchema.safeParse(rawKey);
@@ -130,6 +153,7 @@ export function setByokKey(rawKey: string): { ok: true } | { ok: false; message:
 /** Removes the browser-local Gemini API key and reverts to Firebase AI Logic / on-device. */
 export function clearByokKey(): void {
   writeStorage(BYOK_KEY_STORAGE, null);
+  writeStorage(BYOK_MODEL_STORAGE, null);
   notify();
 }
 
@@ -137,6 +161,13 @@ export function clearByokKey(): void {
 export function setByokModelMode(mode: ByokModelMode): void {
   const parsed = ByokModelModeSchema.parse(mode);
   writeStorage(BYOK_MODE_STORAGE, parsed);
+  notify();
+}
+
+/** Sets an explicit Gemini model ID to use with BYOK, or `null` to use the Auto preset. */
+export function setByokModel(model: string | null): void {
+  const trimmed = model?.trim() ?? '';
+  writeStorage(BYOK_MODEL_STORAGE, trimmed || null);
   notify();
 }
 

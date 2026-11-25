@@ -1,4 +1,5 @@
 import { stockOverlayBoxFor, type StockOverlayLayout } from '@motionpop/schemas';
+import { demuxerForMedia } from './ffmpeg';
 import { roundedCornerFilter } from './video-ffmpeg';
 
 export interface ResolvedStockOverlay {
@@ -29,6 +30,8 @@ export interface StockCompositeArgs {
   outMp4Path: string;
   /** Output container (`webm` preserves VP9 `yuva420p` alpha and encodes Opus audio; default `mp4`). */
   container?: 'mp4' | 'webm';
+  /** Whether `baseVideoPath` carries an audio stream (`false` avoids mapping missing `0:a:0`). Default `true`. */
+  hasBaseAudio?: boolean;
   width: number;
   height: number;
   fps: number;
@@ -90,8 +93,12 @@ export function buildStockCompositeArgs(args: StockCompositeArgs): string[] {
     const key = ovInputKey(ov);
     ovUsageCount.set(key, (ovUsageCount.get(key) ?? 0) + 1);
     if (!ovInputIdx.has(key)) {
-      if (ov.isVideo) inputs.push('-stream_loop', '-1', '-i', ov.path);
-      else inputs.push('-loop', '1', '-i', ov.path);
+      if (ov.isVideo) {
+        const d = demuxerForMedia(ov.path);
+        inputs.push(...(d ? ['-f', d] : []), '-stream_loop', '-1', '-i', ov.path);
+      } else {
+        inputs.push('-f', 'image2', '-loop', '1', '-i', ov.path);
+      }
       ovInputIdx.set(key, nextInputIdx++);
     }
   }
@@ -116,8 +123,9 @@ export function buildStockCompositeArgs(args: StockCompositeArgs): string[] {
     const key = auInputKey(au);
     auUsageCount.set(key, (auUsageCount.get(key) ?? 0) + 1);
     if (!auInputIdx.has(key)) {
-      if (au.kind === 'music') inputs.push('-stream_loop', '-1', '-i', au.path);
-      else inputs.push('-i', au.path);
+      const d = demuxerForMedia(au.path);
+      if (au.kind === 'music') inputs.push(...(d ? ['-f', d] : []), '-stream_loop', '-1', '-i', au.path);
+      else inputs.push(...(d ? ['-f', d] : []), '-i', au.path);
       auInputIdx.set(key, nextInputIdx++);
     }
   }
@@ -190,10 +198,17 @@ export function buildStockCompositeArgs(args: StockCompositeArgs): string[] {
     videoMap = '[vout]';
   }
 
-  // 4. Build audio mix chain.
-  let audioMap = '0:a:0';
+  // 4. Build audio mix chain (handles silent base videos cleanly without failing on missing 0:a:0).
+  const hasBaseAudio = args.hasBaseAudio ?? true;
+  let audioMap: string | null = hasBaseAudio ? '0:a:0' : null;
   if (validAudio.length > 0) {
-    filters.push(`[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[abase]`);
+    if (hasBaseAudio) {
+      filters.push(`[0:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[abase]`);
+    } else {
+      filters.push(
+        `anullsrc=r=48000:cl=stereo,atrim=0:${sec(durationMs)},asetpts=PTS-STARTPTS[abase]`,
+      );
+    }
     const mixLabels: string[] = ['[abase]'];
 
     validAudio.forEach((au, k) => {
@@ -258,7 +273,9 @@ export function buildStockCompositeArgs(args: StockCompositeArgs): string[] {
       ? isWebm
         ? ['-c:a', 'libopus', '-b:a', '192k', '-ar', '48000']
         : ['-c:a', 'aac', '-b:a', '192k', '-ar', '48000']
-      : ['-c:a', 'copy'];
+      : audioMap
+        ? ['-c:a', 'copy']
+        : [];
 
   return [
     '-loglevel',
@@ -270,8 +287,7 @@ export function buildStockCompositeArgs(args: StockCompositeArgs): string[] {
     ...(filters.length > 0 ? ['-filter_complex', filters.join(';')] : []),
     '-map',
     videoMap,
-    '-map',
-    audioMap,
+    ...(audioMap ? ['-map', audioMap] : []),
     ...videoCodecArgs,
     ...audioCodecArgs,
     ...(isWebm ? ['-metadata:s:v:0', 'alpha_mode=1'] : ['-movflags', '+faststart']),

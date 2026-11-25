@@ -27,11 +27,18 @@ export async function POST(req: Request): Promise<Response> {
     if (typeof request !== 'string') return respond(apiError('invalid'));
     const file = voice instanceof File ? voice : null;
     const videoFile = video instanceof File ? video : null;
+    const clips: Record<string, { type: string; size: number; bytes: Buffer }> = {};
     const overlays: Record<string, { type: string; size: number; bytes: Buffer }> = {};
     const audio: Record<string, { type: string; size: number; bytes: Buffer }> = {};
     for (const [key, val] of form.entries()) {
       if (!(val instanceof File)) continue;
-      if (key.startsWith('stockOv:')) {
+      if (key.startsWith('mediaClip:')) {
+        clips[key.slice('mediaClip:'.length)] = {
+          type: val.type,
+          size: val.size,
+          bytes: Buffer.from(await val.arrayBuffer()),
+        };
+      } else if (key.startsWith('stockOv:')) {
         overlays[key.slice('stockOv:'.length)] = {
           type: val.type,
           size: val.size,
@@ -59,7 +66,7 @@ export async function POST(req: Request): Promise<Response> {
               bytes: Buffer.from(await videoFile.arrayBuffer()),
             }
           : null,
-        { overlays, audio },
+        { clips, overlays, audio },
       ),
     );
   } catch (err) {

@@ -2,6 +2,7 @@
 
 import {
   isMediaStageMode,
+  pickOpenTrack,
   resolvedMediaLanes,
   type MediaClip,
   type StockOverlayClip,
@@ -137,15 +138,12 @@ function pickOpenMediaTrack(
   startMs: number,
   endMs: number,
 ): number {
-  const lanes = resolvedMediaLanes(project).filter((l) => !l.hidden);
-  const existing = project.stockOverlays ?? [];
-  for (const lane of lanes) {
-    const collides = existing.some(
-      (c) => (c.track ?? 0) === lane.index && c.startMs < endMs && c.endMs > startMs,
-    );
-    if (!collides) return lane.index;
-  }
-  return lanes[0]?.index ?? 0;
+  return pickOpenTrack(
+    resolvedMediaLanes(project).filter((l) => !l.hidden),
+    project.stockOverlays ?? [],
+    startMs,
+    endMs,
+  );
 }
 
 function makeStockMediaClip(
@@ -342,8 +340,12 @@ export function MediaPanelBody() {
     try {
       const orientation =
         project.format === '9:16' ? 'portrait' : project.format === '16:9' ? 'landscape' : 'square';
+      const auth = getAuthSnapshot();
+      const headers =
+        auth.status === 'signed-in' ? await apiHeaders(() => auth.user.getIdToken()) : undefined;
       const res = await fetch(
         `/api/media/stock?q=${encodeURIComponent(words)}&kind=${nextKind}&orientation=${orientation}&limit=6`,
+        headers ? { headers } : undefined,
       );
       if (!res.ok) throw new Error(String(res.status));
       const body = z.object({ items: z.array(StockItemSchema) }).parse(await res.json());
@@ -359,7 +361,13 @@ export function MediaPanelBody() {
     if (!cur) return;
     setAddingStockId(item.id);
     try {
-      const res = await fetch(`/api/media/stock?proxy=${encodeURIComponent(item.url)}`);
+      const auth = getAuthSnapshot();
+      const headers =
+        auth.status === 'signed-in' ? await apiHeaders(() => auth.user.getIdToken()) : undefined;
+      const res = await fetch(
+        `/api/media/stock?proxy=${encodeURIComponent(item.url)}`,
+        headers ? { headers } : undefined,
+      );
       if (!res.ok) throw new Error(String(res.status));
       const blob = await res.blob();
       if (blob.size < 1024) throw new Error('empty');
@@ -606,10 +614,10 @@ export function MediaPanelBody() {
                 onChange={(e) => setStockQ(e.target.value.slice(0, 100))}
                 placeholder={
                   stockKind === 'video'
-                    ? 'Search Pixabay videos, e.g. neon city'
-                    : 'Search Pixabay photos, e.g. coffee desk'
+                    ? 'Search stock videos, e.g. neon city'
+                    : 'Search stock photos, e.g. coffee desk'
                 }
-                aria-label="Search Pixabay stock media"
+                aria-label="Search stock media"
                 className="h-8 w-full bg-transparent text-[12px] text-text outline-none placeholder:text-text-3"
               />
               {stockState === 'searching' && (

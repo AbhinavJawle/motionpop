@@ -2,21 +2,25 @@ import {
   applyReelCompose,
   applyReelNote,
   applyReelNoteLocal,
+  briefFromEdit,
   reelComposeTask,
   reelNoteContext,
   reelNoteInput,
   reelNoteLocalInput,
   runReelNote,
   runReelNoteLocal,
+  styleCraftDirection,
   type ReelComposeInput,
   type ReelComposeOutput,
+  type ReelDirectBrief,
   type ReelNoteContext,
   type Router,
 } from '@motionpop/ai';
-import { KIT_DOC, REEL_STAGE_EXAMPLES, criticText, lintCustom } from '@motionpop/motion';
+import { KIT_DOC, criticText, lintCustom, pickStageArchetype } from '@motionpop/motion';
 import {
   inspectCustomScene,
   reelCustomScene,
+  stageSizeForFormat,
   type CustomReport,
   type ReelCustomAssets,
   type ReelCustomScene,
@@ -30,6 +34,7 @@ import {
   reelMediaOf,
   reelSceneData,
   type AppConfig,
+  type Format,
   type ImageAsset,
   type ReelLook,
   type ReelMedia,
@@ -117,6 +122,30 @@ const TOO_MANY = 'This reel holds too many new graphics. Undo one first.';
 
 const sceneJson = (s: ReelScene | undefined) => (s ? JSON.stringify(reelSceneData(s)) : '');
 
+/**
+ * Ensures a note edit on a no-video (graphics-only or voiceover-only) reel never switches the
+ * scene to a speaker layout or blanks it out with a speaker-only template (`none`/`punch`/`cta`).
+ */
+function enforceNoVideoScene(next: ReelScene, fallback: ReelScene): ReelScene {
+  let content = next.content;
+  if (content.template === 'none') {
+    content = fallback.content.template !== 'none' ? fallback.content : { template: 'headline', title: 'Motion Graphic' };
+  } else if (content.template === 'punch') {
+    content = {
+      template: 'headline',
+      title: content.text,
+      ...(content.top ? { kicker: content.top } : {}),
+    };
+  } else if (content.template === 'cta') {
+    content = {
+      template: 'headline',
+      kicker: content.verb,
+      title: content.keyword,
+    };
+  }
+  return { ...next, layout: 'full', content };
+}
+
 export async function runReelNoteFix(
   deps: ReelNoteFixDeps,
   sceneId: string,
@@ -141,8 +170,12 @@ export async function runReelNoteFix(
   if (state.playing) state.setPlaying(false);
   const noteMs = scene.startMs + note.tMs;
   if (Math.abs(state.playheadMs - noteMs) > 40) state.setPlayhead(noteMs);
-  // The reel is always 9:16.
-  const region = regionOf(note.shape, 9 / 16);
+  const isNoVideoReel =
+    Boolean(reel.graphicOnly) ||
+    (!project.video && reel.scenes.length > 0 && reel.scenes.every((s) => s.layout === 'full'));
+  const stageFormat: Format = isNoVideoReel ? project.format : '9:16';
+  const stage = stageSizeForFormat(stageFormat);
+  const region = regionOf(note.shape, stage.w / stage.h);
   const seen: { target: ReelTarget; image?: string | undefined } = await Promise.resolve()
     .then(() => deps.look(region, cropRect(region), sceneId))
     .catch(() => ({ target: { parts: [], texts: [], pictures: [] } }));
@@ -196,10 +229,11 @@ export async function runReelNoteFix(
           hook: showsHook ? reel.hook : undefined,
         });
         if (applied.changed && !applied.escalate) {
+          const nextScene = isNoVideoReel ? enforceNoVideoScene(applied.scene, scene) : applied.scene;
           const ok = deps.store.getState().exec(
             composite('Fix note', [
               fixReelScene(sceneId, {
-                scene: applied.scene,
+                scene: nextScene,
                 ...(applied.hook !== undefined ? { hook: applied.hook } : {}),
                 ...(applied.captions.length ? { captions: applied.captions } : {}),
               }),
@@ -265,6 +299,12 @@ export async function runReelNoteFix(
       return failed();
     }
 
+    const directorBrief = briefFromEdit(project.edit) ?? undefined;
+    const styleDirection = styleCraftDirection({
+      styleId: project.edit?.styleId ?? project.styleId,
+      customStyle: project.edit?.customStyle,
+      promptHint: reel.prompt,
+    });
     let input;
     try {
       input = reelNoteInput(ctx, {
@@ -275,6 +315,8 @@ export async function runReelNoteFix(
         caption: seen.target.caption,
         hook: showsHook ? reel.hook : undefined,
         image,
+        ...(isNoVideoReel ? { format: stageFormat, noVideo: true } : {}),
+        ...(directorBrief?.skillInstructions || isNoVideoReel ? { styleDirection } : {}),
       });
     } catch {
       await refund();
@@ -319,7 +361,13 @@ export async function runReelNoteFix(
         router,
         note: text,
         brief: result.compose.brief,
-        layout: result.compose.layout,
+        layout: isNoVideoReel ? 'full' : result.compose.layout,
+        format: stageFormat,
+        noVideo: isNoVideoReel,
+        captions: reel.captions,
+        directorBrief,
+        styleDirection,
+        graphicOnly: Boolean(reel.graphicOnly),
         image,
         sceneId,
       });
@@ -379,10 +427,11 @@ export async function runReelNoteFix(
       };
     }
 
+    const nextScene = isNoVideoReel ? enforceNoVideoScene(result.scene, scene) : result.scene;
     const ok = deps.store.getState().exec(
       composite('Fix note', [
         fixReelScene(sceneId, {
-          scene: result.scene,
+          scene: nextScene,
           ...(result.hook !== undefined ? { hook: result.hook } : {}),
           ...(result.captions.length ? { captions: result.captions } : {}),
         }),
@@ -396,9 +445,9 @@ export async function runReelNoteFix(
     charged = true;
 
     // New pictures (a different logo, a new subject) are fetched now and land as a second step.
-    const wanted = reelMediaOf({ scenes: [result.scene] }).filter((m) => !m.asset);
+    const wanted = reelMediaOf({ scenes: [nextScene] }).filter((m) => !m.asset);
     if (wanted.length && deps.fetchMedia) {
-      void fetchPictures(deps, sceneId, result.scene).then((n) => deps.onPictures?.(n));
+      void fetchPictures(deps, sceneId, nextScene).then((n) => deps.onPictures?.(n));
     }
     const ranOn = 'cloud' as const;
     return {
@@ -491,6 +540,12 @@ async function composeScene(
     note: string;
     brief: string;
     layout: ReelScene['layout'];
+    format: Format;
+    noVideo: boolean;
+    captions: boolean;
+    directorBrief?: ReelDirectBrief | undefined;
+    styleDirection?: string | undefined;
+    graphicOnly?: boolean | undefined;
     image: string | undefined;
     sceneId: string;
   },
@@ -514,6 +569,8 @@ async function composeScene(
   const probe = reelCustomScene({
     look,
     theme,
+    format: p.format,
+    ...(p.noVideo ? { noVideo: true, captions: p.captions } : {}),
     scene: {
       ...target,
       content: {
@@ -558,6 +615,10 @@ async function composeScene(
       brief: p.brief,
       look,
       layout: p.layout,
+      format: p.format,
+      ...(p.graphicOnly ? { graphicOnly: true } : {}),
+      ...(p.directorBrief ? { directorBrief: p.directorBrief } : {}),
+      ...(p.styleDirection ? { styleDirection: p.styleDirection } : {}),
       area: { w: probe.width, h: probe.height },
       palette: {
         bg: probe.palette.bg,
@@ -590,10 +651,11 @@ async function composeScene(
         id: `m${i}`,
         shows: (m.asset ? shows(m) : `${shows(m).slice(0, 90)} (not fetched: avoid)`).slice(0, 120),
       })),
-      example:
-        p.layout === 'speaker'
-          ? REEL_STAGE_EXAMPLES['clean-cta']
-          : REEL_STAGE_EXAMPLES['split-inspector'],
+      example: pickStageArchetype({
+        styleDirection: p.styleDirection,
+        prompt: `${p.note} ${p.brief} ${p.directorBrief?.skillName ?? ''}`,
+        layout: p.layout,
+      }),
       ...(p.image ? { image: p.image } : {}),
     };
     const task = reelComposeTask(lintCustom, KIT_DOC);
@@ -623,7 +685,15 @@ async function composeScene(
       const out: ReelComposeOutput = run.output;
       const next = applyReelCompose(target, look, out, pictures);
       deps.onStage?.('check');
-      const sc = reelCustomScene({ look, theme, scene: next, words, pictures: pics });
+      const sc = reelCustomScene({
+        look,
+        theme,
+        format: p.format,
+        ...(p.noVideo ? { noVideo: true, captions: p.captions } : {}),
+        scene: next,
+        words,
+        pictures: pics,
+      });
       const report = sc
         ? await inspect(sc, assets, allow)
         : { summary: null, errors: ['no scene'] };

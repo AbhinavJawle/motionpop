@@ -2,7 +2,7 @@
 
 import type { StockOverlayClip, StockOverlayLayout } from '@motionpop/schemas';
 import { Film, Image as ImageIcon, Plus, Scissors, X } from 'lucide-react';
-import { useMemo, useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { cn } from '@/lib/cn';
 import {
   MIN_STOCK_SPLIT_MS,
@@ -54,6 +54,9 @@ export function StockMediaTrack({
   const exec = useEditor((s) => s.exec);
   const setRail = useEditor((s) => s.setRail);
   const [drag, setDrag] = useState<DragPreview | null>(null);
+  const cleanupDragRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => cleanupDragRef.current?.(), []);
 
   const clips = useMemo(
     () => allClips.filter((c) => (c.track ?? 0) === laneIndex),
@@ -128,6 +131,14 @@ export function StockMediaTrack({
       }
     };
 
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      if (cleanupDragRef.current === cleanup) cleanupDragRef.current = null;
+    };
+    cleanupDragRef.current?.();
+    cleanupDragRef.current = cleanup;
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);
@@ -157,7 +168,7 @@ export function StockMediaTrack({
           className="inline-flex h-[24px] items-center gap-1.5 rounded-md border border-dashed border-mint/45 bg-mint/8 px-2 text-[10.5px] font-medium text-text-2 transition-colors hover:border-mint hover:bg-mint/16 hover:text-text"
         >
           <Plus className="size-3 text-mint" strokeWidth={2} aria-hidden />
-          Add Pixabay video / photo at playhead
+          Add stock video / photo at playhead
         </button>
       </div>
     );

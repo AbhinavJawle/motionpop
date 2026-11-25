@@ -31,6 +31,7 @@ export type ShareView =
       resolution: string;
       videoUrl: string;
       posterUrl?: string;
+      transparent?: true;
     }
   | { kind: 'not-found' };
 
@@ -47,6 +48,7 @@ export async function loadShareView(deps: SharePageDeps, shareId: string): Promi
   return {
     kind: 'found',
     ...(poster ? { posterUrl: poster } : {}),
+    ...(loaded.render.transparent ? { transparent: true } : {}),
     title: loaded.render.title,
     durationMs: loaded.render.durationMs,
     format: loaded.render.format,

@@ -33,6 +33,7 @@ describe('deleteProject (spec 11 task 6b)', () => {
       'subs:p-1',
       'related:u1:p-1',
       'prefix:users/u1/audio/p-1/',
+      'prefix:users/u1/video/p-1/',
       'prefix:users/u1/projects/p-1/',
       'doc:p-1',
     ]);

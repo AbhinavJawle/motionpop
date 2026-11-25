@@ -1,0 +1,90 @@
+{
+  "id": "blueprint-schematic",
+  "name": "Blueprint Schematic",
+  "tagline": "Drafting navy, vector precision & system diagrams.",
+  "tags": ["Technical", "Explainer"],
+  "description": "Architectural drafting plates and 3Blue1Brown visual mechanisms: deep blueprint navy, crisp white technical hairlines, cyan vector traces, and calm precision.",
+  "colors": {
+    "bg": "#0C1B33",
+    "ink": "#F8FAFC",
+    "muted": "#93B4D8",
+    "accent": "#38BDF8",
+    "accent2": "#FBBF24",
+    "highlight": "#38BDF8",
+    "positive": "#34D399",
+    "negative": "#F87171",
+    "chart": ["#4A6FA5", "#FBBF24", "#38BDF8"]
+  },
+  "fonts": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 600
+  },
+  "texture": {
+    "grain": 0.02,
+    "paper": false,
+    "vignette": 0.12
+  },
+  "motion": {
+    "enterEase": "outQuart",
+    "moveEase": "inOutCubic",
+    "enterMs": 480,
+    "staggerMs": 55,
+    "holdMs": 1150,
+    "camera": {
+      "pushIn": 1.03
+    }
+  },
+  "shape": {
+    "radius": 4,
+    "stroke": 1.5
+  },
+  "allowPlayful": false,
+  "energy": "calm",
+  "personality": {
+    "preset": "calm",
+    "enter": {
+      "text": "mask",
+      "number": "count",
+      "shape": "draw"
+    },
+    "overshoot": 0.02,
+    "popMax": 0.04,
+    "exitRatio": 0.6,
+    "snapMargin": 12
+  },
+  "camera": {
+    "push": [1, 1.03],
+    "snap": 0,
+    "whip": false,
+    "parallax": 12
+  },
+  "surfaces": {
+    "card": ["plain", "grid"],
+    "photo": ["white-border"],
+    "label": ["plain"],
+    "strip": ["plain"]
+  },
+  "marks": {
+    "emphasis": "underline",
+    "pointer": "arrow",
+    "divider": "rule",
+    "badge": "chip"
+  },
+  "juice": ["camera-push", "decor-draw"],
+  "image": {
+    "recipe": "Crisp isometric architectural blueprint and technical vector schematic illustration of {subject}, clean cyan and ink linework, isolated cleanly on pure white background, no text, no watermark",
+    "treatment": ["key"]
+  },
+  "sound": {
+    "enter": "whoosh",
+    "mark": "pen",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["push"],
+  "map": {
+    "style": "night"
+  }
+}

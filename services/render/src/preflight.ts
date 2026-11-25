@@ -58,16 +58,22 @@ export async function serveDir(dir: string): Promise<{ url: string; close: () =>
   const root = normalize(dir + sep);
   const server: Server = createServer((req, res) => {
     void (async () => {
-      const path = decodeURIComponent((req.url ?? '/').split('?')[0] ?? '/');
-      const file = normalize(join(root, path === '/' ? 'index.html' : path));
-      if (!file.startsWith(root)) return res.writeHead(403).end();
-      const info = await stat(file).catch(() => null);
-      if (!info?.isFile()) return res.writeHead(404).end();
-      res.writeHead(200, {
-        'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
-        'Content-Length': String(info.size),
-      });
-      createReadStream(file).pipe(res);
+      try {
+        const path = decodeURIComponent((req.url ?? '/').split('?')[0] ?? '/');
+        const file = normalize(join(root, path === '/' ? 'index.html' : path));
+        if (!file.startsWith(root)) return res.writeHead(403).end();
+        const info = await stat(file).catch(() => null);
+        if (!info?.isFile()) return res.writeHead(404).end();
+        res.writeHead(200, {
+          'Content-Type': MIME[extname(file).toLowerCase()] ?? 'application/octet-stream',
+          'Content-Length': String(info.size),
+        });
+        createReadStream(file).pipe(res);
+      } catch (err) {
+        if (!res.headersSent) {
+          res.writeHead(err instanceof URIError ? 400 : 500).end();
+        }
+      }
     })();
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
@@ -83,16 +89,39 @@ export function createChromePreflight(opts: ChromePreflightOptions = {}): Prefli
     async check({ compDir, format, samplesMs, signal }) {
       const { width, height } = FORMATS[format];
       const served = await serveDir(compDir);
-      const browser = await puppeteer.launch({
-        ...(opts.headlessShellPath
-          ? { headless: 'shell' as const, executablePath: opts.headlessShellPath }
-          : { headless: true }),
-        args: opts.noSandbox ? ['--no-sandbox', '--disable-setuid-sandbox'] : [],
-      });
-      const onAbort = () => void browser.close().catch(() => undefined);
+      const servedOrigin = new URL(served.url).origin;
+      let browser: Awaited<ReturnType<typeof puppeteer.launch>> | null = null;
+      const onAbort = () => void browser?.close().catch(() => undefined);
       signal.addEventListener('abort', onAbort, { once: true });
       try {
+        browser = await puppeteer.launch({
+          ...(opts.headlessShellPath
+            ? { headless: 'shell' as const, executablePath: opts.headlessShellPath }
+            : { headless: true }),
+          args: [
+            ...(opts.noSandbox ? ['--no-sandbox', '--disable-setuid-sandbox'] : []),
+            // Block all outbound DNS/network resolution outside the local composition server.
+            '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1',
+          ],
+        });
         const page = await browser.newPage();
+        await page.setRequestInterception(true);
+        page.on('request', (req) => {
+          void (async () => {
+            try {
+              const u = new URL(req.url());
+              const allowed =
+                u.protocol === 'data:' ||
+                u.protocol === 'blob:' ||
+                u.protocol === 'about:' ||
+                u.origin === servedOrigin;
+              if (allowed) await req.continue();
+              else await req.abort('blockedbyclient');
+            } catch {
+              await req.abort('blockedbyclient');
+            }
+          })().catch(() => undefined);
+        });
         await page.setViewport({ width, height, deviceScaleFactor: 1 });
         await page.goto(served.url, { waitUntil: 'load' });
         const timeout = opts.readyTimeoutMs ?? 30_000;
@@ -120,7 +149,7 @@ export function createChromePreflight(opts: ChromePreflightOptions = {}): Prefli
         return issues;
       } finally {
         signal.removeEventListener('abort', onAbort);
-        await browser.close().catch(() => undefined);
+        await browser?.close().catch(() => undefined);
         await served.close();
       }
     },

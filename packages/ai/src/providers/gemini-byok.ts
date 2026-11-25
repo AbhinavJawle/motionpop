@@ -55,12 +55,20 @@ export function redactApiKey(text: string, apiKey?: string): string {
 
 /**
  * Maps Motionpop's Vertex/AgentPlatform model IDs to public Google AI Studio Gemini API models.
- * Standard Gemini 2.x/3.x public developer IDs pass straight through.
+ * When `customModel` is selected by the user, text/multimodal requests use that exact model ID
+ * (TTS and image generation still map to their dedicated audio/image models).
+ * Otherwise, standard Gemini 2.x public developer IDs pass straight through.
  */
-export function byokModelFor(requestedModel: string, mode: ByokModelMode = 'balanced'): string {
+export function byokModelFor(
+  requestedModel: string,
+  mode: ByokModelMode = 'balanced',
+  customModel?: string | null,
+): string {
   const m = requestedModel.trim();
   if (/tts/i.test(m)) return 'gemini-2.5-flash-preview-tts';
   if (/nano-banana|image/i.test(m)) return 'gemini-2.5-flash-image';
+  const custom = customModel?.trim();
+  if (custom) return custom;
   if (/^gemini-2\./i.test(m)) return m;
   if (mode === 'flash') return 'gemini-2.5-flash';
   if (/lite|flash/i.test(m)) return 'gemini-2.5-flash';
@@ -118,10 +126,11 @@ export function chromeOnDeviceProvider(): AIProvider {
       };
       const api = g.LanguageModel;
       if (!api?.create) throw new Error('On-device Gemini Nano is not available');
-      const expectedInputs = [
-        { type: 'text' },
-        ...(req.media ? [{ type: 'image' }] : []),
-      ];
+      const isImageMedia = Boolean(req.media && req.media.mimeType.startsWith('image/'));
+      if (req.media && !isImageMedia) {
+        throw new Error(`On-device Gemini Nano does not support ${req.media.mimeType} media`);
+      }
+      const expectedInputs = [{ type: 'text' }, ...(isImageMedia ? [{ type: 'image' }] : [])];
       if (api.availability) {
         const status = await api.availability({ expectedInputs });
         if (status !== 'available') throw new Error(`On-device Gemini Nano is ${status}`);
@@ -132,7 +141,7 @@ export function chromeOnDeviceProvider(): AIProvider {
       });
       try {
         let promptInput: unknown = req.prompt;
-        if (req.media && typeof atob === 'function' && typeof Blob !== 'undefined') {
+        if (isImageMedia && req.media && typeof atob === 'function' && typeof Blob !== 'undefined') {
           try {
             const bin = atob(req.media.base64);
             const bytes = new Uint8Array(bin.length);
@@ -152,8 +161,13 @@ export function chromeOnDeviceProvider(): AIProvider {
             promptInput = req.prompt;
           }
         }
+        const signal =
+          typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+            ? AbortSignal.timeout(45_000)
+            : undefined;
         const text = await session.prompt(promptInput, {
           responseConstraint: req.jsonSchema,
+          ...(signal ? { signal } : {}),
         });
         return { text, ranOn: 'device' };
       } finally {
@@ -168,6 +182,8 @@ export interface GeminiByokProviderOptions {
   /** Optional on-device provider (Firebase AI Logic or Chrome Prompt API) tried first for local modes. */
   onDevice?: AIProvider;
   modelMode?: ByokModelMode;
+  /** Optional explicit Gemini model ID chosen by the user (e.g. `gemini-2.5-pro`, `gemini-3-pro`). */
+  customModel?: string | null;
   fetchImpl?: typeof fetch;
 }
 
@@ -178,6 +194,7 @@ export interface GeminiByokProviderOptions {
 export function geminiByokProvider(opts: GeminiByokProviderOptions): AIProvider {
   const apiKey = GeminiApiKeySchema.parse(opts.apiKey);
   const mode = opts.modelMode ?? 'balanced';
+  const customModel = opts.customModel?.trim() || null;
   const fetchFn = opts.fetchImpl ?? fetch;
 
   return {
@@ -194,7 +211,7 @@ export function geminiByokProvider(opts: GeminiByokProviderOptions): AIProvider 
         }
       }
 
-      const model = byokModelFor(req.model, mode);
+      const model = byokModelFor(req.model, mode, customModel);
       const url = `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent`;
       const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [
         { text: req.prompt },
@@ -245,8 +262,8 @@ export function geminiByokProvider(opts: GeminiByokProviderOptions): AIProvider 
       if (!res.ok) throw extractRestError(res.status, data, apiKey);
 
       const candidate = data?.candidates?.[0];
-      if (candidate?.finishReason === 'RECITATION') {
-        return { text: '', ranOn: 'cloud' };
+      if (candidate?.finishReason === 'RECITATION' || candidate?.finishReason === 'SAFETY') {
+        throw new Error(`Gemini blocked the response (${candidate.finishReason})`);
       }
       const text = (candidate?.content?.parts ?? [])
         .map((p) => p.text ?? '')
@@ -258,6 +275,71 @@ export function geminiByokProvider(opts: GeminiByokProviderOptions): AIProvider 
 }
 
 export type KeyTestResult = { ok: true } | { ok: false; message: string };
+
+export interface GeminiModelInfo {
+  id: string;
+  displayName: string;
+}
+
+export type ListModelsResult =
+  | { ok: true; models: GeminiModelInfo[] }
+  | { ok: false; message: string };
+
+interface GeminiModelsResponse {
+  models?: Array<{
+    name?: string;
+    displayName?: string;
+    supportedGenerationMethods?: string[];
+  }>;
+  error?: { code?: number; message?: string; status?: string };
+}
+
+const EXCLUDED_TEXT_MODEL_PATTERN = /tts|image|embedding|aqa|robotics|computer-use|audio|live|veo/i;
+
+/**
+ * Lists Gemini models available to this API key that support `generateContent` for text/JSON tasks.
+ * Sends the key ONLY in `x-goog-api-key` and redacts any error string.
+ */
+export async function listGeminiModels(
+  rawKey: string,
+  fetchImpl: typeof fetch = fetch,
+): Promise<ListModelsResult> {
+  const parsed = GeminiApiKeySchema.safeParse(rawKey);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      message: parsed.error.issues[0]?.message ?? 'Enter a valid Gemini API key',
+    };
+  }
+  const apiKey = parsed.data;
+  try {
+    const res = await fetchImpl(`${GEMINI_API_BASE}/models?pageSize=200`, {
+      method: 'GET',
+      headers: { 'x-goog-api-key': apiKey },
+    });
+    const body = (await res.json().catch(() => null)) as GeminiModelsResponse | null;
+    if (!res.ok) {
+      return { ok: false, message: extractRestError(res.status, body, apiKey).message };
+    }
+    const seen = new Set<string>();
+    const models: GeminiModelInfo[] = [];
+    for (const m of body?.models ?? []) {
+      const id = (m.name ?? '').replace(/^models\//, '').trim();
+      if (!id || !/^gemini-/i.test(id) || seen.has(id)) continue;
+      if (EXCLUDED_TEXT_MODEL_PATTERN.test(id)) continue;
+      if (m.supportedGenerationMethods && !m.supportedGenerationMethods.includes('generateContent')) {
+        continue;
+      }
+      seen.add(id);
+      models.push({ id, displayName: (m.displayName ?? id).trim() || id });
+    }
+    models.sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }));
+    return { ok: true, models };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, message: redactApiKey(msg, apiKey) };
+  }
+}
 
 /**
  * Lightweight zero-token check that validates a Google AI Studio key against `/v1beta/models`.
@@ -319,22 +401,28 @@ export async function speakWithGeminiByok(
     let r: PartAudio | null = partCache ? await partCache.get(key).catch(() => null) : null;
     if (!r) {
       const url = `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent`;
-      const res = await fetchImpl(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ role: 'user', parts: [{ text: sentText }] }],
-          generationConfig: {
-            responseModalities: ['AUDIO'],
-            speechConfig: {
-              voiceConfig: { prebuiltVoiceConfig: { voiceName: input.voice } },
-            },
+      let res: Response;
+      try {
+        res = await fetchImpl(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
           },
-        }),
-      });
+          body: JSON.stringify({
+            contents: [{ role: 'user', parts: [{ text: sentText }] }],
+            generationConfig: {
+              responseModalities: ['AUDIO'],
+              speechConfig: {
+                voiceConfig: { prebuiltVoiceConfig: { voiceName: input.voice } },
+              },
+            },
+          }),
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(redactApiKey(msg, apiKey));
+      }
       const data = (await res.json().catch(() => null)) as GeminiGenerateResponse | null;
       if (!res.ok) throw extractRestError(res.status, data, apiKey);
 
@@ -363,7 +451,11 @@ export async function speakWithGeminiByok(
       r = { pcm: merged, sampleRate: partRate };
       await partCache?.put(key, r).catch(() => {});
     }
-    rate = r.sampleRate;
+    if (i === 0) {
+      rate = r.sampleRate;
+    } else if (r.sampleRate !== rate) {
+      throw new Error(`Mismatched TTS sample rates (${r.sampleRate} vs ${rate})`);
+    }
     if (i > 0) audio.push(new Int16Array(Math.round((rate * PART_GAP_MS) / 1000)));
     audio.push(r.pcm);
     onPart?.(i + 1, parts.length);

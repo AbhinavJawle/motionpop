@@ -6,6 +6,6 @@ steps:
     args: ['build', '-f', 'services/render/Dockerfile', '-t', '${_IMAGE}:${_TAG}', '.']
 images: ['${_IMAGE}:${_TAG}']
 substitutions:
-  _IMAGE: us-central1-docker.pkg.dev/motionpop-48409/motionpop/render
+  _IMAGE: us-central1-docker.pkg.dev/${PROJECT_ID}/motionpop/render
   _TAG: latest
 timeout: 1800s

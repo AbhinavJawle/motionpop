@@ -9,28 +9,34 @@ import { Modal } from '@/components/ui/modal';
  * user gesture the Prompt API needs.
  */
 export const DOWNLOAD_FACTS = [
-  'Chrome downloads Google’s Gemini Nano model to this computer. The model is several gigabytes, and Chrome only starts when about 22 GB of disk space is free.',
-  'It needs desktop Chrome on a computer with a graphics card with more than 4 GB of memory, or 16 GB of RAM.',
-  'It’s optional. Without it, edits run in the cloud and everything works the same.',
-  'Chrome keeps one copy for every site and deletes it by itself if your disk runs low.',
+  'You are about to download Google’s Gemini Nano model (~4 GB) directly into Chrome. Chrome requires about 22 GB of free disk space before it starts the download.',
+  'Desktop Chrome only: requires Desktop Chrome (138+) on a computer with more than 4 GB of GPU memory (VRAM) or 16 GB+ of RAM. Other browsers automatically use cloud AI.',
+  'It’s completely optional. Without it, edits run in the cloud and every feature works the same.',
+  'Chrome stores one shared copy across all sites and removes it automatically if your disk runs low.',
 ] as const;
 
 export function OnDeviceDownloadModal({
   open,
   onClose,
   onConfirm,
+  title = 'Download Gemini Nano (~4 GB)?',
+  description = 'You are about to enable on-device AI and download a large model to your computer.',
+  confirmLabel = 'Download model',
 }: {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  title?: string;
+  description?: string;
+  confirmLabel?: string;
 }) {
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Download the on-device model?"
-      description="Free, private edits that run on your computer."
-      className="w-[480px]"
+      title={title}
+      description={description}
+      className="w-[500px]"
     >
       <ul className="flex flex-col gap-2.5 text-[13px] leading-[18px] text-text-2">
         {DOWNLOAD_FACTS.map((fact) => (
@@ -52,7 +58,7 @@ export function OnDeviceDownloadModal({
             onClose();
           }}
         >
-          Download model
+          {confirmLabel}
         </Button>
       </div>
     </Modal>

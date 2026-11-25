@@ -54,8 +54,8 @@ export function apiError(
 
 /** The snapshot of a long project is the biggest part of a request: 2 MB is generous. */
 export const MAX_BODY_BYTES = 2_000_000;
-/** The same limit as the Storage rule for `users/{uid}/audio/**`. */
-export const MAX_VOICE_BYTES = 50_000_000;
+/** The same 50 MiB limit as the Storage rule for `users/{uid}/audio/**`. */
+export const MAX_VOICE_BYTES = 50 * 1024 * 1024;
 export const DOWNLOAD_TTL_MS = 10 * 60_000;
 
 // ---------------------------------------------------------------------------------------------
@@ -99,9 +99,15 @@ export interface CreateDeps {
   findReusable: (uid: string, key: string) => Promise<{ renderId: string } | null>;
   balanceOf: (uid: string) => Promise<number>;
   writeSnapshot: (path: string, json: string) => Promise<void>;
+  deleteSnapshot?: (path: string) => Promise<void>;
   launch: (renderId: string) => Promise<{ executionName?: string }>;
   recordExecution: (renderId: string, executionName: string) => Promise<void>;
-  failRender: (renderId: string, code: RenderErrorCode, message: string) => Promise<unknown>;
+  failRender: (
+    renderId: string,
+    code: RenderErrorCode,
+    message: string,
+    opts?: { onlyIf?: (r: RenderDoc) => boolean },
+  ) => Promise<unknown>;
   log: (fields: Record<string, unknown>) => void;
 }
 
@@ -146,8 +152,10 @@ export async function createRender(
   if (!voicePathFor(uid, project.id).test(voicePath)) return apiError('invalid');
   if (videoPath && !videoPathFor(uid, project.id).test(videoPath)) return apiError('invalid');
   if (clipPaths) {
+    const entries = Object.values(clipPaths);
+    if (entries.length > 64) return apiError('invalid');
     const re = mediaClipPathFor(uid, project.id);
-    for (const p of Object.values(clipPaths)) {
+    for (const p of entries) {
       if (!re.test(p)) return apiError('invalid');
     }
   }
@@ -219,6 +227,8 @@ export async function createRender(
     project,
     options: effectiveOptions,
     voicePath,
+    ...(videoPath ? { videoPath } : {}),
+    ...(clipPaths ? { clipPaths } : {}),
     ...(stockOverlayPaths ? { stockOverlayPaths } : {}),
     ...(stockAudioPaths ? { stockAudioPaths } : {}),
   });
@@ -296,11 +306,32 @@ export async function createRender(
     }
   } catch (e) {
     deps.log({ event: 'start-failed', renderId, error: errorText(e) });
-    await deps
-      .failRender(renderId, 'start-failed', 'The render could not be started.')
-      .catch((fe: unknown) =>
-        deps.log({ event: 'start-failed-not-recorded', renderId, error: errorText(fe) }),
+    let guarded = false;
+    try {
+      const failRes = await deps.failRender(
+        renderId,
+        'start-failed',
+        'The render could not be started.',
+        { onlyIf: (r) => r.status === 'queued' },
       );
+      if (
+        typeof failRes === 'object' &&
+        failRes !== null &&
+        (failRes as { kind?: unknown; reason?: unknown }).kind === 'noop' &&
+        (failRes as { reason?: unknown }).reason === 'guard'
+      ) {
+        guarded = true;
+      }
+    } catch (fe: unknown) {
+      deps.log({ event: 'start-failed-not-recorded', renderId, error: errorText(fe) });
+    }
+    if (!guarded && deps.deleteSnapshot) {
+      await deps
+        .deleteSnapshot(paths.input)
+        .catch((de: unknown) =>
+          deps.log({ event: 'snapshot-cleanup-failed', renderId, error: errorText(de) }),
+        );
+    }
     return apiError('start-failed');
   }
   const response: CreateRenderResponse = {

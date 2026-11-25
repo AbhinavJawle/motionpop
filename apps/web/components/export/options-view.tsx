@@ -3,6 +3,9 @@
 import { styleFor } from '@/lib/composition/project-to-compile';
 import {
   audibleStockAudio,
+  isGraphicReel,
+  isReelEngine,
+  isVideoReel,
   sanitizeFilename,
   visibleStockOverlays,
   type EditorProject,
@@ -59,7 +62,7 @@ export function ProjectCard({
   format: Format;
   scenes: number;
 }) {
-  const isReel = Boolean(project.reel && project.video);
+  const isReel = isReelEngine(project);
   const displayScenes = isReel && scenes === 0 ? (project.reel?.scenes.length ?? 0) : scenes;
   const mediaCount = visibleStockOverlays(project).length;
   const audioCount = audibleStockAudio(project).length;
@@ -123,7 +126,8 @@ export function OptionsView({
   startError: string | null;
   onExport: () => void;
 }) {
-  const isReel = Boolean(project?.reel && project?.video);
+  const isReel = isVideoReel(project);
+  const graphicOnly = isGraphicReel(project);
   const words = project?.transcript.words ?? [];
   const formatCards: OptionCard<Format>[] = FORMAT_CHOICES.map((f) => ({
     value: f,
@@ -165,21 +169,23 @@ export function OptionsView({
         />
       </div>
 
+      {!graphicOnly && (
+        <SwitchRow
+          className="mt-[30px]"
+          label="Captions"
+          hint="Burned into the video, word by word."
+          checked={options.captions}
+          onCheckedChange={(captions) => onOptions({ ...options, captions })}
+        />
+      )}
       <SwitchRow
-        className="mt-[30px]"
-        label="Captions"
-        hint="Burned into the video, word by word."
-        checked={options.captions}
-        onCheckedChange={(captions) => onOptions({ ...options, captions })}
-      />
-      <SwitchRow
-        className="mt-[21px]"
+        className={graphicOnly ? 'mt-[30px]' : 'mt-[21px]'}
         label="Transparent background (for editors)"
         hint={
           isReel
             ? 'Not available for Reels — camera footage is baked into the scene.'
             : options.transparent
-              ? 'Exports WebM with alpha (VP9 · yuva420p) for Premiere, Resolve & Final Cut.'
+              ? 'Exports WebM with alpha (VP9 · yuva420p) for external video editors.'
               : 'Exports as WebM with alpha when enabled.'
         }
         checked={!isReel && Boolean(options.transparent)}

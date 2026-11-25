@@ -1,11 +1,19 @@
 // Reel engine (spec 25): mounts a reel into a host element and draws any moment from
 // `seek(ms)`. The same code runs in the editor preview (native <video>, real-time) and inside the
 // HyperFrames composition for export (frame-exact), so the preview is the export.
-import type { ReelMedia, ReelPlan, ReelScene, ReelWord } from '@motionpop/schemas';
+import type { Format, ReelMedia, ReelPlan, ReelScene, ReelWord } from '@motionpop/schemas';
 import { clamp, easeInOutCubic, easeOutCubic, lerp, prog, revealAt } from './anim';
 import { captionStyleOf, chunkAt, chunkCaptions, type CaptionChunk } from './captions';
 import { css, h } from './dom';
-import { graphicArea, LOOKS, STAGE_H, STAGE_W, type LookTokens, type Palette } from './looks';
+import {
+  graphicArea,
+  LOOKS,
+  STAGE_H,
+  STAGE_W,
+  stageSizeForFormat,
+  type LookTokens,
+  type Palette,
+} from './looks';
 import { readable, themedLook } from './theme';
 import type { ReelImage } from './parts';
 import { carriedInPlace, carryOrigins } from './carry';
@@ -26,8 +34,12 @@ export interface ReelData {
   /** Words on the reel timeline (integer ms). */
   words: ReelWord[];
   durationMs: number;
-  /** Intrinsic size of the speaker video. */
-  video: { w: number; h: number };
+  /** Intrinsic size of the speaker video; absent for voiceover-only & graphics-only projects. */
+  video?: { w: number; h: number };
+  /** Aspect ratio of the stage (`9:16` = 720×1280, `16:9` = 1280×720, `1:1` = 720×720). */
+  format?: Format;
+  /** When true, omits opaque canvas/scene backgrounds for alpha WebM export & transparent preview. */
+  transparent?: boolean;
   /** Pictures by `project.assets` id (spec 26): composition-relative or blob URLs. */
   images?: Record<string, ReelImage>;
   /** Reel-time jump cuts in the speaker video (spec 27 R1.2): the framing alternates on them. */
@@ -135,16 +147,21 @@ function gridCss(pal: Palette): Record<string, string> {
 export function mountReel(
   host: HTMLElement,
   data: ReelData,
-  videos: HTMLVideoElement[],
+  videos: HTMLVideoElement[] = [],
 ): ReelHandle {
   const { plan } = data;
+  const stage = stageSizeForFormat(data.format);
+  const stageW = stage.w;
+  const stageH = stage.h;
+  const hasVideo = Boolean(data.video);
+  const transparent = Boolean(data.transparent) && !hasVideo;
   const look = themedLook(LOOKS[plan.look], plan.theme);
   css(host, {
     position: 'relative',
-    width: STAGE_W,
-    height: STAGE_H,
+    width: stageW,
+    height: stageH,
     overflow: 'hidden',
-    background: '#000',
+    background: transparent ? 'transparent' : '#000',
     fontKerning: 'normal',
     WebkitFontSmoothing: 'antialiased',
     textRendering: 'geometricPrecision',
@@ -154,15 +171,16 @@ export function mountReel(
     position: 'absolute',
     left: 0,
     top: 0,
-    width: STAGE_W,
-    height: STAGE_H,
+    width: stageW,
+    height: stageH,
+    ...(transparent ? { background: 'transparent' } : {}),
   });
   const panel = h('div', {
     position: 'absolute',
     left: 0,
     top: 0,
-    width: STAGE_W,
-    height: STAGE_H,
+    width: stageW,
+    height: stageH,
   });
   // The export's HTML already holds the wrapper with its timed <video> clips; HyperFrames tracks
   // those nodes, so they are never moved. The preview passes loose videos instead.
@@ -172,10 +190,11 @@ export function mountReel(
     position: 'absolute',
     left: 0,
     top: 0,
-    width: STAGE_W,
-    height: STAGE_H,
+    width: stageW,
+    height: stageH,
     overflow: 'hidden',
     background: '#111',
+    ...(hasVideo ? {} : { display: 'none', opacity: '0' }),
   });
   // Hooks for frame notes (spec 29): what a circle on the preview lands on. Inert at render.
   vwrap.setAttribute('data-reel-part', 'speaker');
@@ -183,16 +202,16 @@ export function mountReel(
     position: 'absolute',
     left: 0,
     top: 0,
-    width: STAGE_W,
-    height: STAGE_H,
+    width: stageW,
+    height: stageH,
     pointerEvents: 'none',
   });
   const capLayer = h('div', {
     position: 'absolute',
     left: 0,
     top: 0,
-    width: STAGE_W,
-    height: STAGE_H,
+    width: stageW,
+    height: stageH,
     pointerEvents: 'none',
   });
   if (existing) {
@@ -207,15 +226,21 @@ export function mountReel(
     if (v.parentElement !== vwrap) vwrap.append(v);
   }
 
-  const scenes =
+  const rawScenes =
     plan.look === 'cream'
       ? plan.scenes.map((s) =>
           s.content.template === 'custom' ? s : { ...s, content: sentenceCase(s.content) },
         )
       : plan.scenes;
+  // Without speaker footage, every scene uses full-frame graphic layout so there is never an empty
+  // speaker box.
+  const scenes: ReelScene[] = hasVideo
+    ? rawScenes
+    : rawScenes.map((s) => (s.layout === 'full' ? s : { ...s, layout: 'full' as const }));
   const views: SceneView[] = [];
   const capStyle = captionStyleOf(plan.look, plan.captionStyle);
-  const chunks: CaptionChunk[] = plan.captions
+  const showCaptions = Boolean(plan.captions) && !plan.graphicOnly && data.words.length > 0;
+  const chunks: CaptionChunk[] = showCaptions
     ? chunkCaptions(data.words, plan.look, plan.captionStyle)
     : [];
 
@@ -232,13 +257,13 @@ export function mountReel(
 
   // Hook band (mono): the title over the first seconds.
   let hookEl: HTMLElement | null = null;
-  if (plan.hook && look.id === 'mono') {
+  if (plan.hook && look.id === 'mono' && hasVideo) {
     hookEl = h(
       'div',
       {
         position: 'absolute',
         left: 0,
-        width: STAGE_W,
+        width: stageW,
         top: 0,
         boxSizing: 'border-box',
         padding: '14px 40px 16px',
@@ -283,29 +308,33 @@ export function mountReel(
         position: 'absolute',
         left: 0,
         top: 0,
-        width: STAGE_W,
-        height: layout === 'split' ? STAGE_H / 2 : STAGE_H,
+        width: stageW,
+        height: layout === 'split' ? stageH / 2 : stageH,
         overflow: 'hidden',
         visibility: 'hidden',
       });
       sceneHost.setAttribute('data-reel-scene', s0.id);
-      const bg = isOverlay
-        ? undefined
-        : h('div', {
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: STAGE_W,
-            height: '100%',
-            ...gridCss(pal),
-          });
+      const bg =
+        isOverlay || transparent
+          ? undefined
+          : h('div', {
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              width: stageW,
+              height: '100%',
+              ...gridCss(pal),
+            });
       if (bg) sceneHost.append(bg);
-      const area = graphicArea(look, layout);
+      const area = graphicArea(look, layout, stage, {
+        noVideo: !hasVideo,
+        captions: showCaptions,
+      });
       const cam = h('div', {
         position: 'absolute',
         left: 0,
         top: 0,
-        width: STAGE_W,
+        width: stageW,
         height: area.h,
         transformOrigin: '50% 50%',
       });
@@ -324,7 +353,11 @@ export function mountReel(
                 const scene = reelCustomScene({
                   look: plan.look,
                   theme: plan.theme,
-                  scene: { ...s0, content: p },
+                  ...(data.format ? { format: data.format } : {}),
+                  noVideo: !hasVideo,
+                  captions: showCaptions,
+                  ...(transparent ? { transparent: true } : {}),
+                  scene: { ...s0, layout, content: p },
                   words: data.words,
                   pictures: data.customImages ?? data.images ?? {},
                 })!;
@@ -359,7 +392,7 @@ export function mountReel(
           position: 'absolute',
           left: 0,
           top: 0,
-          width: STAGE_W,
+          width: stageW,
           height: 0,
         });
         tagWrap.append(tag);
@@ -400,21 +433,22 @@ export function mountReel(
   };
 
   const boxFor = (s: ReelScene): Box | null => {
+    if (!hasVideo) return null;
     switch (s.layout) {
       case 'split':
-        return { x: 0, y: STAGE_H / 2, w: STAGE_W, h: STAGE_H / 2, radius: 0, ay: 0.4, zoom: 1 };
+        return { x: 0, y: stageH / 2, w: stageW, h: stageH / 2, radius: 0, ay: 0.4, zoom: 1 };
       case 'card':
         return {
           x: 0,
           y: look.cardTop,
-          w: STAGE_W,
-          h: STAGE_H - look.cardTop,
+          w: stageW,
+          h: stageH - look.cardTop,
           radius: look.id === 'mono' ? 28 : look.cardRadius,
           ay: 0.44,
           zoom: 1.05,
         };
       case 'speaker':
-        return { x: 0, y: 0, w: STAGE_W, h: STAGE_H, radius: 0, ay: 0.36, zoom: 1 };
+        return { x: 0, y: 0, w: stageW, h: stageH, radius: 0, ay: 0.36, zoom: 1 };
       case 'full':
         return null;
     }
@@ -429,7 +463,7 @@ export function mountReel(
 
   const placeVideo = (box: Box | null, s: ReelScene, t: number, opacity = 1) => {
     // Opacity, not visibility: HyperFrames sets the clip's own visibility each frame.
-    if (!box || opacity <= 0.001) {
+    if (!hasVideo || !box || opacity <= 0.001) {
       vwrap.style.opacity = '0';
       return;
     }
@@ -447,8 +481,8 @@ export function mountReel(
     const push = s.layout === 'speaker' ? 0.06 : 0.025;
     const punch = punchLevelAt(punches, t) ? (s.layout === 'speaker' ? 1.09 : 1.05) : 1;
     const z = box.zoom * punch * (1 + push * easeOutCubic(clamp((t - s.startMs) / span)));
-    const vw = data.video.w || 720;
-    const vh = data.video.h || 1280;
+    const vw = data.video?.w || stageW;
+    const vh = data.video?.h || stageH;
     let dw: number;
     let dh: number;
     let left: number;
@@ -517,17 +551,20 @@ export function mountReel(
     if (cap.textContent !== c.text) cap.textContent = c.text;
     const onSpeaker = s.layout === 'speaker';
     // Seam labels sit on the seam itself; the other styles sit just above it.
-    const y =
-      capStyle === 'seam'
+    const y = !hasVideo
+      ? stageH >= 1000
+        ? Math.round(stageH * 0.78)
+        : stageH - 64
+      : capStyle === 'seam'
         ? s.layout === 'split'
-          ? STAGE_H / 2
+          ? stageH / 2
           : s.layout === 'card'
             ? look.cardTop
             : s.layout === 'full'
               ? 1133
               : 1010
         : s.layout === 'split'
-          ? STAGE_H / 2 - 52
+          ? stageH / 2 - 52
           : s.layout === 'card'
             ? look.cardTop - 64
             : s.layout === 'full'
@@ -619,7 +656,7 @@ export function mountReel(
     cap.style.opacity = String(clamp(pIn * 2));
     cap.style.filter = pIn < 1 ? `blur(${((1 - e) * 5).toFixed(2)}px)` : 'none';
     cap.style.transform = `translate(-50%, -50%) translate3d(0, ${((1 - e) * 6).toFixed(2)}px, 0)`;
-    cap.style.left = `${STAGE_W / 2}px`;
+    cap.style.left = `${stageW / 2}px`;
     cap.style.top = `${y}px`;
   };
 
@@ -706,13 +743,15 @@ export function mountReel(
         if (outgoing && ho) v.tag.style.opacity = (1 - clamp(ho.p * 4)).toFixed(3);
       }
     });
-    // Background behind everything: the scene palette for card/full, black for speaker/split.
+    // Background behind everything: transparent for alpha WebM, scene palette for card/full, black for speaker/split.
     const pal = views[idx]?.pal ?? look.palettes[look.defaultBg];
     css(
       bgLayer,
-      s.layout === 'card' || s.layout === 'full'
-        ? gridCss(pal)
-        : { background: '#000', backgroundImage: 'none' },
+      transparent
+        ? { background: 'transparent', backgroundImage: 'none' }
+        : s.layout === 'card' || s.layout === 'full'
+          ? gridCss(pal)
+          : { background: '#000', backgroundImage: 'none' },
     );
     // The speaker's box: morphs between layouts, fades under/over full-frame graphics.
     let box = boxFor(s);
@@ -736,7 +775,7 @@ export function mountReel(
       hookEl.style.visibility = on ? 'visible' : 'hidden';
       if (on) {
         const fb = boxFor(first);
-        const bottom = fb ? fb.y - 12 : STAGE_H / 2 - 12;
+        const bottom = fb ? fb.y - 12 : stageH / 2 - 12;
         hookEl.style.top = `${bottom - hookEl.offsetHeight}px`;
       }
     }

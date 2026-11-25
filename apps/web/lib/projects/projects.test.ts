@@ -1,6 +1,7 @@
 import { IDBFactory } from 'fake-indexeddb';
 import { timelineIssues } from '@motionpop/schemas';
 import { describe, expect, it } from 'vitest';
+import { MemoryAudioStore } from '../audio/audio-store';
 import { encodeWav, synthVoice } from '../audio/synth-voice';
 import { demoProject, demoWords } from './fixture';
 import { IdbProjectRepository } from './idb-repository';
@@ -109,6 +110,66 @@ describe.each(repos)('%s repository', (_, make) => {
       throw new Error(`expected invalid, got ${JSON.stringify(r)}`);
     }
     expect(await repo.restoreBackup('demo')).toEqual({ ok: true, project: good });
+  });
+
+  it('duplicate() remaps stock/video/mediaBin/music blobs and delete() frees all of them (H11)', async () => {
+    const audio = new MemoryAudioStore();
+    const repo = new MemoryProjectRepository({ audio });
+    const voiceRef = await audio.put(new Blob(['voice'], { type: 'audio/wav' }));
+    const ovRef = await audio.put(new Blob(['overlay'], { type: 'video/mp4' }));
+    const auRef = await audio.put(new Blob(['sfx'], { type: 'audio/mpeg' }));
+    const base = demoProject(1);
+    const orig = {
+      ...base,
+      voiceover: { ...base.voiceover, src: voiceRef },
+      stockOverlays: [
+        {
+          id: 'ov1',
+          name: 'Clip',
+          src: ovRef,
+          kind: 'video' as const,
+          mimeType: 'video/mp4',
+          startMs: 0,
+          endMs: 2000,
+          layout: 'card' as const,
+          provider: 'upload' as const,
+        },
+      ],
+      stockAudio: [
+        {
+          id: 'sa1',
+          name: 'Whoosh',
+          src: auRef,
+          kind: 'sfx' as const,
+          mimeType: 'audio/mpeg',
+          startMs: 0,
+          endMs: 1000,
+          volume: 0.9,
+          provider: 'upload' as const,
+        },
+      ],
+    };
+    await repo.save(orig);
+    const copyId = await repo.duplicate(orig.id, 'Copy');
+    const loaded = await repo.load(copyId);
+    expect(loaded.ok).toBe(true);
+    if (!loaded.ok) return;
+    const copyOvRef = loaded.project.stockOverlays![0]!.src;
+    const copyAuRef = loaded.project.stockAudio![0]!.src;
+    expect(copyOvRef).not.toBe(ovRef);
+    expect(copyAuRef).not.toBe(auRef);
+
+    // Deleting the original must not break the duplicate's blobs.
+    await repo.delete(orig.id);
+    expect(await audio.get(ovRef)).toBeNull();
+    expect(await audio.get(auRef)).toBeNull();
+    expect(await audio.get(copyOvRef)).not.toBeNull();
+    expect(await audio.get(copyAuRef)).not.toBeNull();
+
+    // Deleting the duplicate frees its own blobs.
+    await repo.delete(copyId);
+    expect(await audio.get(copyOvRef)).toBeNull();
+    expect(await audio.get(copyAuRef)).toBeNull();
   });
 });
 

@@ -144,23 +144,26 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     // the export goes on with the voice alone rather than failing the whole render.
     let bedSrc: string | null = null;
     try {
-      if (project.reel && project.video) bedSrc = await prepareReelBed(project, compDir);
-      else if (doc.music) bedSrc = await prepareBed(project, compDir);
+      if (project.reel && !project.reel.graphicOnly) bedSrc = await prepareReelBed(project, compDir);
+      else if (!project.reel && doc.music) bedSrc = await prepareBed(project, compDir);
     } catch (e) {
       log.error({ event: 'bed-failed', renderId, error: errorText(e) });
     }
     // The reel's generated music (spec 27 R3.2), from the owner's project audio folder only.
     let musicSrc: string | null = null;
-    const musicRef = project.reel && project.video ? project.reel.music?.src : undefined;
+    const musicRef =
+      project.reel && !project.reel.graphicOnly ? project.reel.music?.src : undefined;
     if (musicRef) {
       const path = musicRef.startsWith('storage:') ? musicRef.slice('storage:'.length) : musicRef;
       if (musicPathFor(doc.ownerId, doc.projectId).test(path)) {
+        const dest = join(deps.workDir, 'music-source.wav');
         try {
-          const dest = join(deps.workDir, 'music-source.wav');
           await blobs.download(path, dest);
           musicSrc = await prepareReelMusic(project, compDir, dest);
         } catch (e) {
           log.error({ event: 'music-failed', renderId, error: errorText(e) });
+        } finally {
+          await rm(dest, { force: true }).catch(() => undefined);
         }
       } else log.error({ event: 'music-path-refused', renderId });
     }
@@ -222,15 +225,18 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
     }
 
     // 2e. Source video for video projects (spec 18 R7.1, spec 19 R5.1), downloaded from owner's folder.
-    // Reels (spec 25) play it inside the composition, so it lands in the composition folder.
+    // Talking-head reels (spec 25) play it inside the composition, so it lands in the composition folder.
+    // Graphics-only & voiceover-only reel projects have no speaker video and support transparent WebM.
     // Transparent WebM exports (spec 47) skip source footage so NLE editors get alpha overlays.
-    const reelMode = Boolean(project.reel && project.video);
-    const transparentMode = Boolean(doc.transparent) && !reelMode;
+    const useReelEngine = Boolean(project.reel);
+    const hasSpeakerVideo = Boolean(project.reel && project.video);
+    const transparentMode = Boolean(doc.transparent) && !hasSpeakerVideo;
     const outContainer = transparentMode ? 'webm' : 'mp4';
     const finalPaths = renderPaths(doc.ownerId, doc.projectId, renderId, outContainer);
+    paths = finalPaths;
     let sourceVideoFile: string | null = null;
     let reelVideoRel: string | null = null;
-    if (project.video && !transparentMode && (ffmpeg.compositeVideo || reelMode)) {
+    if (project.video && !transparentMode && (ffmpeg.compositeVideo || hasSpeakerVideo)) {
       const candidate =
         doc.videoPath ??
         (project.video.src.startsWith('storage:')
@@ -241,10 +247,10 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         voicePathFor(doc.ownerId, doc.projectId).test(candidate);
       if (allowed) {
         const ext = /^\.[a-z0-9]{2,5}$/i.test(extname(candidate)) ? extname(candidate) : '.mp4';
-        if (reelMode) reelVideoRel = `assets/speaker${ext.toLowerCase()}`;
+        if (hasSpeakerVideo) reelVideoRel = `assets/speaker${ext.toLowerCase()}`;
         const dest = reelVideoRel
           ? join(compDir, reelVideoRel)
-          : join(deps.workDir, 'source-video');
+          : join(deps.workDir, `source-video${ext.toLowerCase()}`);
         try {
           await blobs.download(candidate, dest);
           sourceVideoFile = dest;
@@ -253,7 +259,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         }
         // Raw footage (spec 27 R5.2): reels play an upright H.264 proxy, so 4K, HEVC, VFR and
         // rotated phone clips render like the preview. A failed proxy keeps the original.
-        if (reelMode && sourceVideoFile && ffmpeg.proxyVideo) {
+        if (hasSpeakerVideo && sourceVideoFile && ffmpeg.proxyVideo) {
           const proxyRel = 'assets/speaker-proxy.mp4';
           try {
             await ffmpeg.proxyVideo({
@@ -270,11 +276,11 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         }
       }
     }
-    if (reelMode && !sourceVideoFile) {
+    if (hasSpeakerVideo && !sourceVideoFile) {
       throw new RenderStepError('input-missing', 'the source video could not be read');
     }
     const videoComposite =
-      !reelMode &&
+      !useReelEngine &&
       !transparentMode &&
       Boolean(project.video && sourceVideoFile && ffmpeg.compositeVideo);
 
@@ -303,24 +309,38 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       }
     }
 
-    // 3. Compile. A reel is one composition: the speaker clips, the scenes and the captions.
+    // 3. Compile. A reel-engine project is one composition: graphics scenes (plus speaker clips for
+    // talking-head reels, or voiceover WAV for voice-only reels, or pure alpha for graphics-only).
     const slots = await step('compile-failed', 'compiling', async () => {
-      if (reelMode && project.reel && project.video && reelVideoRel) {
+      if (useReelEngine && project.reel && (!hasSpeakerVideo || (project.video && reelVideoRel))) {
         const dims = expectedSize(doc.format, doc.resolution);
+        const planForRender = {
+          ...project.reel,
+          captions: project.reel.graphicOnly ? false : doc.captions,
+        };
         const html = compileReel(
           {
-            plan: project.reel,
+            plan: planForRender,
             words: project.transcript.words.map((w) => ({
               text: w.text,
               startMs: w.startMs,
               endMs: w.endMs,
             })),
             durationMs: project.durationMs,
-            videoSrc: reelVideoRel,
-            video: { w: project.video.width, h: project.video.height },
-            segments: keptSourceSegments(project.video.originalDurationMs, project.video.cuts).map(
-              (k) => ({ srcStartMs: k.startMs, srcEndMs: k.endMs }),
-            ),
+            format: doc.format,
+            ...(transparentMode ? { transparent: true } : {}),
+            ...(hasSpeakerVideo && project.video && reelVideoRel
+              ? {
+                  videoSrc: reelVideoRel,
+                  video: { w: project.video.width, h: project.video.height },
+                  segments: keptSourceSegments(
+                    project.video.originalDurationMs,
+                    project.video.cuts,
+                  ).map((k) => ({ srcStartMs: k.startMs, srcEndMs: k.endMs })),
+                }
+              : !project.reel.graphicOnly
+                ? { voiceSrc: 'assets/voice.wav' }
+                : {}),
             out: { w: dims.width, h: dims.height },
             images: reelImages,
             ...(bedSrc ? { sfxSrc: bedSrc } : {}),
@@ -351,7 +371,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
 
     // 4a. Preflight: a slot that fails to build leaves its clip empty, so catch it before the render.
     const issues = await step('render-failed', 'the preflight', async () =>
-      reelMode
+      useReelEngine
         ? []
         : deps.preflight.check({
             compDir,
@@ -423,6 +443,12 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
           bgColor: styleFor(project).colors.bg,
         }),
       );
+      // Free large A-roll, overlay, and Media Bin files from Cloud Run's in-memory /tmp right away.
+      await Promise.all([
+        rm(sourceVideoFile, { force: true }).catch(() => undefined),
+        rm(overlayOut, { force: true }).catch(() => undefined),
+        ...Object.values(downloadedClips).map((c) => rm(c.path, { force: true }).catch(() => undefined)),
+      ]);
     }
     // 4b'. Multi-lane Stock Media & Stock Audio export parity (spec 45 R5.3): runs across all
     // project modes (motion, video, reel) right before loudness normalization when clips exist.
@@ -448,72 +474,97 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         }
       };
 
-      const resolvedOverlays: ResolvedStockOverlay[] = [];
-      if (doc.stockOverlayPaths) {
-        for (const clip of visibleStockOverlays(project)) {
-          const storagePath = doc.stockOverlayPaths[clip.id];
-          if (!storagePath || !ovRe.test(storagePath)) continue;
-          const localPath = await downloadOnce(storagePath, 'stock-ov');
-          if (!localPath) continue;
-          resolvedOverlays.push({
-            id: clip.id,
-            path: localPath,
-            isVideo: clip.kind === 'video' || clip.mimeType.startsWith('video/'),
-            startMs: clip.startMs,
-            endMs: clip.endMs,
-            sourceOffsetMs: clip.sourceOffsetMs ?? 0,
-            ...(clip.clipDurationMs !== undefined ? { clipDurationMs: clip.clipDurationMs } : {}),
-            layout: clip.layout,
-            track: clip.track ?? 0,
+      try {
+        const resolvedOverlays: ResolvedStockOverlay[] = [];
+        if (doc.stockOverlayPaths) {
+          for (const clip of visibleStockOverlays(project)) {
+            if (clip.endMs <= clip.startMs || clip.startMs >= project.durationMs) continue;
+            const storagePath = doc.stockOverlayPaths[clip.id];
+            if (!storagePath || !ovRe.test(storagePath)) continue;
+            const localPath = await downloadOnce(storagePath, 'stock-ov');
+            if (!localPath) continue;
+            resolvedOverlays.push({
+              id: clip.id,
+              path: localPath,
+              isVideo: clip.kind === 'video' || clip.mimeType.startsWith('video/'),
+              startMs: clip.startMs,
+              endMs: clip.endMs,
+              sourceOffsetMs: clip.sourceOffsetMs ?? 0,
+              ...(clip.clipDurationMs !== undefined ? { clipDurationMs: clip.clipDurationMs } : {}),
+              layout: clip.layout,
+              track: clip.track ?? 0,
+            });
+          }
+        }
+
+        const audioHasStream = new Map<string, boolean>();
+        const resolvedAudio: ResolvedStockAudio[] = [];
+        if (doc.stockAudioPaths) {
+          for (const clip of audibleStockAudio(project)) {
+            if (clip.endMs <= clip.startMs || clip.startMs >= project.durationMs) continue;
+            if (clip.volume <= 0) continue;
+            const storagePath = doc.stockAudioPaths[clip.id];
+            if (!storagePath || !auRe.test(storagePath)) continue;
+            const localPath = await downloadOnce(storagePath, 'stock-au');
+            if (!localPath) continue;
+            if (!audioHasStream.has(localPath)) {
+              const p = await ffmpeg.probe(localPath).catch(() => null);
+              // Default true when fake/stubbed probe is unavailable; skip confirmed audio-less files.
+              audioHasStream.set(localPath, p ? p.audioStreams > 0 : true);
+            }
+            if (!audioHasStream.get(localPath)) continue;
+            resolvedAudio.push({
+              id: clip.id,
+              path: localPath,
+              kind: clip.kind,
+              startMs: clip.startMs,
+              endMs: clip.endMs,
+              sourceOffsetMs: clip.sourceOffsetMs ?? 0,
+              volume: clip.volume,
+              track: clip.track ?? 0,
+            });
+          }
+        }
+
+        if (resolvedOverlays.length > 0 || resolvedAudio.length > 0) {
+          const baseProbe = await ffmpeg.probe(out).catch(() => null);
+          const hasBaseAudio = baseProbe ? baseProbe.audioStreams > 0 : true;
+          const stockOut = join(
+            deps.workDir,
+            transparentMode ? 'video-stock.webm' : 'video-stock.mp4',
+          );
+          await step('render-failed', 'compositing stock layers', async () => {
+            try {
+              await ffmpeg.compositeStockLayers!({
+                baseVideoPath: out,
+                outMp4Path: stockOut,
+                ...(transparentMode ? { container: 'webm' as const } : {}),
+                hasBaseAudio,
+                width: dims.width,
+                height: dims.height,
+                fps: 30,
+                durationMs: project.durationMs,
+                overlays: resolvedOverlays,
+                audioClips: resolvedAudio,
+              });
+              await rename(stockOut, out);
+            } catch (e) {
+              await rm(stockOut, { force: true }).catch(() => undefined);
+              throw e;
+            }
           });
         }
-      }
-
-      const resolvedAudio: ResolvedStockAudio[] = [];
-      if (doc.stockAudioPaths) {
-        for (const clip of audibleStockAudio(project)) {
-          const storagePath = doc.stockAudioPaths[clip.id];
-          if (!storagePath || !auRe.test(storagePath)) continue;
-          const localPath = await downloadOnce(storagePath, 'stock-au');
-          if (!localPath) continue;
-          resolvedAudio.push({
-            id: clip.id,
-            path: localPath,
-            kind: clip.kind,
-            startMs: clip.startMs,
-            endMs: clip.endMs,
-            sourceOffsetMs: clip.sourceOffsetMs ?? 0,
-            volume: clip.volume,
-            track: clip.track ?? 0,
-          });
-        }
-      }
-
-      if (resolvedOverlays.length > 0 || resolvedAudio.length > 0) {
-        const stockOut = join(
-          deps.workDir,
-          transparentMode ? 'video-stock.webm' : 'video-stock.mp4',
+      } finally {
+        await Promise.all(
+          [...downloadedByPath.values()].map((p) => rm(p, { force: true }).catch(() => undefined)),
         );
-        await step('render-failed', 'compositing stock layers', async () => {
-          await ffmpeg.compositeStockLayers!({
-            baseVideoPath: out,
-            outMp4Path: stockOut,
-            ...(transparentMode ? { container: 'webm' as const } : {}),
-            width: dims.width,
-            height: dims.height,
-            fps: 30,
-            durationMs: project.durationMs,
-            overlays: resolvedOverlays,
-            audioClips: resolvedAudio,
-          });
-          await rename(stockOut, out);
-        });
       }
     }
 
-    // 4c. Loudness (spec 27 R3.3): social platforms play at about −14 LUFS. A failure keeps the
-    // mix as rendered (it is still a good file).
-    if (ffmpeg.normalizeLoudness) {
+    // 4c. Loudness (spec 27 R3.3): social platforms play at about −14 LUFS. Skip audio-less
+    // graphics-only renders (unless stock audio was composited); a failure keeps the rendered mix.
+    const hasStockAudio = Boolean(doc.stockAudioPaths && Object.keys(doc.stockAudioPaths).length > 0);
+    if (ffmpeg.normalizeLoudness && !(project.reel?.graphicOnly && !hasStockAudio)) {
       const levelled = join(
         deps.workDir,
         transparentMode ? 'video-levelled.webm' : 'video-levelled.mp4',
@@ -522,6 +573,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         await ffmpeg.normalizeLoudness({ src: out, dest: levelled, lufs: -14, truePeakDb: -1 });
         await rename(levelled, out);
       } catch (e) {
+        await rm(levelled, { force: true }).catch(() => undefined);
         log.error({ event: 'loudness-failed', renderId, error: errorText(e) });
       }
     }
@@ -538,6 +590,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
         format: doc.format,
         resolution: doc.resolution,
         durationMs: project.durationMs,
+        ...(transparentMode ? { transparent: true } : {}),
       });
       if (problems.length > 0) {
         log.error({ event: 'output-check', renderId, problems });

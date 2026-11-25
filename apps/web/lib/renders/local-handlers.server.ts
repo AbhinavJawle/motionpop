@@ -5,6 +5,7 @@ import {
   RenderRequestSchema,
   exportAvailability,
   isSafeId,
+  mediaClipPathFor,
   renderPaths,
   stockAudioPathFor,
   stockOverlayPathFor,
@@ -82,6 +83,7 @@ const LOCAL_STOCK_OV_EXT: Readonly<
 };
 
 export interface LocalStockMediaFiles {
+  clips?: Readonly<Record<string, LocalVoice>>;
   overlays?: Readonly<Record<string, LocalVoice>>;
   audio?: Readonly<Record<string, LocalVoice>>;
 }
@@ -132,8 +134,22 @@ export async function createLocalRender(
     if (videoPathFor(LOCAL_USER, project.id).test(candidate)) videoPath = candidate;
   }
 
+  const clipPaths: Record<string, string> = {};
   const stockOverlayPaths: Record<string, string> = {};
   const stockBlobsToWrite = new Map<string, Buffer>();
+  if (stockFiles.clips) {
+    const clipRe = mediaClipPathFor(LOCAL_USER, project.id);
+    for (const [clipId, file] of Object.entries(stockFiles.clips).slice(0, 64)) {
+      if (!isSafeId(clipId) || file.size <= 0 || file.bytes.length <= 0) continue;
+      const mime = file.type.split(';')[0]?.trim().toLowerCase() ?? '';
+      const clipExt = LOCAL_STOCK_OV_EXT[mime] ?? (mime.startsWith('image/') ? 'jpg' : 'mp4');
+      const clipHash = createHash('sha256').update(file.bytes).digest('hex').slice(0, 16);
+      const path = `users/${LOCAL_USER}/video/${project.id}/clip-${clipHash}.${clipExt}`;
+      if (!clipRe.test(path)) continue;
+      clipPaths[clipId] = path;
+      stockBlobsToWrite.set(path, file.bytes);
+    }
+  }
   if (stockFiles.overlays) {
     const ovRe = stockOverlayPathFor(LOCAL_USER, project.id);
     for (const [clipId, file] of Object.entries(stockFiles.overlays).slice(0, 64)) {
@@ -199,6 +215,7 @@ export async function createLocalRender(
     inputPath,
     voicePath,
     ...(videoPath ? { videoPath } : {}),
+    ...(Object.keys(clipPaths).length > 0 ? { clipPaths } : {}),
     ...(Object.keys(stockOverlayPaths).length > 0 ? { stockOverlayPaths } : {}),
     ...(Object.keys(stockAudioPaths).length > 0 ? { stockAudioPaths } : {}),
     createdAt: deps.now(),

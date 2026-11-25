@@ -10,13 +10,14 @@ import {
 } from '@motionpop/ai';
 import type {
   EditConfig,
+  Format,
   MusicMood,
   RecipeId,
   ReelCaptionStyle,
   ReelHookStyle,
   UserSkill,
 } from '@motionpop/schemas';
-import { Plus, Sparkles } from 'lucide-react';
+import { FolderGit2, Plus, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -24,15 +25,30 @@ import { PaperPage, paper } from '@/components/paper/kit';
 import { ProjectTopBar } from '@/components/start/project-top-bar';
 import { cn } from '@/lib/cn';
 import { CONFIGURE_COPY as C } from '@/lib/configure/copy';
-import { defaultEdit, VOICEOVER_LOOKS, withRecipe, withStyle } from '@/lib/configure/defaults';
+import {
+  defaultEdit,
+  GRAPHIC_LOOKS,
+  VOICEOVER_LOOKS,
+  withRecipe,
+  withStyle,
+} from '@/lib/configure/defaults';
 import { summarize, usesResolved } from '@/lib/configure/summary';
 import { getRouter } from '@/lib/ai/router-client';
 import { useCreditsBalance, useCreditsClient } from '@/lib/credits/use-credits-client';
 import { LOOK_STILLS } from '@/lib/editor/look-stills';
 import { takePending } from '@/lib/intake/pending';
-import { discard, prepare, release, submit, useJobs, watch } from '@/lib/pipeline/jobs-store';
+import {
+  discard,
+  prepare,
+  release,
+  setJobFormat,
+  submit,
+  useJobs,
+  watch,
+} from '@/lib/pipeline/jobs-store';
 import { useAppConfig, useOnline } from '@/lib/renders/hooks';
-import { getUserSkillById, useUserSkills } from '@/lib/skills/user-skills';
+import { getAnySkillById, useCommunitySkills } from '@/lib/skills/community-skills';
+import { useUserSkills } from '@/lib/skills/user-skills';
 
 import { CaptionArt, HookArt, LookArt, MoodArt, RecipeArt, StyleArt } from './art';
 import { MediaCard, pipLine } from './media-card';
@@ -53,6 +69,12 @@ const CAPTIONS: readonly { value: ReelCaptionStyle; label: string }[] = [
   { value: 'editorial', label: 'Editorial italic' },
   { value: 'boxed', label: 'Highlight box' },
   { value: 'clean', label: 'Clean minimal' },
+];
+
+const FORMATS: readonly { value: Format; label: string; sub: string }[] = [
+  { value: '16:9', label: '16:9', sub: 'Widescreen · YouTube' },
+  { value: '9:16', label: '9:16', sub: 'Vertical · Reels & Shorts' },
+  { value: '1:1', label: '1:1', sub: 'Square · Social' },
 ];
 
 const MOODS: readonly { value: MusicMood; label: string }[] = [
@@ -87,6 +109,7 @@ export function ConfigureScreen() {
   const online = useOnline();
   const balance = useCreditsBalance();
   const { client, byok } = useCreditsClient();
+  const { skills: communitySkills } = useCommunitySkills();
   const { skills: userSkills } = useUserSkills();
   const [resolving, setResolving] = useState<'idle' | 'thinking' | 'device' | 'rules'>('idle');
   const resolveSeq = useRef(0);
@@ -132,7 +155,7 @@ export function ConfigureScreen() {
         setTtsSpeed(take.meta.tts?.speed ?? 1);
         setJobId(id);
         const kind = useJobs.getState().jobs[id]?.kind ?? 'voiceover';
-        const preSkill = getUserSkillById(take.draft.userSkillId);
+        const preSkill = getAnySkillById(take.draft.userSkillId);
         const initial = defaultEdit(kind, {
           source: take.meta.source,
           ...(preSkill
@@ -140,7 +163,12 @@ export function ConfigureScreen() {
             : take.draft.recipeId
               ? { recipeId: take.draft.recipeId }
               : {}),
-          ...(take.draft.styleId ? { lookHint: take.draft.styleId } : {}),
+          ...(preSkill?.lookId
+            ? { lookHint: preSkill.lookId }
+            : take.draft.styleId
+              ? { lookHint: take.draft.styleId }
+              : {}),
+          ...(take.meta.graphicPrompt ? { promptHint: take.meta.graphicPrompt } : {}),
         });
         setEdit(
           preSkill
@@ -148,7 +176,10 @@ export function ConfigureScreen() {
                 ...initial,
                 hookStyle: preSkill.hookStyle,
                 captions: { ...initial.captions, style: preSkill.captionStyle },
-                sound: { ...initial.sound, music: preSkill.music },
+                sound: {
+                  ...initial.sound,
+                  music: kind === 'graphic' ? 'none' : preSkill.music,
+                },
                 userSkill: toUserSkillRef(preSkill),
               }
             : initial,
@@ -161,6 +192,7 @@ export function ConfigureScreen() {
 
   const kind = job?.kind ?? 'voiceover';
   const video = kind === 'video';
+  const graphic = kind === 'graphic';
   const script = job?.script;
   const summary = useMemo(
     () =>
@@ -218,7 +250,7 @@ export function ConfigureScreen() {
         { value: '__custom', label: C.style.custom, art: <RecipeArt recipe="custom" /> },
       ]
     : [
-        ...VOICEOVER_LOOKS.map((l) => ({
+        ...(graphic ? GRAPHIC_LOOKS : VOICEOVER_LOOKS).map((l) => ({
           value: l.id,
           label: l.name,
           art: <LookArt src={LOOK_STILLS[l.id]} />,
@@ -328,12 +360,17 @@ export function ConfigureScreen() {
       if (e.userSkill?.id === sk.id) {
         return { ...e, userSkill: undefined };
       }
-      const next = withRecipe(e, kind, sk.baseRecipeId);
+      const next = withRecipe(e, kind, sk.baseRecipeId, sk.lookId);
+      const styled =
+        sk.lookId && kind !== 'video' ? withStyle(next, kind, sk.lookId) : next;
       return {
-        ...next,
+        ...styled,
         hookStyle: sk.hookStyle,
-        captions: { ...next.captions, style: sk.captionStyle },
-        sound: { ...next.sound, music: sk.music },
+        captions: {
+          ...styled.captions,
+          style: sk.captionStyle,
+        },
+        sound: { ...styled.sound, music: kind === 'graphic' ? 'none' : sk.music },
         userSkill: toUserSkillRef(sk),
       };
     });
@@ -345,8 +382,8 @@ export function ConfigureScreen() {
       <main className="mx-auto w-full max-w-[1240px] px-6 pb-24 lg:px-10">
         <StartHero
           bubble={pipLine(job)}
-          headline={video ? C.headlineVideo : C.headlineVoice}
-          subline={C.subline}
+          headline={graphic ? C.headlineGraphic : video ? C.headlineVideo : C.headlineVoice}
+          subline={graphic ? C.sublineGraphic : C.subline}
           pip={job.prep.stage === 'transcribing' ? 'sound' : 'craft'}
         />
         <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
@@ -354,6 +391,44 @@ export function ConfigureScreen() {
             <MediaCard job={job} onRemove={remove} />
 
             <div className={cn(paper.frame, 'p-5 sm:p-7')}>
+              {!video && (
+                <div className="mb-7 flex flex-wrap items-center justify-between gap-3 border-b-2 border-black/10 pb-6">
+                  <div>
+                    <p className="text-[14px] font-semibold">{C.format.title}</p>
+                    <p className="text-[12px] text-black/55">{C.format.hint}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2" role="group" aria-label="Canvas format">
+                    {FORMATS.map((f) => {
+                      const active = (job.format ?? '16:9') === f.value;
+                      return (
+                        <button
+                          key={f.value}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => setJobFormat(job.id, f.value)}
+                          className={cn(
+                            'flex flex-col items-start rounded-lg border-2 border-ink px-3 py-1.5 text-left transition-colors',
+                            active
+                              ? 'bg-ink text-paper shadow-[2px_2px_0_#ff6a3d]'
+                              : 'bg-paper text-ink hover:bg-mist',
+                          )}
+                        >
+                          <span className="font-mono text-[12px] font-bold">{f.label}</span>
+                          <span
+                            className={cn(
+                              'text-[10px]',
+                              active ? 'text-paper/75' : 'text-black/55',
+                            )}
+                          >
+                            {f.sub}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               <Section n={1} id="cfg-recipe" title={C.recipe.title} hint={C.recipe.hint}>
                 <OptionRow
                   layoutKey="recipe"
@@ -373,43 +448,133 @@ export function ConfigureScreen() {
                     placeholder={C.recipe.placeholder}
                   />
                 )}
-                {/* Modular database/imported user skills (Spec 43) */}
-                <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border-2 border-dashed border-ink/35 bg-mist/40 px-3.5 py-2.5">
-                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase">
-                    <Sparkles className="size-3.5 text-flame" strokeWidth={2} aria-hidden />
-                    Custom skills (SKILL.md)
-                  </span>
-                  {userSkills.map((sk) => {
-                    const active = edit.userSkill?.id === sk.id;
-                    return (
-                      <button
-                        key={sk.id}
-                        type="button"
-                        aria-pressed={active}
-                        onClick={() => toggleUserSkill(sk)}
-                        className={cn(
-                          'inline-flex items-center gap-1.5 rounded-lg border-2 border-ink px-2.5 py-1 text-[12px] font-medium transition-colors',
-                          active
-                            ? 'bg-ink text-paper shadow-[2px_2px_0_#ff6a3d]'
-                            : 'bg-paper text-ink hover:bg-mist',
-                        )}
-                      >
-                        <span
-                          className="size-2.5 rounded-full border border-current"
-                          style={{ background: sk.accent }}
-                          aria-hidden
-                        />
-                        {sk.name}
-                      </button>
-                    );
-                  })}
-                  <Link
-                    href="/skills"
-                    className="inline-flex items-center gap-1 rounded-lg border border-ink bg-paper px-2.5 py-1 text-[11px] font-medium hover:bg-[#fde68a]"
+                {/* Open-source community skills (shared Firestore DB) + personal custom SKILL.md */}
+                <div className="mt-5 rounded-xl border-2 border-ink/20 bg-mist/35 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="size-4 text-flame" strokeWidth={2.2} aria-hidden />
+                      <span className="text-[12px] font-bold tracking-[0.04em] uppercase">
+                        Open-source director skills ({communitySkills.length})
+                      </span>
+                      {edit.userSkill && (
+                        <button
+                          type="button"
+                          onClick={() => set({ userSkill: undefined })}
+                          className="rounded border border-ink/40 bg-paper px-1.5 py-0.5 text-[10px] font-semibold hover:bg-mist"
+                        >
+                          Clear active skill
+                        </button>
+                      )}
+                    </div>
+                    <Link
+                      href="/skills"
+                      className="inline-flex items-center gap-1 rounded-lg border-2 border-ink bg-paper px-2.5 py-1 text-[11px] font-semibold hover:bg-[#fde68a]"
+                    >
+                      <Plus className="size-3" strokeWidth={2} aria-hidden />
+                      {userSkills.length > 0 ? 'Manage / import SKILL.md' : 'Import SKILL.md'}
+                    </Link>
+                  </div>
+                  <p className="mt-1 text-[11px] text-black/60">
+                    Pick any open-source motion-design or video-editing skill just like a style —
+                    steers pacing, typography, cutouts, and bespoke hero scenes.
+                  </p>
+
+                  {/* Community open-source skill visual cards */}
+                  <div
+                    role="group"
+                    aria-label="Open-source director skills"
+                    className="mt-3 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4"
                   >
-                    <Plus className="size-3" strokeWidth={2} aria-hidden />
-                    {userSkills.length > 0 ? 'Manage / import' : 'Import SKILL.md'}
-                  </Link>
+                    {communitySkills.map((sk) => {
+                      const active = edit.userSkill?.id === sk.id;
+                      return (
+                        <button
+                          key={sk.id}
+                          type="button"
+                          aria-pressed={active}
+                          onClick={() => toggleUserSkill(sk)}
+                          className={cn(
+                            'group flex flex-col overflow-hidden rounded-[10px] border-2 text-left transition-all',
+                            active
+                              ? 'border-ink bg-ink text-paper shadow-[3px_3px_0_#ff6a3d]'
+                              : 'border-ink/30 bg-paper text-ink hover:border-ink hover:bg-mist/50',
+                          )}
+                        >
+                          <div className="relative aspect-[16/10] w-full overflow-hidden border-b border-ink/20 bg-[#151519]">
+                            {sk.thumbnailUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element -- static open-source skill preview
+                              <img
+                                src={sk.thumbnailUrl}
+                                alt=""
+                                loading="lazy"
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              />
+                            ) : (
+                              <div
+                                className="h-full w-full"
+                                style={{ background: sk.accent }}
+                              />
+                            )}
+                            <span
+                              className="absolute right-1.5 bottom-1.5 size-2.5 rounded-full border border-black"
+                              style={{ background: sk.accent }}
+                              aria-hidden
+                            />
+                          </div>
+                          <div className="flex flex-1 flex-col justify-between p-2">
+                            <span className="line-clamp-1 text-[11px] leading-[1.3] font-bold">
+                              {sk.name}
+                            </span>
+                            {sk.repoSlug && (
+                              <span
+                                className={cn(
+                                  'mt-1 inline-flex items-center gap-1 truncate font-mono text-[9px]',
+                                  active ? 'text-paper/75' : 'text-black/55',
+                                )}
+                                title={sk.repoSlug}
+                              >
+                                <FolderGit2 className="size-2.5 shrink-0" aria-hidden />
+                                <span className="truncate">{sk.repoSlug}</span>
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Personal imported skills (Firestore users/{uid}/skills) */}
+                  {userSkills.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-black/10 pt-3">
+                      <span className="text-[10px] font-bold tracking-[0.06em] text-black/60 uppercase">
+                        Your imported skills
+                      </span>
+                      {userSkills.map((sk) => {
+                        const active = edit.userSkill?.id === sk.id;
+                        return (
+                          <button
+                            key={sk.id}
+                            type="button"
+                            aria-pressed={active}
+                            onClick={() => toggleUserSkill(sk)}
+                            className={cn(
+                              'inline-flex items-center gap-1.5 rounded-lg border-2 border-ink px-2.5 py-1 text-[12px] font-medium transition-colors',
+                              active
+                                ? 'bg-ink text-paper shadow-[2px_2px_0_#ff6a3d]'
+                                : 'bg-paper text-ink hover:bg-mist',
+                            )}
+                          >
+                            <span
+                              className="size-2.5 rounded-full border border-current"
+                              style={{ background: sk.accent }}
+                              aria-hidden
+                            />
+                            {sk.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </Section>
 
@@ -417,7 +582,7 @@ export function ConfigureScreen() {
                 n={2}
                 id="cfg-style"
                 title={C.style.title}
-                hint={video ? C.style.hintVideo : C.style.hintVoice}
+                hint={graphic ? C.style.hintGraphic : video ? C.style.hintVideo : C.style.hintVoice}
               >
                 <OptionRow
                   layoutKey="style"
@@ -443,6 +608,19 @@ export function ConfigureScreen() {
                 )}
               </Section>
 
+              {graphic && (
+                <Section n={3} id="cfg-visuals" title={C.visuals.title} hint={C.visuals.hint}>
+                  <div className="grid max-w-[640px] gap-3">
+                    <SwitchRow
+                      title={C.visuals.toggle}
+                      sub={C.visuals.toggleSub}
+                      checked={edit.illustrations}
+                      onChange={(illustrations) => set({ illustrations })}
+                    />
+                  </div>
+                </Section>
+              )}
+
               {video && (
                 <Section n={3} id="cfg-hook" title={C.hook.title} hint={C.hook.hint}>
                   <OptionRow
@@ -457,34 +635,36 @@ export function ConfigureScreen() {
                 </Section>
               )}
 
-              <Section
-                n={video ? 4 : 3}
-                id="cfg-captions"
-                title={C.captions.title}
-                hint={C.captions.hint}
-                right={
-                  <Toggle
-                    label={C.captions.title}
-                    checked={edit.captions.enabled}
-                    onChange={(enabled) => set({ captions: { ...edit.captions, enabled } })}
-                  />
-                }
-              >
-                {edit.captions.enabled && (
-                  <OptionRow
-                    layoutKey="captions"
-                    size="sm"
-                    label={C.captions.styleLabel}
-                    options={CAPTIONS.map((c) => ({
-                      ...c,
-                      art: <CaptionArt style={c.value} label="to get started" />,
-                    }))}
-                    value={edit.captions.style}
-                    onChange={(style) => set({ captions: { ...edit.captions, style } })}
-                    soon={C.soon.captions}
-                  />
-                )}
-              </Section>
+              {!graphic && (
+                <Section
+                  n={video ? 4 : 3}
+                  id="cfg-captions"
+                  title={C.captions.title}
+                  hint={C.captions.hint}
+                  right={
+                    <Toggle
+                      label={C.captions.title}
+                      checked={edit.captions.enabled}
+                      onChange={(enabled) => set({ captions: { ...edit.captions, enabled } })}
+                    />
+                  }
+                >
+                  {edit.captions.enabled && (
+                    <OptionRow
+                      layoutKey="captions"
+                      size="sm"
+                      label={C.captions.styleLabel}
+                      options={CAPTIONS.map((c) => ({
+                        ...c,
+                        art: <CaptionArt style={c.value} label="to get started" />,
+                      }))}
+                      value={edit.captions.style}
+                      onChange={(style) => set({ captions: { ...edit.captions, style } })}
+                      soon={C.soon.captions}
+                    />
+                  )}
+                </Section>
+              )}
 
               {video && (
                 <Section
@@ -521,49 +701,51 @@ export function ConfigureScreen() {
                 </Section>
               )}
 
-              <Section n={video ? 6 : 4} id="cfg-sound" title={C.sound.title} hint={C.sound.hint}>
-                <div className="mb-6 grid max-w-[640px] gap-3">
-                  {!job.script && (
+              {!graphic && (
+                <Section n={video ? 6 : 4} id="cfg-sound" title={C.sound.title} hint={C.sound.hint}>
+                  <div className="mb-6 grid max-w-[640px] gap-3">
+                    {!job.script && (
+                      <SwitchRow
+                        title={C.sound.cleanup}
+                        sub={C.sound.cleanupSub}
+                        checked={edit.sound.cleanup}
+                        onChange={(cleanup) => set({ sound: { ...edit.sound, cleanup } })}
+                      />
+                    )}
                     <SwitchRow
-                      title={C.sound.cleanup}
-                      sub={C.sound.cleanupSub}
-                      checked={edit.sound.cleanup}
-                      onChange={(cleanup) => set({ sound: { ...edit.sound, cleanup } })}
+                      title={C.sound.sfx}
+                      sub={C.sound.sfxSub}
+                      checked={edit.sound.sfx}
+                      onChange={(sfx) => set({ sound: { ...edit.sound, sfx } })}
                     />
-                  )}
-                  <SwitchRow
-                    title={C.sound.sfx}
-                    sub={C.sound.sfxSub}
-                    checked={edit.sound.sfx}
-                    onChange={(sfx) => set({ sound: { ...edit.sound, sfx } })}
+                    {video && (
+                      <SwitchRow
+                        title={C.sound.illustrations}
+                        sub={C.sound.illustrationsSub}
+                        checked={edit.illustrations}
+                        onChange={(illustrations) => set({ illustrations })}
+                      />
+                    )}
+                  </div>
+                  <p className="mb-3 text-[13px] font-semibold">
+                    {C.sound.music}
+                    {edit.sound.music === 'auto' && skill && (
+                      <span className="ml-2 font-normal text-black/55">
+                        {C.sound.autoFor(skill.name)}
+                      </span>
+                    )}
+                  </p>
+                  <OptionRow
+                    layoutKey="music"
+                    size="sm"
+                    label={C.sound.music}
+                    options={MOODS.map((m) => ({ ...m, art: <MoodArt mood={m.value} /> }))}
+                    value={edit.sound.music}
+                    onChange={(music) => set({ sound: { ...edit.sound, music } })}
+                    soon={C.soon.sound}
                   />
-                  {video && (
-                    <SwitchRow
-                      title={C.sound.illustrations}
-                      sub={C.sound.illustrationsSub}
-                      checked={edit.illustrations}
-                      onChange={(illustrations) => set({ illustrations })}
-                    />
-                  )}
-                </div>
-                <p className="mb-3 text-[13px] font-semibold">
-                  {C.sound.music}
-                  {edit.sound.music === 'auto' && skill && (
-                    <span className="ml-2 font-normal text-black/55">
-                      {C.sound.autoFor(skill.name)}
-                    </span>
-                  )}
-                </p>
-                <OptionRow
-                  layoutKey="music"
-                  size="sm"
-                  label={C.sound.music}
-                  options={MOODS.map((m) => ({ ...m, art: <MoodArt mood={m.value} /> }))}
-                  value={edit.sound.music}
-                  onChange={(music) => set({ sound: { ...edit.sound, music } })}
-                  soon={C.soon.sound}
-                />
-              </Section>
+                </Section>
+              )}
             </div>
           </div>
 

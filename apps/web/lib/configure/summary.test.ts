@@ -254,3 +254,26 @@ describe('summarize: Gemini BYOK (spec 42)', () => {
     expect(offline.block).toBe('Needs connection');
   });
 });
+
+describe('summarize: graphic', () => {
+  it('shows directing, AI cutout visuals, and transparent WebM without audio/caption rows', () => {
+    const s = summarize(defaultEdit('graphic'), ctx({ kind: 'graphic' }));
+    expect(row(s, 'direct')).toMatchObject({ label: 'Motion graphic directing', credits: 3 });
+    expect(row(s, 'illustrations')).toMatchObject({ label: 'AI cutout visuals', credits: 6, upTo: true });
+    expect(row(s, 'alpha')).toMatchObject({ label: 'Transparent WebM export', value: 'Free', credits: 0 });
+    expect(row(s, 'transcribe')).toBeUndefined();
+    expect(row(s, 'captions')).toBeUndefined();
+    expect(row(s, 'music')).toBeUndefined();
+    expect(s.total).toBe(9);
+  });
+
+  it('prices graphic directing and cutouts at 0 credits with BYOK', () => {
+    const s = summarize(
+      defaultEdit('graphic'),
+      ctx({ kind: 'graphic', signedIn: false, balance: 0, byok: true }),
+    );
+    expect(row(s, 'direct')?.value).toBe('Free · your key');
+    expect(row(s, 'illustrations')?.value).toBe('Free · your key');
+    expect(s.total).toBe(0);
+  });
+});

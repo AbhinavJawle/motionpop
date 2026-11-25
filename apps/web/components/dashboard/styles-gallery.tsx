@@ -1,6 +1,7 @@
 'use client';
 
 import { builtInSkills, type BuiltInRecipeId, type RecipeStyle } from '@motionpop/ai';
+import { ExternalLink, FolderGit2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -11,8 +12,9 @@ import { btn, paper, PaperPage, poster } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
 import { LOOK_STILLS } from '@/lib/editor/look-stills';
 import { styleOptions } from '@/lib/inspector/timing-view';
+import { useCommunitySkills } from '@/lib/skills/community-skills';
 
-type StyleCategory = 'all' | 'reel' | 'motion';
+type StyleCategory = 'all' | 'community' | 'reel' | 'motion';
 
 interface ReelStyleCardData {
   recipeId: BuiltInRecipeId;
@@ -51,12 +53,19 @@ export function StylesGallery() {
     [],
   );
   const motionLooks = useMemo(() => styleOptions(), []);
+  const { skills: communitySkills } = useCommunitySkills();
 
+  const showCommunity = category === 'all' || category === 'community';
   const showReels = category === 'all' || category === 'reel';
   const showMotion = category === 'all' || category === 'motion';
 
   const tabs: readonly { id: StyleCategory; label: string; count: number }[] = [
-    { id: 'all', label: 'All styles', count: reelStyles.length + motionLooks.length },
+    {
+      id: 'all',
+      label: 'All styles',
+      count: communitySkills.length + reelStyles.length + motionLooks.length,
+    },
+    { id: 'community', label: 'Open-source skills', count: communitySkills.length },
     { id: 'reel', label: 'Reel styles', count: reelStyles.length },
     { id: 'motion', label: 'Motion graphic looks', count: motionLooks.length },
   ];
@@ -110,8 +119,97 @@ export function StylesGallery() {
           />
         </header>
 
+        {showCommunity && (
+          <section aria-labelledby="styles-community-title" className="mt-12">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="rounded-md border-2 border-ink bg-[#fde68a] px-2 py-0.5 text-[11px] font-semibold uppercase">
+                    Open-Source SKILL.md · All Formats
+                  </span>
+                  <span className="text-[12px] text-black/60 tabular-nums">
+                    {communitySkills.length} curated studio skills
+                  </span>
+                </div>
+                <h2
+                  id="styles-community-title"
+                  className={cn(poster, 'mt-3 text-[clamp(38px,4.5vw,56px)]')}
+                >
+                  Open-source director skills
+                </h2>
+                <p className="mt-2 max-w-[660px] text-[14px] leading-[1.6] text-black/75">
+                  Community-tested visual grammars and editing playbooks from top GitHub repos —
+                  pick any one like a style for Talking-Head Reels, Voiceovers, or Motion Graphics.
+                </p>
+              </div>
+              <Link href="/skills" className={btn('paper', 'sm')}>
+                Explore full skill library
+              </Link>
+            </div>
+
+            <div className="mt-7 grid gap-7 sm:grid-cols-2 xl:grid-cols-3">
+              {communitySkills.map((sk) => (
+                <article
+                  key={sk.id}
+                  className={cn(paper.frame, paper.press, 'flex flex-col overflow-hidden')}
+                >
+                  {sk.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- static open-source skill preview
+                    <img
+                      src={sk.thumbnailUrl}
+                      alt={sk.name}
+                      className="block aspect-video w-full border-b-2 border-ink object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <div
+                      className="aspect-video w-full border-b-2 border-ink"
+                      style={{ background: sk.accent }}
+                    />
+                  )}
+                  <div className="flex flex-1 flex-col px-5 pt-4 pb-5">
+                    <h3 className={cn(poster, 'text-[30px] leading-tight')}>{sk.name}</h3>
+                    {sk.repoSlug && (
+                      <div className="mt-1.5">
+                        {sk.sourceUrl ? (
+                          <a
+                            href={sk.sourceUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded border border-ink/30 bg-mist/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-black/80 hover:border-ink hover:text-flame"
+                          >
+                            <FolderGit2 className="size-2.5 shrink-0" aria-hidden />
+                            {sk.repoSlug}
+                            <ExternalLink className="size-2.5 shrink-0" aria-hidden />
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded border border-ink/30 bg-mist/70 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-black/80">
+                            <FolderGit2 className="size-2.5 shrink-0" aria-hidden />
+                            {sk.repoSlug}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    <p className="mt-2 text-[12px] leading-[1.6] text-black/70">{sk.blurb}</p>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/start?skill=${encodeURIComponent(sk.id)}`)}
+                      className={btn('ink', 'md', false, 'mt-5 self-start')}
+                    >
+                      Start with this skill
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
         {showReels && (
-          <section aria-labelledby="styles-reels-title" className="mt-12">
+          <section
+            aria-labelledby="styles-reels-title"
+            className={cn(showCommunity ? 'mt-16 border-t-2 border-ink pt-12' : 'mt-12')}
+          >
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <div className="flex flex-wrap items-center gap-3">

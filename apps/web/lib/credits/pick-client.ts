@@ -9,7 +9,6 @@ export type CreditsPick =
   | { client: 'none'; cloudAvailable: false; cloudBlockedReason: string };
 
 export const SIGN_IN_FOR_CLOUD = 'Sign in to use cloud AI';
-export const CLOUD_COMING_SOON = 'Cloud AI is coming soon';
 
 export function pickCreditsClient(i: {
   firebaseEnabled: boolean;

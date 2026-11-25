@@ -1,5 +1,9 @@
 import 'server-only';
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+import { isPrivateAddress } from '@motionpop/render/screenshot';
 import { z } from 'zod';
+import { readResponseBytesWithLimit } from './stock.server';
 
 /**
  * The open media search (Openverse, CC0 and CC BY only; security-and-cost.md: stock media only
@@ -88,6 +92,51 @@ async function searchUpstream(q: string): Promise<MediaHit[]> {
 }
 
 const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_REDIRECTS = 3;
+const SAFE_IMAGE_MIMES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+]);
+
+async function assertPublicHttps(rawUrl: string): Promise<URL> {
+  const u = new URL(rawUrl);
+  if (u.protocol !== 'https:') throw new Error('not https');
+  const host = u.hostname.toLowerCase();
+  if (isIP(host)) {
+    if (isPrivateAddress(host)) throw new Error('private host');
+    return u;
+  }
+  if (/\.(local|internal|localhost|lan|home|corp)$/.test(host) || host === 'localhost') {
+    throw new Error('private host');
+  }
+  const addrs = await lookup(host, { all: true });
+  if (addrs.length === 0 || !addrs.every((a) => !isPrivateAddress(a.address))) {
+    throw new Error('private host');
+  }
+  return u;
+}
+
+async function fetchPublicImage(initialUrl: string): Promise<Response> {
+  let current = await assertPublicHttps(initialUrl);
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const res = await fetch(current.toString(), {
+      headers: { 'user-agent': UA },
+      signal: AbortSignal.timeout(15000),
+      redirect: 'manual',
+    });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get('location');
+      if (!loc) throw new Error('bad redirect');
+      current = await assertPublicHttps(new URL(loc, current).toString());
+      continue;
+    }
+    return res;
+  }
+  throw new Error('too many redirects');
+}
 
 /** The picture's bytes by Openverse id (full size, or the API's thumbnail). */
 export async function fetchOpenverseImage(
@@ -104,17 +153,18 @@ export async function fetchOpenverseImage(
   if (!['cc0', 'by'].includes(r.license)) throw new Error('licence not allowed');
   // Full images live on the source sites; the thumbnail is served by the API itself.
   const src = thumb ? `${API}${id}/thumb/` : r.url;
-  if (!/^https:\/\//.test(src)) throw new Error('not https');
-  const res = await fetch(src, {
-    headers: { 'user-agent': UA },
-    signal: AbortSignal.timeout(15000),
-    redirect: 'follow',
-  });
-  const type = (res.headers.get('content-type') ?? '').split(';')[0]?.trim() ?? '';
-  if (!res.ok || !type.startsWith('image/')) throw new Error('not an image');
+  const res = await fetchPublicImage(src);
+  const type = (res.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
+  if (!res.ok || !SAFE_IMAGE_MIMES.has(type)) {
+    await res.body?.cancel().catch(() => undefined);
+    throw new Error('not a safe raster image');
+  }
   const len = Number(res.headers.get('content-length') ?? 0);
-  if (len > MAX_BYTES) throw new Error('too large');
-  const bytes = await res.arrayBuffer();
-  if (bytes.byteLength > MAX_BYTES) throw new Error('too large');
-  return { bytes, type, attribution: attributionOf(r).slice(0, 240) };
+  if (len > MAX_BYTES) {
+    await res.body?.cancel().catch(() => undefined);
+    throw new Error('too large');
+  }
+  const bytes = await readResponseBytesWithLimit(res, MAX_BYTES);
+  if (!bytes) throw new Error('too large');
+  return { bytes: bytes.slice().buffer, type, attribution: attributionOf(r).slice(0, 240) };
 }

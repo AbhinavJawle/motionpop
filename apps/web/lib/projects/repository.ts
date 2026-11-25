@@ -149,16 +149,24 @@ export abstract class StoredProjectRepository implements ProjectLibrary {
     const source = r.project;
     const copied = new Map<string, string>();
     const copyId = this.newId();
+    const voiceRefs = new Set(
+      [source.voiceover.src, source.voiceover.originalSrc].filter((r): r is string => Boolean(r)),
+    );
+    const musicRef = source.reel?.music?.src;
     try {
       for (const ref of audioRefsOf(source)) {
         const blob = await this.audio.get(ref);
         // Fixture voices (`synth:…`) are not stored blobs; the copy points at the same recipe.
-        // Filed under the copy's id, so signed in it gets its own Storage object (R1.9).
-        copied.set(
-          ref,
-          blob ? await this.audio.put(blob, { projectId: copyId, kind: 'voice' }) : ref,
-        );
+        // Voice and reel music are filed under the copy's id in Storage (R1.9); video, mediaBin,
+        // and stock clips stay as local blobs so they don't hit audio-only Storage rules.
+        const place = voiceRefs.has(ref)
+          ? ({ projectId: copyId, kind: 'voice' } as const)
+          : ref === musicRef
+            ? ({ projectId: copyId, kind: 'music' } as const)
+            : undefined;
+        copied.set(ref, blob ? await this.audio.put(blob, place) : ref);
       }
+      const remap = (ref: string): string => copied.get(ref) ?? ref;
       const now = this.now();
       const copy: EditorProject = structuredClone(source);
       copy.id = copyId;
@@ -166,10 +174,24 @@ export abstract class StoredProjectRepository implements ProjectLibrary {
       copy.createdAt = now;
       copy.updatedAt = now;
       delete copy.lastOpenedAt;
-      copy.voiceover.src = copied.get(source.voiceover.src) ?? source.voiceover.src;
+      copy.voiceover.src = remap(source.voiceover.src);
       if (source.voiceover.originalSrc) {
-        copy.voiceover.originalSrc =
-          copied.get(source.voiceover.originalSrc) ?? source.voiceover.originalSrc;
+        copy.voiceover.originalSrc = remap(source.voiceover.originalSrc);
+      }
+      if (copy.video) {
+        copy.video.src = remap(copy.video.src);
+      }
+      if (copy.reel?.music?.src) {
+        copy.reel.music.src = remap(copy.reel.music.src);
+      }
+      if (copy.mediaBin) {
+        for (const clip of copy.mediaBin) clip.src = remap(clip.src);
+      }
+      if (copy.stockOverlays) {
+        for (const clip of copy.stockOverlays) clip.src = remap(clip.src);
+      }
+      if (copy.stockAudio) {
+        for (const clip of copy.stockAudio) clip.src = remap(clip.src);
       }
       await this.put(copy.id, { current: copy });
       return copy.id;

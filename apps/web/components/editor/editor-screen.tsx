@@ -1,5 +1,6 @@
 'use client';
 
+import { isGraphicReel } from '@motionpop/schemas';
 import { useAutoFill } from '@/lib/slots/use-auto-fill';
 import { useAutoPictures } from '@/lib/images/use-auto-pictures';
 import { useAutoChoreograph } from '@/lib/film/use-film';
@@ -66,12 +67,14 @@ export function EditorScreen({
   const clock = useMemo(() => new PlaybackClock(editorStore), []);
   const projectId = useEditor((s) => s.project?.id);
   const voiceSrc = useEditor((s) => s.project?.voiceover.src);
+  const graphicOnly = useEditor((s) => isGraphicReel(s.project));
+  const activeVoice = graphicOnly ? null : voice;
   const rejection = useEditor((s) => s.rejection);
 
   const theme = useEditorTheme((s) => s.theme);
   useEffect(() => useEditorTheme.getState().hydrate(), []);
   useEditorKeys(clock);
-  useSoundBed(clock, voice?.voiceLevelDb ?? null);
+  useSoundBed(clock, activeVoice?.voiceLevelDb ?? null);
   useStockAudio(clock);
   useAutoFill();
   // Spec 07c: free open-licence pictures arrive by themselves after the drafts.
@@ -103,6 +106,8 @@ export function EditorScreen({
       } else {
         setPhase({ kind: 'not-found' });
       }
+    }).catch(() => {
+      if (!cancelled) setPhase({ kind: 'not-found' });
     });
     return () => {
       cancelled = true;
@@ -141,6 +146,26 @@ export function EditorScreen({
     if (phase.kind !== 'ready' || !project) return;
     const isInitialForProject = initialAppliedForRef.current !== project.id;
     const resumeMs = Math.min(clock.currentMs, Math.max(0, project.durationMs));
+    // Graphics-only projects have no real voiceover: run PlaybackClock on its wall-clock timer so
+    // appending/deleting/resizing scenes always plays cleanly across the live `project.durationMs`
+    // and opening on another device never errors with `AudioElsewhereError`.
+    if (isGraphicReel(project)) {
+      clock.attachAudio(null);
+      useVoiceState.setState({
+        status: 'ready',
+        peaks: null,
+        seek: (ms) => clock.seek(ms),
+      });
+      if (isInitialForProject) {
+        initialAppliedForRef.current = project.id;
+        if (initialMs !== undefined) clock.seek(initialMs);
+      } else {
+        clock.seek(resumeMs);
+      }
+      return () => {
+        clock.pause();
+      };
+    }
     let loaded: LoadedVoice | null = null;
     let cancelled = false;
     useVoiceState.setState({
@@ -255,7 +280,11 @@ export function EditorScreen({
             <PreviewPane />
             <Inspector />
           </div>
-          <Timeline clock={clock} peaks={voice?.peaks ?? null} bucketMs={voice?.bucketMs ?? 10} />
+          <Timeline
+            clock={clock}
+            peaks={activeVoice?.peaks ?? null}
+            bucketMs={activeVoice?.bucketMs ?? 10}
+          />
         </div>
         <PipDock />
       </div>

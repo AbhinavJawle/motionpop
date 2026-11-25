@@ -19,9 +19,27 @@ describe('defaultEdit', () => {
     }
   });
 
-  it('illustrations default on for video only', () => {
+  it('illustrations default on for video and graphic, off for voiceover', () => {
     expect(defaultEdit('video').illustrations).toBe(true);
+    expect(defaultEdit('graphic').illustrations).toBe(true);
     expect(defaultEdit('voiceover').illustrations).toBe(false);
+  });
+
+  it('graphic defaults to paper-collage for Vox prompts, dark for neon prompts, and disables audio/captions', () => {
+    const vox = defaultEdit('graphic', { promptHint: 'design a vox style motion graphic about the white house' });
+    expect(vox.styleId).toBe('paper-collage');
+    expect(vox.illustrations).toBe(true);
+    expect(vox.captions.enabled).toBe(false);
+    expect(vox.cta.enabled).toBe(false);
+    expect(vox.sound).toEqual({ cleanup: false, sfx: false, music: 'none' });
+    expect(EditConfigSchema.safeParse(vox).success).toBe(true);
+
+    expect(defaultEdit('graphic', { promptHint: 'dark neon futuristic AI HUD' }).styleId).toBe(
+      'creator-dark',
+    );
+    expect(defaultEdit('graphic', { promptHint: 'Bloomberg financial newsprint chart' }).styleId).toBe(
+      'newsprint',
+    );
   });
 
   it('a made voice (tts) starts with cleanup off; other sources keep it on', () => {

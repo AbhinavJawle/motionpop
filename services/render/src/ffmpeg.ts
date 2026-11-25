@@ -96,7 +96,7 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
         ]
           .concat(['-map', '0:a:0', '-vn', '-sn', '-dn', '-t', (maxMs / 1000).toFixed(3)])
           .concat(['-ac', '2', '-ar', '48000', '-c:a', 'pcm_s16le', destWav]),
-        { timeout },
+        { timeout, maxBuffer: 16 * 1024 * 1024 },
       );
     },
     async frame({ video, atMs, destJpg, longSide }) {
@@ -108,6 +108,8 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
           '-loglevel',
           'error',
           '-y',
+          '-protocol_whitelist',
+          'file',
           '-ss',
           (atMs / 1000).toFixed(3),
           ...(isWebm ? ['-c:v', 'libvpx-vp9'] : []),
@@ -121,14 +123,20 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
           '3',
           destJpg,
         ],
-        { timeout },
+        { timeout, maxBuffer: 16 * 1024 * 1024 },
       );
     },
     async compositeVideo(args) {
-      await run(ffmpeg, buildVideoCompositeArgs(args), { timeout: timeout * 4 });
+      await run(ffmpeg, buildVideoCompositeArgs(args), {
+        timeout: timeout * 15,
+        maxBuffer: 16 * 1024 * 1024,
+      });
     },
     async compositeStockLayers(args) {
-      await run(ffmpeg, buildStockCompositeArgs(args), { timeout: timeout * 4 });
+      await run(ffmpeg, buildStockCompositeArgs(args), {
+        timeout: timeout * 15,
+        maxBuffer: 16 * 1024 * 1024,
+      });
     },
     async normalizeLoudness({ src, dest, lufs, truePeakDb }) {
       const isWebm = dest.toLowerCase().endsWith('.webm');
@@ -138,6 +146,8 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
         [
           '-hide_banner',
           '-nostats',
+          '-protocol_whitelist',
+          'file',
           '-i',
           src,
           '-map',
@@ -148,7 +158,7 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
           'null',
           '-',
         ],
-        { timeout: timeout * 2, maxBuffer: 1 << 24 },
+        { timeout: timeout * 2, maxBuffer: 16 * 1024 * 1024 },
       );
       const m = parseLoudnorm(stderr);
       // Silence (or an unreadable measurement) keeps the audio as it is.
@@ -159,6 +169,11 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
         [
           '-y',
           '-hide_banner',
+          '-nostats',
+          '-loglevel',
+          'error',
+          '-protocol_whitelist',
+          'file',
           '-i',
           src,
           '-map',
@@ -174,11 +189,12 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
             : ['-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart']),
           dest,
         ],
-        { timeout: timeout * 2 },
+        { timeout: timeout * 4, maxBuffer: 16 * 1024 * 1024 },
       );
     },
     async proxyVideo({ src, dest, longSide }) {
       const fit = `min(1\\,${longSide}/max(iw\\,ih))`;
+      const srcDemuxer = demuxerForMedia(src);
       await run(
         ffmpeg,
         [
@@ -187,6 +203,7 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
           '-y',
           '-protocol_whitelist',
           'file',
+          ...(srcDemuxer ? ['-f', srcDemuxer] : []),
           '-i',
           src,
           '-map',
@@ -220,6 +237,31 @@ export function createProcessFfmpeg(opts: ProcessFfmpegOptions = {}): Ffmpeg {
       );
     },
   };
+}
+
+/**
+ * Forces the ffmpeg demuxer from a trusted storage/local extension so crafted playlists or
+ * `concat` scripts renamed to `.mp4`/`.png`/`.mp3` cannot auto-detect and read other local files.
+ */
+export function demuxerForMedia(path: string, opts?: { isImage?: boolean }): string | undefined {
+  if (opts?.isImage) return 'image2';
+  const dot = path.lastIndexOf('.');
+  if (dot < 0) return undefined;
+  const ext = path.slice(dot + 1).toLowerCase();
+  const map: Record<string, string> = {
+    mp4: 'mov',
+    mov: 'mov',
+    m4a: 'mov',
+    webm: 'matroska',
+    mp3: 'mp3',
+    wav: 'wav',
+    ogg: 'ogg',
+    png: 'image2',
+    jpg: 'image2',
+    jpeg: 'image2',
+    webp: 'image2',
+  };
+  return map[ext];
 }
 
 export interface LoudnormMeasure {

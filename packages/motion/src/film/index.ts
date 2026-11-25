@@ -15,6 +15,7 @@ export {
   ARCHETYPE_EXAMPLES,
   REEL_STAGE_EXAMPLES,
   archetypeExample,
+  pickStageArchetype,
   reelExampleFor,
   videoStageZoneGuide,
   type ArchetypeExample,

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { searchUncommonEar, UncommonEarError } from '@/lib/audio/uncommon-ear.server';
+import { errorResponse, verifyRequest } from '@/lib/firebase/verify.server';
+import { renderMode } from '@/lib/renders/mode.server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,6 +12,13 @@ export const dynamic = 'force-dynamic';
  * `UNCOMMON_EAR_API_KEY` (never exposed to the browser).
  */
 export async function GET(request: Request): Promise<Response> {
+  if (renderMode() !== 'offline') {
+    try {
+      await verifyRequest(request);
+    } catch (err) {
+      return errorResponse(err);
+    }
+  }
   const apiKey = process.env.UNCOMMON_EAR_API_KEY?.trim();
   if (!apiKey) {
     return NextResponse.json({
@@ -34,6 +43,9 @@ export async function GET(request: Request): Promise<Response> {
     return NextResponse.json({ configured: true, ...result });
   } catch (err) {
     if (err instanceof UncommonEarError) {
+      if (err.status === 401 || err.status === 403) {
+        return NextResponse.json({ error: 'Audio service unavailable' }, { status: 503 });
+      }
       return NextResponse.json({ error: err.message }, { status: err.status });
     }
     return NextResponse.json({ error: 'Audio search failed' }, { status: 502 });

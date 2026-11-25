@@ -9,7 +9,7 @@ import {
 import { APP_CONFIG_DEFAULTS } from '@motionpop/schemas';
 import { firebaseEnabled, getAILogic } from '@/lib/firebase/client';
 import { loadAppConfig } from '@/lib/firebase/remote-config';
-import { getByokKey, getByokModelMode, subscribeByok } from './byok';
+import { getByokKey, getByokModel, getByokModelMode, subscribeByok } from './byok';
 import { createFakeRouter, routerKind } from './fake-router';
 import { idbRouterCache } from './idb-cache';
 
@@ -75,6 +75,7 @@ export function getRouter(): Promise<Router | null> {
           apiKey: byokKey,
           onDevice,
           modelMode: getByokModelMode(),
+          customModel: getByokModel(),
         }),
         config: () => config,
         onUsage: (e) => emitAIUsage({ ...e, credits: 0 }),

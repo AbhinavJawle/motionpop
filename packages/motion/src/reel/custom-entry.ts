@@ -127,9 +127,9 @@ if (scene && root) {
     width: scene.width,
     height: scene.height,
     // The reel stage: `--u` (1 % of its short side) is the same in every scene of the reel.
-    frameWidth: 720,
-    frameHeight: 1280,
-    format: '9:16',
+    frameWidth: scene.frameWidth ?? 720,
+    frameHeight: scene.frameHeight ?? 1280,
+    format: scene.format ?? '9:16',
     style: styleOf(scene),
     durationMs: scene.durationMs,
     keyMomentMs: Math.min(scene.params.keyMomentMs ?? 0, scene.durationMs),

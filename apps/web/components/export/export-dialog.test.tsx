@@ -181,7 +181,7 @@ describe('export dialog, options view (R1.1–R1.13)', () => {
     expect(screen.getByText('WebM · VP9 Alpha · 30 fps')).toBeTruthy();
     expect(
       screen.getByText(
-        'Exports WebM with alpha (VP9 · yuva420p) for Premiere, Resolve & Final Cut.',
+        'Exports WebM with alpha (VP9 · yuva420p) for external video editors.',
       ),
     ).toBeTruthy();
   });

@@ -171,11 +171,11 @@ export const VideoTrackSchema = z.object({
   originalDurationMs: z.number().int().positive(),
   /** Compact JPEG keyframe data URL captured at probe time for dashboard/editor thumbnails (spec 41). */
   posterUrl: z.string().max(120_000).optional(),
-  cuts: z.array(VideoCutSchema).default([]),
+  cuts: z.array(VideoCutSchema).max(200).default([]),
   /** Non-destructive manual razor split points on the source clock (spec 45 R1.3). */
   splits: z.array(IntMsSchema).max(64).optional(),
-  punchIns: z.array(VideoPunchInSchema).default([]),
-  stages: z.array(VideoStageSegmentSchema).optional(),
+  punchIns: z.array(VideoPunchInSchema).max(200).default([]),
+  stages: z.array(VideoStageSegmentSchema).max(200).optional(),
   defaultOverlayAnchor: OverlayAnchorSchema.default('top-right'),
 });
 export type VideoTrack = z.infer<typeof VideoTrackSchema>;

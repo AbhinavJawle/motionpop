@@ -50,7 +50,95 @@ const CSS_RULES: ReadonlyArray<[RegExp, string]> = [
 
 const stripComments = (s: string) =>
   s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
-const stripStrings = (s: string) => s.replace(/(["'`])(?:\\.|(?!\1)[^\\])*\1/g, '""');
+
+/**
+ * Strips string literal contents so benign label text ("Date") doesn't trip identifier rules,
+ * while preserving `${...}` expressions inside template literals so embedded code is still checked.
+ */
+function stripStrings(s: string): string {
+  let out = '';
+  let i = 0;
+  const n = s.length;
+  const templateBraceDepths: number[] = [];
+
+  while (i < n) {
+    const ch = s[i]!;
+    if (ch === "'" || ch === '"') {
+      const quote = ch;
+      out += '""';
+      i++;
+      while (i < n) {
+        if (s[i] === '\\') {
+          i += 2;
+          continue;
+        }
+        if (s[i] === quote) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (ch === '`') {
+      out += '""';
+      i++;
+      while (i < n) {
+        if (s[i] === '\\') {
+          i += 2;
+          continue;
+        }
+        if (s[i] === '$' && s[i + 1] === '{') {
+          out += ' ';
+          i += 2;
+          templateBraceDepths.push(0);
+          break;
+        }
+        if (s[i] === '`') {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (templateBraceDepths.length > 0) {
+      if (ch === '{') {
+        templateBraceDepths[templateBraceDepths.length - 1]!++;
+      } else if (ch === '}') {
+        const depth = templateBraceDepths[templateBraceDepths.length - 1]!;
+        if (depth === 0) {
+          templateBraceDepths.pop();
+          out += ' ""';
+          i++;
+          // Resume scanning the outer template literal's static chunk.
+          while (i < n) {
+            if (s[i] === '\\') {
+              i += 2;
+              continue;
+            }
+            if (s[i] === '$' && s[i + 1] === '{') {
+              out += ' ';
+              i += 2;
+              templateBraceDepths.push(0);
+              break;
+            }
+            if (s[i] === '`') {
+              i++;
+              break;
+            }
+            i++;
+          }
+          continue;
+        }
+        templateBraceDepths[templateBraceDepths.length - 1] = depth - 1;
+      }
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
 
 export function lintCustom(p: Pick<CustomParams, 'html' | 'css' | 'script'>): string[] {
   const out: string[] = [];

@@ -17,6 +17,9 @@ export const RecipeIdSchema = z.enum([
   'gaming',
   'podcast-story',
   'hot-take',
+  'product-launch',
+  'documentary-explainer',
+  'kinetic-promo',
   'custom',
 ]);
 export type RecipeId = z.infer<typeof RecipeIdSchema>;

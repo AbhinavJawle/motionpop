@@ -98,10 +98,13 @@ export function createDeps(mode: Exclude<RenderMode, 'offline'>): CreateDeps {
     writeSnapshot: async (path, json) => {
       await bucket().file(path).save(json, { contentType: 'application/json', resumable: false });
     },
+    deleteSnapshot: async (path) => {
+      await bucket().file(path).delete({ ignoreNotFound: true });
+    },
     // Built per launch: a missing project or job setting fails this render, not every request.
     launch: (renderId) => launcherFor(mode).launch(renderId),
     recordExecution: (renderId, name) => recordExecution(db, renderId, name),
-    failRender: (renderId, code, message) => failRender(db, renderId, code, message),
+    failRender: (renderId, code, message, opts) => failRender(db, renderId, code, message, opts),
     log: logLine,
   };
 }

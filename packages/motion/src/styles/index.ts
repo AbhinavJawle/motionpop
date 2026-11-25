@@ -8,6 +8,10 @@ import creatorDarkJson from './creator-dark.json' with { type: 'json' };
 import editorialCreamJson from './editorial-cream.json' with { type: 'json' };
 import keynoteCleanJson from './keynote-clean.json' with { type: 'json' };
 import studioLightJson from './studio-light.json' with { type: 'json' };
+import kineticLimeJson from './kinetic-lime.json' with { type: 'json' };
+import appleKeynoteJson from './apple-keynote.json' with { type: 'json' };
+import risographZineJson from './risograph-zine.json' with { type: 'json' };
+import blueprintSchematicJson from './blueprint-schematic.json' with { type: 'json' };
 import testInvertedJson from './test-inverted.json' with { type: 'json' };
 
 /** Parses a pack and checks that every font family it names is bundled (spec 03, review F3). */
@@ -71,7 +75,19 @@ export const creatorDark: Look = parseLook(creatorDarkJson);
 /** Keynote Clean: crisp midnight-slate product showcase look with sky-cyan accents (spec 21). */
 export const keynoteClean: Look = parseLook(keynoteCleanJson);
 
-/** Polished looks (spec 07 R3.4 + spec 21/23 modern Reel looks). */
+/** Kinetic Lime: obsidian + electric lime + cobalt beat-locked kinetic typography look. */
+export const kineticLime: Look = parseLook(kineticLimeJson);
+
+/** Apple Keynote: deep slate glass surfaces, crisp hardware precision & vibrant cyan accents. */
+export const appleKeynote: Look = parseLook(appleKeynoteJson);
+
+/** Risograph Zine: 2-ink coral & cobalt overprint halftone editorial look with 12 fps motion. */
+export const risographZine: Look = parseLook(risographZineJson);
+
+/** Blueprint Schematic: deep drafting navy with white hairlines & cyan vector traces. */
+export const blueprintSchematic: Look = parseLook(blueprintSchematicJson);
+
+/** Polished looks (spec 07 R3.4 + spec 21/23 modern Reel looks + curated open-source styles). */
 export const looks: Readonly<Record<string, Look>> = {
   [editorialCream.id]: editorialCream,
   [studioLight.id]: studioLight,
@@ -80,4 +96,8 @@ export const looks: Readonly<Record<string, Look>> = {
   [newsprint.id]: newsprint,
   [fieldNotes.id]: fieldNotes,
   [paperCollage.id]: paperCollage,
+  [kineticLime.id]: kineticLime,
+  [appleKeynote.id]: appleKeynote,
+  [risographZine.id]: risographZine,
+  [blueprintSchematic.id]: blueprintSchematic,
 };

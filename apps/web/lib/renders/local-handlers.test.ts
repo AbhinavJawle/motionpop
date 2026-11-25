@@ -168,6 +168,22 @@ describe('createLocalRender', () => {
     expect(JSON.stringify(r.body)).not.toContain('chrome');
     expect(m.logs[0]?.['event']).toBe('offline-start-failed');
   });
+
+  it('stores referenced Media Bin clip blobs and records clipPaths on the offline render doc', async () => {
+    const m = make();
+    const r = await createLocalRender(m.deps, text(), voice(), null, {
+      clips: {
+        'clip-1': { type: 'video/mp4', size: 16, bytes: Buffer.alloc(16, 2) },
+        'clip-2': { type: 'image/png', size: 12, bytes: Buffer.alloc(12, 3) },
+      },
+    });
+    expect(r.status).toBe(201);
+    const doc = m.docs.get('lRender0000000000000001')!;
+    expect(doc.clipPaths?.['clip-1']).toMatch(/^users\/local-user\/video\/.*\/clip-[0-9a-f]{16}\.mp4$/);
+    expect(doc.clipPaths?.['clip-2']).toMatch(/^users\/local-user\/video\/.*\/clip-[0-9a-f]{16}\.png$/);
+    expect(m.blobs.has(doc.clipPaths!['clip-1']!)).toBe(true);
+    expect(m.blobs.has(doc.clipPaths!['clip-2']!)).toBe(true);
+  });
 });
 
 describe('localStatus and localFile', () => {

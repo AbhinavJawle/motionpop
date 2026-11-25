@@ -71,4 +71,34 @@ describe('renderKeyOf', () => {
       }),
     );
   });
+
+  it('changes when videoPath, clipPaths, audio settings, or reel plan change (H5)', () => {
+    const base = input();
+    expect(renderKeyOf(base)).not.toBe(
+      renderKeyOf({ ...base, videoPath: 'users/u1/video/p1/source-0123456789abcdef.mp4' }),
+    );
+    expect(renderKeyOf(base)).not.toBe(
+      renderKeyOf({
+        ...base,
+        clipPaths: { c1: 'users/u1/video/p1/clip-0123456789abcdef.mp4' },
+      }),
+    );
+    expect(renderKeyOf(base)).not.toBe(
+      renderKeyOf({
+        ...base,
+        project: {
+          ...base.project,
+          audio: {
+            musicId: 'calm-pad',
+            musicGainDb: -18,
+            ducking: true,
+            duckDepthDb: 8,
+            autoSfx: true,
+            sfxGainDb: -10,
+            sfxSeed: 1,
+          },
+        },
+      }),
+    );
+  });
 });

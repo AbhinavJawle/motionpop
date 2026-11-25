@@ -17,13 +17,11 @@ const NonNegInt = z.number().int().nonnegative();
 export const AppConfigSchema = z.object({
   routingSlotsDetectDeviceMaxWords: NonNegInt,
   routingOverrides: z.record(z.string(), InferenceModeSchema),
-  flagTier2: z.boolean(),
   flagAutoFill: z.boolean(),
   freeCredits: NonNegInt,
   judgeCredits: NonNegInt,
   dailyBudgetCredits: NonNegInt,
   killSwitch: z.boolean(),
-  customProvider: z.enum(['gemini', 'claude']),
   modelFast: z.string().min(1),
   modelStrong: z.string().min(1),
   /** Model for the film beat builders (`film.build`); `film.direct` and `film.props` use modelStrong. */
@@ -45,7 +43,7 @@ export const AppConfigSchema = z.object({
   exportCredits: ExportCreditsSchema,
   /** AI spends a user may make per UTC hour (spec 13 R3.1). */
   rateLimitCloudPerHour: NonNegInt,
-  /** Client refunds per user per UTC day; at least the hourly cap so the rate limit binds first. */
+  /** Client refunds per user per UTC day; tightly capped to prevent self-service refund cycling. */
   refundsPerDay: NonNegInt,
   /** Usage events stored per user per UTC day (spec 13 R7.1). */
   usageEventsPerDay: NonNegInt,
@@ -61,13 +59,11 @@ export type AppConfig = z.infer<typeof AppConfigSchema>;
 export const APP_CONFIG_DEFAULTS: AppConfig = {
   routingSlotsDetectDeviceMaxWords: 400,
   routingOverrides: {},
-  flagTier2: false,
   flagAutoFill: true,
   freeCredits: 15,
   judgeCredits: 500,
   dailyBudgetCredits: 20000,
   killSwitch: false,
-  customProvider: 'gemini',
   modelFast: 'gemini-3.5-flash-lite',
   modelStrong: 'gemini-4-neon',
   modelFilmBuild: 'gemini-4-neon',
@@ -82,7 +78,7 @@ export const APP_CONFIG_DEFAULTS: AppConfig = {
   rendersPerUserPerDay: 10,
   exportCredits: DEFAULT_EXPORT_CREDITS,
   rateLimitCloudPerHour: 30,
-  refundsPerDay: 30,
+  refundsPerDay: 5,
   usageEventsPerDay: 1000,
   creditCosts: {},
   musicSynthEnabled: false,
@@ -121,13 +117,11 @@ const creditCosts = (raw: string): unknown => {
 const KEYS: Record<keyof AppConfig, { key: string; decode: Decoder }> = {
   routingSlotsDetectDeviceMaxWords: { key: 'routing_slots_detect_device_max_words', decode: int },
   routingOverrides: { key: 'routing_overrides', decode: json },
-  flagTier2: { key: 'flag_tier2', decode: bool },
   flagAutoFill: { key: 'flag_auto_fill', decode: bool },
   freeCredits: { key: 'free_credits', decode: int },
   judgeCredits: { key: 'judge_credits', decode: int },
   dailyBudgetCredits: { key: 'daily_budget_credits', decode: int },
   killSwitch: { key: 'kill_switch', decode: bool },
-  customProvider: { key: 'custom_provider', decode: str },
   modelFast: { key: 'model_fast', decode: str },
   modelStrong: { key: 'model_strong', decode: str },
   modelFilmBuild: { key: 'model_film_build', decode: str },

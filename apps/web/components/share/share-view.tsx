@@ -37,6 +37,7 @@ export function ShareVideo({
   resolution,
   videoUrl,
   posterUrl,
+  transparent,
 }: {
   title: string;
   durationMs: number;
@@ -44,6 +45,7 @@ export function ShareVideo({
   resolution: string;
   videoUrl: string;
   posterUrl?: string | undefined;
+  transparent?: boolean | undefined;
 }) {
   const size = FORMATS[format];
   const vertical = size.height > size.width;
@@ -58,6 +60,14 @@ export function ShareVideo({
             style={{
               maxWidth: vertical ? 'min(960px, 70dvh * 9 / 16)' : 960,
               aspectRatio: `${size.width} / ${size.height}`,
+              ...(transparent
+                ? {
+                    backgroundColor: '#1f1f24',
+                    backgroundImage:
+                      'repeating-conic-gradient(#2c2c34 0% 25%, #1f1f24 0% 50%)',
+                    backgroundSize: '20px 20px',
+                  }
+                : {}),
             }}
           >
             <video
@@ -67,7 +77,7 @@ export function ShareVideo({
               src={videoUrl}
               poster={posterUrl}
               aria-label={title}
-              className="size-full bg-ink object-contain"
+              className={cn('size-full object-contain', transparent ? 'bg-transparent' : 'bg-ink')}
             />
           </div>
         </div>
@@ -80,6 +90,7 @@ export function ShareVideo({
             <span>{secondsText(durationMs)}</span>
             <span>{format}</span>
             <span>{resolution}</span>
+            {transparent && <span>Transparent WebM</span>}
           </p>
         </div>
         <p className="text-[13px] text-black/60">

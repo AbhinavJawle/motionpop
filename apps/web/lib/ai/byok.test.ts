@@ -3,12 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   BYOK_KEY_STORAGE,
   BYOK_MODE_STORAGE,
+  BYOK_MODEL_STORAGE,
   clearByokKey,
   getByokKey,
+  getByokModel,
   getByokModelMode,
   isByokActive,
   maskApiKey,
   setByokKey,
+  setByokModel,
   setByokModelMode,
   subscribeByok,
 } from './byok';
@@ -50,11 +53,18 @@ describe('browser BYOK store', () => {
     expect(window.localStorage.getItem(BYOK_MODE_STORAGE)).toBe('flash');
     expect(onChange).toHaveBeenCalledTimes(2);
 
+    setByokModel('gemini-4-neon');
+    expect(getByokModel()).toBe('gemini-4-neon');
+    expect(window.localStorage.getItem(BYOK_MODEL_STORAGE)).toBe('gemini-4-neon');
+    expect(onChange).toHaveBeenCalledTimes(3);
+
     clearByokKey();
     expect(isByokActive()).toBe(false);
     expect(getByokKey()).toBeNull();
+    expect(getByokModel()).toBeNull();
     expect(window.localStorage.getItem(BYOK_KEY_STORAGE)).toBeNull();
-    expect(onChange).toHaveBeenCalledTimes(3);
+    expect(window.localStorage.getItem(BYOK_MODEL_STORAGE)).toBeNull();
+    expect(onChange).toHaveBeenCalledTimes(4);
 
     unsub();
   });

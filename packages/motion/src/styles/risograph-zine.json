@@ -1,0 +1,91 @@
+{
+  "id": "risograph-zine",
+  "name": "Risograph Zine",
+  "tagline": "2-ink overprint, halftone grit & tactile paper.",
+  "tags": ["Editorial", "Print"],
+  "description": "Warm uncoated print stock with fluorescent coral & cobalt overprint inks, halftone stipple textures, and stepped 12 fps zine energy.",
+  "colors": {
+    "bg": "#F5EDE0",
+    "ink": "#182138",
+    "muted": "#5C6378",
+    "accent": "#E11D48",
+    "accent2": "#1D4ED8",
+    "highlight": "#FDE68A",
+    "positive": "#0F766E",
+    "negative": "#BE123C",
+    "chart": ["#94A3B8", "#1D4ED8", "#E11D48"]
+  },
+  "fonts": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 700
+  },
+  "texture": {
+    "grain": 0.08,
+    "paper": true,
+    "vignette": 0.08
+  },
+  "motion": {
+    "enterEase": "outQuart",
+    "moveEase": "inOutCubic",
+    "enterMs": 500,
+    "staggerMs": 60,
+    "holdMs": 1000,
+    "camera": {
+      "pushIn": 1.03
+    }
+  },
+  "shape": {
+    "radius": 2,
+    "stroke": 2.5
+  },
+  "allowPlayful": false,
+  "energy": "lively",
+  "personality": {
+    "preset": "stepped",
+    "enter": {
+      "text": "slam",
+      "number": "count",
+      "shape": "pop"
+    },
+    "overshoot": 0.04,
+    "popMax": 0.06,
+    "exitRatio": 0.55,
+    "stepFps": 12,
+    "snapMargin": 14
+  },
+  "camera": {
+    "push": [1, 1.03],
+    "snap": 0,
+    "whip": false,
+    "parallax": 16
+  },
+  "surfaces": {
+    "card": ["paper", "torn-edge", "shadow-soft", "tilt"],
+    "photo": ["white-border", "tape", "tilt"],
+    "label": ["plain"],
+    "strip": ["torn-edge"]
+  },
+  "marks": {
+    "emphasis": "highlighter",
+    "pointer": "marker-arrow",
+    "divider": "torn-rule",
+    "badge": "stamp"
+  },
+  "juice": ["camera-push", "parallax-shift", "decor-draw"],
+  "image": {
+    "recipe": "2-color risograph screenprint editorial illustration of {subject}, fluorescent coral and cobalt blue overprint halftone dots, isolated cleanly on pure white background, no text, no watermark",
+    "treatment": ["key", "white-border", "tilt"]
+  },
+  "sound": {
+    "enter": "paper",
+    "mark": "paper",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["paper-wipe", "push"],
+  "map": {
+    "style": "paper"
+  }
+}

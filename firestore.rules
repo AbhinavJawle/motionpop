@@ -102,6 +102,12 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Shared open-source community director skills: readable by everyone, written only via Admin SDK.
+    match /community_skills/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Dodo Payments webhook deduplication & payment lookup records (spec 44): server-only.
     match /billing_webhooks/{wid} {
       allow read, write: if false;

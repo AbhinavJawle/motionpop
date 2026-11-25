@@ -19,7 +19,12 @@ export {
   type ReelSegment,
 } from './compile';
 export { CAPTION_STYLES, captionStyleOf, chunkCaptions } from './captions';
-export { STAGE_W as REEL_STAGE_W, STAGE_H as REEL_STAGE_H } from './looks';
+export {
+  STAGE_W as REEL_STAGE_W,
+  STAGE_H as REEL_STAGE_H,
+  stageSizeForFormat,
+  type StageSize,
+} from './looks';
 export { reelSfx, reelBed, type ReelBedOptions } from './sound';
 export { logoSlugs, splitLogoQuery, illustrationPrompt } from './media-query';
 export type { ReelImage } from './parts';

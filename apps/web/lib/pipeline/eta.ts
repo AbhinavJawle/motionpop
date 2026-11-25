@@ -5,14 +5,19 @@ import type { PipelineStep } from './events';
  * of finished steps plus the active step's share; time left blends a prior from the media length
  * with the observed rate, moving to the observed rate as progress grows.
  */
-export type JobKind = 'video' | 'voiceover';
+export type JobKind = 'video' | 'voiceover' | 'graphic';
 
 export const STEP_WEIGHTS: Readonly<Record<JobKind, Readonly<Record<PipelineStep, number>>>> = {
   video: { transcribe: 0.25, clean: 0.1, moments: 0.15, suggest: 0.3, plan: 0.2 },
   voiceover: { transcribe: 0.4, clean: 0.15, moments: 0.05, suggest: 0.15, plan: 0.25 },
+  graphic: { transcribe: 0.05, clean: 0.05, moments: 0.05, suggest: 0.35, plan: 0.5 },
 };
 
-const PRIOR = { video: { a: 20, b: 0.6 }, voiceover: { a: 8, b: 0.35 } } as const;
+const PRIOR = {
+  video: { a: 20, b: 0.6 },
+  voiceover: { a: 8, b: 0.35 },
+  graphic: { a: 28, b: 0 },
+} as const;
 
 export type StepProgress = Record<
   PipelineStep,

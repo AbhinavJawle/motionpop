@@ -1,10 +1,11 @@
 'use client';
 
-import type { FrameNote, ReelScene } from '@motionpop/schemas';
+import { stageSizeForFormat } from '@motionpop/motion/reel';
+import { isVideoReel, type FrameNote, type ReelScene } from '@motionpop/schemas';
 import { useCallback, useMemo } from 'react';
 import { addReelNote, deleteReelNote, setReelNoteStatus } from '@/lib/commands';
 import type { Region } from '@/lib/notes/geometry';
-import { reelStage, REEL_STAGE_H, REEL_STAGE_W } from '@/lib/reel/note-look';
+import { reelStage } from '@/lib/reel/note-look';
 import { useReelNoteFix } from '@/lib/reel/use-reel-note-fix';
 import { useAIActivity } from '@/lib/stores/ai-activity';
 import { editorStore, useEditor } from '@/lib/stores/editor';
@@ -41,6 +42,10 @@ function graphicRegion(sceneId: string): Region | null {
  */
 export function ReelNotesLayer() {
   const scenes = useEditor((s) => s.project?.reel?.scenes);
+  const format = useEditor((s) =>
+    isVideoReel(s.project) ? '9:16' : (s.project?.format ?? '16:9'),
+  );
+  const stage = stageSizeForFormat(format);
   const playheadMs = useEditor((s) => s.playheadMs);
   const { route, cloudRoute, cost, run } = useReelNoteFix();
   const working = useAIActivity((s) => (s.busy?.kind === 'note' ? s.busy.slotId : null));
@@ -55,7 +60,7 @@ export function ReelNotesLayer() {
     <NotesOverlay
       targetId={scene.id}
       notes={(scene.notes ?? []) as FrameNote[]}
-      aspect={REEL_STAGE_W / REEL_STAGE_H}
+      aspect={stage.w / stage.h}
       route={route}
       cloudRoute={cloudRoute}
       cost={cost}

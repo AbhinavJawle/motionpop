@@ -1,0 +1,91 @@
+{
+  "id": "apple-keynote",
+  "name": "Apple Keynote",
+  "tagline": "Glass depth, hardware precision & crisp springs.",
+  "tags": ["Product", "Premium"],
+  "description": "Inspired by Apple launch films: obsidian & glass surfaces, vibrant gradient backdrops, precision spring curves, and focused single-line product captions.",
+  "colors": {
+    "bg": "#0A0E17",
+    "ink": "#F8FAFC",
+    "muted": "#94A3B8",
+    "accent": "#38BDF8",
+    "accent2": "#818CF8",
+    "highlight": "#38BDF8",
+    "positive": "#34D399",
+    "negative": "#FB7185",
+    "chart": ["#475569", "#818CF8", "#38BDF8"]
+  },
+  "fonts": {
+    "display": "Geist",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 700
+  },
+  "texture": {
+    "grain": 0.01,
+    "paper": false,
+    "vignette": 0.16
+  },
+  "motion": {
+    "enterEase": "outQuart",
+    "moveEase": "inOutCubic",
+    "enterMs": 460,
+    "staggerMs": 55,
+    "holdMs": 1100,
+    "camera": {
+      "pushIn": 1.03
+    }
+  },
+  "shape": {
+    "radius": 18,
+    "stroke": 1.5
+  },
+  "allowPlayful": false,
+  "energy": "calm",
+  "personality": {
+    "preset": "smooth",
+    "enter": {
+      "text": "mask",
+      "number": "count",
+      "image": "slam",
+      "shape": "draw"
+    },
+    "overshoot": 0.03,
+    "popMax": 0.05,
+    "exitRatio": 0.55,
+    "snapMargin": 12
+  },
+  "camera": {
+    "push": [1, 1.03],
+    "snap": 0,
+    "whip": false,
+    "parallax": 14
+  },
+  "surfaces": {
+    "card": ["plain", "shadow-soft"],
+    "photo": ["shadow-soft"],
+    "label": ["plain"],
+    "strip": ["plain"]
+  },
+  "marks": {
+    "emphasis": "highlighter",
+    "pointer": "arrow",
+    "divider": "rule",
+    "badge": "chip"
+  },
+  "juice": ["camera-push", "accent-sweep", "parallax-shift"],
+  "image": {
+    "recipe": "Sleek Apple-grade industrial studio product render of {subject}, subtle specular rim light, crisp silhouette isolated on pure white background, no text, no watermark",
+    "treatment": ["key", "shadow-soft"]
+  },
+  "sound": {
+    "enter": "whoosh",
+    "mark": "pen",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["push"],
+  "map": {
+    "style": "night"
+  }
+}

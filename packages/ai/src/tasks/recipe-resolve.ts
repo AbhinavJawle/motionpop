@@ -26,7 +26,7 @@ export const RecipeResolveInputSchema = z.object({
   recipeId: RecipeIdSchema,
   recipeText: z.string().max(RECIPE_TEXT_MAX).optional(),
   styleText: z.string().max(RECIPE_TEXT_MAX).optional(),
-  kind: z.enum(['video', 'voiceover']),
+  kind: z.enum(['video', 'voiceover', 'graphic']),
 });
 export type RecipeResolveInput = z.infer<typeof RecipeResolveInputSchema>;
 
@@ -110,7 +110,7 @@ const COLOURS: Readonly<Record<string, string>> = {
   white: '#FFFFFF',
 };
 const DARK_WORDS = new Set(['dark', 'neon', 'night']);
-const WARM_WORDS = new Set(['warm', 'paper', 'cream', 'editorial']);
+const WARM_WORDS = new Set(['warm', 'paper', 'cream', 'editorial', 'vox', 'collage', 'newsprint', 'scrapbook']);
 const MOOD_WORDS: readonly (readonly [Exclude<MusicMood, 'auto' | 'none'>, readonly string[]])[] = [
   ['lofi', ['lofi', 'chill']],
   ['upbeat', ['hype', 'energetic', 'fast']],

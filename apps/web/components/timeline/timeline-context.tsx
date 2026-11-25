@@ -97,6 +97,7 @@ export function timelineLayout(
   hasVideo: boolean,
   mediaLaneCount = 1,
   audioLaneCount = 1,
+  hideVoiceTracks = false,
 ): TimelineLayoutResult {
   const mCount = Math.max(1, Math.min(4, Math.floor(mediaLaneCount)));
   const aCount = Math.max(1, Math.min(4, Math.floor(audioLaneCount)));
@@ -117,10 +118,14 @@ export function timelineLayout(
     y += STOCK_ROW_HEIGHT;
   }
 
-  const words: TimelineRowGeometry = { top: y, height: TL.rows.words.height };
-  y += TL.rows.words.height;
-  const voice: TimelineRowGeometry = { top: y, height: TL.rows.voice.height };
-  y += TL.rows.voice.height;
+  const words: TimelineRowGeometry = hideVoiceTracks
+    ? { top: y, height: 0 }
+    : { top: y, height: TL.rows.words.height };
+  if (!hideVoiceTracks) y += TL.rows.words.height;
+  const voice: TimelineRowGeometry = hideVoiceTracks
+    ? { top: y, height: 0 }
+    : { top: y, height: TL.rows.voice.height };
+  if (!hideVoiceTracks) y += TL.rows.voice.height;
   const audio: TimelineRowGeometry = { top: y, height: TL.rows.audio.height };
   y += TL.rows.audio.height;
 

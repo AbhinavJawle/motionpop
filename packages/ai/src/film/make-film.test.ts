@@ -307,7 +307,7 @@ describe('makeFilm', () => {
       run: async (task: { id: string }, arg: unknown, opts?: { model?: string }) => {
         seenTasks.push(task.id);
         seenModels[task.id] = opts?.model;
-        if (task.id === 'reel.direct') {
+        if (task.id === 'reel.storyboard') {
           return {
             output: reelBoard,
             ranOn: 'cloud',
@@ -357,8 +357,8 @@ describe('makeFilm', () => {
       depsFor(router, { model: 'gemini-4-neon' }),
     );
 
-    expect(seenTasks).toEqual(['reel.direct', 'reel.build', 'reel.build']);
-    expect(seenModels['reel.direct']).toBe('gemini-4-neon');
+    expect(seenTasks).toEqual(['reel.storyboard', 'reel.build', 'reel.build']);
+    expect(seenModels['reel.storyboard']).toBe('gemini-4-neon');
     expect(seenModels['reel.build']).toBe('gemini-4-neon');
     expect(res.props).toEqual({});
     expect(res.storyboard.props).toEqual([]);

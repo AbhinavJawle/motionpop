@@ -44,12 +44,22 @@ const cardClass = (selected: boolean) =>
 
 function ReelStylesBody() {
   const reel = useEditor((s) => s.project?.reel);
-  const styleId = useEditor((s) => s.project?.edit?.styleId);
+  const editStyleId = useEditor((s) => s.project?.edit?.styleId);
   const exec = useEditor((s) => s.exec);
   if (!reel) return null;
+  const graphicOnly = Boolean(reel.graphicOnly);
   const captionStyle = reel.captionStyle ?? ownCaptionStyle(reel.look);
+  const matchesReel = (st: RecipeStyle): boolean => {
+    if (editStyleId) return st.id === editStyleId;
+    if (st.look !== reel.look) return false;
+    if (!st.theme && !reel.theme) return true;
+    return (
+      st.theme?.accent?.toLowerCase() === reel.theme?.accent?.toLowerCase() &&
+      st.theme?.background === reel.theme?.background
+    );
+  };
   const pick = (st: RecipeStyle) => {
-    if (st.id === styleId) return;
+    if (matchesReel(st)) return;
     exec(
       setReelStyle({
         look: st.look,
@@ -66,7 +76,9 @@ function ReelStylesBody() {
       </header>
       <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pt-3 pb-6">
         <p className="text-[12px] leading-[17px] text-text-3">
-          A style sets the reel’s look, colours and captions. Pick one to restyle the whole reel.
+          {graphicOnly
+            ? 'A style sets the graphic’s look and colours. Pick one to restyle every scene.'
+            : 'A style sets the reel’s look, colours and captions. Pick one to restyle the whole reel.'}
         </p>
         {builtInSkills.recipes().map((recipe) => (
           <section key={recipe.id} aria-label={recipe.name} className="pt-4">
@@ -79,7 +91,7 @@ function ReelStylesBody() {
               className="grid grid-cols-2 gap-2.5"
             >
               {recipe.styles.map((st) => {
-                const selected = st.id === styleId;
+                const selected = matchesReel(st);
                 return (
                   <button
                     key={st.id}
@@ -110,40 +122,46 @@ function ReelStylesBody() {
             </div>
           </section>
         ))}
-        <section aria-label="Captions" className="pt-5">
-          <h3 className="pb-2 text-[11px] leading-4 font-semibold tracking-[0.04em] text-text-3 uppercase">
-            Captions
-          </h3>
-          <div role="radiogroup" aria-label="Caption style" className="grid grid-cols-2 gap-2.5">
-            {CAPTION_STYLES.map((c) => {
-              const selected = c.value === captionStyle;
-              return (
-                <button
-                  key={c.value}
-                  type="button"
-                  role="radio"
-                  aria-checked={selected}
-                  onClick={() => {
-                    if (!selected) exec(setReelCaptionStyle(c.value));
-                  }}
-                  className={cardClass(selected)}
-                >
-                  <div className="h-[56px] w-full" aria-hidden>
-                    <CaptionArt style={c.value} label="to get started" />
-                  </div>
-                  <span className="flex items-center gap-1.5 px-2.5 py-2">
-                    <span className="min-w-0 flex-1 truncate text-[12px] leading-4 font-medium text-text">
-                      {c.label}
+        {!graphicOnly && (
+          <section aria-label="Captions" className="pt-5">
+            <h3 className="pb-2 text-[11px] leading-4 font-semibold tracking-[0.04em] text-text-3 uppercase">
+              Captions
+            </h3>
+            <div role="radiogroup" aria-label="Caption style" className="grid grid-cols-2 gap-2.5">
+              {CAPTION_STYLES.map((c) => {
+                const selected = c.value === captionStyle;
+                return (
+                  <button
+                    key={c.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => {
+                      if (!selected) exec(setReelCaptionStyle(c.value));
+                    }}
+                    className={cardClass(selected)}
+                  >
+                    <div className="h-[56px] w-full" aria-hidden>
+                      <CaptionArt style={c.value} label="to get started" />
+                    </div>
+                    <span className="flex items-center gap-1.5 px-2.5 py-2">
+                      <span className="min-w-0 flex-1 truncate text-[12px] leading-4 font-medium text-text">
+                        {c.label}
+                      </span>
+                      {selected && (
+                        <Check
+                          className="size-3.5 shrink-0 text-ink"
+                          strokeWidth={2.5}
+                          aria-hidden
+                        />
+                      )}
                     </span>
-                    {selected && (
-                      <Check className="size-3.5 shrink-0 text-ink" strokeWidth={2.5} aria-hidden />
-                    )}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
       </div>
     </div>
   );

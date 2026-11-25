@@ -6,7 +6,7 @@ import {
   encodeWavStereo16,
   mixReelMusic,
   mountReel,
-  REEL_STAGE_W,
+  stageSizeForFormat,
   type ReelCustomAssets,
   type ReelHandle,
   type ReelImage,
@@ -19,10 +19,12 @@ import {
 } from '@motionpop/motion/sfx';
 import {
   cleanedToSourceMs,
+  isVideoReel,
   keptSourceSegments,
   reelBedSound,
   reelMediaOf,
   reelSceneData,
+  type Format,
   type ImageAsset,
   type ReelPlan,
 } from '@motionpop/schemas';
@@ -137,13 +139,16 @@ function useReelImages(
       want.map(async (id) => {
         const a = assets?.find((x) => x.id === id && x.status === 'ready');
         const blob = a?.src ? await getImage(a.src).catch(() => null) : null;
-        if (!a || !blob) return null;
+        if (!a || !blob || cancelled) return null;
         const url = URL.createObjectURL(blob);
         made.push(url);
         return [id, { src: url, w: a.width ?? 1024, h: a.height ?? 1024 }] as const;
       }),
     ).then((pairs) => {
-      if (cancelled) return;
+      if (cancelled) {
+        made.forEach((u) => URL.revokeObjectURL(u));
+        return;
+      }
       const images: Record<string, ReelImage> = {};
       for (const p of pairs) if (p) images[p[0]] = p[1];
       setState({ ids, images });
@@ -234,7 +239,7 @@ function useReelMusicUrl(
       if (made) URL.revokeObjectURL(made);
     };
   }, [src, words, voiceLevel]);
-  return url;
+  return src && words && voiceLevel !== null ? url : null;
 }
 
 /** The reel's sound design as a WAV object URL (spec 26 R4.2): the same bytes the export mixes. */
@@ -272,10 +277,14 @@ function useReelBedUrl(
  * a muted native <video> that follows the editor's clock through the kept segments. The editor
  * plays the cleaned voice as the master clock, so the preview is the export.
  */
-export function ReelPreview() {
+export function ReelPreview({ transparent = false }: { transparent?: boolean } = {}) {
   const frameRef = useRef<HTMLDivElement | null>(null);
   const hostRef = useRef<HTMLDivElement | null>(null);
   const storedReel = useEditor((s) => s.project?.reel);
+  const format: Format = useEditor((s) =>
+    isVideoReel(s.project) ? '9:16' : (s.project?.format ?? '16:9'),
+  );
+  const stage = useMemo(() => stageSizeForFormat(format), [format]);
   // The engine sees the plan without its frame notes (spec 29): adding or fixing the status of a
   // note never remounts the stage or reloads the video; a real scene change does.
   const engineKey = useMemo(
@@ -290,6 +299,7 @@ export function ReelPreview() {
     [engineKey],
   );
   const video = useEditor((s) => s.project?.video);
+  const graphicOnly = Boolean(reel?.graphicOnly && !video);
   const words = useEditor((s) => s.project?.transcript.words);
   const durationMs = useEditor((s) => s.project?.durationMs ?? 0);
   const assets = useEditor((s) => s.project?.assets);
@@ -297,12 +307,18 @@ export function ReelPreview() {
   const images = useReelImages(reel, assets);
   const custom = useReelCustom(reel, assets);
   const voiceSrc = useEditor((s) => s.project?.voiceover.src);
-  const voiceLevel = useVoiceLevel(voiceSrc, words);
+  const voiceLevel = useVoiceLevel(graphicOnly ? undefined : voiceSrc, words);
   const soundKey = useEditor((s) =>
     s.project ? JSON.stringify(reelBedSound(s.project)) : '{"sfx":true,"sfxGainDb":0,"music":null}',
   );
-  const bedUrl = useReelBedUrl(reel, words, durationMs, voiceLevel, soundKey);
-  const musicUrl = useReelMusicUrl(reel?.music?.src, words, voiceLevel);
+  const bedUrl = useReelBedUrl(
+    graphicOnly ? undefined : reel,
+    words,
+    durationMs,
+    voiceLevel,
+    soundKey,
+  );
+  const musicUrl = useReelMusicUrl(graphicOnly ? undefined : reel?.music?.src, words, voiceLevel);
   // The sound tracks under the voice (effects bed, music), all following the editor clock.
   const tracksRef = useRef<HTMLAudioElement[]>([]);
   const [scale, setScale] = useState(0.3);
@@ -317,7 +333,7 @@ export function ReelPreview() {
     [video],
   );
 
-  // The source video as an object URL.
+  // The source video as an object URL (talking-head video reels only).
   useEffect(() => {
     if (!src) return;
     let cancelled = false;
@@ -336,27 +352,34 @@ export function ReelPreview() {
     };
   }, [src]);
 
-  // Fit the 720 × 1280 stage into the frame.
+  // Fit the stage into the frame at the active aspect ratio.
   useEffect(() => {
     const el = frameRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setScale(el.clientWidth / REEL_STAGE_W));
+    const updateScale = () => setScale(el.clientWidth / stage.w);
+    const ro = new ResizeObserver(updateScale);
     ro.observe(el);
-    setScale(el.clientWidth / REEL_STAGE_W);
+    updateScale();
     return () => ro.disconnect();
-  }, []);
+  }, [stage.w]);
 
-  // Mount the engine whenever the plan, the words or the video change.
+  // Mount the engine whenever the plan, format, transparency, words, or video change.
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || !reel || !video || !url || !words || !images || custom === undefined) return;
+    if (!host || !reel || !images || custom === undefined) return;
+    if (video && !url) return;
     let cancelled = false;
-    const v = document.createElement('video');
-    v.muted = true;
-    v.playsInline = true;
-    v.preload = 'auto';
-    v.src = url;
-    videoElRef.current = v;
+    let v: HTMLVideoElement | null = null;
+    if (video && url) {
+      v = document.createElement('video');
+      v.muted = true;
+      v.playsInline = true;
+      v.preload = 'auto';
+      v.src = url;
+      videoElRef.current = v;
+    } else {
+      videoElRef.current = null;
+    }
     let handle: ReelHandle | null = null;
     void ensureReelFonts().then(() => {
       if (cancelled) return;
@@ -364,20 +387,22 @@ export function ReelPreview() {
         host,
         {
           plan: reel,
-          words: words.map((w) => ({ text: w.text, startMs: w.startMs, endMs: w.endMs })),
+          words: (words ?? []).map((w) => ({ text: w.text, startMs: w.startMs, endMs: w.endMs })),
           durationMs,
-          video: { w: video.width, h: video.height },
+          format,
+          ...(transparent && !video ? { transparent: true } : {}),
+          ...(video ? { video: { w: video.width, h: video.height } } : {}),
           images,
           // AI-written scenes run sandboxed in their own frames (spec 30).
           ...(custom
             ? { custom: custom.assets, customImages: custom.images, customSandbox: true }
             : {}),
           // Jump cuts on the reel clock: the framing alternates on them (spec 27 R1.2).
-          cuts: cutsFromSegments(
-            segments.map((k) => ({ srcStartMs: k.startMs, srcEndMs: k.endMs })),
-          ),
+          cuts: video
+            ? cutsFromSegments(segments.map((k) => ({ srcStartMs: k.startMs, srcEndMs: k.endMs })))
+            : [],
         },
-        [v],
+        v ? [v] : [],
       );
       handleRef.current = handle;
       void handle.ready.then(() => {
@@ -389,12 +414,14 @@ export function ReelPreview() {
       cancelled = true;
       handle?.destroy();
       if (handleRef.current === handle) handleRef.current = null;
-      v.pause();
-      v.removeAttribute('src');
-      v.load();
+      if (v) {
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      }
       host.replaceChildren();
     };
-  }, [reel, video, url, words, durationMs, images, segments, custom]);
+  }, [reel, video, url, words, durationMs, format, transparent, images, segments, custom]);
 
   // The sound tracks follow the editor clock like the video does.
   useEffect(() => {
@@ -412,16 +439,16 @@ export function ReelPreview() {
     };
   }, [bedUrl, musicUrl]);
 
-  // Every clock tick: draw the reel and keep the video on the kept-segment time.
+  // Every clock tick: draw the reel and keep the video (if any) & sound tracks on the editor clock.
   useEffect(() => {
     const apply = (ms: number) => {
       handleRef.current?.seek(ms);
+      const isPlaying = editorStore.getState().playing;
+      syncTracks(tracksRef.current, ms / 1000, isPlaying);
       const v = videoElRef.current;
       if (!v || v.readyState < 1) return;
       const target = cleanedToSourceMs(ms, segments) / 1000;
-      const isPlaying = editorStore.getState().playing;
       if (!isPlaying || Math.abs(v.currentTime - target) > VIDEO_DRIFT_SEC) v.currentTime = target;
-      syncTracks(tracksRef.current, ms / 1000, isPlaying);
     };
     apply(editorStore.getState().playheadMs);
     return subscribePreviewSeek(apply);
@@ -429,18 +456,24 @@ export function ReelPreview() {
 
   useEffect(() => {
     const v = videoElRef.current;
-    if (!v) return;
     if (playing) {
-      void v.play().catch(() => undefined);
+      if (v) void v.play().catch(() => undefined);
       playTracks(tracksRef.current, editorStore.getState().playheadMs / 1000);
     } else {
-      v.pause();
+      if (v) v.pause();
       pauseTracks(tracksRef.current);
     }
   }, [playing, url, bedUrl, musicUrl]);
 
   return (
-    <div ref={frameRef} className="absolute inset-0 overflow-hidden bg-black">
+    <div
+      ref={frameRef}
+      className={
+        transparent && !video
+          ? 'absolute inset-0 overflow-hidden bg-transparent'
+          : 'absolute inset-0 overflow-hidden bg-black'
+      }
+    >
       <div
         ref={hostRef}
         data-reel-stage
@@ -448,13 +481,13 @@ export function ReelPreview() {
           position: 'absolute',
           left: 0,
           top: 0,
-          width: 720,
-          height: 1280,
+          width: stage.w,
+          height: stage.h,
           transform: `scale(${scale})`,
           transformOrigin: '0 0',
         }}
       />
-      {!url && (
+      {Boolean(video) && !url && (
         <div className="absolute inset-0 grid place-items-center text-[11px] text-text-3">
           Loading video…
         </div>

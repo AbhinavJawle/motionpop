@@ -3,8 +3,8 @@
 // document (this module builds it) inside an <iframe>, sandboxed (`allow-scripts`, an opaque
 // origin) in the editor, and seeked from the reel clock by message. The export runs the very same
 // document, so the preview is the export. Browser-safe; this module never runs generated code.
-import type { ReelLook, ReelScene, ReelTemplate, ReelTheme } from '@motionpop/schemas';
-import { LOOKS, graphicArea, type LookTokens, type Palette } from './looks';
+import type { Format, ReelLook, ReelScene, ReelTemplate, ReelTheme } from '@motionpop/schemas';
+import { LOOKS, graphicArea, stageSizeForFormat, type LookTokens, type Palette } from './looks';
 import { themedLook } from './theme';
 import type { CriticSummary } from '../film/critic';
 import type { ReelImage, Tpl } from './parts';
@@ -25,6 +25,12 @@ export interface ReelCustomScene {
   params: CustomContent;
   width: number;
   height: number;
+  /** Full stage dimensions & aspect ratio for `--u` and responsive kit layouts. */
+  frameWidth?: number;
+  frameHeight?: number;
+  format?: Format;
+  /** True when rendering with transparent alpha background (hides `.mp-backdrop` layers). */
+  transparent?: boolean;
   durationMs: number;
   seed: number;
   look: { id: string; sans: string; serif: string; mono: string; upper: boolean };
@@ -85,17 +91,26 @@ export const REEL_CUSTOM_CSP =
   "form-action 'none'; base-uri 'none'";
 
 /**
- * The document of one custom scene. `csp` (the editor's sandboxed frames) adds the policy; the
- * export's frames load composition-relative pictures in their own isolated container.
+ * Policy for export frames (rendered inside Cloud Run): allows `'self'` for composition-relative
+ * images/fonts served from 127.0.0.1 while blocking all external network egress (`connect-src 'none'`).
+ */
+export const REEL_CUSTOM_EXPORT_CSP =
+  "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; " +
+  "font-src 'self' data:; img-src 'self' data: blob:; media-src 'none'; connect-src 'none'; " +
+  "form-action 'none'; base-uri 'none'";
+
+/**
+ * The document of one custom scene. Always embeds a strict CSP: editor sandboxed frames use
+ * `REEL_CUSTOM_CSP`; export frames use `REEL_CUSTOM_EXPORT_CSP` so composition-relative assets
+ * load while outbound network requests remain blocked.
  */
 export function reelCustomDoc(
   scene: ReelCustomScene,
   assets: ReelCustomAssets,
   opts: { csp?: boolean } = {},
 ): string {
-  const policy = opts.csp
-    ? `<meta http-equiv="Content-Security-Policy" content="${REEL_CUSTOM_CSP}">\n`
-    : '';
+  const cspValue = opts.csp ? REEL_CUSTOM_CSP : REEL_CUSTOM_EXPORT_CSP;
+  const policy = `<meta http-equiv="Content-Security-Policy" content="${cspValue}">\n`;
   return `<!doctype html>
 <html>
 <head>
@@ -104,10 +119,11 @@ ${policy}<meta charset="utf-8">
 ${assets.fontCss}
   html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; }
   #mp-scene { position: relative; width: ${scene.width}px; height: ${scene.height}px; overflow: hidden; }
+  #mp-scene[data-transparent="true"] .mp-backdrop, #mp-scene[data-transparent="true"] [data-backdrop] { display: none !important; }
 </style>
 </head>
 <body>
-  <div id="mp-scene"></div>
+  <div id="mp-scene"${scene.transparent ? ' data-transparent="true"' : ''}></div>
   <script>window.__MP_ALLOW_CUSTOM__ = true; window.__MP_SCENE__ = ${scriptJson(scene)};</script>
   <script>${scriptText(assets.js)}</script>
 </body>
@@ -353,6 +369,10 @@ export function reelCustomScene(o: {
   look: ReelLook;
   /** The reel's colour theme (spec 37), so a new graphic wears it too. */
   theme?: ReelTheme | undefined;
+  format?: Format | undefined;
+  noVideo?: boolean | undefined;
+  captions?: boolean | undefined;
+  transparent?: boolean | undefined;
   scene: ReelScene;
   words: readonly { text: string; startMs: number; endMs: number }[];
   pictures: Readonly<Record<string, ReelImage>>;
@@ -360,7 +380,11 @@ export function reelCustomScene(o: {
   const s = o.scene;
   if (s.content.template !== 'custom') return null;
   const look = themedLook(LOOKS[o.look], o.theme);
-  const area = graphicArea(look, s.layout);
+  const stage = stageSizeForFormat(o.format);
+  const area = graphicArea(look, s.layout, stage, {
+    ...(o.noVideo !== undefined ? { noVideo: o.noVideo } : {}),
+    ...(o.captions !== undefined ? { captions: o.captions } : {}),
+  });
   const images: Record<string, ReelImage> = {};
   (s.content.media ?? []).forEach((m, i) => {
     const pic = m.asset ? o.pictures[m.asset] : undefined;
@@ -370,6 +394,10 @@ export function reelCustomScene(o: {
     params: s.content,
     width: area.w,
     height: area.h,
+    frameWidth: stage.w,
+    frameHeight: stage.h,
+    format: o.format ?? '9:16',
+    ...(o.transparent ? { transparent: true } : {}),
     durationMs: s.endMs - s.startMs,
     seed: seedOf(s.id),
     look: customLook(look),

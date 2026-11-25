@@ -184,7 +184,11 @@ export async function captureReelRegion(
   region: CaptureRegion,
 ): Promise<string | undefined> {
   try {
-    const geo = cropGeometry(region, { width: REEL_STAGE_W, height: REEL_STAGE_H });
+    const stageW =
+      Math.round(parseFloat(stageEl.style.width)) || stageEl.offsetWidth || REEL_STAGE_W;
+    const stageH =
+      Math.round(parseFloat(stageEl.style.height)) || stageEl.offsetHeight || REEL_STAGE_H;
+    const geo = cropGeometry(region, { width: stageW, height: stageH });
     if (!geo) return undefined;
     const clone = stageEl.cloneNode(true) as HTMLElement;
     clone.style.transform = 'none';
@@ -220,8 +224,8 @@ export async function captureReelRegion(
     clone.prepend(style);
     const xhtml = new XMLSerializer().serializeToString(clone);
     const svg =
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${REEL_STAGE_W}" height="${REEL_STAGE_H}">` +
-      `<foreignObject x="0" y="0" width="${REEL_STAGE_W}" height="${REEL_STAGE_H}">${xhtml}</foreignObject></svg>`;
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${stageW}" height="${stageH}">` +
+      `<foreignObject x="0" y="0" width="${stageW}" height="${stageH}">${xhtml}</foreignObject></svg>`;
     const img = new Image();
     img.decoding = 'sync';
     img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;

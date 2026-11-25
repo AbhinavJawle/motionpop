@@ -7,9 +7,12 @@
  * that stay keep their stored asset, and layout rules are enforced in code.
  */
 import {
+  APP_CONFIG_DEFAULTS,
   REEL_ICONS,
   ReelSceneSchema,
+  costOf,
   reelMediaKey,
+  stableJson,
   type ReelLook,
   type ReelMedia,
   type ReelScene,
@@ -76,6 +79,12 @@ export const ReelNoteInputSchema = z.object({
   hook: z.string().max(80).optional(),
   /** JPEG of the circled area (base64), when frame capture worked. */
   image: z.string().max(400_000).optional(),
+  /** Aspect ratio of this project (`16:9` / `1:1` / `9:16`). */
+  format: z.enum(['16:9', '9:16', '1:1']).optional(),
+  /** True for graphics-only / voiceover-only projects with no speaker video. */
+  noVideo: z.boolean().optional(),
+  /** Visual craft & custom SKILL.md guidance for edits and compose briefs. */
+  styleDirection: z.string().max(2400).optional(),
 });
 export type ReelNoteInput = z.infer<typeof ReelNoteInputSchema>;
 
@@ -494,22 +503,6 @@ export interface ReelNoteResult {
 
 const ICONS = new Set<string>(REEL_ICONS);
 
-/** JSON with sorted keys, so two equal scenes compare equal whatever their key order. */
-export function canonical(v: unknown): string {
-  const sort = (x: unknown): unknown =>
-    Array.isArray(x)
-      ? x.map(sort)
-      : x && typeof x === 'object'
-        ? Object.fromEntries(
-            Object.entries(x as Record<string, unknown>)
-              .filter(([, y]) => y !== undefined)
-              .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-              .map(([k, y]) => [k, sort(y)]),
-          )
-        : x;
-  return JSON.stringify(sort(v));
-}
-
 /**
  * Applies the model's answer to the scene (pure). Throws when the graphic can't be made valid;
  * the caller treats that as a failed answer.
@@ -531,7 +524,7 @@ export function applyReelNote(
     opts,
     true,
   );
-  if (canonical(kept.scene) !== canonical(asIs.scene)) return kept;
+  if (stableJson(kept.scene) !== stableJson(asIs.scene)) return kept;
   const dropped = applyOnce(ctx, out, opts, false);
   return dropped.changed ? dropped : kept;
 }
@@ -635,7 +628,7 @@ function applyOnce(
   }
   const captions = out.captions.filter((c) => c.find !== c.replace);
   const changed =
-    canonical(parsed.data) !== canonical(scene) || hook !== undefined || captions.length > 0;
+    stableJson(parsed.data) !== stableJson(scene) || hook !== undefined || captions.length > 0;
   return {
     scene: parsed.data,
     ...(hook !== undefined ? { hook } : {}),
@@ -725,14 +718,15 @@ export function reelNotePromptV1(i: ReelNoteInput): string {
   const words = i.words.map(([idx, ms, text]) => `${idx}@${(ms / 1000).toFixed(2)} ${text}`);
   const custom = s.graphic['template'] === 'custom';
   const lines = [
-    `Look: ${i.look}. Scene ${s.n} of ${s.of}, ${(s.startMs / 1000).toFixed(2)}–${(s.endMs / 1000).toFixed(2)} s.`,
+    `Look: ${i.look}.${i.format ? ` Format: ${i.format}.` : ''}${i.noVideo ? ' NO SPEAKER VIDEO (full-frame graphic only — keep layout "full", never use speaker/punch/cta/none).' : ''} Scene ${s.n} of ${s.of}, ${(s.startMs / 1000).toFixed(2)}–${(s.endMs / 1000).toFixed(2)} s.`,
     `Layout: ${s.layout}. Background: ${s.bg ?? 'default'}. Tag: ${s.tag ? `"${s.tag}"` : 'none'}.`,
     custom
       ? `Graphic: custom (an AI-written motion graphic) "${String(s.graphic['title'])}": ${String(s.graphic['brief'])}`
       : `Graphic: ${JSON.stringify(s.graphic)}`,
     i.hook !== undefined ? `Hook band: "${i.hook}"` : null,
     i.caption ? `Caption on screen: "${i.caption}"` : null,
-    `Spoken words around the scene (index@seconds word):`,
+    i.styleDirection ? `\n${i.styleDirection}` : null,
+    words.length ? `Spoken words around the scene (index@seconds word):` : null,
     ...words,
     ``,
     `Circled: ${i.target.parts.length ? i.target.parts.join(', ') : 'empty area'}.`,
@@ -872,7 +866,7 @@ export function reelNoteTask(): TaskDef<ReelNoteInput, ReelNoteOutput> {
     prompt: reelNotePromptV1,
     jsonSchema: reelNoteJsonSchema,
     // Priced like a note on a graphic: the caller reserves the credit before the call.
-    cloudCost: () => 1,
+    cloudCost: () => costOf('edit', 1, APP_CONFIG_DEFAULTS),
     cloudFallback: false,
     maxRepairs: 1,
     promptVersion: REEL_NOTE_PROMPT_VERSION,
@@ -894,6 +888,9 @@ export function reelNoteInput(
     caption?: string | undefined;
     hook?: string | undefined;
     image?: string | undefined;
+    format?: '16:9' | '9:16' | '1:1' | undefined;
+    noVideo?: boolean | undefined;
+    styleDirection?: string | undefined;
   },
 ): ReelNoteInput {
   const { scene, words } = ctx;
@@ -923,6 +920,9 @@ export function reelNoteInput(
     ...(p.caption ? { caption: p.caption.slice(0, 120) } : {}),
     ...(p.hook !== undefined ? { hook: p.hook.slice(0, 80) } : {}),
     ...(p.image ? { image: p.image } : {}),
+    ...(p.format ? { format: p.format } : {}),
+    ...(p.noVideo ? { noVideo: true } : {}),
+    ...(p.styleDirection ? { styleDirection: p.styleDirection.slice(0, 2400) } : {}),
   });
 }
 

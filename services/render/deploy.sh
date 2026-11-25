@@ -4,7 +4,10 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 PROJECT="${MP_GCP_PROJECT:-${GOOGLE_CLOUD_PROJECT:-$(gcloud config get-value project 2>/dev/null || true)}}"
-PROJECT="${PROJECT:-motionpop-48409}"
+if [ -z "${PROJECT}" ]; then
+  echo "Error: set MP_GCP_PROJECT, GOOGLE_CLOUD_PROJECT, or gcloud config project before deploying." >&2
+  exit 1
+fi
 REGION=us-central1
 IMAGE=us-central1-docker.pkg.dev/${PROJECT}/motionpop/render
 TAG=$(git rev-parse --short HEAD)

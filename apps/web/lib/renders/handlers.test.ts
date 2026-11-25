@@ -406,6 +406,33 @@ describe('createRender: every error of design §10', () => {
     expect(f.logs.map((l) => l['event'])).toEqual(['start-failed', 'start-failed-not-recorded']);
   });
 
+  it('start-failed guards failRender to queued status and cleans up the snapshot unless guarded', async () => {
+    const deleted: string[] = [];
+    const f = fakes();
+    f.deps.launch = async () => {
+      throw new Error('launch boom');
+    };
+    f.deps.deleteSnapshot = async (p) => void deleted.push(p);
+    const failSpy = vi.spyOn(f.deps, 'failRender');
+    const r = await createRender(f.deps, UID, body());
+    expect(r.status).toBe(502);
+    const opts = failSpy.mock.calls[0]?.[3];
+    expect(opts?.onlyIf?.({ status: 'queued' } as RenderDoc)).toBe(true);
+    expect(opts?.onlyIf?.({ status: 'rendering' } as RenderDoc)).toBe(false);
+    expect(deleted).toEqual([renderPaths(UID, PROJECT.id, RENDER_ID).input]);
+
+    // When the job already moved out of queued (`guard`), leave the snapshot alone.
+    const deletedGuarded: string[] = [];
+    const g = fakes();
+    g.deps.launch = async () => {
+      throw new Error('launch timeout');
+    };
+    g.deps.failRender = async () => ({ kind: 'noop', reason: 'guard' });
+    g.deps.deleteSnapshot = async (p) => void deletedGuarded.push(p);
+    expect((await createRender(g.deps, UID, body())).status).toBe(502);
+    expect(deletedGuarded).toEqual([]);
+  });
+
   it('a failure to store the execution name does not fail the render', async () => {
     const f = fakes();
     f.deps.recordExecution = async () => {

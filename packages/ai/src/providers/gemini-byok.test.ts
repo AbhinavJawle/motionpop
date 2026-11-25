@@ -4,6 +4,7 @@ import {
   byokModelFor,
   geminiByokProvider,
   generateImageWithGeminiByok,
+  listGeminiModels,
   redactApiKey,
   speakWithGeminiByok,
   testGeminiApiKey,
@@ -28,6 +29,60 @@ describe('byokModelFor', () => {
     expect(byokModelFor('gemini-3.8-flash-tts')).toBe('gemini-2.5-flash-preview-tts');
     expect(byokModelFor('gemini-nano-banana-2.1')).toBe('gemini-2.5-flash-image');
     expect(byokModelFor('gemini-2.5-flash')).toBe('gemini-2.5-flash');
+    expect(byokModelFor('gemini-4-neon', 'balanced', 'gemini-3.5-pro')).toBe('gemini-3.5-pro');
+    // Dedicated TTS & image tasks still use their dedicated models even when a custom text model is picked
+    expect(byokModelFor('gemini-3.8-flash-tts', 'balanced', 'gemini-3.5-pro')).toBe(
+      'gemini-2.5-flash-preview-tts',
+    );
+    expect(byokModelFor('gemini-nano-banana-2.1', 'balanced', 'gemini-3.5-pro')).toBe(
+      'gemini-2.5-flash-image',
+    );
+  });
+});
+
+describe('listGeminiModels', () => {
+  it('fetches available generateContent Gemini models sorted newest first', async () => {
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            models: [
+              {
+                name: 'models/gemini-2.5-flash',
+                displayName: 'Gemini 2.5 Flash',
+                supportedGenerationMethods: ['generateContent'],
+              },
+              {
+                name: 'models/gemini-4-neon',
+                displayName: 'Gemini 4 Neon',
+                supportedGenerationMethods: ['generateContent'],
+              },
+              {
+                name: 'models/gemini-2.5-flash-preview-tts',
+                displayName: 'Gemini 2.5 Flash TTS',
+                supportedGenerationMethods: ['generateContent'],
+              },
+              {
+                name: 'models/text-embedding-004',
+                displayName: 'Embedding',
+                supportedGenerationMethods: ['embedContent'],
+              },
+            ],
+          }),
+          { status: 200 },
+        ),
+    );
+    const res = await listGeminiModels(TEST_KEY, fetchMock as unknown as typeof fetch);
+    expect(res).toEqual({
+      ok: true,
+      models: [
+        { id: 'gemini-4-neon', displayName: 'Gemini 4 Neon' },
+        { id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash' },
+      ],
+    });
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200');
+    expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe(TEST_KEY);
   });
 });
 

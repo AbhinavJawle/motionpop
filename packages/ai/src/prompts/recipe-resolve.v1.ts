@@ -46,7 +46,7 @@ Rules:
 
 export interface RecipeResolvePromptInput {
   recipeId: string;
-  kind: 'video' | 'voiceover';
+  kind: 'video' | 'voiceover' | 'graphic';
   recipeText?: string | undefined;
   styleText?: string | undefined;
 }

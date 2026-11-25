@@ -41,14 +41,38 @@ export function statusView(availability: Availability, progress: number | null):
   }
 }
 
-/** AI & models (R6.3): the prefer-on-device switch, the on-device status and the usage chart. */
+/** AI & models (R6.3): the on-device Gemini Nano switch, details, status and usage chart. */
 export function AISection({ variant }: { variant: SettingsVariant }) {
   const { preferOnDevice, loaded, save } = usePreferOnDevice();
   const { availability, setupProgress, setupError } = useAIStatus();
   const { balance } = useCredits();
   const usage = useUsageSummary(balance);
   const status = statusView(availability, setupProgress);
-  const [confirming, setConfirming] = useState(false);
+  const [confirmMode, setConfirmMode] = useState<'toggle' | 'setup' | null>(null);
+
+  const handleToggleChange = (next: boolean) => {
+    if (next && availability !== 'available' && availability !== 'downloading') {
+      setConfirmMode('toggle');
+      return;
+    }
+    void save(next);
+  };
+
+  const handleConfirmDownload = () => {
+    if (confirmMode === 'toggle' || !preferOnDevice) {
+      void save(true);
+    }
+    if (availability === 'downloadable') {
+      void setUpOnDevice();
+    }
+  };
+
+  const confirmLabel =
+    confirmMode === 'toggle'
+      ? availability === 'downloadable'
+        ? 'Enable & download model'
+        : 'Enable on-device AI'
+      : 'Download model';
 
   return (
     <SectionCard
@@ -59,24 +83,53 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
     >
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <p id="prefer-on-device-label" className="text-[13px] leading-[17px]">
-            Prefer on-device AI
+          <p id="prefer-on-device-label" className="text-[13px] font-medium leading-[17px]">
+            Use on-device AI (Gemini Nano)
           </p>
           <p id="prefer-on-device-hint" className="mt-0.5 text-xs leading-4 text-text-2">
-            Small edits run free on your device when they can.
+            Runs quick edits, frame notes, slot detection &amp; auto-fill locally at 0 credits —
+            even offline.
           </p>
         </div>
         <Toggle
           size="lg"
           checked={preferOnDevice}
           disabled={!loaded}
-          label="Prefer on-device AI"
+          label="Use on-device AI (Gemini Nano)"
           describedBy="prefer-on-device-hint"
-          onCheckedChange={(next) => void save(next)}
+          onCheckedChange={handleToggleChange}
         />
       </div>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-chip bg-card-2 px-3 py-2.5">
+      <div className="mt-3 rounded-chip bg-card-2/70 px-3 py-2.5 text-xs leading-4 text-text-2">
+        <ul className="flex flex-col gap-1.5">
+          <li className="flex gap-2">
+            <span aria-hidden className="mt-[6px] size-1 shrink-0 rounded-full bg-text-3" />
+            <span>
+              <strong className="font-medium text-text-1">Desktop Chrome only:</strong> Uses
+              Chrome&apos;s built-in Gemini Nano (Chrome 138+). Other browsers automatically fall
+              back to cloud Gemini.
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span aria-hidden className="mt-[6px] size-1 shrink-0 rounded-full bg-text-3" />
+            <span>
+              <strong className="font-medium text-text-1">Model size &amp; hardware:</strong>{' '}
+              One-time ~4 GB download managed by Chrome. Requires ~22 GB of free disk space and
+              either &gt;4 GB GPU VRAM or 16 GB+ RAM.
+            </span>
+          </li>
+          <li className="flex gap-2">
+            <span aria-hidden className="mt-[6px] size-1 shrink-0 rounded-full bg-text-3" />
+            <span>
+              <strong className="font-medium text-text-1">Optional &amp; private:</strong> Your
+              edits stay on your machine. Turn this off anytime to route everything to the cloud.
+            </span>
+          </li>
+        </ul>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-chip bg-card-2 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2" data-testid="on-device-status">
           <StatusDot tone={status.tone} pulse={availability === 'downloading'} />
           <span className="text-xs leading-4" role="status">
@@ -84,7 +137,7 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
           </span>
         </div>
         {availability === 'downloadable' && (
-          <Button variant="ai" size="sm" onClick={() => setConfirming(true)}>
+          <Button variant="ai" size="sm" onClick={() => setConfirmMode('setup')}>
             Set up on-device AI
           </Button>
         )}
@@ -112,9 +165,10 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
       )}
 
       <OnDeviceDownloadModal
-        open={confirming}
-        onClose={() => setConfirming(false)}
-        onConfirm={() => void setUpOnDevice()}
+        open={confirmMode !== null}
+        onClose={() => setConfirmMode(null)}
+        onConfirm={handleConfirmDownload}
+        confirmLabel={confirmLabel}
       />
 
       <div className="mt-5">

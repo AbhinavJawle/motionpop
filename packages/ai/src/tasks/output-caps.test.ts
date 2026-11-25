@@ -59,7 +59,7 @@ const EXPECTED: Record<string, number> = {
   'film.direct': 6144,
   'film.build': 8192,
   'film.props': 6144,
-  'reel.direct': 8192,
+  'reel.storyboard': 8192,
   'reel.build': 8192,
   'note.fix': 1024,
   'reel.note': 8192,

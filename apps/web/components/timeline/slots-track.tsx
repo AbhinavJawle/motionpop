@@ -4,7 +4,7 @@ import { INSPECTOR_PROMPT_ID } from '@/components/editor/inspector';
 import { msToX } from '@/lib/timeline/geometry';
 import { selectSlots, useEditor } from '@/lib/stores/editor';
 import { useStill } from '@/lib/motion/use-still';
-import type { Slot } from '@motionpop/schemas';
+import { isReelEngine, type Slot } from '@motionpop/schemas';
 import { slotHeroMs } from '@/lib/editor/key-moment';
 import { SlotCard } from './slot-card';
 import { useTimeline } from './timeline-context';
@@ -26,7 +26,7 @@ export function SlotsTrack() {
   const autoFilling = useEditor((s) => s.autoFilling);
   const generating = useEditor((s) => s.generating);
   const still = useStill();
-  const isReel = useEditor((s) => Boolean(s.project?.reel && s.project?.video));
+  const isReel = useEditor((s) => isReelEngine(s.project));
   // Spec 32 R4.2: picking a graphic while paused shows it (its key moment) in the preview.
   const pick = (slot: Slot) => {
     select(slot.id);

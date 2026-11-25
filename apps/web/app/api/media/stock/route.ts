@@ -1,13 +1,17 @@
 import { NextResponse } from 'next/server';
+import { errorResponse, verifyRequest } from '@/lib/firebase/verify.server';
 import {
   fetchAllowlistedStockMedia,
-  isAllowedStockProxyHost,
+  isAllowedStockProxyUrl,
   MAX_STOCK_PROXY_BYTES,
+  parseSafeStockMime,
+  readResponseBytesWithLimit,
   searchPexels,
   searchPixabay,
   searchWikimediaCommons,
   type StockMediaItem,
 } from '@/lib/media/stock.server';
+import { renderMode } from '@/lib/renders/mode.server';
 
 export type { StockMediaItem };
 
@@ -22,6 +26,13 @@ export const dynamic = 'force-dynamic';
  *   with zero permanent hotlinking.
  */
 export async function GET(request: Request) {
+  if (renderMode() !== 'offline') {
+    try {
+      await verifyRequest(request);
+    } catch (err) {
+      return errorResponse(err);
+    }
+  }
   const { searchParams } = new URL(request.url);
   const proxyUrl = searchParams.get('proxy');
 
@@ -32,7 +43,7 @@ export async function GET(request: Request) {
     } catch {
       return NextResponse.json({ error: 'Invalid proxy URL' }, { status: 400 });
     }
-    if (parsed.protocol !== 'https:' || !isAllowedStockProxyHost(parsed.hostname)) {
+    if (!isAllowedStockProxyUrl(parsed)) {
       return NextResponse.json({ error: 'Host not allowed' }, { status: 403 });
     }
     try {
@@ -43,20 +54,28 @@ export async function GET(request: Request) {
       if (!upstream.ok || !upstream.body) {
         return NextResponse.json({ error: 'Upstream fetch failed' }, { status: 502 });
       }
+      const safeMime = parseSafeStockMime(upstream.headers.get('content-type'));
+      if (!safeMime) {
+        await upstream.body.cancel().catch(() => undefined);
+        return NextResponse.json({ error: 'Unsupported media type' }, { status: 415 });
+      }
       const len = Number(upstream.headers.get('content-length') ?? 0);
       if (len > MAX_STOCK_PROXY_BYTES) {
+        await upstream.body.cancel().catch(() => undefined);
         return NextResponse.json({ error: 'Media too large' }, { status: 413 });
       }
-      const buf = await upstream.arrayBuffer();
-      if (buf.byteLength > MAX_STOCK_PROXY_BYTES) {
+      const bytes = await readResponseBytesWithLimit(upstream, MAX_STOCK_PROXY_BYTES);
+      if (!bytes) {
         return NextResponse.json({ error: 'Media too large' }, { status: 413 });
       }
-      const contentType = upstream.headers.get('content-type') ?? 'application/octet-stream';
-      return new NextResponse(buf, {
+      return new NextResponse(bytes.slice().buffer, {
         status: 200,
         headers: {
-          'Content-Type': contentType,
-          'Cache-Control': 'public, max-age=86400',
+          'Content-Type': safeMime,
+          'X-Content-Type-Options': 'nosniff',
+          'Content-Security-Policy': "default-src 'none'; sandbox",
+          'Content-Disposition': 'attachment',
+          'Cache-Control': 'private, max-age=86400',
         },
       });
     } catch {

@@ -1,6 +1,6 @@
 'use client';
 
-import { RecipeIdSchema } from '@motionpop/schemas';
+import { RecipeIdSchema, type Format } from '@motionpop/schemas';
 import { Mic, Upload } from 'lucide-react';
 import { btn, paper, PaperPage, poster } from '@/components/paper/kit';
 import { motion } from 'motion/react';
@@ -14,9 +14,8 @@ import {
   handOffFile,
   handOffFiles,
   handOffSample,
-  PROCESSING_NEW,
 } from '@/lib/intake/hand-off';
-import { handOffSingle, SINGLE_MAX_WORDS } from '@/lib/intake/single';
+import { handOffSingle, SINGLE_MAX_CHARS } from '@/lib/intake/single';
 import { useStartDraft } from '@/lib/intake/use-start-draft';
 import { ProjectTopBar } from './project-top-bar';
 import { putScriptDraft, readScriptDraft } from '@/lib/script/hand-off';
@@ -95,7 +94,13 @@ export function StartScreen() {
         <div className="mt-12 flex flex-col items-start gap-3 border-t-2 border-ink pt-8">
           <SingleGraphic
             busy={busy}
-            onMake={(line) => void go(() => handOffSingle(line, draft), PROCESSING_NEW)}
+            initialFormat={draft.format}
+            onMake={(prompt, format) =>
+              void go(
+                () => handOffSingle(prompt, { ...draft, format, formatChosen: true }),
+                CONFIGURE,
+              )
+            }
           />
           <p className="text-[12px] text-black/55">{C.singleFoot}</p>
         </div>
@@ -201,22 +206,33 @@ function UploadCard({
         onDragLeave={() => setOver(false)}
         onDrop={onDrop}
         className={cn(
-          'flex h-[120px] flex-col items-center justify-center gap-2 rounded-[10px] border-2 border-dashed border-ink transition-colors',
+          'flex min-h-[144px] flex-col items-center justify-center gap-2.5 rounded-[10px] border-2 border-dashed border-ink px-4 py-3.5 transition-colors',
           over ? 'bg-[#eef5fc]' : 'bg-mist',
         )}
       >
+        <div className="flex flex-wrap items-center justify-center gap-1.5">
+          <span className="rounded-full border border-ink bg-ink px-2 py-0.5 font-mono text-[9.5px] font-semibold tracking-[0.06em] text-paper uppercase">
+            Multi-file
+          </span>
+          {(['Video', 'Audio', 'B-roll', 'Images'] as const).map((kind) => (
+            <span
+              key={kind}
+              className="rounded-full border border-ink/25 bg-paper px-2 py-0.5 font-mono text-[9.5px] text-black/70"
+            >
+              +{kind}
+            </span>
+          ))}
+        </div>
         <button
           type="button"
           disabled={busy}
           onClick={() => input.current?.click()}
           className={btn('paper', 'md')}
         >
-          <Upload className="size-4" strokeWidth={2} aria-hidden />
-          {C.upload.drop}
+          <Upload className="size-4 shrink-0" strokeWidth={2} aria-hidden />
+          {over ? 'Drop files here' : C.upload.drop}
         </button>
-        <p className="px-4 text-center text-[11px] text-black/60">
-          {C.upload.formats}, plus B-roll and screenshots
-        </p>
+        <p className="text-center text-[10.5px] leading-snug text-black/60">{C.upload.formats}</p>
         <input
           ref={input}
           type="file"
@@ -279,15 +295,27 @@ function ScriptCard({ initial }: { initial: string }) {
   );
 }
 
+const GRAPHIC_FORMATS: readonly Format[] = ['16:9', '9:16', '1:1'];
+
 /**
- * "Or just make a single graphic": opens one line to type. The line becomes a short project
- * with one graphic on a silent track, chosen from its words (a number, a place, a comparison).
+ * "Or just make a single graphic": the user describes the motion graphic they want in a prompt,
+ * then configures Recipe, Visual Style (Paper Collage / Vox, Dark Tech, Newsprint, etc.), custom
+ * SKILL.md, and AI cutout visuals on `/start/configure`.
  */
-function SingleGraphic({ busy, onMake }: { busy: boolean; onMake: (line: string) => void }) {
+function SingleGraphic({
+  busy,
+  initialFormat,
+  onMake,
+}: {
+  busy: boolean;
+  initialFormat: Format;
+  onMake: (prompt: string, format: Format) => void;
+}) {
   const [open, setOpen] = useState(false);
-  const [line, setLine] = useState('');
-  const words = line.trim().split(/\s+/).filter(Boolean).length;
-  const tooLong = words > SINGLE_MAX_WORDS;
+  const [prompt, setPrompt] = useState('');
+  const [format, setFormat] = useState<Format>(initialFormat);
+  const trimmed = prompt.trim();
+  const tooLong = trimmed.length > SINGLE_MAX_CHARS;
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)} className={paper.link}>
@@ -296,8 +324,8 @@ function SingleGraphic({ busy, onMake }: { busy: boolean; onMake: (line: string)
     );
   }
   const submit = () => {
-    if (busy || words === 0 || tooLong) return;
-    onMake(line.trim());
+    if (busy || trimmed.length === 0 || tooLong) return;
+    onMake(trimmed, format);
   };
   return (
     <motion.form
@@ -307,33 +335,54 @@ function SingleGraphic({ busy, onMake }: { busy: boolean; onMake: (line: string)
         e.preventDefault();
         submit();
       }}
-      className="flex w-full max-w-[620px] flex-col items-start gap-2"
+      className="flex w-full max-w-[680px] flex-col items-start gap-2.5"
     >
       <div className={cn(paper.field, 'flex w-full items-center gap-2 p-1.5 pl-4')}>
         <input
           autoFocus
-          value={line}
-          onChange={(e) => setLine(e.target.value)}
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Escape') setOpen(false);
           }}
-          aria-label="Line for a single graphic"
-          placeholder="Revenue grew 40% since 2020"
-          maxLength={200}
+          aria-label="Describe the motion graphic"
+          placeholder="Vox-style paper collage explainer on how the White House is structured"
+          maxLength={SINGLE_MAX_CHARS}
           className="h-9 flex-1 bg-transparent text-[14px] outline-none placeholder:text-black/45"
         />
         <button
           type="submit"
-          disabled={busy || words === 0 || tooLong}
+          disabled={busy || trimmed.length === 0 || tooLong}
           className={btn('ink', 'sm')}
         >
           Make it
         </button>
       </div>
+      <div className="flex flex-wrap items-center gap-3 text-[11px]">
+        <div className="flex items-center gap-1" role="group" aria-label="Graphic aspect ratio">
+          <span className="mr-1 font-mono uppercase text-black/50">Format</span>
+          {GRAPHIC_FORMATS.map((f) => (
+            <button
+              key={f}
+              type="button"
+              aria-pressed={format === f}
+              onClick={() => setFormat(f)}
+              className={cn(
+                'rounded-md border px-2 py-0.5 font-mono text-[11px] transition-colors',
+                format === f
+                  ? 'border-ink bg-ink text-paper'
+                  : 'border-ink/30 bg-paper text-ink hover:border-ink',
+              )}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
       <p className={cn('text-[11px] leading-[14px]', tooLong ? 'text-error' : 'text-black/55')}>
         {tooLong
-          ? `Keep it to ${SINGLE_MAX_WORDS} words for one graphic.`
-          : 'One line, one graphic. Numbers, places and comparisons each get their own kind.'}
+          ? `Keep the prompt under ${SINGLE_MAX_CHARS} characters.`
+          : 'Next: choose your style (Paper Collage / Vox, Editorial, Newsprint, Dark Tech, or custom SKILL.md) and AI cutouts. Export MP4 or transparent WebM.'}
       </p>
     </motion.form>
   );

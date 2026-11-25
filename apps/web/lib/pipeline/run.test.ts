@@ -1651,4 +1651,358 @@ describe('spec 39 edit config', () => {
       expect(p.styleId).toBe('style-test');
     });
   });
+
+  describe('Reel engine for graphics-only and voiceover-only projects', () => {
+    it('prompt-driven single graphic uses directGraphic, skips transcription, and builds a graphicOnly ReelPlan in 16:9 / 9:16 / 1:1', async () => {
+      for (const format of ['16:9', '9:16', '1:1'] as const) {
+        const h = makeHarness({ decoded: pcm(5000, 0), durationMs: 5000 });
+        const directGraphic = vi.fn<NonNullable<PipelineDeps['directGraphic']>>(async (input) => ({
+          plan: {
+            v: 1,
+            look: input.look,
+            focus: { x: 0.5, y: 0.32 },
+            graphicOnly: true,
+            prompt: input.prompt,
+            scenes: [
+              {
+                id: 'sc-1',
+                startMs: 0,
+                endMs: 5000,
+                layout: 'full',
+                content: {
+                  template: 'counter',
+                  value: 40,
+                  prefix: '',
+                  suffix: '%',
+                  decimals: 0,
+                  label: 'REVENUE GROWTH',
+                  kicker: 'Q4',
+                  hero: true,
+                },
+              },
+            ],
+            captions: false,
+            captionStyle: 'seam',
+            directedBy: 'test-model',
+          },
+          durationMs: 5000,
+          source: 'cloud',
+        }));
+        h.deps.directGraphic = directGraphic;
+
+        const res = await runPipeline(
+          makeInput({
+            name: 'Motion graphic.wav',
+            source: 'upload',
+            format,
+            single: true,
+            cleanup: false,
+            graphicPrompt: 'Show revenue growing 40% in Q4',
+            graphicLook: 'cream',
+          }),
+          h.deps,
+          h.onEvent,
+        );
+
+        expect(res).toEqual({ projectId: PROJECT_ID });
+        expect(h.transcribe).not.toHaveBeenCalled();
+        expect(directGraphic).toHaveBeenCalledWith(
+          expect.objectContaining({
+            prompt: 'Show revenue growing 40% in Q4',
+            format,
+            look: 'cream',
+          }),
+        );
+        const p = await saved(h);
+        expect(EditorProjectSchema.safeParse(p).success).toBe(true);
+        expect(p.format).toBe(format);
+        expect(p.video).toBeUndefined();
+        expect(p.slots).toEqual([]);
+        expect(p.reel?.graphicOnly).toBe(true);
+        expect(p.reel?.prompt).toBe('Show revenue growing 40% in Q4');
+        expect(p.reel?.look).toBe('cream');
+        expect(p.reel?.scenes).toHaveLength(1);
+        expect(p.durationMs).toBe(5000);
+        expect(p.captions?.enabled).toBe(false);
+      }
+    });
+
+    it('prompt-driven single graphic keeps configure edit (Paper Collage + SKILL.md), resolves cutout visuals, and composes bespoke custom scenes', async () => {
+      const h = makeHarness({ decoded: pcm(5000, 0), durationMs: 5000 });
+      const customEdit = editConfig({
+        styleId: 'paper-collage',
+        illustrations: true,
+        captions: { enabled: false, style: 'pop' },
+        cta: { enabled: false },
+        sound: { cleanup: false, sfx: false, music: 'none' },
+      });
+      const directGraphic = vi.fn<NonNullable<PipelineDeps['directGraphic']>>(async (input) => ({
+        plan: {
+          v: 1,
+          look: input.look,
+          focus: { x: 0.5, y: 0.32 },
+          graphicOnly: true,
+          prompt: input.prompt,
+          scenes: [
+            {
+              id: 'sc-1',
+              startMs: 0,
+              endMs: 5000,
+              layout: 'full',
+              content: {
+                template: 'headline',
+                kicker: 'THE EXECUTIVE RESIDENCE',
+                title: 'Inside the White House',
+              },
+            },
+          ],
+          captions: false,
+          captionStyle: 'seam',
+          directedBy: 'test-model',
+        },
+        blueprints: [
+          {
+            sceneId: 'sc-1',
+            mode: 'custom',
+            artDirection: 'Vox paper collage hero with White House cutout m0 and yellow tape.',
+            visuals: [{ kind: 'illustration', query: 'White House neoclassical facade cutout' }],
+          },
+        ],
+        durationMs: 5000,
+        title: 'Inside the White House',
+        source: 'cloud',
+      }));
+      const resolveReelMediaList = vi.fn<NonNullable<PipelineDeps['resolveReelMediaList']>>(
+        async ({ items }) => ({
+          media: items.map((m, i) => ({ ...m, asset: `img-${i}` })),
+          assets: [
+            {
+              id: 'img-0',
+              hash: 'a'.repeat(64),
+              status: 'ready',
+              subject: 'White House neoclassical facade cutout',
+              keyed: true,
+              ref: 'asset:img-0',
+              mimeType: 'image/png',
+              width: 800,
+              height: 600,
+              source: 'generated',
+              createdAt: 1,
+            },
+          ],
+        }),
+      );
+      const composeGraphicScenes = vi.fn<NonNullable<PipelineDeps['composeGraphicScenes']>>(
+        async ({ plan, visualsByScene }) => ({
+          ...plan,
+          scenes: plan.scenes.map((s) => ({
+            ...s,
+            content: {
+              template: 'custom' as const,
+              title: 'Inside the White House',
+              brief: 'Vox paper collage hero',
+              html: '<div class="mp-backdrop"></div><div id="hero"></div>',
+              css: '#hero { position: relative; }',
+              script: 'return { seek() {} };',
+              media: [...(visualsByScene.get(s.id) ?? [])],
+            },
+          })),
+        }),
+      );
+      h.deps.directGraphic = directGraphic;
+      h.deps.resolveReelMediaList = resolveReelMediaList;
+      h.deps.composeGraphicScenes = composeGraphicScenes;
+
+      await runPipeline(
+        makeInput({
+          name: 'Motion graphic.wav',
+          source: 'upload',
+          format: '16:9',
+          single: true,
+          cleanup: false,
+          graphicPrompt: 'design a vox style motion graphic about the white house',
+          edit: customEdit,
+        }),
+        h.deps,
+        h.onEvent,
+      );
+
+      expect(directGraphic).toHaveBeenCalledWith(
+        expect.objectContaining({
+          look: 'cream',
+          illustrations: true,
+          styleDirection: expect.stringContaining('VOX / PAPER-COLLAGE'),
+        }),
+      );
+      expect(resolveReelMediaList).toHaveBeenCalledWith(
+        expect.objectContaining({
+          styleHint: expect.stringContaining('paper-collage'),
+          maxIllustrations: 4,
+        }),
+      );
+      expect(composeGraphicScenes).toHaveBeenCalledTimes(1);
+      const p = await saved(h);
+      expect(EditorProjectSchema.safeParse(p).success).toBe(true);
+      expect(p.edit).toEqual(customEdit);
+      expect(p.assets).toHaveLength(1);
+      expect(p.reel?.scenes[0]?.content.template).toBe('custom');
+    });
+
+    it('voiceover-only cloud reel upgrades hero scenes via composeReelHeroScenes', async () => {
+      const h = makeHarness();
+      const directReel = vi.fn<NonNullable<PipelineDeps['directReel']>>(async (input) => ({
+        plan: {
+          v: 1,
+          look: input.look,
+          focus: { x: 0.5, y: 0.32 },
+          scenes: [
+            {
+              id: 'sc-1',
+              startMs: 0,
+              endMs: input.durationMs,
+              layout: 'full',
+              content: {
+                template: 'headline',
+                title: 'Launch day',
+                kicker: 'KEYNOTE',
+              },
+            },
+          ],
+          captions: true,
+          captionStyle: 'pop',
+          directedBy: 'test-cloud',
+        },
+        source: 'cloud',
+      }));
+      const composeReelHeroScenes = vi.fn<NonNullable<PipelineDeps['composeReelHeroScenes']>>(
+        async ({ plan }) => ({
+          ...plan,
+          scenes: plan.scenes.map((s) => ({
+            ...s,
+            content: {
+              template: 'custom' as const,
+              title: 'Apple Keynote Hero',
+              brief: 'Spring notch hero',
+              html: '<div class="mp-backdrop"></div><div>Hero</div>',
+              css: '',
+              script: 'return { seek() {} };',
+            },
+          })),
+        }),
+      );
+      h.deps.directReel = directReel;
+      h.deps.composeReelHeroScenes = composeReelHeroScenes;
+
+      await runPipeline(
+        makeInput({
+          format: '16:9',
+          edit: editConfig({
+            recipeId: 'product-launch',
+            styleId: 'apple-keynote',
+          }),
+        }),
+        h.deps,
+        h.onEvent,
+      );
+
+      expect(composeReelHeroScenes).toHaveBeenCalledWith(
+        expect.objectContaining({
+          format: '16:9',
+          noVideo: true,
+          styleId: 'apple-keynote',
+          maxScenes: 4,
+        }),
+      );
+      const p = await saved(h);
+      expect(p.reel?.scenes[0]?.content.template).toBe('custom');
+    });
+
+    it('voiceover-only input with directReel runs the Reel engine with noVideo: true and preserves format', async () => {
+      const h = makeHarness();
+      const directReel = vi.fn<NonNullable<PipelineDeps['directReel']>>(async (input) => ({
+        plan: {
+          v: 1,
+          look: input.look,
+          focus: { x: 0.5, y: 0.32 },
+          scenes: [
+            {
+              id: 'sc-1',
+              startMs: 0,
+              endMs: input.durationMs,
+              layout: 'full',
+              content: {
+                template: 'headline',
+                title: 'Hello world',
+                kicker: 'INTRO',
+              },
+            },
+          ],
+          captions: true,
+          captionStyle: 'seam',
+          directedBy: 'test-model',
+        },
+        source: 'cloud',
+      }));
+      h.deps.directReel = directReel;
+
+      await runPipeline(
+        makeInput({ source: 'tts', format: '16:9', cleanup: false }),
+        h.deps,
+        h.onEvent,
+      );
+
+      expect(directReel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          noVideo: true,
+        }),
+      );
+      const p = await saved(h);
+      expect(EditorProjectSchema.safeParse(p).success).toBe(true);
+      expect(p.format).toBe('16:9');
+      expect(p.video).toBeUndefined();
+      expect(p.slots).toEqual([]);
+      expect(p.reel?.graphicOnly).toBeUndefined();
+      expect(p.reel?.scenes[0]?.layout).toBe('full');
+      expect(p.durationMs).toBe(CUT_DURATION);
+    });
+
+    it('voiceover-only Reel respects voiceover configure looks, sanitizes speaker-only fallback scenes, and avoids double music', async () => {
+      const h = makeHarness();
+      h.deps.directReel = vi.fn(async () => {
+        throw new Error('cloud unavailable');
+      });
+      h.deps.resolveReelMusic = vi.fn(async ({ plan }) => ({
+        ...plan,
+        music: { brief: 'Ambient tech', src: 'idb:lyria-track' },
+      }));
+
+      await runPipeline(
+        makeInput({
+          source: 'tts',
+          format: '1:1',
+          cleanup: false,
+          edit: editConfig({
+            styleId: 'creator-dark',
+            sound: { cleanup: false, sfx: true, music: 'lofi' },
+          }),
+        }),
+        h.deps,
+        h.onEvent,
+      );
+
+      const p = await saved(h);
+      expect(p.format).toBe('1:1');
+      expect(p.reel).toBeDefined();
+      expect(p.reel?.theme?.background).toBe('bold');
+      // Fallback scenes never have speaker-only templates (`none`/`punch`/`cta`) or non-full layouts
+      for (const sc of p.reel!.scenes) {
+        expect(sc.layout).toBe('full');
+        expect(['none', 'punch', 'cta']).not.toContain(sc.content.template);
+      }
+      // If Lyria music landed, synth musicId is not double-applied
+      if (p.reel?.music?.src) {
+        expect(p.audio?.musicId).toBeUndefined();
+      }
+    });
+  });
 });

@@ -491,7 +491,8 @@ export function useProfile(name) {
   const fbState = readFirebaseCliState();
   const warnings = [];
   if (account && fbState.accounts.includes(account) && fbState.activeEmail !== account) {
-    const fbSwitch = runSoft('npx', ['-y', 'firebase-tools@latest', 'login:use', account]);
+const FIREBASE_TOOLS_PKG = 'firebase-tools@13.31.1';
+    const fbSwitch = runSoft('npx', ['-y', FIREBASE_TOOLS_PKG, 'login:use', account]);
     if (!fbSwitch.ok) warnings.push(`firebase login:use skipped: ${fbSwitch.error}`);
   }
   if (fbState.aliases[profileName]) {
@@ -860,7 +861,7 @@ export async function setupLab({ projectId: explicitProjectId, email: explicitEm
   if (readFirebaseCliState().accounts.includes(targetAccount)) {
     const deployRules = runSoft('npx', [
       '-y',
-      'firebase-tools@latest',
+      'firebase-tools@13.31.1',
       'deploy',
       '--only',
       'firestore:rules,firestore:indexes,storage',

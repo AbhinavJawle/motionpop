@@ -97,6 +97,77 @@ describe('runRender: the happy path', () => {
     );
   });
 
+  it('graphics-only Reel project renders transparent 16:9 WebM via compileReel without video or voice audio', async () => {
+    const base = {
+      ...fixtureProject({
+        format: '16:9',
+        durationMs: 4000,
+        slots: [],
+      }),
+      reel: {
+        v: 1 as const,
+        look: 'mono' as const,
+        focus: { x: 0.5, y: 0.32 },
+        graphicOnly: true,
+        prompt: 'Show 40% growth',
+        scenes: [
+          {
+            id: 'sc-1',
+            startMs: 0,
+            endMs: 4000,
+            layout: 'full' as const,
+            content: {
+              template: 'counter' as const,
+              value: 40,
+              prefix: '',
+              suffix: '%',
+              decimals: 0,
+              label: 'GROWTH',
+              hero: true,
+            },
+          },
+        ],
+        captions: false,
+        captionStyle: 'seam' as const,
+        directedBy: 'test',
+      },
+    };
+    const h = await makeHarness({ title: 'Growth Overlay', format: '16:9', project: base });
+    const seeded = (await h.store.get(h.renderId))!;
+    h.store.create(h.renderId, { ...seeded, transparent: true });
+
+    let capturedContainer: string | undefined;
+    let capturedFormat: string | undefined;
+    let capturedHtml = '';
+    let loudnessCalls = 0;
+    h.deps.ffmpeg.normalizeLoudness = async () => {
+      loudnessCalls++;
+    };
+    const origRender = h.deps.producer.render;
+    h.deps.producer.render = async (args) => {
+      capturedContainer = args.container;
+      capturedFormat = args.format;
+      capturedHtml = await readFile(`${args.compDir}/index.html`, 'utf8');
+      return origRender(args);
+    };
+
+    expect(await runRender(h.renderId, h.deps)).toBe('done');
+    expect(loudnessCalls).toBe(0);
+    expect(capturedContainer).toBe('webm');
+    expect(capturedFormat).toBe('16:9');
+    expect(capturedHtml).toContain('background: transparent;');
+    expect(capturedHtml).toContain('"format":"16:9"');
+    expect(capturedHtml).toContain('"transparent":true');
+    expect(capturedHtml).not.toContain('<video');
+    expect(capturedHtml).not.toContain('<audio id="voice"');
+
+    const doc = (await h.store.get(h.renderId))!;
+    expect(doc.outputPath).toMatch(/\/video\.webm$/);
+    expect(h.blobs.meta.get(doc.outputPath!)).toMatchObject({
+      contentType: 'video/webm',
+    });
+  });
+
   it('logs one structured line with timings and no transcript or URLs', async () => {
     const h = await makeHarness();
     await runRender(h.renderId, h.deps);

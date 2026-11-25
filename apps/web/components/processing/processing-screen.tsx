@@ -39,6 +39,7 @@ const slotsReady = (n: number) => `${n} ${n === 1 ? 'slot' : 'slots'} ready`;
 const COPY = {
   video: { title: 'Editing your video.', strip: 'Your video' },
   voiceover: { title: 'Turning your voice into motion.', strip: 'Your voice' },
+  graphic: { title: 'Designing your motion graphic.', strip: 'Your graphic' },
 } as const;
 
 function bubbleOf(job: Job | undefined, phase: Phase): string {

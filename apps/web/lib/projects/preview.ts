@@ -454,6 +454,23 @@ export function buildProjectPreview(p: EditorProject): ProjectPreview {
     });
   }
 
+  // 1b. Graphics-only or voiceover-only Reel (no speaker video)
+  if (p.reel && !p.video) {
+    const hero = pickHeroScene(p.reel.scenes);
+    const graphic = hero ? extractReelGraphic(hero.content, p.assets) : {};
+    const fallbackHeadline = graphic.headline ?? excerpt ?? clip(p.title, 140);
+    return cleanPreview({
+      kind: 'motion',
+      reelLook: p.reel.look,
+      ...(hero ? { reelLayout: hero.layout } : {}),
+      reelSceneCount: p.reel.scenes.length,
+      palette: reelPalette(p.reel, p.edit),
+      ...(excerpt ? { excerpt } : {}),
+      ...graphic,
+      ...(fallbackHeadline ? { headline: fallbackHeadline } : {}),
+    });
+  }
+
   // 2. Video project without a ReelPlan (legacy video choreography / raw clip)
   if (p.video) {
     const ordered = [...p.slots].sort((a, b) => a.startMs - b.startMs);
@@ -530,6 +547,24 @@ export function buildProjectPreviewFromBody(
         reelSceneCount: reel.scenes.length,
         palette: reelPalette(reel, edit),
         ...graphic,
+      }),
+    };
+  }
+
+  if (!video && reel && Array.isArray(reel.scenes)) {
+    const hero = pickHeroScene(reel.scenes);
+    const graphic = hero?.content ? extractReelGraphic(hero.content, assets) : {};
+    const fallbackHeadline = graphic.headline ?? clip(title, 140);
+    return {
+      reelSceneCount: reel.scenes.length,
+      preview: cleanPreview({
+        kind: 'motion',
+        reelLook: reel.look === 'cream' ? 'cream' : 'mono',
+        ...(hero ? { reelLayout: hero.layout } : {}),
+        reelSceneCount: reel.scenes.length,
+        palette: reelPalette(reel, edit),
+        ...graphic,
+        ...(fallbackHeadline ? { headline: fallbackHeadline } : {}),
       }),
     };
   }

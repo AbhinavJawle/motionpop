@@ -2,6 +2,7 @@ import {
   CreateRenderResponseSchema,
   CreateShareResponseSchema,
   DownloadResponseSchema,
+  reelMediaOf,
   RenderApiErrorSchema,
   RenderStatusResponseSchema,
   RenderErrorCodeSchema,
@@ -14,6 +15,7 @@ import {
 import { getAuthClient, getDb, getStorageClient } from '../firebase/client';
 import { apiHeaders } from '../users/bootstrap-client';
 import {
+  resolveReferencedMediaClipBlobs,
   resolveStockAudioBlobs,
   resolveStockOverlayBlobs,
   resolveVideoBlob,
@@ -132,10 +134,16 @@ export function offlineRenderClient(): RenderClient {
       const skipSourceVideo = Boolean(options.transparent) && !isReel;
       const videoBlob = skipSourceVideo ? null : await resolveVideoBlob(project).catch(() => null);
       if (videoBlob) form.set('video', videoBlob, 'source.mp4');
-      const [ovBlobs, auBlobs] = await Promise.all([
+      const [clipBlobs, ovBlobs, auBlobs] = await Promise.all([
+        project.video && !skipSourceVideo
+          ? resolveReferencedMediaClipBlobs(project).catch(() => ({}))
+          : Promise.resolve({}),
         resolveStockOverlayBlobs(project).catch(() => ({})),
         resolveStockAudioBlobs(project).catch(() => ({})),
       ]);
+      for (const [id, { blob, ext }] of Object.entries(clipBlobs)) {
+        form.set(`mediaClip:${id}`, blob, `clip.${ext}`);
+      }
       for (const [id, { blob, ext }] of Object.entries(ovBlobs)) {
         form.set(`stockOv:${id}`, blob, `stock-ov.${ext}`);
       }
@@ -235,11 +243,18 @@ export function cloudRenderClient(): RenderClient {
         ]);
         if (Object.keys(uploadedOv).length > 0) stockOverlayPaths = uploadedOv;
         if (Object.keys(uploadedAu).length > 0) stockAudioPaths = uploadedAu;
-        // The job reads pictures from the account's media folder; make sure each one is there.
-        // A picture that won't upload renders as its scene's image-free form.
-        await Promise.all(
-          assetsInUse(project).map((a) => ensureUploaded(a.src ?? '').catch(() => false)),
-        );
+        // The job reads pictures from the account's media folder; make sure each one is there
+        // (both slot assets and reel scene media). A picture that won't upload renders as its fallback.
+        const uploadSrcs = new Set(assetsInUse(project).map((a) => a.src ?? ''));
+        if (project.reel) {
+          const wanted = new Set(
+            reelMediaOf(project.reel).flatMap((m) => (m.asset ? [m.asset] : [])),
+          );
+          for (const a of project.assets ?? []) {
+            if (wanted.has(a.id) && a.status === 'ready' && a.src) uploadSrcs.add(a.src);
+          }
+        }
+        await Promise.all([...uploadSrcs].map((src) => ensureUploaded(src).catch(() => false)));
       } catch (e) {
         if (e instanceof VoiceError) {
           return e.code === 'network'

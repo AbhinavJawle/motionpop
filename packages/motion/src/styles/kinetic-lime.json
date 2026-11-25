@@ -1,0 +1,91 @@
+{
+  "id": "kinetic-lime",
+  "name": "Kinetic Lime",
+  "tagline": "Obsidian, electric lime & beat-locked slams.",
+  "tags": ["Kinetic", "High-Energy"],
+  "description": "Inspired by opus-video-skills: rotating obsidian/lime/cream grounds, condensed slams, corner HUD brackets, and crisp beat-locked choreography.",
+  "colors": {
+    "bg": "#0E0F0E",
+    "ink": "#F1EEE6",
+    "muted": "#8B908A",
+    "accent": "#DDF53D",
+    "accent2": "#2F3CFF",
+    "highlight": "#DDF53D",
+    "positive": "#DDF53D",
+    "negative": "#E8412F",
+    "chart": ["#5E625D", "#2F3CFF", "#DDF53D"]
+  },
+  "fonts": {
+    "display": "Space Grotesk",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "displayWeight": 700
+  },
+  "texture": {
+    "grain": 0.03,
+    "paper": false,
+    "vignette": 0.14
+  },
+  "motion": {
+    "enterEase": "outExpo",
+    "moveEase": "inOutCubic",
+    "enterMs": 320,
+    "staggerMs": 45,
+    "holdMs": 850,
+    "camera": {
+      "pushIn": 1.05
+    }
+  },
+  "shape": {
+    "radius": 6,
+    "stroke": 2
+  },
+  "allowPlayful": false,
+  "energy": "hype",
+  "personality": {
+    "preset": "snappy",
+    "enter": {
+      "text": "slam",
+      "number": "count",
+      "image": "slam",
+      "shape": "pop"
+    },
+    "overshoot": 0.06,
+    "popMax": 0.09,
+    "exitRatio": 0.5,
+    "snapMargin": 12
+  },
+  "camera": {
+    "push": [1, 1.05],
+    "snap": 0.06,
+    "whip": true,
+    "parallax": 18
+  },
+  "surfaces": {
+    "card": ["plain", "grid"],
+    "photo": ["white-border"],
+    "label": ["plain"],
+    "strip": ["plain"]
+  },
+  "marks": {
+    "emphasis": "highlighter",
+    "pointer": "arrow",
+    "divider": "rule",
+    "badge": "chip"
+  },
+  "juice": ["camera-snap", "camera-push", "accent-sweep", "decor-draw", "parallax-shift"],
+  "image": {
+    "recipe": "High-contrast brutalist editorial cutout of {subject}, crisp neon lime rim accent, isolated on pure white background, no text, no watermark",
+    "treatment": ["key"]
+  },
+  "sound": {
+    "enter": "whoosh",
+    "mark": "pen",
+    "focal": "thud",
+    "snap": "whoosh"
+  },
+  "transitions": ["push"],
+  "map": {
+    "style": "night"
+  }
+}

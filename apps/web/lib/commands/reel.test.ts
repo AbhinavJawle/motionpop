@@ -11,7 +11,16 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { defaultEdit } from '@/lib/configure/defaults';
 import { CommandRejected } from './command';
-import { setReel, setReelCaptionStyle, setReelCaptions, setReelLook, setReelStyle } from './reel';
+import {
+  appendReelScenes,
+  deleteReelScene,
+  resizeReelSceneBoundary,
+  setReel,
+  setReelCaptionStyle,
+  setReelCaptions,
+  setReelLook,
+  setReelStyle,
+} from './reel';
 
 const plan: ReelPlan = {
   v: 1,
@@ -146,5 +155,44 @@ describe('reel style commands (spec 39 R5.6)', () => {
       }),
       { numRuns: 60 },
     );
+  });
+});
+
+describe('reel scene slot commands (resize, delete, append)', () => {
+  it('resizes adjacent scene boundaries cleanly and undoes', () => {
+    const p = project();
+    const cmd = resizeReelSceneBoundary('r1', 4200);
+    const next = cmd.do(p);
+    expect(next.reel?.scenes[0]?.endMs).toBe(4200);
+    expect(next.reel?.scenes[1]?.startMs).toBe(4200);
+    expect(cmd.undo(next)).toEqual(p);
+  });
+
+  it('deletes a scene slot, re-tiles neighbors, and refuses deleting the last scene', () => {
+    const p = project();
+    const cmd = deleteReelScene('r1');
+    const next = cmd.do(p);
+    expect(next.reel?.scenes).toHaveLength(1);
+    expect(next.reel?.scenes[0]).toMatchObject({ id: 'r2', startMs: 0, endMs: 6000 });
+    expect(() => deleteReelScene('r2').do(next)).toThrow(CommandRejected);
+    expect(cmd.undo(next)).toEqual(p);
+  });
+
+  it('appends new graphic scene slots, extends durationMs, and undoes', () => {
+    const p = project();
+    const cmd = appendReelScenes([
+      {
+        id: 'g1',
+        startMs: 0,
+        endMs: 3500,
+        layout: 'full',
+        content: { template: 'headline', title: 'Next beat' },
+      },
+    ]);
+    const next = cmd.do(p);
+    expect(next.reel?.scenes).toHaveLength(3);
+    expect(next.durationMs).toBe(9500);
+    expect(next.reel?.scenes[2]).toMatchObject({ startMs: 6000, endMs: 9500, layout: 'full' });
+    expect(cmd.undo(next)).toEqual(p);
   });
 });

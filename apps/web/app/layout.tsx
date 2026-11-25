@@ -7,10 +7,29 @@ import { Toaster } from '@/components/ui/toast';
 import { MotionProvider } from '@/lib/motion/motion-provider';
 import '@/styles/globals.css';
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+
 export const metadata: Metadata = {
-  title: 'motionpop',
+  ...(appUrl && /^https?:\/\//i.test(appUrl) ? { metadataBase: new URL(appUrl) } : {}),
+  title: {
+    default: 'Motionpop — AI Video Editor',
+    template: '%s · Motionpop',
+  },
   description:
     'The AI video editor that follows every word. Drop a talking video, a voiceover or a script and get captions, graphics and motion.',
+  openGraph: {
+    title: 'Motionpop — AI Video Editor',
+    description:
+      'The AI video editor that follows every word. Drop a talking video, a voiceover or a script and get captions, graphics and motion.',
+    type: 'website',
+    siteName: 'Motionpop',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Motionpop — AI Video Editor',
+    description:
+      'The AI video editor that follows every word. Drop a talking video, a voiceover or a script and get captions, graphics and motion.',
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

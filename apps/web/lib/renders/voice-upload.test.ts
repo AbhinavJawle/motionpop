@@ -99,4 +99,31 @@ describe('resolveVoiceBlob', () => {
       resolveVoiceBlob({ ...project, voiceover: { ...project.voiceover, src: 'idb:audio-nope' } }),
     ).rejects.toMatchObject({ code: 'voice-missing' });
   });
+
+  it('synthesizes a fresh silent WAV matching durationMs for graphicOnly reels even when idb ref is absent', async () => {
+    const project = {
+      ...fixtureProject({ durationMs: 9000, slots: [] }),
+      voiceover: { src: 'idb:audio-missing-elsewhere', durationMs: 5000 },
+      reel: {
+        v: 1 as const,
+        look: 'mono' as const,
+        focus: { x: 0.5, y: 0.32 },
+        graphicOnly: true,
+        captions: false,
+        scenes: [
+          {
+            id: 'sc-1',
+            startMs: 0,
+            endMs: 9000,
+            layout: 'full' as const,
+            content: { template: 'headline' as const, title: 'Growth' },
+          },
+        ],
+      },
+    };
+    const blob = await resolveVoiceBlob(project);
+    expect(blob.type).toBe('audio/wav');
+    // 9s at 24kHz mono 16-bit PCM = 432000 bytes + 44-byte WAV header
+    expect(blob.size).toBe(44 + 9 * 24_000 * 2);
+  });
 });

@@ -511,8 +511,9 @@ export function exportAvailability(
     .filter((s) => ctx.isRenderable(s, options.format))
     .map((s) => s.id);
   const reasons: ExportBlock[] = [];
-  // A reel (spec 25) renders its scenes over the speaker, with or without slots.
-  const isReel = Boolean(project.reel && project.video);
+  // A reel-engine project (talking-head video, voiceover, or graphics-only) renders its scenes
+  // directly, with or without legacy slots.
+  const isReel = Boolean(project.reel);
   if (renderableIds.length === 0 && !isReel) reasons.push('nothing-to-render');
   if (project.durationMs > ctx.maxMs) reasons.push('too-long');
   return {

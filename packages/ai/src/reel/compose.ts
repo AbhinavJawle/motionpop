@@ -17,9 +17,10 @@ import {
 } from '@motionpop/schemas';
 import { z } from 'zod';
 import type { TaskDef } from '../router';
+import { ReelDirectBriefSchema, recipeBlock } from './brief';
 import { stripUndefined } from './director';
 
-export const REEL_COMPOSE_PROMPT_VERSION = 'v1';
+export const REEL_COMPOSE_PROMPT_VERSION = 'v2';
 
 const Code = z.object({
   html: z.string().max(REEL_CUSTOM_LIMITS.html),
@@ -28,13 +29,21 @@ const Code = z.object({
 });
 
 export const ReelComposeInputSchema = z.object({
-  /** The creator's note, verbatim. */
+  /** The creator's note or prompt, verbatim. */
   note: z.string().trim().min(1).max(300),
-  /** What the note step decided the new graphic should be. */
+  /** What the director/note step decided the new graphic should be. */
   brief: z.string().trim().min(3).max(1200),
   look: z.enum(['mono', 'cream']),
   layout: z.enum(['split', 'card', 'full', 'speaker']),
-  /** The graphic's area on the 720 × 1280 stage, px. */
+  /** Stage aspect ratio (`16:9` = 1280×720, `1:1` = 720×720, `9:16` = 720×1280). */
+  format: z.enum(['16:9', '9:16', '1:1']).optional(),
+  /** True for standalone graphics-only compositions (no speaker video, no voiceover). */
+  graphicOnly: z.boolean().optional(),
+  /** Optional recipe + custom SKILL.md director brief. */
+  directorBrief: ReelDirectBriefSchema.optional(),
+  /** Concrete visual style & motion craft rules (e.g. Vox paper collage, investigative newsprint, dark studio). */
+  styleDirection: z.string().max(2400).optional(),
+  /** The graphic's area on the stage, px. */
   area: z.object({ w: z.number().int().positive(), h: z.number().int().positive() }),
   palette: z.object({
     bg: z.string().max(40),
@@ -123,33 +132,42 @@ const LOOK_TEXT: Record<ReelLook, string> = {
 };
 
 export function reelComposeSystemV1(kitDoc: string): string {
-  return `You are a senior motion designer. You write ONE motion graphic for one scene of a vertical (9:16) talking-head reel, in deterministic HTML, CSS and JavaScript, because the creator circled it and asked for something new.
+  return `You are a Principal Motion Designer & Creative Technologist (Vox / Johnny Harris / Kurzgesagt / Apple Keynote / Bloomberg Graphics caliber). You write ONE bespoke, museum-grade motion graphic scene in deterministic HTML, CSS, inline SVG, and JavaScript using the Motionpop Film Kit (\`mp\`).
 Answer with JSON only: { "title", "brief", "html", "css", "script", "keyMomentMs", "newPictures", "message" }.
 
-DO EXACTLY WHAT THE NOTE ASKS
-- The note is the spec. "Snappier" means faster entrances (200–350 ms), tighter staggers (60–140 ms), harder eases (outStrong, outQuart, back), punchier reveals that land on the spoken words. "Better symbols" means real, clear icons and diagrams (mp.icon, inline SVG, mp.tile, mp.window…) that show the idea, not decoration. "More animation" means more things move with purpose (counts, draws, wipes, word reveals, a moving camera), never idle wobble.
-- Keep what the note doesn't touch: the message, the exact on-screen words and the facts of the current graphic, unless the note says otherwise. When the current graphic is code you wrote, revise it: change what the note asks and keep the rest.
-- Never invent facts or numbers: use the current graphic, the note and the spoken words.
-
-WHERE IT PLAYS
-- Your root is the scene's graphic area: exactly W × H px (given), clipped. On layouts split, card and full the reel has ALREADY painted its background behind you (the palette's bg, with a fine grid on mono): leave your root transparent and never call mp.stage() or mp.sheet().
-- Layout speaker: the speaker's video fills the whole frame behind you. Keep the face clear (22 %–56 % of the height) and the captions (76 %–92 %); dock your graphic in the top 20 % or the chest area (58 %–74 %) on a solid card (#FFFFFF with ink text, or rgba(10,10,14,0.92) with white text).
-- Keep every text inside 6 % margins of your area, large and readable: labels at least calc(var(--u) * 2.8), headlines calc(var(--u) * 6) or more. --u is 1 % of 720 px (7.2 px).
-- At most ~14 words of on-screen text. One clear idea.
-- Contrast: var(--ink) on the painted bg; var(--bg) on var(--ink) or var(--accent) fills.
+THINK LIKE A SENIOR MOTION DESIGNER — CRAFT DEPTH, TEXTURE, AND CHOREOGRAPHY:
+1. THREE-LAYER VISUAL DEPTH (NEVER A FLAT POWERPOINT SLIDE):
+   - Layer 1 — Atmosphere & Graphic Anchors (put full-frame decorative background textures/patches inside \`<div class="mp-backdrop">...</div>\` so they render richly in MP4 and vanish cleanly when the creator exports Transparent WebM alpha!):
+     Use subtle CSS radial washes, offset graph-paper patches (\`linear-gradient\` grids), halftone dot clusters (\`radial-gradient\` dot patterns), muted geometric color discs/blocks, angled masking-tape strips, or subtle dark ambient glows matched to the Visual Craft direction.
+   - Layer 2 — Hero Visual Subject (35–55% of visual weight):
+     ALWAYS feature listed \`pictures\` (\`m0\`, \`m1\`, ...) prominently via \`mp.image("m0", { parent: root.querySelector(".slot"), fit: "contain", shadow: true })\` — NEVER ignore a fetched picture! Complement with torn paper cards (\`mp.paper({ tilt, tape: true })\`), crisp multi-layer inline \`<svg>\` architectural/conceptual diagrams, real maps (\`mp.map\`), charts (\`mp.chart\`), macOS windows (\`mp.window\`), or 3D perspective cards (\`mp.card3d\`).
+   - Layer 3 — Editorial Callouts & Kinetic Typography:
+     Pair bold display typography (\`tl.words\`) with crisp monospace metadata tags/badges, hand-drawn highlighter wipes or underlines (\`mp.mark(el, "highlight" | "underline" | "circle")\` + \`tl.draw\`), animated curved pointer arrows (\`mp.line(..., { arrow: true, curve: true })\` + \`tl.draw\`) pointing directly at key visual features, and animated numbers (\`tl.count\` or \`mp.odometer\`).
+2. CINEMATIC CHOREOGRAPHY (ZERO DEAD STATIC FRAMES):
+   - Wrap the scene in \`.scene-cam { position: absolute; inset: 0; overflow: hidden; }\` and drive a continuous subtle camera push (\`tl.fromTo(".scene-cam", { scale: 1.0 }, { scale: 1.032 }, { at: 0, dur: ctx.durationMs, ease: "linear" })\`).
+   - First visual layer lands within 120 ms (never a blank opening frame).
+   - Stagger beats purposefully (80–160 ms apart) with crisp easing (\`back\`, \`outQuart\`, \`outStrong\`). Give cutout images a tactile pop-in (\`y: 44, scale: 0.9, rotate: -2.5\`) followed by gentle parallax drift (\`y: -10, rotate: 0.8\`, \`ease: "inOutSine"\`) — never cheap idle wobble.
+   - If spoken \`words\` exist, land key reveals on spoken words (\`on: "word"\`). If \`words\` is empty (graphics-only), pace beats cleanly across \`0 .. ctx.durationMs * 0.72\` so everything lands with breathing room to read before the cut.
+3. ADAPT TO THE EXACT STAGE ASPECT RATIO (W × H px):
+   - Widescreen \`16:9\` (1280×720): use asymmetric editorial split compositions (e.g. left 44% typography + metric card, right 46% cutout hero + graph-paper patch + callout tag, OR panoramic horizontal collage/diagram). Keep all content cleanly within 6% margins.
+   - Square \`1:1\` (720×720): tight balanced 2-zone composition (hero cutout + overlapping bold editorial headline & callout).
+   - Vertical \`9:16\` (720×1280 or split top-half 720×640): stacked vertical composition (headline top, hero cutout/diagram center-bottom, or vice versa).
+   - Layout \`speaker\`: the speaker fills the frame behind you. Keep the face clear (22%–56% height) and captions clear (76%–92%); dock on a crisp card in top 20% or chest area (58%–74%).
+4. FOLLOW THE CREATIVE BRIEF, STYLE & CUSTOM SKILL (\`SKILL.md\`):
+   - Obey the note/brief, Visual Craft direction, and any attached Custom Director Skill (\`SKILL.md\`) down to the palette, typography tone, surface texture, and motion personality.
+   - Keep on-screen text crisp, truthful, and completely un-truncated (≤ 16 words total; use \`mp.fit(el, "90%")\` on large titles so nothing clips). Labels ≥ \`calc(var(--u) * 2.1)\`, headlines ≥ \`calc(var(--u) * 5.6)\` (\`--u\` = 1% of the frame's short side = 7.2 px).
+   - High contrast always: \`var(--ink)\` on light/paper surfaces; \`var(--bg)\` on \`var(--ink)\` or \`var(--accent)\` fills.
 
 THE CONTRACT
-- html: elements inside your root (position:absolute; inset:0). No <script>, <style>, <iframe>, <link>, <img>, inline handlers or external URLs. Inline <svg> is welcome.
-- css: plain rules (scoped for you). No @-rules, no CSS animation or transition, no url(). Colours: var(--bg) var(--ink) var(--muted) var(--accent) var(--accent2) var(--highlight) var(--positive) var(--negative). Fonts: var(--display) var(--body) var(--mono). Sizes: calc(var(--u) * N). Never hide animated elements in CSS: tl.from() sets their start state.
-- script: the body of a function called once with (root, ctx, mp). Declare every animation on ONE deterministic timeline and end with: return tl;
-  ctx = { width, height, durationMs, keyMomentMs, seed, colors, fonts, words: [{ text, startMs, endMs }] } (times from the scene start). seek(t) may be called with any t in any order: everything must be a pure function of t.
-  Not available: Date, performance, Math.random (use mp.rng(ctx.seed)), timers, requestAnimationFrame, fetch, window, document, globalThis, eval, Function, addEventListener, element.animate, any library.
-- The scene has no sound of its own: don't call mp.sfx.
-- The first thing must be visible within 150 ms; reveals land on the spoken words (on: "word"); text holds still once it lands; the graphic stays on screen to the end of the scene (the reel cuts away; no exit needed).
-- Pictures: mp.image(id, { x, y, w, h, fit, shadow }) only with the ids listed. You may ask for up to 2 new pictures in "newPictures" (a logo: query "Brand name|domain.com"; a photo or illustration: query = a plain subject, no text, no real people); they become the next ids in order (if m0 and m1 are listed, your first new picture is m2) and appear once fetched, so the graphic must also read well without them.
+- Root is already painted with the scene's base palette behind you on \`split\`/\`card\`/\`full\`: NEVER call \`mp.stage()\` or \`mp.sheet()\` (keep your root itself transparent; put rich decorative backdrop elements inside \`<div class="mp-backdrop">\` so transparent WebM exports automatically drop only the backdrop!).
+- \`html\`: elements inside root (\`position:absolute; inset:0\`). No \`<script>\`, \`<style>\`, \`<iframe>\`, \`<link>\`, \`<img>\`, inline handlers, or external URLs. Inline \`<svg>\` is welcome.
+- \`css\`: plain rules (auto-scoped). No \`@\`-rules, no CSS \`animation\` or \`transition\`, no \`url()\`. Colors: \`var(--bg) var(--ink) var(--muted) var(--accent) var(--accent2) var(--highlight) var(--positive) var(--negative) var(--paper)\`. Fonts: \`var(--display) var(--body) var(--mono)\`. Sizes: \`calc(var(--u) * N)\`. Never hide animated elements in CSS: \`tl.from()\` sets their start state.
+- \`script\`: function body called once with \`(root, ctx, mp)\`. Declare every animation on ONE deterministic timeline and end with \`return tl;\`.
+  \`ctx = { width, height, durationMs, keyMomentMs, seed, colors, fonts, words }\`. Pure function of \`t\` — no Date, performance, Math.random (use \`mp.rng(ctx.seed)\`), timers, fetch, window, document, eval, Function, or external libraries. Don't call \`mp.sfx\`.
+- Pictures: \`mp.image(id, { x, y, w, h, fit, shadow, parent })\` ONLY with ids listed in \`Pictures you may show\` (or new ids you request in \`newPictures\`). If \`m0\` is listed, USE IT prominently!
 
 THE ANSWER
-- title: 2–5 words naming the graphic. brief: one or two sentences saying what it shows and how it moves (the next note starts from it). keyMomentMs: when the focal element lands (ms from the scene start, on a spoken word). message: one short sentence for the creator saying what you made ("Rebuilt it as a snappy three-step flow with icons.").
+- \`title\`: 2–5 words naming the scene. \`brief\`: 1–2 sentences describing what it shows and how it moves. \`keyMomentMs\`: when the focal visual & headline have landed (ms from scene start, ≤ durationMs). \`message\`: one crisp sentence describing what you crafted.
 
 ${kitDoc}`;
 }
@@ -159,10 +177,10 @@ export function reelComposePromptV1(i: ReelComposeInput): string {
   const cur =
     i.current.kind === 'template'
       ? [
-          `NOW ON SCREEN: the reel's "${String(i.current.graphic['template'])}" template with the reel's standard motion: ${JSON.stringify(i.current.graphic)}`,
+          `NOW ON SCREEN (${JSON.stringify(i.current.graphic.template ?? 'template')} template — base facts to elevate): ${JSON.stringify(i.current.graphic)}`,
         ]
       : [
-          `NOW ON SCREEN: the graphic you wrote before, "${i.current.title}": ${i.current.brief}`,
+          `NOW ON SCREEN (the graphic you wrote before, "${i.current.title}"): ${i.current.brief}`,
           `html:\n${i.current.html}`,
           `css:\n${i.current.css}`,
           `script:\n${i.current.script}`,
@@ -170,22 +188,24 @@ export function reelComposePromptV1(i: ReelComposeInput): string {
   const lines = [
     `Look: ${LOOK_TEXT[i.look]}`,
     `Palette: bg ${i.palette.bg}, ink ${i.palette.ink}, muted ${i.palette.muted}, accent ${i.palette.accent}, second accent ${i.palette.link}.`,
-    `Layout: ${i.layout}. Your root: W ${i.area.w} × H ${i.area.h} px. Scene length: ${i.durationMs} ms.`,
+    `Format: ${i.format ?? (i.area.w > i.area.h ? '16:9' : i.area.w === i.area.h ? '1:1' : '9:16')}. Layout: ${i.layout}. Root size: W ${i.area.w} × H ${i.area.h} px. Scene duration: ${i.durationMs} ms.${i.graphicOnly ? ' Standalone graphics-only scene (no speaker video, no voiceover).' : ''}`,
     i.tag
       ? `The reel already shows the scene's tag "${i.tag}" centred at the top of your area (y 40–80 px): never draw it yourself, and keep the top 100 px free of your content.`
       : '',
-    `Spoken words in the scene (index:word@ms): ${spoken || '(none)'}`,
+    spoken ? `Spoken words in the scene (index:word@ms): ${spoken}` : 'Spoken words: (none — pace reveals cleanly across 0 to 70% of scene duration)',
     i.pictures.length
-      ? `Pictures you may show: ${i.pictures.map((p) => `${p.id} = ${p.shows}`).join('; ')}`
-      : 'Pictures you may show: none yet (ask in newPictures if one would help).',
+      ? `Pictures ALREADY FETCHED & READY TO RENDER (USE THEM with mp.image): ${i.pictures.map((p) => `${p.id} = ${p.shows}`).join('; ')}`
+      : 'Pictures ready: none yet (use crisp multi-layer inline SVG diagrams, mp.paper, mp.chart, mp.map, or request up to 2 in newPictures).',
+    ...(i.styleDirection ? ['', i.styleDirection] : []),
+    ...(i.directorBrief ? ['', recipeBlock(i.directorBrief)] : []),
     '',
     ...cur,
     i.image ? 'A picture of the circled area is attached.' : '',
     '',
     `CREATOR'S NOTE: "${i.note}"`,
-    `WHAT TO MAKE: ${i.brief}`,
+    `SCENE ART DIRECTION & CHOREOGRAPHY BRIEF:\n${i.brief}`,
     '',
-    'Reference craft for this kind of area (match its cleanliness and balance; never copy its topic or words):',
+    'Reference craft for this stage (match its depth, layering, contrast, and choreography — never copy its topic or words):',
     `html:\n${i.example.html}`,
     `css:\n${i.example.css}`,
     `script:\n${i.example.script}`,
@@ -193,7 +213,7 @@ export function reelComposePromptV1(i: ReelComposeInput): string {
   if (i.fix) {
     lines.push(
       '',
-      'REPAIR: your graphic was built and reviewed in the reel, and these problems were found. Fix every one and return the full updated JSON:',
+      'REPAIR: your graphic was built and reviewed in the sandbox, and these problems were found. Fix EVERY ONE and return the full updated JSON:',
       i.fix.problems,
       `Your html:\n${i.fix.html}`,
       `Your css:\n${i.fix.css}`,

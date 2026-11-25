@@ -48,9 +48,42 @@ export const CloudProfileStatusSchema = z.object({
   warnings: z.array(z.string()),
 });
 
-function notAvailableInProd(): Response | null {
+const LOOPBACK_HOST_RE = /^(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/i;
+
+function isLoopbackHost(host: string | null): boolean {
+  return Boolean(host && LOOPBACK_HOST_RE.test(host.trim()));
+}
+
+function guardDevRequest(req: Request, requirePostCsrf: boolean): Response | null {
   if (process.env.NODE_ENV === 'production') {
     return Response.json({ error: 'Not found' }, { status: 404 });
+  }
+  if (!isLoopbackHost(req.headers.get('host'))) {
+    return Response.json({ error: 'Forbidden host' }, { status: 403 });
+  }
+  const secFetchSite = req.headers.get('sec-fetch-site');
+  if (secFetchSite && secFetchSite !== 'same-origin' && secFetchSite !== 'none') {
+    return Response.json({ error: 'Cross-site request blocked' }, { status: 403 });
+  }
+  const origin = req.headers.get('origin');
+  if (origin) {
+    try {
+      const u = new URL(origin);
+      if (!isLoopbackHost(u.host)) {
+        return Response.json({ error: 'Forbidden origin' }, { status: 403 });
+      }
+    } catch {
+      return Response.json({ error: 'Forbidden origin' }, { status: 403 });
+    }
+  }
+  if (requirePostCsrf) {
+    const ct = (req.headers.get('content-type') ?? '').split(';')[0]?.trim().toLowerCase();
+    if (ct !== 'application/json') {
+      return Response.json({ error: 'Content-Type must be application/json' }, { status: 415 });
+    }
+    if (req.headers.get('x-motionpop-dev') !== '1') {
+      return Response.json({ error: 'Missing dev confirmation header' }, { status: 403 });
+    }
   }
   return null;
 }
@@ -62,20 +95,19 @@ async function runProfileScript(args: string[]) {
   return CloudProfileStatusSchema.parse(JSON.parse(stdout));
 }
 
-export async function GET(): Promise<Response> {
-  const blocked = notAvailableInProd();
+export async function GET(req: Request): Promise<Response> {
+  const blocked = guardDevRequest(req, false);
   if (blocked) return blocked;
   try {
     const status = await runProfileScript(['status']);
     return Response.json(status);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to inspect cloud profiles';
-    return Response.json({ error: message }, { status: 500 });
+  } catch {
+    return Response.json({ error: 'Failed to inspect cloud profiles' }, { status: 500 });
   }
 }
 
 export async function POST(req: Request): Promise<Response> {
-  const blocked = notAvailableInProd();
+  const blocked = guardDevRequest(req, true);
   if (blocked) return blocked;
   let body: unknown;
   try {
@@ -90,13 +122,7 @@ export async function POST(req: Request): Promise<Response> {
   try {
     const status = await runProfileScript(['use', parsed.data.profile]);
     return Response.json(status);
-  } catch (err) {
-    const message =
-      err && typeof err === 'object' && 'stderr' in err && typeof err.stderr === 'string'
-        ? err.stderr.trim()
-        : err instanceof Error
-          ? err.message
-          : 'Failed to switch cloud profile';
-    return Response.json({ error: message || 'Failed to switch cloud profile' }, { status: 400 });
+  } catch {
+    return Response.json({ error: 'Failed to switch cloud profile' }, { status: 400 });
   }
 }

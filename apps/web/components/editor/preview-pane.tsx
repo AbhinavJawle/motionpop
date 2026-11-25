@@ -1,19 +1,23 @@
 'use client';
 
+import { builtInSkills } from '@motionpop/ai';
 import {
   APP_CONFIG_DEFAULTS,
   DEFAULT_CAPTIONS,
   costOf,
+  isGraphicReel,
+  isReelEngine,
+  isVideoReel,
   type CaptionsSetting,
   type Format,
 } from '@motionpop/schemas';
-import { Palette, PenLine, RefreshCw, Scan } from 'lucide-react';
+import { Grid2x2, Palette, PenLine, RefreshCw, Scan } from 'lucide-react';
 import { toast } from 'sonner';
 import { GlassToolbar, ToolbarDivider } from '@/components/ui/glass-toolbar';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Toggle } from '@/components/ui/toggle';
 import { Dropdown, type DropdownOption } from '@/components/ui/dropdown';
-import { setCaptions, setReelCaptions, setReelLook } from '@/lib/commands';
+import { setCaptions, setFormat, setReelCaptions } from '@/lib/commands';
 import { regenerateReel } from '@/lib/reel/regenerate';
 import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import { Tooltip } from '@/components/ui/tooltip';
@@ -21,7 +25,6 @@ import { slotAt } from '@/lib/notes/active-slot';
 import { styleFor } from '@/lib/composition/project-to-compile';
 import { cn } from '@/lib/cn';
 import { useLayoutEffect, useRef, useState } from 'react';
-import type { ReelLook } from '@motionpop/schemas';
 import { useEditor } from '@/lib/stores/editor';
 import { openRailPanel } from '@/lib/editor/rail-panel';
 import { useUploadState } from '@/lib/audio/use-upload-state';
@@ -97,45 +100,121 @@ const CAPTION_PRESETS: readonly DropdownOption<CaptionsSetting['presetId']>[] = 
   { value: 'boxed', label: 'Captions · Boxed', hint: 'Dark box' },
 ];
 
-const REEL_LOOKS: readonly DropdownOption<ReelLook>[] = [
-  { value: 'mono', label: 'Look · Mono', hint: 'Split screen, white grid panel, bold labels' },
-  { value: 'cream', label: 'Look · Cream', hint: 'Editorial serif, speaker in a rounded card' },
+const REEL_FORMATS: readonly DropdownOption<Format>[] = [
+  { value: '16:9', label: '16:9', hint: 'Landscape (YouTube / Premiere Pro)' },
+  { value: '9:16', label: '9:16', hint: 'Vertical (Reels / Shorts / TikTok)' },
+  { value: '1:1', label: '1:1', hint: 'Square (Feeds / Cards)' },
 ];
 
-/** Reel tools (spec 25): look, captions and a new direction. */
-function ReelTools() {
+const ALL_REEL_STYLES = builtInSkills.recipes().flatMap((r) => r.styles);
+
+function resolveReelStyleName(
+  editStyleId: string | undefined,
+  look: 'mono' | 'cream',
+  theme: { accent?: string; background?: string } | undefined,
+): string {
+  if (editStyleId) {
+    const byId = ALL_REEL_STYLES.find((st) => st.id === editStyleId);
+    if (byId) return byId.name;
+  }
+  const byMatch = ALL_REEL_STYLES.find((st) => {
+    if (st.look !== look) return false;
+    if (!st.theme && !theme) return true;
+    return (
+      st.theme?.accent?.toLowerCase() === theme?.accent?.toLowerCase() &&
+      st.theme?.background === theme?.background
+    );
+  });
+  return byMatch?.name ?? (look === 'cream' ? 'Warm Editorial' : 'Mono Grid');
+}
+
+/** Reel tools (spec 25): style, format/transparency (no-video), captions and re-direct. */
+function ReelTools({
+  hasSpeakerVideo,
+  graphicOnly,
+  format,
+  transparentPreview,
+  onToggleTransparent,
+  onOpenStyles,
+}: {
+  hasSpeakerVideo: boolean;
+  graphicOnly: boolean;
+  format: Format;
+  transparentPreview: boolean;
+  onToggleTransparent: () => void;
+  onOpenStyles: () => void;
+}) {
   const look = useEditor((s) => s.project?.reel?.look ?? 'mono');
+  const theme = useEditor((s) => s.project?.reel?.theme);
+  const editStyleId = useEditor((s) => s.project?.edit?.styleId);
   const captions = useEditor((s) => s.project?.reel?.captions ?? true);
   const exec = useEditor((s) => s.exec);
   const [busy, setBusy] = useState(false);
   const { client: credits } = useCreditsClient();
+  const reelStyleName = resolveReelStyleName(editStyleId, look, theme);
   return (
     <>
       <PenButton reel />
       <ToolbarDivider />
-      <div className="flex items-center gap-2 pr-3.5 pl-3.5">
-        <Dropdown
-          label="Reel look"
-          value={look}
-          options={REEL_LOOKS}
-          className="text-text-2"
-          onChange={(next) => {
-            if (next !== look) exec(setReelLook(next));
-          }}
-        />
-      </div>
-      <ToolbarDivider />
-      <div className="flex items-center gap-2 pr-3.5 pl-3.5">
-        <span className="text-[11px] leading-[14px] font-semibold text-text">CC</span>
-        <Toggle
-          checked={captions}
-          onCheckedChange={(on) => exec(setReelCaptions(on))}
-          label="Captions"
-        />
-      </div>
+      <button
+        type="button"
+        onClick={onOpenStyles}
+        className="flex items-center gap-2 px-3.5 text-text-2 transition-colors hover:text-text"
+        aria-label={`Style: ${reelStyleName}. Change style`}
+      >
+        <Palette className="size-[16px]" strokeWidth={1.5} aria-hidden />
+        <span className="max-w-40 truncate">{reelStyleName}</span>
+      </button>
+      {!hasSpeakerVideo && (
+        <>
+          <ToolbarDivider />
+          <div className="flex items-center gap-2 pr-3.5 pl-3.5">
+            <Dropdown
+              label="Aspect ratio"
+              value={format}
+              options={REEL_FORMATS}
+              className="font-mono text-text-2"
+              onChange={(next) => {
+                if (next !== format) exec(setFormat(next));
+              }}
+            />
+          </div>
+          <ToolbarDivider />
+          <Tooltip
+            content="Preview with transparent background (matches WebM alpha export for Premiere Pro)"
+            side="bottom"
+          >
+            <button
+              type="button"
+              aria-pressed={transparentPreview}
+              onClick={onToggleTransparent}
+              className={cn(
+                'flex items-center gap-[6px] px-3.5 transition-colors',
+                transparentPreview ? 'text-violet' : 'text-text-2 hover:text-text',
+              )}
+            >
+              <Grid2x2 className="size-[15px]" strokeWidth={1.5} aria-hidden />
+              Alpha
+            </button>
+          </Tooltip>
+        </>
+      )}
+      {!graphicOnly && (
+        <>
+          <ToolbarDivider />
+          <div className="flex items-center gap-2 pr-3.5 pl-3.5">
+            <span className="text-[11px] leading-[14px] font-semibold text-text">CC</span>
+            <Toggle
+              checked={captions}
+              onCheckedChange={(on) => exec(setReelCaptions(on))}
+              label="Captions"
+            />
+          </div>
+        </>
+      )}
       <ToolbarDivider />
       <Tooltip
-        content={`Direct the reel again · ☁ ${costOf('reel', 1, APP_CONFIG_DEFAULTS)} credits + ${costOf('image', 1, APP_CONFIG_DEFAULTS)} per new picture`}
+        content={`Direct again · ☁ ${costOf('reel', 1, APP_CONFIG_DEFAULTS)} credits + ${costOf('image', 1, APP_CONFIG_DEFAULTS)} per new picture`}
         side="bottom"
       >
         <button
@@ -147,7 +226,7 @@ function ReelTools() {
               .then((source) =>
                 toast(source === 'cloud' ? 'New direction ready' : 'New direction (free director)'),
               )
-              .catch(() => toast.error("Couldn't direct the reel. Try again."))
+              .catch(() => toast.error("Couldn't direct again. Try again."))
               .finally(() => setBusy(false));
           }}
           className="flex items-center gap-[7px] px-3.5 text-text-2 transition-colors hover:text-text disabled:text-text-4"
@@ -194,9 +273,13 @@ const ASPECT_NUM: Record<Format, number> = { '16:9': 16 / 9, '9:16': 9 / 16, '1:
  * the toolbar.
  */
 export function PreviewPane() {
-  const isReel = useEditor((s) => Boolean(s.project?.reel && s.project?.video));
+  const isReel = useEditor((s) => isReelEngine(s.project));
+  const hasSpeakerVideo = useEditor((s) => isVideoReel(s.project));
+  const graphicOnly = useEditor((s) => isGraphicReel(s.project));
   const projectFormat = useEditor((s) => s.project?.format ?? '16:9');
-  const format: Format = isReel ? '9:16' : projectFormat;
+  const format: Format = hasSpeakerVideo ? '9:16' : projectFormat;
+  const [transparentPreview, setTransparentPreview] = useState(false);
+  const showAlpha = isReel && !hasSpeakerVideo && transparentPreview;
   const styleName = useEditor((s) => (s.project ? styleFor(s.project).name : ''));
   const captions = useEditor((s) => s.project?.captions ?? DEFAULT_CAPTIONS);
   const exec = useEditor((s) => s.exec);
@@ -210,9 +293,19 @@ export function PreviewPane() {
       aria-label="Preview"
       className="relative flex min-w-0 flex-1 flex-col items-center overflow-hidden bg-stage"
     >
-      <GlassToolbar label="Preview tools" className="relative z-10 mt-4 gap-0 px-0">
+      <GlassToolbar label="Preview tools" className="relative z-30 mt-4 gap-0 px-0">
         {isReel ? (
-          <ReelTools />
+          <ReelTools
+            hasSpeakerVideo={hasSpeakerVideo}
+            graphicOnly={graphicOnly}
+            format={format}
+            transparentPreview={showAlpha}
+            onToggleTransparent={() => setTransparentPreview((v) => !v)}
+            onOpenStyles={() => {
+              openRailPanel('styles');
+              setRail('styles');
+            }}
+          />
         ) : (
           <>
             <PenButton />
@@ -272,12 +365,23 @@ export function PreviewPane() {
       >
         <div
           data-preview-frame
-          className="relative overflow-hidden rounded-[10px] bg-frame shadow-frame"
-          style={
-            box ? { width: box.w, height: box.h } : { aspectRatio: ASPECT[format], height: '60%' }
-          }
+          className={cn(
+            'relative overflow-hidden rounded-[10px] shadow-frame',
+            showAlpha ? '' : 'bg-frame',
+          )}
+          style={{
+            ...(box ? { width: box.w, height: box.h } : { aspectRatio: ASPECT[format], height: '60%' }),
+            ...(showAlpha
+              ? {
+                  backgroundColor: '#1f1f24',
+                  backgroundImage:
+                    'repeating-conic-gradient(#2c2c34 0% 25%, #1f1f24 0% 50%)',
+                  backgroundSize: '20px 20px',
+                }
+              : {}),
+          }}
         >
-          {isReel ? <ReelPreview /> : <PreviewPlayer />}
+          {isReel ? <ReelPreview transparent={showAlpha} /> : <PreviewPlayer />}
           <StockOverlaysLayer />
           {isReel ? <ReelNotesLayer /> : <FrameNotesLayer />}
           <PreviewProgress />

@@ -35,6 +35,7 @@ export function styleFor(
   return withFonts(look, f.display, f.body);
 }
 
+const MAX_FONT_CACHE = 128;
 const fontCache = new Map<string, ReturnType<typeof lookFor>>();
 /** The look with the project's chosen families (cached: selectors need a stable object). */
 function withFonts<L extends ReturnType<typeof lookFor>>(
@@ -44,7 +45,11 @@ function withFonts<L extends ReturnType<typeof lookFor>>(
 ): L {
   const key = `${look.id}|${look.colors.accent}|${look.colors.accent2}|${display ?? ''}|${body ?? ''}`;
   const hit = fontCache.get(key);
-  if (hit) return hit as L;
+  if (hit) {
+    fontCache.delete(key);
+    fontCache.set(key, hit);
+    return hit as L;
+  }
   const next = {
     ...look,
     fonts: {
@@ -53,6 +58,10 @@ function withFonts<L extends ReturnType<typeof lookFor>>(
       ...(body ? { body: fontStack(body) } : {}),
     },
   } as L;
+  if (fontCache.size >= MAX_FONT_CACHE) {
+    const oldest = fontCache.keys().next().value;
+    if (oldest !== undefined) fontCache.delete(oldest);
+  }
   fontCache.set(key, next);
   return next;
 }

@@ -529,7 +529,7 @@ export function createFakeRouter(opts: FakeRouterOptions = {}): Router {
         };
       } else if (task.id === 'custom.compose') {
         output = customAnswer(input as { brief: string; words: string });
-      } else if (task.id === 'film.direct' || task.id === 'reel.direct') {
+      } else if (task.id === 'film.direct' || task.id === 'reel.storyboard') {
         output = filmDirectAnswer(input as FilmDirectInput);
       } else if (task.id === 'film.build' || task.id === 'reel.build') {
         output = filmBuildAnswer(input as FilmBuildInput);

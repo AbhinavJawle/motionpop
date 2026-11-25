@@ -44,13 +44,24 @@ export async function readBodyText(
   return { text: Buffer.concat(chunks).toString('utf8') };
 }
 
-/** The public origin of this request, for share links (behind App Hosting the Host header is the site). */
-export function originOf(req: Request): string {
+const SAFE_HOST_RE = /^[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d{1,5})?$/i;
+
+/** The public origin of this request, for share links (prefers NEXT_PUBLIC_APP_URL, else rightmost forwarded host). */
+export function originOf(req: Request, env: Record<string, string | undefined> = process.env): string {
+  const configured = env.NEXT_PUBLIC_APP_URL?.trim();
+  if (configured && /^https?:\/\//i.test(configured)) {
+    try {
+      return new URL(configured).origin;
+    } catch {
+      // fall through
+    }
+  }
   const url = new URL(req.url);
-  const host = req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? url.host;
-  const proto = req.headers.get('x-forwarded-proto') ?? url.protocol.replace(':', '');
-  // A Host header is client-controlled; only plain host[:port] values are used.
-  return /^[A-Za-z0-9.-]+(:\d{1,5})?$/.test(host)
+  const fwdHost = req.headers.get('x-forwarded-host')?.split(',').pop()?.trim();
+  const host = fwdHost || req.headers.get('host')?.trim() || url.host;
+  const fwdProto = req.headers.get('x-forwarded-proto')?.split(',').pop()?.trim().toLowerCase();
+  const proto = fwdProto || url.protocol.replace(':', '');
+  return SAFE_HOST_RE.test(host)
     ? `${proto === 'http' ? 'http' : 'https'}://${host}`
     : url.origin;
 }

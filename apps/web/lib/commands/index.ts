@@ -52,8 +52,11 @@ export {
 } from './video';
 export {
   addReelSound,
+  appendReelScenes,
   clearReelScene,
   clearReelSounds,
+  deleteReelScene,
+  resizeReelSceneBoundary,
   setReel,
   setReelCaptionStyle,
   setReelCaptions,

@@ -73,6 +73,11 @@ describe('loadShareView (R5.4)', () => {
     expect(plain).not.toHaveProperty('posterUrl');
   });
 
+  it('propagates transparent flag on transparent WebM renders', async () => {
+    const view = await loadShareView(deps({ render: doc({ transparent: true }) }), SHARE);
+    expect(view).toMatchObject({ kind: 'found', transparent: true });
+  });
+
   it('the URL lives one hour', () => {
     expect(SHARE_URL_TTL_MS).toBe(3_600_000);
   });

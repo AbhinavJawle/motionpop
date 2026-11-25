@@ -1,7 +1,7 @@
 'use client';
 
 import { TTS_VOICES } from '@motionpop/ai';
-import type { EditorProject } from '@motionpop/schemas';
+import { isGraphicReel, type EditorProject } from '@motionpop/schemas';
 import { Mic, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -43,6 +43,40 @@ export function VoicePanelBody() {
   const [take, setTake] = useState<'record' | 'replace' | null>(null);
 
   if (!project) return null;
+  if (isGraphicReel(project)) {
+    return (
+      <div className="flex h-full flex-col px-4 pb-4">
+        <header className="-mx-4 flex h-12 shrink-0 items-center border-b border-line px-4">
+          <h2 className="text-[14px] leading-5 font-semibold text-text">Voice</h2>
+        </header>
+        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pt-3 pb-6">
+          <section className="rounded-card border border-line bg-card p-3.5 shadow-quiet">
+            <div className="flex items-center justify-between">
+              <Chip tone="neutral">Graphics only</Chip>
+              <span className="font-mono text-[11px] leading-[14px] text-text-2 tabular">
+                {clock(project.durationMs)}
+              </span>
+            </div>
+            <p className="mt-2.5 text-[12px] leading-[17px] text-text-2">
+              This project has no voiceover — it exports as a silent motion graphic (or transparent
+              WebM overlay). Start a voiced take to create a narrated version.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <Button size="md" className="flex-1" onClick={() => setTake('record')}>
+                <Mic strokeWidth={1.5} aria-hidden />
+                Record voice
+              </Button>
+              <Button size="md" className="flex-1" onClick={() => setTake('replace')}>
+                <Upload strokeWidth={1.5} aria-hidden />
+                Upload audio
+              </Button>
+            </div>
+          </section>
+        </div>
+        <NewTakeModal project={project} kind={take} onClose={() => setTake(null)} />
+      </div>
+    );
+  }
   const v = project.voiceover;
   const source = v.source ? SOURCE_LABEL[v.source] : 'Voiceover';
   const voiceLabel = v.tts ? TTS_VOICES.find((x) => x.id === v.tts?.voiceId)?.label : undefined;

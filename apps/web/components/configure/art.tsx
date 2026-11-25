@@ -4,11 +4,14 @@ import type { BuiltInRecipeId, RecipeStyle } from '@motionpop/ai';
 import type { MusicMood, ReelCaptionStyle, ReelHookStyle } from '@motionpop/schemas';
 import {
   ChartNoAxesCombined,
+  Clapperboard,
   Code2,
   Flame,
   Gamepad2,
   Mic,
   PenLine,
+  Rocket,
+  Zap,
   type LucideIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/cn';
@@ -24,6 +27,9 @@ const RECIPE_ICON: Record<BuiltInRecipeId | 'custom', LucideIcon> = {
   gaming: Gamepad2,
   'podcast-story': Mic,
   'hot-take': Flame,
+  'product-launch': Rocket,
+  'documentary-explainer': Clapperboard,
+  'kinetic-promo': Zap,
   custom: PenLine,
 };
 
@@ -33,6 +39,9 @@ const RECIPE_TINT: Record<BuiltInRecipeId | 'custom', string> = {
   gaming: '#f0abfc',
   'podcast-story': '#fde68a',
   'hot-take': '#ff8a5c',
+  'product-launch': '#bae6fd',
+  'documentary-explainer': '#e8d6be',
+  'kinetic-promo': '#e5fa70',
   custom: '#ffffff',
 };
 

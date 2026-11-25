@@ -184,6 +184,19 @@ export const RECIPE_PAIRED_SLOT_SKILLS: Readonly<Record<BuiltInRecipeId, readonl
   gaming: ['countdown-ranking', 'contrast-split', 'shocking-stat-reveal', 'brand-sting'],
   'podcast-story': ['calm-explanation', 'journey-along-a-timeline', 'zoom-from-world-to-place'],
   'hot-take': ['contrast-split', 'shocking-stat-reveal', 'countdown-ranking', 'brand-sting'],
+  'product-launch': [
+    'brand-sting',
+    'calm-explanation',
+    'contrast-split',
+    'shocking-stat-reveal',
+  ],
+  'documentary-explainer': [
+    'zoom-from-world-to-place',
+    'journey-along-a-timeline',
+    'slow-build-trend',
+    'calm-explanation',
+  ],
+  'kinetic-promo': ['shocking-stat-reveal', 'countdown-ranking', 'contrast-split', 'brand-sting'],
 };
 
 const SCENE_NAME_BY_ID = new Map<string, string>(SCENES.map((s) => [s.id, s.name]));

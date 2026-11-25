@@ -83,15 +83,16 @@ export function StockOverlaysLayer() {
 
   // Load unique placed stock video/photo blobs into object URLs for instant 60fps switching.
   useEffect(() => {
-    if (!srcKey || uniqueSrcs.length === 0) return;
+    const srcs = srcKey ? srcKey.split('|') : [];
+    if (srcs.length === 0) return;
     let cancelled = false;
     const created: string[] = [];
     void Promise.all(
-      uniqueSrcs.map(async (src) => {
+      srcs.map(async (src) => {
         const blob = await appAudioStore()
           .get(src)
           .catch(() => null);
-        if (!blob) return null;
+        if (!blob || cancelled) return null;
         const url = URL.createObjectURL(blob);
         created.push(url);
         return [src, url] as const;
@@ -109,7 +110,7 @@ export function StockOverlaysLayer() {
       cancelled = true;
       for (const u of created) URL.revokeObjectURL(u);
     };
-  }, [srcKey, uniqueSrcs]);
+  }, [srcKey]);
 
   // Keep every active `<video>` synchronized with editor play/pause.
   useEffect(() => {

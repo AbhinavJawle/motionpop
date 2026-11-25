@@ -117,7 +117,10 @@ export function planReturning(i: {
     };
   }
   if (i.user.plan === 'judge') {
-    if (i.refilledToday || i.user.credits >= i.judgeCredits * JUDGE_REFILL_BELOW) return null;
+    const listed = i.profile.emailVerified && email !== '' && i.judgeEmails.has(email);
+    if (!listed || i.refilledToday || i.user.credits >= i.judgeCredits * JUDGE_REFILL_BELOW) {
+      return null;
+    }
     return {
       plan: 'judge',
       grant: i.judgeCredits - i.user.credits,

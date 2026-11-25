@@ -37,6 +37,7 @@ export {
   ReelDirectBriefSchema,
   briefFromEdit,
   recipeBlock,
+  styleCraftDirection,
   type ReelDirectBrief,
 } from './reel/brief';
 export { REEL_DIRECT_SYSTEM_V3, reelDirectPromptV3 } from './reel/prompt';
@@ -44,10 +45,12 @@ export * from './reel/note';
 export * from './reel/note-local';
 export * from './reel/draft-local';
 export * from './reel/compose';
+export * from './reel/graphic';
 export * from './skills/recipes';
 export * from './skills/registry';
 export * from './skills/slot-sequences';
 export * from './skills/user-skill';
+export * from './skills/community-skills';
 export {
   ByokModelModeSchema,
   byokModelFor,
@@ -56,10 +59,13 @@ export {
   GeminiApiKeySchema,
   geminiByokProvider,
   generateImageWithGeminiByok,
+  listGeminiModels,
   redactApiKey,
   speakWithGeminiByok,
   testGeminiApiKey,
   type ByokModelMode,
   type GeminiByokProviderOptions,
+  type GeminiModelInfo,
   type KeyTestResult,
+  type ListModelsResult,
 } from './providers/gemini-byok';

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { fetchUncommonEarTrackAudio, UncommonEarError } from '@/lib/audio/uncommon-ear.server';
+import { errorResponse, verifyRequest } from '@/lib/firebase/verify.server';
+import { renderMode } from '@/lib/renders/mode.server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -10,9 +12,16 @@ export const dynamic = 'force-dynamic';
  * audio store (IndexedDB) or save it without CORS or SSRF issues.
  */
 export async function GET(request: Request): Promise<Response> {
+  if (renderMode() !== 'offline') {
+    try {
+      await verifyRequest(request);
+    } catch (err) {
+      return errorResponse(err);
+    }
+  }
   const apiKey = process.env.UNCOMMON_EAR_API_KEY?.trim();
   if (!apiKey) {
-    return NextResponse.json({ error: 'UNCOMMON_EAR_API_KEY not configured' }, { status: 503 });
+    return NextResponse.json({ error: 'Audio library is not configured' }, { status: 503 });
   }
   const { searchParams } = new URL(request.url);
   const id = (searchParams.get('id') ?? '').trim();
@@ -22,11 +31,14 @@ export async function GET(request: Request): Promise<Response> {
   }
   try {
     const audio = await fetchUncommonEarTrackAudio(id, apiKey, preferOriginal);
+    const safeFilename = audio.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
     return new NextResponse(audio.bytes, {
       status: 200,
       headers: {
         'Content-Type': audio.contentType,
-        'Content-Disposition': `inline; filename="${audio.filename}"`,
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        'Content-Disposition': `attachment; filename="${safeFilename}"`,
         'Cache-Control': 'private, max-age=86400',
         'X-Credit-Line': encodeURIComponent(audio.creditLine),
       },

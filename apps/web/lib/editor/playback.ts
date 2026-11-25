@@ -128,7 +128,10 @@ export class PlaybackClock {
       this.syncFollower(true);
       void this.follower.play().catch(() => {});
     }
-    if (this.playing) this.loop();
+    if (this.playing) {
+      this.env.cancelFrame(this.raf);
+      this.loop();
+    }
   }
 
   pause(): void {

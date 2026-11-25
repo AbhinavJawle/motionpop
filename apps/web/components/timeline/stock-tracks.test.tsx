@@ -53,7 +53,7 @@ describe('Stock Media & Stock Audio timeline layers (React 19 + Zustand stabilit
 
     expect(screen.getByText('Stock Media')).toBeTruthy();
     expect(screen.getByText('Stock Audio')).toBeTruthy();
-    expect(screen.getByText('Add Pixabay video / photo at playhead')).toBeTruthy();
+    expect(screen.getByText('Add stock video / photo at playhead')).toBeTruthy();
     expect(screen.getByText('Add SFX / music at playhead')).toBeTruthy();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
 

@@ -97,4 +97,73 @@ describe('compileReel', () => {
     expect(html).toContain('window.__REEL__');
     expect(html).not.toContain('</script></script>');
   });
+
+  it('compiles graphics-only 16:9 transparent WebM compositions with no speaker video', () => {
+    const plan = ReelPlanSchema.parse({
+      v: 1,
+      look: 'mono',
+      captions: false,
+      graphicOnly: true,
+      prompt: 'Q4 revenue bar chart',
+      scenes: [{ ...scene('g1', 0, 5000), layout: 'full' }],
+    });
+    const html = compileReel(
+      {
+        plan,
+        words: [],
+        durationMs: 5000,
+        format: '16:9',
+        transparent: true,
+      },
+      {
+        reelRuntimeJs: '/*rt*/',
+        hyperframesRuntimeJs: '/*hf*/',
+        fonts: {
+          Inter: 'AA',
+          Newsreader: 'AA',
+          'Playfair Display Italic': 'AA',
+          'Geist Mono': 'AA',
+        },
+      },
+    );
+    expect(html).not.toContain('<video ');
+    expect(html).not.toContain('<audio id="voice"');
+    expect(html).toContain('width: 1280px; height: 720px;');
+    expect(html).toContain('data-width="1920" data-height="1080"');
+    expect(html).toContain('background: transparent;');
+    expect(html).toContain('"transparent":true');
+  });
+
+  it('compiles voiceover-only 1:1 compositions with voice audio clip and no video', () => {
+    const plan = ReelPlanSchema.parse({
+      v: 1,
+      look: 'cream',
+      captions: true,
+      scenes: [{ ...scene('v1', 0, 4000), layout: 'full' }],
+    });
+    const html = compileReel(
+      {
+        plan,
+        words,
+        durationMs: 4000,
+        format: '1:1',
+        voiceSrc: 'assets/voice.wav',
+      },
+      {
+        reelRuntimeJs: '/*rt*/',
+        hyperframesRuntimeJs: '/*hf*/',
+        fonts: {
+          Inter: 'AA',
+          Newsreader: 'AA',
+          'Playfair Display Italic': 'AA',
+          'Geist Mono': 'AA',
+        },
+      },
+    );
+    expect(html).not.toContain('<video ');
+    expect(html).toContain('<audio id="voice"');
+    expect(html).toContain('src="assets/voice.wav"');
+    expect(html).toContain('width: 720px; height: 720px;');
+    expect(html).toContain('data-width="1080" data-height="1080"');
+  });
 });

@@ -1,13 +1,59 @@
 import 'server-only';
 
 export const ALLOWED_STOCK_PROXY_HOSTS = new Set([
-  'pixabay.com',
   'cdn.pixabay.com',
   'images.pexels.com',
   'videos.pexels.com',
   'upload.wikimedia.org',
   'thumb.wikimedia.org',
 ]);
+
+export const ALLOWED_STOCK_MIME_TYPES = new Set([
+  'video/mp4',
+  'video/webm',
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+]);
+
+export function parseSafeStockMime(header: string | null): string | null {
+  const base = (header ?? '').split(';')[0]?.trim().toLowerCase() ?? '';
+  return ALLOWED_STOCK_MIME_TYPES.has(base) ? base : null;
+}
+
+export async function readResponseBytesWithLimit(
+  res: Response,
+  maxBytes: number,
+): Promise<Uint8Array | null> {
+  if (!res.body) return null;
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        return null;
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const out = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return out;
+}
 
 export const MAX_STOCK_PROXY_BYTES = 28 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
@@ -357,13 +403,22 @@ export async function searchWikimediaCommons(
 }
 
 export function isAllowedStockProxyHost(hostname: string): boolean {
-  return ALLOWED_STOCK_PROXY_HOSTS.has(hostname) || hostname.endsWith('.pixabay.com');
+  return ALLOWED_STOCK_PROXY_HOSTS.has(hostname.toLowerCase());
+}
+
+export function isAllowedStockProxyUrl(url: URL): boolean {
+  if (url.protocol !== 'https:') return false;
+  const host = url.hostname.toLowerCase();
+  if (ALLOWED_STOCK_PROXY_HOSTS.has(host)) return true;
+  // Pixabay photos API returns direct download URLs under https://pixabay.com/get/...;
+  // restrict apex pixabay.com strictly to /get/ so HTML pages can never be proxied.
+  return host === 'pixabay.com' && url.pathname.startsWith('/get/');
 }
 
 export async function fetchAllowlistedStockMedia(initialUrl: URL): Promise<Response | null> {
   let current = initialUrl;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    if (current.protocol !== 'https:' || !isAllowedStockProxyHost(current.hostname)) {
+    if (!isAllowedStockProxyUrl(current)) {
       return null;
     }
     const res = await fetch(current.toString(), {

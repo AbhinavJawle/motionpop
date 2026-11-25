@@ -111,7 +111,7 @@ export function Dropdown<T extends string>({
             role="listbox"
             aria-label={label}
             className={cn(
-              'absolute top-full right-0 left-0 z-50 mt-1 origin-top rounded-card bg-card-2 p-1 shadow-glass',
+              'absolute top-full left-0 z-50 mt-1.5 min-w-full w-max max-w-[300px] origin-top rounded-card border border-line/60 bg-card-2 p-1 shadow-glass',
               menuClassName,
             )}
           >
@@ -125,14 +125,20 @@ export function Dropdown<T extends string>({
                   onPointerEnter={() => setActive(i)}
                   onClick={() => choose(i)}
                   className={cn(
-                    'flex h-8 cursor-pointer items-center gap-2.5 rounded-lg px-2 text-[11px] leading-[14px]',
+                    'flex min-h-8 cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[11px] leading-[15px]',
                     i === active ? 'bg-card-3 text-text' : 'text-text-body',
                   )}
                 >
                   {o.icon}
-                  <span className="flex-1 truncate">{o.label}</span>
-                  {o.hint && <span className="text-[10px] text-text-3">{o.hint}</span>}
-                  {isSel && <Check className="size-3 text-violet" strokeWidth={2} aria-hidden />}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="font-medium whitespace-nowrap">{o.label}</span>
+                    {o.hint && (
+                      <span className="text-[10px] leading-[13px] text-text-3">{o.hint}</span>
+                    )}
+                  </span>
+                  {isSel && (
+                    <Check className="ml-auto size-3 shrink-0 text-violet" strokeWidth={2} aria-hidden />
+                  )}
                 </li>
               );
             })}

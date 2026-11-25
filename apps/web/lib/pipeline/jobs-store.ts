@@ -3,6 +3,7 @@ import {
   APP_CONFIG_DEFAULTS,
   type AppConfig,
   type EditConfig,
+  type Format,
   type PendingIntake,
   type StartDraft,
 } from '@motionpop/schemas';
@@ -57,6 +58,10 @@ export interface Job {
   media: JobMedia;
   /** The script, for a script job (shown instead of media). */
   script?: string;
+  /** The prompt, for a standalone motion graphic job. */
+  graphicPrompt?: string;
+  /** Target aspect ratio (16:9, 9:16, 1:1) editable on Configure for graphic/voiceover jobs. */
+  format?: Format;
   recipeLabel?: string;
   styleLabel?: string;
   status: JobStatus;
@@ -167,6 +172,7 @@ const wordsOf = (meta: PendingIntake) =>
   meta.words ?? (meta.source === 'sample' ? sampleWords() : undefined);
 
 const kindOf = (take: PendingTake): JobKind => {
+  if (take.meta.single && take.meta.graphicPrompt?.trim()) return 'graphic';
   if (!take.blob) return 'voiceover';
   const r = validateIntake({ name: take.meta.name, type: take.blob.type, size: take.blob.size });
   return r.ok && r.kind === 'video' ? 'video' : 'voiceover';
@@ -207,8 +213,13 @@ export function prepare(take: PendingTake, now = Date.now()): string {
       sizeBytes: take.blob?.size ?? 0,
     },
     ...(take.meta.tts ? { script: take.meta.tts.script } : {}),
+    ...(take.meta.graphicPrompt ? { graphicPrompt: take.meta.graphicPrompt } : {}),
+    format: take.draft.format,
     status: 'preparing',
-    prep: take.blob ? { pct: 2, stage: 'reading' } : { pct: 100, stage: 'ready' },
+    prep:
+      kind === 'graphic' || !take.blob
+        ? { pct: 100, stage: 'ready' }
+        : { pct: 2, stage: 'reading' },
     processing: initialProcessing(),
     createdAt: now,
     progressPct: 0,
@@ -218,7 +229,7 @@ export function prepare(take: PendingTake, now = Date.now()): string {
   const rt: Runtime = {
     abort: new AbortController(),
     take,
-    transcriptReady: false,
+    transcriptReady: kind === 'graphic',
     progressListeners: new Set(),
     priority: 'prep',
     reuse: {},
@@ -227,8 +238,19 @@ export function prepare(take: PendingTake, now = Date.now()): string {
     lastProgressWrite: 0,
   };
   runtimes.set(id, rt);
-  if (take.blob) void runPrep(id, rt, take.blob);
+  if (take.blob && kind !== 'graphic') void runPrep(id, rt, take.blob);
   return id;
+}
+
+/** Updates a preparing job's output aspect ratio (16:9, 9:16, 1:1) from the configure screen. */
+export function setJobFormat(id: string, format: Format): void {
+  const rt = runtimes.get(id);
+  if (!rt) return;
+  rt.take = {
+    ...rt.take,
+    draft: { ...rt.take.draft, format, formatChosen: true },
+  };
+  patch(id, () => ({ format }));
 }
 
 type WhisperProgress = { stage: 'loading' | 'transcribing'; percent?: number };
@@ -425,7 +447,9 @@ function pipelineInput(rt: Runtime, file: Blob, kind: JobKind): PipelineInput {
     ...(wordsOf(meta) ? { words: wordsOf(meta)! } : {}),
     ...(meta.extraClips?.length ? { extraClips: meta.extraClips } : {}),
     ...(meta.single ? { single: true } : {}),
-    ...(rt.edit && !meta.single ? { edit: rt.edit } : {}),
+    ...(meta.graphicPrompt ? { graphicPrompt: meta.graphicPrompt } : {}),
+    ...(meta.graphicLook ? { graphicLook: meta.graphicLook } : {}),
+    ...(rt.edit && (!meta.single || Boolean(meta.graphicPrompt)) ? { edit: rt.edit } : {}),
     ...(Object.keys(rt.reuse).length ? { reuse: { ...rt.reuse } } : {}),
   };
 }

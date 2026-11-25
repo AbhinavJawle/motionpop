@@ -16,7 +16,7 @@ const AI_SOURCES = new Set(['ai-device', 'ai-cloud', 'ai-claude', 'plan']);
  */
 export function summarise(p: EditorProject): ProjectSummary {
   const ordered = [...p.slots].sort((a, b) => a.startMs - b.startMs);
-  const isReel = Boolean(p.video && p.reel && p.reel.scenes.length > 0 && ordered.length === 0);
+  const isReel = Boolean(p.reel && p.reel.scenes.length > 0 && ordered.length === 0);
   const reelScenes = isReel ? (p.reel?.scenes.length ?? 0) : 0;
   const slotCount = isReel ? reelScenes : ordered.length;
   const readySlotCount = isReel ? reelScenes : ordered.filter((s) => s.status === 'ready').length;
@@ -47,10 +47,21 @@ export function audioRefsOf(raw: unknown): string[] {
   if (typeof raw !== 'object' || raw === null) return [];
   const obj = raw as {
     voiceover?: { src?: unknown; originalSrc?: unknown };
+    video?: { src?: unknown };
+    reel?: { music?: { src?: unknown } };
+    mediaBin?: { src?: unknown }[];
     stockOverlays?: { src?: unknown }[];
     stockAudio?: { src?: unknown }[];
   };
-  const refs: unknown[] = [obj.voiceover?.src, obj.voiceover?.originalSrc];
+  const refs: unknown[] = [
+    obj.voiceover?.src,
+    obj.voiceover?.originalSrc,
+    obj.video?.src,
+    obj.reel?.music?.src,
+  ];
+  if (Array.isArray(obj.mediaBin)) {
+    for (const c of obj.mediaBin) refs.push(c?.src);
+  }
   if (Array.isArray(obj.stockOverlays)) {
     for (const c of obj.stockOverlays) refs.push(c?.src);
   }

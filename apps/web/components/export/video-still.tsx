@@ -57,19 +57,19 @@ export function VideoStill({
   const size = fitBox(format, boxW, boxH);
   const dim = FORMATS[format];
 
-  const isVideoProject = Boolean(project.video);
+  const usePoster = Boolean(project.video || project.reel);
   const summary = useMemo(
-    () => (isVideoProject ? summarise(project) : null),
-    [isVideoProject, project],
+    () => (usePoster ? summarise(project) : null),
+    [usePoster, project],
   );
 
   useEffect(() => {
-    if (isVideoProject) return;
+    if (usePoster) return;
     void import('@hyperframes/player');
-  }, [isVideoProject]);
+  }, [usePoster]);
 
   useEffect(() => {
-    if (isVideoProject) return;
+    if (usePoster) return;
     const el = ref.current;
     if (!el) return;
     let cancelled = false;
@@ -93,7 +93,7 @@ export function VideoStill({
     };
     // `key` captures every input change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, atMs, isVideoProject]);
+  }, [key, atMs, usePoster]);
 
   if (summary) {
     return (

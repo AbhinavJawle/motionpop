@@ -116,10 +116,30 @@ describe('statusView', () => {
 describe('AISection', () => {
   it('the switch shows the saved value and saves a change', () => {
     render(<AISection variant="page" />);
-    const toggle = screen.getByRole('switch', { name: 'Prefer on-device AI' });
+    const toggle = screen.getByRole('switch', { name: 'Use on-device AI (Gemini Nano)' });
     expect(toggle.getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByText(/Desktop Chrome only:/)).toBeTruthy();
+    expect(screen.getByText(/One-time ~4 GB download/)).toBeTruthy();
     fireEvent.click(toggle);
     expect(h.prefer.save).toHaveBeenCalledWith(false);
+  });
+
+  it('warns before enabling on-device AI when the model is not yet downloaded', () => {
+    h.prefer.preferOnDevice = false;
+    h.status = { availability: 'downloadable', setupProgress: null };
+    render(<AISection variant="page" />);
+    const toggle = screen.getByRole('switch', { name: 'Use on-device AI (Gemini Nano)' });
+    fireEvent.click(toggle);
+    expect(h.prefer.save).not.toHaveBeenCalled();
+    expect(h.setUp).not.toHaveBeenCalled();
+    expect(screen.getByText(/Download Gemini Nano \(~4 GB\)\?/)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
+    expect(h.prefer.save).not.toHaveBeenCalled();
+    expect(h.setUp).not.toHaveBeenCalled();
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole('button', { name: 'Enable & download model' }));
+    expect(h.prefer.save).toHaveBeenCalledWith(true);
+    expect(h.setUp).toHaveBeenCalledOnce();
   });
 
   it('is disabled until the saved value is known', () => {
@@ -135,7 +155,7 @@ describe('AISection', () => {
     // The download is optional and large: the button opens a warning first (founder, 2026-11-16).
     fireEvent.click(screen.getByRole('button', { name: 'Set up on-device AI' }));
     expect(h.setUp).not.toHaveBeenCalled();
-    expect(screen.getByText(/22 GB of disk space/)).toBeTruthy();
+    expect(screen.getByText(/22 GB of free disk space before it starts/)).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Not now' }));
     expect(h.setUp).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole('button', { name: 'Set up on-device AI' }));

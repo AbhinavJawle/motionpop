@@ -1,8 +1,16 @@
 // @vitest-environment happy-dom
 import { ReelPlanSchema, type ReelScene } from '@motionpop/schemas';
 import { afterEach, describe, expect, it } from 'vitest';
+import { lintCustom } from '../components/custom/lint';
 import { compileReel } from './compile';
-import { customFrame, REEL_CUSTOM_CSP, reelCustomDoc, reelCustomScene, seedOf } from './custom';
+import {
+  customFrame,
+  REEL_CUSTOM_CSP,
+  REEL_CUSTOM_EXPORT_CSP,
+  reelCustomDoc,
+  reelCustomScene,
+  seedOf,
+} from './custom';
 import { mountReel } from './mount';
 
 const custom = (o: Partial<ReelScene> = {}): ReelScene => ({
@@ -183,16 +191,21 @@ describe('AI-written reel scenes (spec 30)', () => {
     expect(html).toContain('"customSandbox":false');
   });
 
-  it('the sandboxed document carries a no-network CSP; the export document does not need one', () => {
+  it('both sandboxed and export documents carry a no-network CSP (export allows self assets)', () => {
     const s = reelCustomScene({ look: 'mono', scene: custom(), words, pictures: {} })!;
     const assets = { js: '/*rt*/', fontCss: '' };
     const sandboxed = reelCustomDoc({ ...s, token: 't' }, assets, { csp: true });
+    const exported = reelCustomDoc({ ...s, token: 't' }, assets, { csp: false });
     expect(sandboxed).toContain('http-equiv="Content-Security-Policy"');
+    expect(sandboxed).toContain(REEL_CUSTOM_CSP);
     expect(REEL_CUSTOM_CSP).toContain("connect-src 'none'");
     expect(REEL_CUSTOM_CSP).toContain("default-src 'none'");
     // The policy comes before anything that could load.
     expect(sandboxed.indexOf('Content-Security-Policy')).toBeLessThan(sandboxed.indexOf('<style>'));
-    expect(reelCustomDoc({ ...s, token: 't' }, assets)).not.toContain('Content-Security-Policy');
+    expect(exported).toContain('http-equiv="Content-Security-Policy"');
+    expect(exported).toContain(REEL_CUSTOM_EXPORT_CSP);
+    expect(REEL_CUSTOM_EXPORT_CSP).toContain("connect-src 'none'");
+    expect(REEL_CUSTOM_EXPORT_CSP).toContain("img-src 'self' data: blob:");
 
     const frame = (sandbox: boolean) => {
       const f = customFrame({ doc: document, scene: s, assets, startMs: 0, sandbox });
@@ -200,8 +213,16 @@ describe('AI-written reel scenes (spec 30)', () => {
       f.destroy();
       return doc;
     };
-    expect(frame(true)).toContain('Content-Security-Policy');
-    expect(frame(false)).not.toContain('Content-Security-Policy');
+    expect(frame(true)).toContain(REEL_CUSTOM_CSP);
+    expect(frame(false)).toContain(REEL_CUSTOM_EXPORT_CSP);
+
+    // Regression (C1/M7): lintCustom must inspect expressions inside template literals.
+    const issues = lintCustom({
+      html: '<div></div>',
+      css: '',
+      script: 'const x = `${fetch("x")}`; return { seek() {} };',
+    });
+    expect(issues.some((m) => m.includes('network'))).toBe(true);
   });
 });
 

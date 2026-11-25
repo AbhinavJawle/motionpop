@@ -19,6 +19,7 @@ export const REASON_TEXT: Record<CreditReason, string> = {
   custom: 'Custom graphic',
   film: 'Made a film',
   reel: 'Directed a reel',
+  music: 'Generated a soundtrack',
   'slots-detect': 'Found moments',
   tts: 'Generated a voice',
   transcribe: 'Transcribed audio',

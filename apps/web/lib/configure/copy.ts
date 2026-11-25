@@ -3,9 +3,16 @@ export const CONFIGURE_COPY = {
   loading: 'Pip is unpacking your take…',
   headlineVideo: 'Set up your edit.',
   headlineVoice: 'Set up your video.',
+  headlineGraphic: 'Design your motion graphic.',
   subline:
     'Pick a recipe and a look while Pip reads your take. Nothing is spent until you press Create.',
+  sublineGraphic:
+    'Pick a format, recipe, visual style, or custom SKILL.md. Nothing is spent until you press Create.',
   chooseAnother: 'Choose another file to continue',
+  format: {
+    title: 'Format',
+    hint: 'Aspect ratio for preview, MP4, and transparent WebM export.',
+  },
   recipe: {
     title: 'Recipe',
     hint: 'What kind of video this is. It sets the pacing, the hook and the visuals the director reaches for.',
@@ -18,9 +25,17 @@ export const CONFIGURE_COPY = {
     title: 'Style',
     hintVideo: 'Colours, type and captions for this recipe.',
     hintVoice: 'The look your graphics are drawn in.',
+    hintGraphic:
+      'Paper textures, colour palette, typography, and cutout art direction for custom scenes.',
     custom: 'Describe your own',
     customLabel: 'Describe your style',
-    placeholder: 'Dark and neon, with teal highlights',
+    placeholder: 'Vox-style paper collage with graph paper, yellow tape & red highlights',
+  },
+  visuals: {
+    title: 'AI Cutout Visuals',
+    hint: 'Creates style-matched cutout illustrations & props that key cleanly onto transparent WebM.',
+    toggle: 'AI cutout illustrations',
+    toggleSub: 'Custom editorial artwork matched to your chosen look',
   },
   hook: {
     title: 'Hook',

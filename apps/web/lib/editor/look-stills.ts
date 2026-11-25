@@ -8,4 +8,8 @@ export const LOOK_STILLS: Readonly<Record<string, string>> = {
   'studio-light': '/looks/studio-light.jpg',
   'creator-dark': '/looks/creator-dark.jpg',
   'keynote-clean': '/looks/keynote-clean.jpg',
+  'kinetic-lime': '/looks/kinetic-lime.jpg',
+  'apple-keynote': '/looks/apple-keynote.jpg',
+  'risograph-zine': '/looks/risograph-zine.jpg',
+  'blueprint-schematic': '/looks/blueprint-schematic.webp',
 };

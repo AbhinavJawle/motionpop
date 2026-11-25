@@ -1,6 +1,7 @@
 'use client';
 
 import { Maximize, Pause, Play, Plus, Scissors, SkipBack, SkipForward } from 'lucide-react';
+import { isGraphicReel, isReelEngine } from '@motionpop/schemas';
 import { motion } from 'motion/react';
 import { useRef } from 'react';
 import { Slider } from '@/components/ui/slider';
@@ -42,7 +43,8 @@ function addGraphicHere(atMs: number) {
 
 /** Timeline header row (editor.png; "Transcript and timeline controls"): 48 px. */
 export function TimelineHeader() {
-  const isReel = useEditor((st) => Boolean(st.project?.reel && st.project?.video));
+  const isReel = useEditor((st) => isReelEngine(st.project));
+  const graphicOnly = useEditor((st) => isGraphicReel(st.project));
   const { clock, durationMs, widthPx, view } = useTimeline();
   const playing = useEditor((s) => s.playing);
   const setView = useEditor((s) => s.setView);
@@ -68,22 +70,26 @@ export function TimelineHeader() {
     <div className="@container relative flex h-11 items-center gap-4 border-b border-line pr-6 pl-6">
       <div className="flex min-w-0 flex-1 items-center">
         <span className="relative top-[1px] font-poster text-[24px] leading-none tracking-[0.02em] uppercase">
-          Transcript
+          {graphicOnly ? 'Timeline' : 'Transcript'}
         </span>
         <span className="ml-3 hidden truncate text-[11px] leading-4 text-text-3 @min-[1080px]:inline">
-          Voiceover · {(durationMs / 1000).toFixed(1)}s · synced
+          {graphicOnly
+            ? `Motion graphic · ${(durationMs / 1000).toFixed(1)}s · alpha ready`
+            : `Voiceover · ${(durationMs / 1000).toFixed(1)}s · synced`}
         </span>
-        <Tooltip content="Add a graphic at the playhead (or shift-drag across words)">
-          <motion.button
-            type="button"
-            {...buttonMotion}
-            onClick={() => addGraphicHere(clock.currentMs)}
-            className="ml-4 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border-[1.5px] border-edge bg-paper px-2.5 text-[12px] leading-4 font-medium text-ink shadow-[2px_2px_0_var(--color-hard)] transition hover:bg-mist"
-          >
-            <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
-            Add graphic
-          </motion.button>
-        </Tooltip>
+        {!isReel && (
+          <Tooltip content="Add a graphic at the playhead (or shift-drag across words)">
+            <motion.button
+              type="button"
+              {...buttonMotion}
+              onClick={() => addGraphicHere(clock.currentMs)}
+              className="ml-4 inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border-[1.5px] border-edge bg-paper px-2.5 text-[12px] leading-4 font-medium text-ink shadow-[2px_2px_0_var(--color-hard)] transition hover:bg-mist"
+            >
+              <Plus className="size-3.5" strokeWidth={1.75} aria-hidden />
+              Add graphic
+            </motion.button>
+          </Tooltip>
+        )}
         <Tooltip content="Split video, stock media, or audio at the playhead (S)">
           <motion.button
             type="button"

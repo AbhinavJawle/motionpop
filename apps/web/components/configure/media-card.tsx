@@ -1,6 +1,6 @@
 'use client';
 
-import { FileText, Film, Music2, X } from 'lucide-react';
+import { FileText, Film, Music2, Sparkles, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { paper, poster } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
@@ -35,6 +35,7 @@ const WAVE = Array.from({ length: 72 }, (_, i) =>
 /** Pip's line for the preparation stage. */
 export function pipLine(job: Job): string {
   if (job.prep.stage === 'failed') return 'Hmm, that one slipped.';
+  if (job.kind === 'graphic') return 'Ready to direct your graphic!';
   if (job.script) return 'Your words are ready!';
   if (job.prep.stage === 'ready') return 'Got every word!';
   if (job.prep.model !== undefined) return 'Warming up my ears…';
@@ -43,16 +44,18 @@ export function pipLine(job: Job): string {
 }
 
 /**
- * The take on top of the configure screen (spec 39 R2.2, R2.3): a frame of the video, a waveform
- * or the script's first lines, its facts, Remove, and the free preparation as one bar.
+ * The take on top of the configure screen (spec 39 R2.2, R2.3): a frame of the video, a waveform,
+ * a graphic prompt card, or the script's first lines, its facts, Remove, and the free preparation
+ * as one bar.
  */
 export function MediaCard({ job, onRemove }: { job: Job; onRemove: () => void }) {
   const still = useStill();
   const m = job.media;
-  const ratio = aspect(m.width, m.height);
+  const graphic = job.kind === 'graphic';
+  const ratio = graphic ? (job.format ?? '16:9') : aspect(m.width, m.height);
   const failed = job.prep.stage === 'failed';
   const ready = job.prep.stage === 'ready';
-  const Icon = job.script ? FileText : job.kind === 'video' ? Film : Music2;
+  const Icon = graphic ? Sparkles : job.script ? FileText : job.kind === 'video' ? Film : Music2;
   return (
     <div
       className={cn(
@@ -63,7 +66,20 @@ export function MediaCard({ job, onRemove }: { job: Job; onRemove: () => void })
     >
       {/* the picture */}
       <div className="relative h-[150px] w-full shrink-0 overflow-hidden rounded-[8px] border-2 border-black bg-[#1d1d22] sm:w-[240px]">
-        {job.script ? (
+        {graphic ? (
+          <div className="relative flex h-full flex-col justify-between bg-[#f4efe4] p-3 text-ink">
+            <span className="inline-flex w-fit items-center gap-1 rounded bg-ink px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase text-paper">
+              <Sparkles className="size-2.5 text-[#f4d03f]" aria-hidden />
+              Motion Graphic
+            </span>
+            <p className="line-clamp-3 font-sans text-[12px] leading-[17px] font-medium text-ink">
+              {job.graphicPrompt ?? job.title}
+            </p>
+            <span className="font-mono text-[10px] text-black/55">
+              Custom motion · Alpha WebM
+            </span>
+          </div>
+        ) : job.script ? (
           <div
             className={cn(paper.ruled, 'h-full bg-paper px-3 pt-[6px] text-[12px] leading-[32px]')}
           >
@@ -97,12 +113,19 @@ export function MediaCard({ job, onRemove }: { job: Job; onRemove: () => void })
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="flex items-start gap-3 pr-10">
           <Icon className="mt-1 size-4 shrink-0" strokeWidth={2} aria-hidden />
-          <p className="min-w-0 truncate text-[14px] font-semibold" title={m.name}>
-            {job.script ? 'Your script' : m.name}
+          <p className="min-w-0 truncate text-[14px] font-semibold" title={graphic ? job.graphicPrompt : m.name}>
+            {graphic ? 'Your motion graphic prompt' : job.script ? 'Your script' : m.name}
           </p>
         </div>
         <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-black/65">
-          {job.script ? (
+          {graphic ? (
+            <div>
+              <dt className="sr-only">Format</dt>
+              <dd>
+                {job.format ?? '16:9'} canvas · Graphics only (no audio) · MP4 & transparent WebM
+              </dd>
+            </div>
+          ) : job.script ? (
             <div>
               <dt className="sr-only">Words</dt>
               <dd>{job.script.trim().split(/\s+/).length} words · voice made after Create</dd>
@@ -135,12 +158,16 @@ export function MediaCard({ job, onRemove }: { job: Job; onRemove: () => void })
               {failed
                 ? job.prep.error
                 : ready
-                  ? 'Ready'
+                  ? graphic
+                    ? 'Ready to direct'
+                    : 'Ready'
                   : job.prep.model !== undefined
                     ? `Getting speech ready, first time only (${job.prep.model}%)`
                     : `Preparing ${job.prep.pct}%`}
             </span>
-            <span className="text-black/50">{failed ? '' : 'free · on this device'}</span>
+            <span className="text-black/50">
+              {failed ? '' : graphic ? 'custom motion + cutouts' : 'free · on this device'}
+            </span>
           </div>
           <div
             role="progressbar"

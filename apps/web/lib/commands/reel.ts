@@ -3,12 +3,14 @@ import {
   REEL_ADDED_SFX_MAX,
   ReelPlanSchema,
   restyleReelPlan,
+  tileReelScenes,
   type EditorProject,
   type ImageAsset,
   type ReelAddedSfx,
   type ReelCaptionStyle,
   type ReelLook,
   type ReelPlan,
+  type ReelScene,
   type ReelTheme,
 } from '@motionpop/schemas';
 import { produce } from 'immer';
@@ -247,4 +249,109 @@ export function setReelCaptionStyle(captionStyle: ReelCaptionStyle): Command {
     (r) => ({ ...r, captionStyle }),
     (e) => ({ ...e, captions: { ...e.captions, style: captionStyle } }),
   );
+}
+
+const MIN_REEL_SCENE_MS = 600;
+
+/**
+ * Moves the boundary between `sceneId` and the following scene (trimming adjacent reel slots).
+ * Keeps scenes seamlessly tiled with a 600 ms minimum per scene. One undo step.
+ */
+export function resizeReelSceneBoundary(sceneId: string, nextEndMs: number): Command {
+  return changeReel('Resize graphic slot', (r) => {
+    const idx = r.scenes.findIndex((s) => s.id === sceneId);
+    if (idx < 0 || idx >= r.scenes.length - 1) {
+      throw new CommandRejected('Cannot resize the last scene boundary here');
+    }
+    const cur = r.scenes[idx]!;
+    const next = r.scenes[idx + 1]!;
+    const clamped = Math.max(
+      cur.startMs + MIN_REEL_SCENE_MS,
+      Math.min(next.endMs - MIN_REEL_SCENE_MS, Math.round(nextEndMs)),
+    );
+    if (clamped === cur.endMs) return r;
+    const scenes = r.scenes.map((s, i) =>
+      i === idx ? { ...s, endMs: clamped } : i === idx + 1 ? { ...s, startMs: clamped } : s,
+    );
+    return { ...r, scenes };
+  });
+}
+
+/** Removes one scene slot (when more than one exists) and re-tiles the remaining scenes. */
+export function deleteReelScene(sceneId: string): Command {
+  return changeReel('Delete graphic slot', (r) => {
+    if (r.scenes.length <= 1) {
+      throw new CommandRejected('A project needs at least one graphic scene');
+    }
+    const idx = r.scenes.findIndex((s) => s.id === sceneId);
+    if (idx < 0) throw new CommandRejected(`scene "${sceneId}" does not exist`);
+    const removed = r.scenes[idx]!;
+    const totalMs = r.scenes[r.scenes.length - 1]!.endMs;
+    const remaining = r.scenes
+      .filter((s) => s.id !== sceneId)
+      .map((s, i, arr) => {
+        if (idx === 0 && i === 0) return { ...s, startMs: 0 };
+        if (i === idx - 1) return { ...s, endMs: removed.endMs };
+        if (i === arr.length - 1) return { ...s, endMs: totalMs };
+        return s;
+      });
+    return { ...r, scenes: tileReelScenes(remaining, totalMs) };
+  });
+}
+
+/**
+ * Appends new graphic scene slot(s) to a graphics-only reel project (extending `durationMs` so
+ * each added prompt becomes a full slot on the timeline). One undo step.
+ */
+export function appendReelScenes(
+  added: readonly ReelScene[],
+  assets: ImageAsset[] = [],
+  label = 'Add graphic scene',
+): Command {
+  let prev: { reel: ReelPlan; durationMs: number; assets: ImageAsset[] | undefined } | undefined;
+  return {
+    label,
+    do(p) {
+      if (!p.reel) throw new CommandRejected('This project has no reel');
+      if (added.length === 0) throw new CommandRejected('No scenes to add');
+      const baseEnd = p.reel.scenes[p.reel.scenes.length - 1]?.endMs ?? p.durationMs;
+      const existingIds = new Set(p.reel.scenes.map((s) => s.id));
+      let cursor = baseEnd;
+      let seq = p.reel.scenes.length + 1;
+      const shifted: ReelScene[] = added.map((s) => {
+        const span = Math.max(1500, s.endMs - s.startMs);
+        let id = `g${seq++}`;
+        while (existingIds.has(id)) id = `g${seq++}`;
+        existingIds.add(id);
+        const startMs = cursor;
+        const endMs = cursor + span;
+        cursor = endMs;
+        return { ...s, id, startMs, endMs, layout: 'full' as const };
+      });
+      const nextDuration = Math.max(p.durationMs, cursor);
+      const parsed = ReelPlanSchema.safeParse({
+        ...p.reel,
+        scenes: tileReelScenes([...p.reel.scenes, ...shifted], nextDuration),
+      });
+      if (!parsed.success) throw new CommandRejected('Could not append graphic scene');
+      prev = { reel: p.reel, durationMs: p.durationMs, assets: p.assets };
+      return produce(p, (d) => {
+        d.reel = parsed.data;
+        d.durationMs = nextDuration;
+        if (assets.length) {
+          const have = new Set((d.assets ?? []).map((a) => a.id));
+          d.assets = [...(d.assets ?? []), ...assets.filter((a) => !have.has(a.id))].slice(-60);
+        }
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (!prev) return;
+        d.reel = prev.reel;
+        d.durationMs = prev.durationMs;
+        if (prev.assets === undefined) delete d.assets;
+        else d.assets = prev.assets;
+      });
+    },
+  };
 }

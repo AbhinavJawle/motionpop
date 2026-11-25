@@ -2,7 +2,13 @@ import { EditConfigSchema, type EditConfig, type ReelWord } from '@motionpop/sch
 import { describe, expect, it } from 'vitest';
 import type { Router } from '../router';
 import { builtInSkills } from '../skills/registry';
-import { ReelDirectBriefSchema, briefFromEdit, recipeBlock, type ReelDirectBrief } from './brief';
+import {
+  ReelDirectBriefSchema,
+  briefFromEdit,
+  recipeBlock,
+  styleCraftDirection,
+  type ReelDirectBrief,
+} from './brief';
 import { ReelDirectInputSchema, directReel, reelTemplateDirectTask } from './director';
 import { MOOD_BRIEFS } from './edit-choices';
 import { REEL_DIRECT_PROMPT_VERSION, reelDirectPromptV3 } from './prompt';
@@ -43,10 +49,10 @@ const LAST = '\n\nWrite the story, then plan the reel.';
 describe('reelDirectPromptV3 with a brief (R3.5)', () => {
   const finance = builtInSkills.recipe('finance-business')!;
 
-  // Changed by the spec 39 AI soak: v5 asks for a CTA whenever it is on (was v4).
-  it('is version v5', () => {
-    expect(REEL_DIRECT_PROMPT_VERSION).toBe('v5');
-    expect(reelTemplateDirectTask().promptVersion).toBe('v5');
+  // v6 injects per-style motion-design craft direction alongside the recipe brief.
+  it('is version v6', () => {
+    expect(REEL_DIRECT_PROMPT_VERSION).toBe('v6');
+    expect(reelTemplateDirectTask().promptVersion).toBe('v6');
   });
 
   it('adds the RECIPE block before the final line, with pacing, layout %, hook, CTA and notes', () => {
@@ -69,13 +75,16 @@ describe('reelDirectPromptV3 with a brief (R3.5)', () => {
     expect(p.indexOf('RECIPE:')).toBeGreaterThan(p.indexOf('3@1.20 percent'));
   });
 
-  it('is unchanged without a brief: removing the block gives the plain prompt', () => {
+  it('is unchanged without a brief: removing the brief and style craft blocks gives the plain prompt', () => {
     const plain = reelDirectPromptV3(INPUT);
     expect(plain).not.toContain('RECIPE');
     expect(plain.endsWith(`percent${LAST}`)).toBe(true);
     const b = brief();
     const withBrief = reelDirectPromptV3({ ...INPUT, brief: b });
-    expect(withBrief.replace(`\n\n${recipeBlock(b)}`, '')).toBe(plain);
+    const craft = styleCraftDirection({ styleId: b.style });
+    expect(
+      withBrief.replace(`\n\n${recipeBlock(b)}`, '').replace(`\n\n${craft}`, ''),
+    ).toBe(plain);
   });
 
   it('states the CTA and music variants', () => {

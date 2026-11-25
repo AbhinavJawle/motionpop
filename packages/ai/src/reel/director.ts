@@ -9,6 +9,7 @@ import {
   ReelPlanSchema,
   ReelSceneSchema,
   ReelTemplateSchema,
+  costOf,
   tileReelScenes,
   type ReelLook,
   type ReelMedia,
@@ -44,6 +45,8 @@ export const ReelDirectInputSchema = z.object({
     .default([]),
   /** The creator's recipe and choices (spec 39 R3.5); absent = the director's own taste. */
   brief: ReelDirectBriefSchema.optional(),
+  /** True for voiceover-only projects without speaker camera footage (every scene is `full`). */
+  noVideo: z.boolean().optional(),
 });
 export type ReelDirectInput = z.infer<typeof ReelDirectInputSchema>;
 
@@ -456,7 +459,7 @@ export function reelTemplateDirectTask(): TaskDef<ReelDirectInput, ReelDirectOut
         ? i.frames.map((f) => ({ mimeType: 'image/jpeg' as const, base64: f.base64 }))
         : undefined,
     jsonSchema: reelDirectJsonSchema,
-    cloudCost: () => 3,
+    cloudCost: () => costOf('reel', 1, APP_CONFIG_DEFAULTS),
     cloudFallback: false,
     maxRepairs: 1,
     promptVersion: REEL_DIRECT_PROMPT_VERSION,
@@ -781,8 +784,10 @@ export function toReelPlan(
   by: string,
   /** Reel-clock times of the keyframes the director saw (face keys are placed on them). */
   frameTimesMs: readonly number[] = [],
+  opts: { noVideo?: boolean } = {},
 ): ReelPlan {
   const out = ReelDirectOutputSchema.parse(raw);
+  const noVideo = Boolean(opts.noVideo);
   const n = words.length;
   const wStart = (i: number) => words[Math.max(0, Math.min(n - 1, i))]!.startMs;
   const brands: Brands = new Map(
@@ -812,17 +817,35 @@ export function toReelPlan(
       }
       return Math.round(startMs + 250 + i * Math.min(700, span / 5));
     };
-    let layout = d.layout;
+    let layout = noVideo ? ('full' as const) : d.layout;
     let content = contentFor(d.graphic, at, brands);
     if (content && carry && lastGraphic) content = mergeCarry(lastGraphic.content, content);
-    if (content && SPEAKER_TEMPLATES.has(content.template)) layout = 'speaker';
-    else if (layout === 'speaker') layout = look === 'mono' ? 'split' : 'card';
-    if (!content) {
-      content = { template: 'none' };
-      layout = 'speaker';
+    if (noVideo) {
+      // Voiceover-only: never emit speaker-only layouts (`none` / `punch` / `cta` without video).
+      if (!content || SPEAKER_TEMPLATES.has(content.template)) {
+        const snippet = words
+          .slice(from, Math.min(n, Math.max(from + 1, d.toWord + 1)))
+          .map((w) => w.text)
+          .join(' ')
+          .trim();
+        content =
+          content?.template === 'punch'
+            ? { template: 'headline', title: cut(content.text, 60) ?? 'Key point', ...(content.top ? { kicker: cut(content.top, 40) } : {}) }
+            : content?.template === 'cta'
+              ? { template: 'headline', kicker: cut(content.verb, 40), title: cut(content.keyword, 60) ?? 'Learn more' }
+              : { template: 'headline', title: cut(snippet, 60) ?? 'Key point' };
+      }
+      layout = 'full';
+    } else {
+      if (content && SPEAKER_TEMPLATES.has(content.template)) layout = 'speaker';
+      else if (layout === 'speaker') layout = look === 'mono' ? 'split' : 'card';
+      if (!content) {
+        content = { template: 'none' };
+        layout = 'speaker';
+      }
+      if (look === 'mono' && layout === 'card') layout = 'split';
+      if (look === 'cream' && layout === 'split') layout = 'card';
     }
-    if (look === 'mono' && layout === 'card') layout = 'split';
-    if (look === 'cream' && layout === 'split') layout = 'card';
     const candidate = {
       id: `r${k + 1}`,
       startMs,
@@ -906,12 +929,54 @@ export async function directReel(
     brief?: ReelDirectBrief;
     /** The creator's choices, enforced on the plan from either director (spec 39 R5.7). */
     choices?: EditChoices;
+    /** True for voiceover-only projects (no speaker footage: every scene uses `full` layout). */
+    noVideo?: boolean;
   },
 ): Promise<{ plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string }> {
-  const { look, words, durationMs, choices } = params;
-  const frames = (params.frames ?? []).slice(0, 6);
+  const { look, words, durationMs, choices, noVideo } = params;
+  const frames = noVideo ? [] : (params.frames ?? []).slice(0, 6);
+  const stripSpeaker = (plan: ReelPlan): ReelPlan =>
+    noVideo
+      ? {
+          ...plan,
+          scenes: plan.scenes.map((s) =>
+            s.layout === 'full' && !SPEAKER_TEMPLATES.has(s.content.template)
+              ? s
+              : {
+                  ...s,
+                  layout: 'full' as const,
+                  content: SPEAKER_TEMPLATES.has(s.content.template)
+                    ? s.content.template === 'punch'
+                      ? {
+                          template: 'headline' as const,
+                          title: cut(s.content.text, 60) ?? 'Key point',
+                          ...(s.content.top ? { kicker: cut(s.content.top, 40) } : {}),
+                        }
+                      : s.content.template === 'cta'
+                        ? {
+                            template: 'headline' as const,
+                            kicker: cut(s.content.verb, 40),
+                            title: cut(s.content.keyword, 60) ?? 'Learn more',
+                          }
+                        : {
+                            template: 'headline' as const,
+                            title:
+                              cut(
+                                words
+                                  .filter((w) => w.startMs >= s.startMs && w.startMs < s.endMs)
+                                  .slice(0, 6)
+                                  .map((w) => w.text)
+                                  .join(' '),
+                                60,
+                              ) ?? 'Key point',
+                          }
+                    : s.content,
+                },
+          ),
+        }
+      : plan;
   const enforce = (plan: ReelPlan): ReelPlan =>
-    choices ? applyEditChoices(plan, words, durationMs, choices) : plan;
+    stripSpeaker(choices ? applyEditChoices(plan, words, durationMs, choices) : plan);
   const auto = (): ReelPlan => enforce(autoReelPlan(words, durationMs, look));
   if (!router || words.length < 4) return { plan: auto(), source: 'auto' };
   if (params.preferOnDevice) {
@@ -926,6 +991,7 @@ export async function directReel(
       words: words.slice(0, 2500).map((w, i) => [i, w.startMs, w.text] as [number, number, string]),
       frames: frames.map((f) => ({ atMs: Math.max(0, Math.round(f.atMs)), base64: f.base64 })),
       ...(params.brief ? { brief: params.brief } : {}),
+      ...(noVideo ? { noVideo: true } : {}),
     };
     const res = await router.run(reelTemplateDirectTask(), input, {
       mode: 'ONLY_IN_CLOUD',
@@ -940,6 +1006,7 @@ export async function directReel(
           look,
           res.model,
           input.frames.map((f) => f.atMs),
+          { ...(noVideo ? { noVideo: true } : {}) },
         ),
       ),
       source: 'cloud',

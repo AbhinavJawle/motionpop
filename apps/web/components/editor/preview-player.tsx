@@ -334,6 +334,7 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
           setAssetsError(null);
         })
         .catch((e: unknown) => {
+          if (cancelled) return;
           const message = e instanceof Error ? e.message : String(e);
           setAssetsError(message);
           onError?.(message);

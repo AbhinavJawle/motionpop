@@ -1,10 +1,12 @@
 import {
   ImageSubjectSchema,
+  directGraphic,
   directReel,
   generateImageWithFirebase,
   generateImageWithGeminiByok,
   reviewReelEdit,
   type EditChoices,
+  type GraphicSceneBlueprint,
   type ReelDirectBrief,
   type UsageEvent,
 } from '@motionpop/ai';
@@ -16,6 +18,7 @@ import {
   reelMediaOf,
   setReelMediaAssets,
   type AppConfig,
+  type Format,
   type ImageAsset,
   type ReelLook,
   type ReelMedia,
@@ -53,19 +56,60 @@ export interface ReelMediaDeps {
   existing?: readonly ImageAsset[];
   /** Most illustrations one reel may generate (each costs credits). */
   maxIllustrations?: number;
+  /** Optional style id / prompt cue (e.g. `paper-collage`, `vox`, `newsprint`, `midnight-neon`) to art-direct cutout illustrations. */
+  styleHint?: string;
   fetchFn?: typeof fetch;
   generate?: typeof generateImageWithFirebase;
   onUsage?: (e: UsageEvent) => void;
 }
 
 /** Media recipe version: part of the asset hash, so a recipe change never reuses old pictures. */
-const REEL_MEDIA_VERSION = 2;
+const REEL_MEDIA_VERSION = 4;
 
-/** The image model recipe for a reel illustration in the look's style (≤ 400 chars). */
-export function reelIllustrationRecipe(look: ReelLook): string {
-  return look === 'mono'
-    ? 'Minimal black ink line illustration with flat light grey shading, editorial explainer style, crisp clean strokes. Subject: {subject}. Background: plain pure white, completely empty, no floor, no shadow.'
-    : 'Warm editorial illustration, soft grain, muted terracotta orange, charcoal and sand tones, gentle shading. Subject: {subject}. Background: plain warm off-white paper, completely empty, no floor line, no frame.';
+function styleBucket(look: ReelLook, styleHint?: string): string {
+  const s = (styleHint ?? '').toLowerCase();
+  if (/\b(apple-keynote|apple|keynote|notch|macos|liquid-glass|saas)\b/.test(s))
+    return 'apple-keynote';
+  if (/\b(kinetic-lime|kinetic|lime|anti-ppt|colorblock|brutalist|retro-terminal|crt)\b/.test(s))
+    return 'kinetic-lime';
+  if (/\b(risograph|riso|zine|overprint)\b/.test(s)) return 'risograph';
+  if (/\b(blueprint|schematic|3b1b|3blue1brown|architecture|diagram)\b/.test(s)) return 'blueprint';
+  if (/\b(kurzgesagt|cosmos|flat-vector|science)\b/.test(s)) return 'kurzgesagt';
+  if (/\b(paper-collage|vox|collage|cutout|cut-out|magazine|scrapbook|johnny harris)\b/.test(s))
+    return 'vox-collage';
+  if (/\b(newsprint|newspaper|archival|investigative|bloomberg|economist|nyt)\b/.test(s))
+    return 'newsprint';
+  if (/\b(midnight-neon|hyper-color|creator-dark|market-dark|launch-dark|dark|neon|cyber|3d)\b/.test(s))
+    return 'dark-3d';
+  if (/\b(warm-editorial|editorial-cream|editorial-explainer|warm-paper|executive-cream|field-notes|whiteboard|sketch)\b/.test(s))
+    return 'warm-editorial';
+  return look === 'cream' ? 'warm-editorial' : 'swiss-mono';
+}
+
+/** The image model recipe for a reel illustration matched to the chosen look & style (≤ 400 chars). */
+export function reelIllustrationRecipe(look: ReelLook, styleHint?: string): string {
+  switch (styleBucket(look, styleHint)) {
+    case 'apple-keynote':
+      return 'Sleek Apple industrial design studio object render of {subject}, smooth anodized aluminum and frosted glass surfaces, subtle cool rim light, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no watermark, no floor shadow.';
+    case 'kinetic-lime':
+      return 'High-contrast bold graphic editorial cutout of {subject}, sharp obsidian ink shading with crisp electric lime and cobalt accent highlights, clean isolated silhouette on solid pure white background, completely empty white background, no text, no watermark, no floor shadow.';
+    case 'risograph':
+      return '2-color risograph screenprint editorial cutout illustration of {subject}, fluorescent coral and cobalt blue overprint halftone dots, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no letters, no watermark.';
+    case 'blueprint':
+      return 'Crisp isometric technical blueprint and architectural schematic illustration of {subject}, clean cyan and deep navy drafting linework with subtle amber highlight, isolated cleanly on solid pure white background, completely empty white background, no text, no watermark.';
+    case 'kurzgesagt':
+      return 'Vibrant Kurzgesagt-inspired flat geometric vector illustration of {subject}, rich jewel-tone indigo, cyan, coral and solar gold shading with crisp clean silhouettes, isolated on solid pure white background, completely empty white background, no text, no watermark.';
+    case 'vox-collage':
+      return 'Editorial Vox magazine photo-collage cutout illustration of {subject}, vintage archival print grain with subtle halftone dots, warm terracotta coral, sage green, charcoal ink and cream tones, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no letters, no watermark, no frame, no floor shadow.';
+    case 'newsprint':
+      return 'Archival investigative journalism lithograph & halftone ink illustration of {subject}, fine charcoal crosshatching with subtle crimson editorial accent, crisp isolated silhouette on solid pure white background, completely empty white background, no text, no letters, no watermark, no border.';
+    case 'dark-3d':
+      return 'Sleek high-contrast 3D editorial studio object illustration of {subject}, subtle luminous rim lighting, crisp geometric silhouette isolated on solid pure white background, completely empty white background, no text, no letters, no watermark, no floor shadow.';
+    case 'warm-editorial':
+      return 'Warm New Yorker editorial gouache and ink illustration of {subject}, soft grain, muted terracotta orange, ochre, sage and charcoal ink tones, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no letters, no watermark, no floor line.';
+    default:
+      return 'Crisp Swiss editorial ink and risograph illustration of {subject}, bold architectural linework with flat light slate shading, clean isolated silhouette on solid pure white background, completely empty white background, no text, no letters, no watermark, no floor shadow.';
+  }
 }
 
 async function blobFrom(res: Response | null): Promise<Blob | null> {
@@ -116,13 +160,26 @@ async function fetchLogo(
   q: string,
   signal?: AbortSignal,
 ): Promise<Fetched | null> {
-  const res = await f(`/api/reel/logo?q=${encodeURIComponent(q)}`, withSignal(signal)).catch(
-    () => null,
-  );
+  const headers = await optionalAuthHeaders();
+  const res = await f(`/api/reel/logo?q=${encodeURIComponent(q)}`, {
+    ...withSignal(signal),
+    ...(headers ? { headers } : {}),
+  }).catch(() => null);
   const blob = await blobFrom(res);
   if (!blob) return null;
   const png = blob.type.includes('svg') ? await rasterizeSvg(blob) : blob;
   return { blob: png, source: 'logo', maxSide: 512 };
+}
+
+async function optionalAuthHeaders(): Promise<HeadersInit | undefined> {
+  try {
+    const auth = await getAuthClient();
+    const user = auth.currentUser;
+    if (!user) return undefined;
+    return await apiHeaders(() => user.getIdToken());
+  } catch {
+    return undefined;
+  }
 }
 
 async function fetchScreenshot(
@@ -130,10 +187,11 @@ async function fetchScreenshot(
   q: string,
   signal?: AbortSignal,
 ): Promise<Fetched | null> {
-  const res = await f(
-    `/api/reel/screenshot?url=${encodeURIComponent(q)}`,
-    withSignal(signal),
-  ).catch(() => null);
+  const headers = await optionalAuthHeaders();
+  const res = await f(`/api/reel/screenshot?url=${encodeURIComponent(q)}`, {
+    ...withSignal(signal),
+    ...(headers ? { headers } : {}),
+  }).catch(() => null);
   const blob = await blobFrom(res);
   return blob ? { blob, source: 'screenshot', maxSide: 1800 } : null;
 }
@@ -143,9 +201,10 @@ async function fetchPhoto(
   q: string,
   signal?: AbortSignal,
 ): Promise<Fetched | null> {
+  const headers = await optionalAuthHeaders();
   const res = await f(
     `/api/media/stock?q=${encodeURIComponent(q)}&kind=photo&orientation=landscape&limit=3`,
-    withSignal(signal),
+    { ...withSignal(signal), ...(headers ? { headers } : {}) },
   ).catch(() => null);
   if (!res?.ok) return null;
   const data = (await res.json().catch(() => null)) as {
@@ -153,10 +212,10 @@ async function fetchPhoto(
   } | null;
   for (const item of data?.items ?? []) {
     if (!item.url) continue;
-    const img = await f(
-      `/api/media/stock?proxy=${encodeURIComponent(item.url)}`,
-      withSignal(signal),
-    ).catch(() => null);
+    const img = await f(`/api/media/stock?proxy=${encodeURIComponent(item.url)}`, {
+      ...withSignal(signal),
+      ...(headers ? { headers } : {}),
+    }).catch(() => null);
     const blob = await blobFrom(img);
     if (blob)
       return {
@@ -212,8 +271,11 @@ export async function resolveReelMedia(
       throwIfAborted(signal);
       done++;
       onProgress?.(done, total);
-      // Logos and screenshots look the same in either look; drawings follow it.
-      const scope = m.kind === 'illustration' ? `${look}|${cfg.modelImage}` : m.kind;
+      // Logos and screenshots look the same in either look; drawings follow look + style bucket.
+      const scope =
+        m.kind === 'illustration'
+          ? `${styleBucket(look, deps.styleHint)}|${cfg.modelImage}`
+          : m.kind;
       const hash = await sha256Hex(`reel|${REEL_MEDIA_VERSION}|${scope}|${key}`);
       const known = (deps.existing ?? []).find((a) => a.hash === hash && a.status === 'ready');
       if (known && (await getImage(known.src ?? ''))) {
@@ -261,27 +323,33 @@ export async function resolveReelMedia(
     async function illustrate(subject: string): Promise<Fetched | null> {
       const max = deps.maxIllustrations ?? 3;
       const parsed = ImageSubjectSchema.safeParse(subject.slice(0, 120));
-      if (!parsed.success || illustrations >= max || cfg.killSwitch || !deps.credits) return null;
+      const byokKey = !deps.generate ? getByokKey() : null;
+      if (!parsed.success || illustrations >= max || cfg.killSwitch || (!byokKey && !deps.credits))
+        return null;
       // No spend for a call that is already cancelled.
       throwIfAborted(signal);
-      const spent = await spendWithUi(
-        deps.credits,
-        { action: 'image', key: newSpendKey(), refId: projectId },
-        cfg,
-      );
-      if (!spent?.ok) return null;
-      paid.add(spent.txId);
-      illustrations++;
+      let txId: string | null = null;
+      let charged = 0;
       const cost = costOf('image', 1, cfg);
-      const charged = spent.cost;
-      const byokKey = !deps.generate ? getByokKey() : null;
+      if (!byokKey && deps.credits) {
+        const spent = await spendWithUi(
+          deps.credits,
+          { action: 'image', key: newSpendKey(), refId: projectId },
+          cfg,
+        );
+        if (!spent?.ok) return null;
+        txId = spent.txId;
+        charged = spent.cost;
+        paid.add(spent.txId);
+      }
+      illustrations++;
       const t0 = performance.now();
       try {
         // Cancelled while the spend was in flight: hand it back before any call is made.
         throwIfAborted(signal);
         const imgInput = {
           subject: parsed.data,
-          recipe: reelIllustrationRecipe(look),
+          recipe: reelIllustrationRecipe(look, deps.styleHint),
           keyed: false,
           aspect: '1:1' as const,
         };
@@ -313,12 +381,56 @@ export async function resolveReelMedia(
           ok: false,
         });
         // Out of `paid` first, so the cancel path never refunds the same spend twice.
-        paid.delete(spent.txId);
-        await deps.credits.refund(spent.txId).catch(() => {});
+        if (txId && deps.credits) {
+          paid.delete(txId);
+          await deps.credits.refund(txId).catch(() => {});
+        }
         throw e;
       }
     }
   }
+}
+
+/**
+ * Resolves a standalone list of `ReelMedia` requests (e.g. visuals planned for custom scenes
+ * before `reel.compose` runs) using the exact same caching, keying, and credit rules as
+ * `resolveReelMedia`. Returns the resolved media entries (with `asset` populated) and new assets.
+ */
+export async function resolveReelMediaList(
+  items: readonly ReelMedia[],
+  look: ReelLook,
+  projectId: string,
+  deps: ReelMediaDeps,
+  onProgress?: (done: number, total: number) => void,
+  signal?: AbortSignal,
+): Promise<{ media: ReelMedia[]; assets: ImageAsset[] }> {
+  if (items.length === 0) return { media: [], assets: [] };
+  const dummyPlan: ReelPlan = {
+    v: 1,
+    look,
+    focus: { x: 0.5, y: 0.32 },
+    captions: false,
+    scenes: items.map((m, i) => ({
+      id: `m${i}`,
+      startMs: i * 1000,
+      endMs: (i + 1) * 1000,
+      layout: 'full',
+      content: {
+        template: 'custom',
+        title: `visual-${i}`,
+        brief: 'visual',
+        html: '',
+        css: '',
+        script: 'return {seek(){}}',
+        media: [m],
+      },
+    })),
+  };
+  const resolved = await resolveReelMedia(dummyPlan, look, projectId, deps, onProgress, signal);
+  const media = resolved.plan.scenes.map((s, i) =>
+    s.content.template === 'custom' && s.content.media?.[0] ? s.content.media[0] : items[i]!,
+  );
+  return { media, assets: resolved.assets };
 }
 
 /**
@@ -337,6 +449,8 @@ export async function directReelPaid(
     brief?: ReelDirectBrief;
     /** The creator's choices, enforced on the plan from either director (spec 39 R5.7). */
     choices?: EditChoices;
+    /** True for voiceover-only projects without speaker video (every scene uses `full` layout). */
+    noVideo?: boolean;
   },
   deps: {
     credits: CreditsClient | null;
@@ -361,6 +475,7 @@ export async function directReelPaid(
     words: params.words,
     durationMs: params.durationMs,
     ...(params.choices ? { choices: params.choices } : {}),
+    ...(params.noVideo ? { noVideo: true } : {}),
   };
   const withFrames = {
     ...base,
@@ -379,6 +494,15 @@ export async function directReelPaid(
     throwIfAborted(signal);
     return out;
   };
+  const hasByok = Boolean(getByokKey());
+  if (hasByok && router && !deps.free && !cfg.killSwitch && params.words.length >= 4) {
+    const r = await raceAbort(
+      directReel(router, { ...withFrames, fallbackOnDevice: onDeviceReady }),
+      signal,
+    );
+    throwIfAborted(signal);
+    return r;
+  }
   if (deps.free || !deps.credits || cfg.killSwitch || params.words.length < 4)
     return deviceOrAuto();
   if (!router) return directReel(null, base);
@@ -413,6 +537,97 @@ export async function directReelPaid(
   if (r.source !== 'cloud') {
     // Never silent (spec 29): a director failure used to fall back to the free plan unseen.
     console.warn('Reel director failed; using the free director:', r.error);
+    await refundOnce();
+  }
+  return r;
+}
+
+/**
+ * Prompt-driven motion graphics director (`reel.graphic`), charged like `directReelPaid` (or 0
+ * credits with BYOK / on-device / local fallback).
+ */
+export async function directGraphicPaid(
+  params: {
+    prompt: string;
+    look: ReelLook;
+    format?: Format;
+    durationMs?: number;
+    brief?: ReelDirectBrief;
+    styleDirection?: string;
+    illustrations?: boolean;
+    refId: string;
+  },
+  deps: {
+    credits: CreditsClient | null;
+    config?: Partial<ReelCfg>;
+    free?: boolean;
+    onDeviceReady?: boolean;
+    getRouter?: () => Promise<Awaited<ReturnType<typeof getRouter>>>;
+  },
+  signal?: AbortSignal,
+): Promise<{
+  plan: ReelPlan;
+  blueprints?: GraphicSceneBlueprint[];
+  durationMs: number;
+  title?: string;
+  source: 'cloud' | 'device' | 'auto';
+  error?: string;
+}> {
+  throwIfAborted(signal);
+  const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
+  const router = await (deps.getRouter ?? getRouter)().catch(() => null);
+  const onDeviceReady =
+    deps.onDeviceReady ?? useAIStatusStore.getState().availability === 'available';
+  const base = {
+    prompt: params.prompt,
+    look: params.look,
+    ...(params.format ? { format: params.format } : {}),
+    ...(params.durationMs ? { durationMs: params.durationMs } : {}),
+    ...(params.brief ? { brief: params.brief } : {}),
+    ...(params.styleDirection ? { styleDirection: params.styleDirection } : {}),
+    ...(params.illustrations !== undefined ? { illustrations: params.illustrations } : {}),
+  };
+  const fallback = async () => {
+    throwIfAborted(signal);
+    const out =
+      router && onDeviceReady
+        ? await raceAbort(directGraphic(router, { ...base, preferOnDevice: true }), signal)
+        : await directGraphic(null, base);
+    throwIfAborted(signal);
+    return out;
+  };
+  const hasByok = Boolean(getByokKey());
+  if (hasByok && router && !deps.free && !cfg.killSwitch) {
+    const r = await raceAbort(directGraphic(router, base), signal);
+    throwIfAborted(signal);
+    return r;
+  }
+  if (deps.free || !deps.credits || cfg.killSwitch) return fallback();
+  if (!router) return directGraphic(null, base);
+  const spent = await spendWithUi(
+    deps.credits,
+    { action: 'reel', key: newSpendKey(), refId: params.refId },
+    cfg,
+  );
+  if (!spent?.ok) return fallback();
+  const credits = deps.credits;
+  let refunded = false;
+  const refundOnce = async () => {
+    if (refunded) return;
+    refunded = true;
+    await credits.refund(spent.txId).catch(() => {});
+  };
+  let r: Awaited<ReturnType<typeof directGraphic>>;
+  try {
+    throwIfAborted(signal);
+    r = await raceAbort(directGraphic(router, base), signal);
+    throwIfAborted(signal);
+  } catch (e) {
+    await refundOnce();
+    throw e;
+  }
+  if (r.source !== 'cloud') {
+    console.warn('Graphic director failed; using fallback:', r.error);
     await refundOnce();
   }
   return r;

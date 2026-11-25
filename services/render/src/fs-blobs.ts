@@ -14,11 +14,18 @@ export class FsBlobStore implements BlobStore {
   }
 
   private file(path: string): string {
-    if (path.includes('\0') || path.startsWith('/') || path.split('/').includes('..')) {
+    if (
+      !path ||
+      path === '.' ||
+      path.includes('\0') ||
+      path.includes('\\') ||
+      path.startsWith('/') ||
+      path.split('/').includes('..')
+    ) {
       throw new Error(`unsafe object path: ${JSON.stringify(path)}`);
     }
     const full = resolve(this.root, path);
-    if (full !== this.root && !full.startsWith(this.root + sep)) {
+    if (full === this.root || !full.startsWith(this.root + sep)) {
       throw new Error(`unsafe object path: ${JSON.stringify(path)}`);
     }
     return full;
@@ -65,7 +72,8 @@ export class FsBlobStore implements BlobStore {
   async deletePrefix(prefix: string): Promise<void> {
     this.file(prefix); // refuses an unsafe prefix before anything is listed
     // Object stores match by string prefix, not by folder: "a/b" also matches "a/bc.txt".
-    const base = this.file(prefix.endsWith('/') ? prefix.slice(0, -1) : dirname(prefix) || '.');
+    const dir = prefix.endsWith('/') ? prefix.slice(0, -1) : dirname(prefix);
+    const base = !dir || dir === '.' ? this.root : this.file(dir);
     const all = await this.list(base);
     for (const f of all) {
       const objectPath = relative(this.root, f).split(sep).join('/');

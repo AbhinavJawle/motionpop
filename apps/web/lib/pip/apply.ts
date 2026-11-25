@@ -8,6 +8,7 @@ import {
   clearReelScene,
   clearReelSounds,
   composite,
+  deleteReelScene,
   deleteSlot,
   setAudio,
   setReelCaptions,
@@ -212,8 +213,19 @@ function instantCommand(
       return { cmd: setReelTheme(step.theme ?? null) };
     case 'setReelLook':
       return step.look ? { cmd: setReelLook(step.look) } : 'No look';
-    case 'clearScene':
-      return step.sceneId ? { cmd: clearReelScene(step.sceneId) } : 'That scene is gone';
+    case 'clearScene': {
+      if (!step.sceneId) return 'That scene is gone';
+      const noVideo =
+        Boolean(project.reel?.graphicOnly) ||
+        (!project.video &&
+          Boolean(project.reel?.scenes.length) &&
+          project.reel!.scenes.every((s) => s.layout === 'full'));
+      if (noVideo && project.reel) {
+        if (project.reel.scenes.length <= 1) return 'Keep at least one scene';
+        return { cmd: deleteReelScene(step.sceneId) };
+      }
+      return { cmd: clearReelScene(step.sceneId) };
+    }
     case 'setSound': {
       const a = audioOf(project);
       switch (step.sound) {

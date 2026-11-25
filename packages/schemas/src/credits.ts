@@ -15,6 +15,8 @@ export const CreditActionSchema = z.enum([
   'film',
   /** A directed reel (spec 26): the cloud director's story and scene plan. */
   'reel',
+  /** Cloud-generated reel soundtrack (Vertex AI Lyria). */
+  'music',
   'slots-detect',
   'tts',
   'transcribe',
@@ -124,6 +126,7 @@ export const REASON_FOR: Record<CreditAction, CreditReason> = {
   custom: 'custom',
   film: 'film',
   reel: 'reel',
+  music: 'music',
   'slots-detect': 'slots-detect',
   tts: 'tts',
   transcribe: 'transcribe',

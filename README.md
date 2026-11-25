@@ -4,10 +4,12 @@
 
 Motionpop is an open-source, agentic AI video editor and motion-graphics studio built for **Desktop Chrome**. Drop raw talking-head video, a voiceover, or a script—**Pip** auto-cuts dead air, hiccups and repeated takes non-destructively, directs deterministic `seek(tMs)` HTML/SVG motion graphics synced to every spoken word, edits locally on your device with **Chrome Gemini Nano via Firebase AI Logic** at $0 cost, and exports pixel-identical 1080p MP4s and transparent WebM overlays.
 
-- **Auto-cuts raw talking-head video.** On-device Whisper WebGPU/WASM + 10 ms speech-energy mapping + LCS retake detection remove dead air, fillers, hiccups and repeated takes non-destructively—keeping your cleanest take.
-- **10 on-device Gemini Nano tasks.** Talking-head reel frame notes (`reel.note.local`), instant Pip commands (`pip.quick`), free/offline reel drafts (`reel.draft`), quick edits (`edit.patch`), slot frame notes (`note.fix`), custom recipe parsing (`recipe.resolve`), auto-fill, chunked slot detection, energy arcs and prompt prefill run locally in Chrome at **0 credits**, even offline.
-- **Dual deterministic engines (zero GSAP).** Reel Engine v3 (21 strict vertical templates, 4 stage layouts, 5 kinetic caption styles) + Motion-Graphic & Film Engine (9 responsive scenes, 8 OFL Style Packs, 16:9 / 9:16 / 1:1 zero-crop reflow)—compiled from Project JSON into one HyperFrames composition with **≤ 1.02% preview-vs-MP4 diff**.
-- **True Frankenstein stack.** Stitches Chrome Gemini Nano, Whisper WebGPU, Gemini 4 Neon, Gemini TTS, Nano Banana 2.1 art, Vertex AI Lyria 2 soundtracks, procedural Web Audio SFX, 6 real-world media/logo/screenshot/geo resolvers (Pixabay, Pexels, Wikimedia, Openverse, Simple Icons, Headless Chrome, Natural Earth `d3-geo`), Firestore-synced `SKILL.md` recipes, 7 Firebase products and Cloud Run FFmpeg rendering.
+- **Auto-cuts raw talking-head video.** Multi-file upload (talking video + voiceover + B-roll + screenshots) paired with on-device Whisper WebGPU/WASM + 10 ms speech-energy mapping + LCS retake detection removes dead air, fillers, hiccups and repeated takes non-destructively—keeping your cleanest take.
+- **10 on-device Gemini Nano tasks.** Talking-head reel frame notes (`reel.note.local`), instant Pip commands (`pip.quick`), free/offline reel drafts (`reel.draft`), quick edits (`edit.patch`), slot frame notes (`note.fix`), custom recipe parsing (`recipe.resolve`), auto-fill, chunked slot detection, energy arcs and prompt prefill run locally in Desktop Chrome at **0 credits**, even offline.
+- **Dual deterministic engines + Bespoke Film Kit (zero GSAP).** Reel Engine v3 (21 templates, 4 stage layouts, 5 kinetic caption styles) + 6 flagship Film Kit motion archetypes (Vox Paper Collage, Apple Keynote, Kinetic Reel, Financial Newsprint, Dark SaaS Glass UI, Blueprint Schematic) that selectively upgrade hero scenes across **Talking-Head Reels, Voiceover/Script Reels, and Standalone Motion Graphics** in 16:9, 9:16, or 1:1 with **12 Studio Looks** and **≤ 1.02% preview-vs-MP4 diff** (plus transparent alpha WebM export).
+- **16 curated open-source `SKILL.md` director skills + 8 built-in recipes.** Selectable right alongside visual styles with GitHub attribution and preview thumbnails, backed by Firestore (`community_skills`) plus custom Markdown/GitHub skill imports.
+- **Dynamic BYOK Gemini support.** Optional browser-local Google AI Studio key with live model discovery (`listGeminiModels`) so creators can pick any available Gemini model per role while keeping on-device Chrome Gemini Nano first at 0 Motionpop credits.
+- **True Frankenstein stack.** Stitches Chrome Gemini Nano, Whisper WebGPU, Gemini 4 Neon, Gemini TTS, Nano Banana 2.1 art, Vertex AI Lyria 2 soundtracks, procedural Web Audio SFX, 6 real-world media/logo/screenshot/geo resolvers (Pixabay, Pexels, Wikimedia, Openverse, Simple Icons, Headless Chrome, Natural Earth `d3-geo`), open-source & custom `SKILL.md` director skills, 7 Firebase products and Cloud Run FFmpeg rendering.
 
 > Built for **#BuildHybridAI 2026** (Firebase — Web / Chrome) and **#KiroweenHackathon26** (Kiro — Frankenstein Category) using **Antigravity**, **Kiro** (44 specs, 21 steering docs) and **8 official Firebase Agent Skills**. Interactive deep dive: `/how-it-works`.
 
@@ -49,10 +51,10 @@ Motionpop runs on **Firebase AI Logic out of the box** (no API key needed). On D
 ```
 apps/web           Next.js 16 app (landing, /how-it-works, /pricing, dashboard, start, editor, recipes, skills, styles, settings)
 packages/schemas   Zod 4 schemas shared across browser, API and Cloud Run
-packages/motion    Deterministic motion core, 21 reel templates, 9 explainer scenes, 8 looks, HyperFrames compiler, procedural SFX
-packages/ai        Firebase AI Logic hybrid router, 20+ tasks (10 on-device Nano), prompts, schema/cap guards, Lyria 2, BYOK
+packages/motion    Deterministic motion core, 21 reel templates, 6 Film Kit archetypes, 9 explainer scenes, 12 looks, HyperFrames compiler, procedural SFX
+packages/ai        Firebase AI Logic hybrid router, 20+ tasks (10 on-device Nano), 16 curated open-source skills, prompts, schema/cap guards, Lyria 2, dynamic BYOK
 services/render    Cloud Run render service (@hyperframes/producer + FFmpeg parity compositor) & Firestore credit/billing ledger
-skills/            5 Reel Director Recipes & 8 Motion-Graphic Slot Skills (Markdown)
+skills/            8 Reel Director Recipes & 8 Motion-Graphic Slot Skills (Markdown)
 .kiro/             45 EARS specs, 21 steering docs, hooks, 8 Firebase Agent Skills & HyperFrames skills
 docs/              plan, decisions (D-001..D-087+), third-party disclosure, demo scripts, hackathon write-ups
 ```

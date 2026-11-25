@@ -40,6 +40,7 @@ function headline(p: Of<'headline'>, ctx: TplCtx): Tpl {
   const kick = p.kicker ? kickerEl(ctx, p.kicker) : null;
   const t = words(ctx, p.title, p.accent);
   css(t.el, { ...headingStyle(ctx, ctx.look.upper ? 78 : 88) });
+  const maxTextW = Math.min(ctx.area.w - 100, 960);
   const sub = p.sub
     ? h(
         'div',
@@ -49,7 +50,7 @@ function headline(p: Of<'headline'>, ctx: TplCtx): Tpl {
           fontSize: 24,
           lineHeight: 1.35,
           color: ctx.pal.muted,
-          maxWidth: 560,
+          maxWidth: Math.min(maxTextW - 40, 760),
         },
         [p.sub],
       )
@@ -61,7 +62,7 @@ function headline(p: Of<'headline'>, ctx: TplCtx): Tpl {
   return {
     el: col,
     mount() {
-      fit(t.el, 620, ctx.look.upper ? 78 : 92, 36, 3, 1.05);
+      fit(t.el, maxTextW, ctx.look.upper ? 78 : 92, 36, 3, 1.05);
     },
     seek(tt) {
       if (kick) revealAt(kick, tt, t0, 380);

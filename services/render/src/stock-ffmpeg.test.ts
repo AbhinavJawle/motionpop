@@ -92,9 +92,15 @@ describe('buildStockCompositeArgs (spec 45 R5.3)', () => {
       ],
     });
 
-    // Deduplicated inputs: /tmp/broll.mp4 appears once, /tmp/whoosh.mp3 appears once.
+    // Deduplicated inputs: /tmp/broll.mp4 appears once, /tmp/whoosh.mp3 appears once, with forced demuxers.
     expect(args.filter((a) => a === '/tmp/broll.mp4')).toHaveLength(1);
     expect(args.filter((a) => a === '/tmp/whoosh.mp3')).toHaveLength(1);
+    expect(args[args.indexOf('/tmp/broll.mp4') - 5]).toBe('-f');
+    expect(args[args.indexOf('/tmp/broll.mp4') - 4]).toBe('mov');
+    expect(args[args.indexOf('/tmp/photo.png') - 5]).toBe('-f');
+    expect(args[args.indexOf('/tmp/photo.png') - 4]).toBe('image2');
+    expect(args[args.indexOf('/tmp/whoosh.mp3') - 3]).toBe('-f');
+    expect(args[args.indexOf('/tmp/whoosh.mp3') - 2]).toBe('mp3');
     const graph = args[args.indexOf('-filter_complex') + 1]!;
     expect(graph).toContain('[1:v]split=2[sov_1_0][sov_1_1]');
     expect(graph).toContain('[3:a]asplit=2[sau_3_0][sau_3_1]');
@@ -110,6 +116,59 @@ describe('buildStockCompositeArgs (spec 45 R5.3)', () => {
     expect(graph).toContain('amix=inputs=4:duration=first:dropout_transition=0:normalize=0[aout]');
     expect(args).toContain('[vout]');
     expect(args).toContain('[aout]');
+  });
+
+  it('handles silent base videos (hasBaseAudio: false) without mapping missing 0:a:0 (H7)', () => {
+    const overlayOnly = buildStockCompositeArgs({
+      baseVideoPath: '/tmp/silent.mp4',
+      outMp4Path: '/tmp/out.mp4',
+      hasBaseAudio: false,
+      width: 1280,
+      height: 720,
+      fps: 30,
+      durationMs: 4000,
+      overlays: [
+        {
+          id: 'ov-1',
+          path: '/tmp/photo.png',
+          isVideo: false,
+          startMs: 0,
+          endMs: 2000,
+          sourceOffsetMs: 0,
+          layout: 'card',
+          track: 0,
+        },
+      ],
+      audioClips: [],
+    });
+    expect(overlayOnly).not.toContain('0:a:0');
+
+    const withStockAudio = buildStockCompositeArgs({
+      baseVideoPath: '/tmp/silent.mp4',
+      outMp4Path: '/tmp/out.mp4',
+      hasBaseAudio: false,
+      width: 1280,
+      height: 720,
+      fps: 30,
+      durationMs: 4000,
+      overlays: [],
+      audioClips: [
+        {
+          id: 'sa-1',
+          path: '/tmp/whoosh.mp3',
+          kind: 'sfx',
+          startMs: 500,
+          endMs: 1500,
+          sourceOffsetMs: 0,
+          volume: 0.9,
+          track: 0,
+        },
+      ],
+    });
+    const graph = withStockAudio[withStockAudio.indexOf('-filter_complex') + 1]!;
+    expect(graph).toContain('anullsrc=r=48000:cl=stereo');
+    expect(graph).not.toContain('[0:a]');
+    expect(withStockAudio).toContain('[aout]');
   });
 
   it('uses stream copy for untouched video (audio-only stock) or untouched audio (video-only stock)', () => {

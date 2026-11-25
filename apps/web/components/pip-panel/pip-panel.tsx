@@ -12,8 +12,6 @@ import {
   Check,
   ChevronDown,
   Cloud,
-  Mic,
-  Paperclip,
   Plus,
   Sparkles,
   Zap,
@@ -457,12 +455,6 @@ function Composer({
         className="block min-h-[40px] w-full resize-none bg-transparent font-mono text-[13px] leading-[19px] text-ink outline-none placeholder:text-text-3"
       />
       <div className="mt-2 flex items-center gap-2.5 text-text-3">
-        <Tooltip content="Attach images soon" side="top">
-          <Paperclip className="size-4 shrink-0" strokeWidth={1.75} aria-label="Attach (soon)" />
-        </Tooltip>
-        <Tooltip content="Voice input soon" side="top">
-          <Mic className="size-4 shrink-0" strokeWidth={1.75} aria-label="Voice (soon)" />
-        </Tooltip>
         <label className="relative flex h-7 min-w-0 items-center gap-1 rounded-md px-1.5 text-[11px] text-text-2 transition-colors hover:bg-mist hover:text-ink">
           <Sparkles className="size-3 shrink-0 text-violet" strokeWidth={1.75} aria-hidden />
           <select

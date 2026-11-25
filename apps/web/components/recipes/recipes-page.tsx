@@ -46,7 +46,7 @@ export function RecipesPage() {
         <header className="flex items-end justify-between gap-8 border-b-2 border-ink pb-8">
           <div className="min-w-0 flex-1">
             <h1 className={cn(poster, 'text-[clamp(52px,6.5vw,96px)]')}>
-              Five recipes.
+              {recipes.length} recipes.
               <br />
               One director skill each.
             </h1>
@@ -93,21 +93,18 @@ export function RecipesPage() {
                 skills
               </p>
               <p className="mt-1 text-black/70">
-                Built-in recipes ship in <code className="text-[12px]">@motionpop/ai</code>{' '}
-                (verified against <code className="text-[12px]">skills/recipes/*.md</code>), and any
-                custom <code className="text-[12px]">SKILL.md</code> you import on{' '}
+                Built-in recipes, 16 open-source director skills, and any custom{' '}
+                <code className="text-[12px]">SKILL.md</code> you import on{' '}
                 <Link href="/skills" className={paper.link}>
                   /skills
                 </Link>{' '}
-                saves to Firestore (
-                <code className="text-[12px]">users/&#123;uid&#125;/skills</code>) and injects
-                directly into <code className="text-[12px]">reel.direct</code> &amp;{' '}
-                <code className="text-[12px]">film.direct</code>.
+                sync to your account and guide pacing, layout, and motion craft across every video
+                and standalone graphic.
               </p>
             </div>
           </div>
           <Link href="/skills" className={btn('paper', 'sm')}>
-            Inspect all 13 skills
+            Inspect all skills
             <ArrowRight className="size-3.5" strokeWidth={2} aria-hidden />
           </Link>
         </section>

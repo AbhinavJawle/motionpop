@@ -4,6 +4,7 @@ import { getAppCheck } from 'firebase-admin/app-check';
 import { getAuth } from 'firebase-admin/auth';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getRemoteConfig } from 'firebase-admin/remote-config';
+import { projectIdFrom } from './project-env';
 
 /**
  * Firebase Admin (spec 01 design). Credentials come from Application Default Credentials: the
@@ -12,11 +13,7 @@ import { getRemoteConfig } from 'firebase-admin/remote-config';
  * emulators and needs no credentials.
  */
 function projectId(): string | undefined {
-  return (
-    process.env.GOOGLE_CLOUD_PROJECT ??
-    process.env.GCLOUD_PROJECT ??
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
-  );
+  return projectIdFrom(process.env);
 }
 
 export function usingEmulators(): boolean {

@@ -108,8 +108,8 @@ export function resolveReturnUrl(
   if (appUrl) {
     return `${appUrl.replace(/\/+$/, '')}/pricing`;
   }
-  const fwdHost = req.headers.get('x-forwarded-host')?.split(',')[0]?.trim() ?? '';
-  const fwdProto = req.headers.get('x-forwarded-proto')?.split(',')[0]?.trim().toLowerCase() ?? '';
+  const fwdHost = req.headers.get('x-forwarded-host')?.split(',').pop()?.trim() ?? '';
+  const fwdProto = req.headers.get('x-forwarded-proto')?.split(',').pop()?.trim().toLowerCase() ?? '';
   if (fwdHost && SAFE_HOST_RE.test(fwdHost)) {
     const proto = fwdProto === 'http' || fwdProto === 'https' ? fwdProto : 'https';
     return `${proto}://${fwdHost}/pricing`;
@@ -256,8 +256,10 @@ export async function handleDodoWebhookEvent(
       }
 
       const uid = metaUid(metadata);
-      if (!uid) {
-        console.warn('[billing] payment.succeeded missing metadata.app_user_id', { paymentId });
+      if (!uid || !/^[A-Za-z0-9_-]{1,128}$/.test(uid)) {
+        console.warn('[billing] payment.succeeded missing or invalid metadata.app_user_id', {
+          paymentId,
+        });
         return { handled: false, action: 'ignored', detail: 'missing-app-user-id' };
       }
 
@@ -374,6 +376,14 @@ export async function handleDodoWebhookEvent(
         paymentId: dispute.payment_id,
         disputeId: dispute.dispute_id,
       });
+      if (!res.applied && res.reason === 'no-reversal') {
+        const full = await deps.retrievePayment(dispute.payment_id);
+        if (resolvePurchasedCart(full.product_cart, deps.cfg)) {
+          throw new OutOfOrderWebhookError(
+            `Dispute resolution arrived before dispute.opened for ${dispute.payment_id}`,
+          );
+        }
+      }
       return {
         handled: true,
         action: res.applied ? 'restored' : 'ignored',

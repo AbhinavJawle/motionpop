@@ -1,14 +1,17 @@
-import { StartDraftSchema, type StartDraft, type Word } from '@motionpop/schemas';
+import { StartDraftSchema, type ReelLook, type StartDraft, type Word } from '@motionpop/schemas';
 import { encodeWav } from '../audio/wav';
 import type { HandOffResult } from './hand-off';
 import { readDraft, setPending } from './pending';
 
-/** One line, one graphic: long enough for a sentence, short enough to stay one graphic. */
+/** Legacy word limit kept for backwards-compatible callers. */
 export const SINGLE_MAX_WORDS = 24;
+/** Max prompt length when describing a standalone motion graphic. */
+export const SINGLE_MAX_CHARS = 500;
 const RATE = 16_000;
 const LEAD_MS = 400;
 const TAIL_MS = 1_800;
 const MIN_MS = 4_000;
+const DEFAULT_GRAPHIC_MS = 5_000;
 
 /** The words span at least this long: every scene a line can become fits (map-zoom needs 3.5 s). */
 const MIN_SPAN_MS = 4_000;
@@ -46,26 +49,32 @@ export function singleDurationMs(words: readonly Word[]): number {
 }
 
 /**
- * "Or just make a single graphic": the typed line becomes a short project with one graphic on a
- * silent track (no voice, no captions), through the same Processing as a voiceover. The line
- * titles the project.
+ * "Or just make a single graphic": the user describes the motion graphic they want in a prompt.
+ * Directed with the Reel engine (no video, no voiceover, full alpha WebM export support).
  */
 export async function handOffSingle(
-  line: string,
+  prompt: string,
   draft: StartDraft = readDraft(),
+  look: ReelLook = 'mono',
 ): Promise<HandOffResult> {
-  const words = singleWords(line);
-  if (words.length === 0) return { ok: false, message: 'Type a line for the graphic first.' };
-  const samples = new Float32Array(Math.round((singleDurationMs(words) * RATE) / 1000));
+  const cleanPrompt = prompt.trim();
+  if (!cleanPrompt) return { ok: false, message: 'Describe the motion graphic first.' };
+  const words = singleWords(cleanPrompt);
+  const samples = new Float32Array(Math.round((DEFAULT_GRAPHIC_MS * RATE) / 1000));
   const file = new Blob([encodeWav(samples, RATE)], { type: 'audio/wav' });
-  const title = words
-    .map((w) => w.text)
-    .join(' ')
-    .slice(0, 80);
+  const title = cleanPrompt.replace(/\s+/g, ' ').slice(0, 80);
   try {
     await setPending(
       file,
-      { source: 'upload', name: 'Single graphic.wav', cleanup: false, single: true, words },
+      {
+        source: 'upload',
+        name: 'Motion graphic.wav',
+        cleanup: false,
+        single: true,
+        graphicPrompt: cleanPrompt.slice(0, 1000),
+        graphicLook: look,
+        words,
+      },
       StartDraftSchema.parse({ ...draft, title }),
     );
     return { ok: true };

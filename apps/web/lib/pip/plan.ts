@@ -553,12 +553,25 @@ export function cleanSubject(raw: string): string | null {
 /** A vivid pair that lifts either house look (ember into violet). */
 export const REEL_DEFAULT_THEME = { accent: '#FF5A36', accent2: '#7C5CFF' } as const;
 
-/** Chips for a video reel (spec 37): colour, sound, music, captions, look, cuts. */
+/** Chips for a Reel-engine project (spec 37): adapts to graphics-only vs voiced/video reels. */
 function reelChips(project: EditorProject): Chip[] {
   const r = project.reel!;
+  const graphicOnly = Boolean(r.graphicOnly && !project.video);
+  if (graphicOnly) {
+    const out: Chip[] = [
+      {
+        id: 'reelColour',
+        label: r.theme ? 'Back to the look’s own colours' : 'Add colour and gradients',
+      },
+      { id: 'reelLook', label: r.look === 'mono' ? 'Try the cream look' : 'Try the mono look' },
+      { id: 'brand', label: 'Use brand colours everywhere' },
+    ];
+    if (project.format !== '9:16') out.push({ id: 'vertical', label: 'Make a vertical version' });
+    return out;
+  }
   const a = audioOf(project);
   const hasMusic = !!r.music?.src || a.musicId === 'calm-pad' || a.musicId === 'steady-pulse';
-  const out: Chip[] = [
+  return [
     {
       id: 'reelColour',
       label: r.theme ? 'Back to the look’s own colours' : 'Add colour and gradients',
@@ -568,7 +581,6 @@ function reelChips(project: EditorProject): Chip[] {
     { id: 'captions', label: r.captions ? 'Turn captions off' : 'Add captions' },
     { id: 'reelLook', label: r.look === 'mono' ? 'Try the cream look' : 'Try the mono look' },
   ];
-  return out;
 }
 
 /** The chips that make sense for this project right now (empty state). */

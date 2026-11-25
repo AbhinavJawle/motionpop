@@ -9,6 +9,8 @@ import { HttpError } from '@/lib/firebase/verify.server';
 export interface DeleteProjectDeps {
   /** `projects/{id}.ownerId`, or null when the document doesn't exist. */
   ownerOf(id: string): Promise<string | null>;
+  /** True when the project currently has a queued/rendering/encoding export (prevents orphaned artifacts & lost refunds). */
+  hasActiveRender?(uid: string, id: string): Promise<boolean>;
   /** Every sub-collection of the project (transcript, slots, versions, chat, later ones). */
   deleteSubCollections(id: string): Promise<void>;
   /** The caller's `renders` and `shares` documents of this project. */
@@ -28,9 +30,13 @@ export async function deleteProject(
   // Already gone: deleting again is a success (a retry after a half-finished delete).
   if (owner === null) return { deleted: true };
   if (owner !== uid) throw new HttpError(403, 'not your project');
+  if (deps.hasActiveRender && (await deps.hasActiveRender(uid, id))) {
+    throw new HttpError(409, 'Cannot delete project while an export is in progress');
+  }
   await deps.deleteSubCollections(id);
   await deps.deleteRelated(uid, id);
   await deps.deletePrefix(`users/${uid}/audio/${id}/`);
+  await deps.deletePrefix(`users/${uid}/video/${id}/`);
   await deps.deletePrefix(`users/${uid}/projects/${id}/`);
   await deps.deleteProjectDoc(id);
   return { deleted: true };

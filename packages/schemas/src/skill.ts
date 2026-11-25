@@ -25,8 +25,22 @@ export const BuiltInRecipeKeySchema = z.enum([
   'gaming',
   'podcast-story',
   'hot-take',
+  'product-launch',
+  'documentary-explainer',
+  'kinetic-promo',
 ]);
 export type BuiltInRecipeKey = z.infer<typeof BuiltInRecipeKeySchema>;
+
+export const SkillCategorySchema = z.enum([
+  'editorial',
+  'product',
+  'kinetic',
+  'data',
+  'explainer',
+  'cinematic',
+  'editing',
+]);
+export type SkillCategory = z.infer<typeof SkillCategorySchema>;
 
 export const SkillMusicMoodSchema = z.enum([
   'auto',
@@ -59,6 +73,16 @@ export const UserSkillSchema = z
     markdown: z.string().trim().min(20).max(USER_SKILL_MAX_MD_CHARS),
     /** Optional origin URL (e.g. GitHub `SKILL.md` link). */
     sourceUrl: z.string().trim().url().max(300).optional(),
+    /** Optional GitHub repository attribution slug shown on cards (e.g. "tuzhechen2005/opus-video-skills"). */
+    repoSlug: z.string().trim().min(3).max(120).optional(),
+    /** Optional preview thumbnail path or URL (e.g. "/skills/kinetic-reel.jpg"). */
+    thumbnailUrl: z.string().trim().min(1).max(300).optional(),
+    /** Optional category tag for filtering in the skill library & configure picker. */
+    category: SkillCategorySchema.optional(),
+    /** Optional visual look id paired with this skill (e.g. "paper-collage", "kinetic-lime"). */
+    lookId: z.string().trim().min(1).max(60).optional(),
+    /** True for shared open-source community skills published in Firestore `community_skills`. */
+    community: z.boolean().optional(),
     createdAt: z.number().int().nonnegative(),
     updatedAt: z.number().int().nonnegative(),
   })

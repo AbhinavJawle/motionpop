@@ -46,11 +46,11 @@ const list = (v: string | undefined): string[] =>
     .filter(Boolean);
 
 describe('recipe catalogue', () => {
-  it('has the five recipes, ids unique, matching RecipeIdSchema minus custom', () => {
+  it('has the built-in recipes, ids unique, matching RecipeIdSchema minus custom', () => {
     const ids = RECIPES.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect([...ids].sort()).toEqual(RecipeIdSchema.options.filter((o) => o !== 'custom').sort());
-    expect(ids).toHaveLength(5);
+    expect(ids).toHaveLength(8);
   });
 
   for (const recipe of RECIPES) {

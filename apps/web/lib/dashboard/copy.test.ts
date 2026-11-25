@@ -17,8 +17,10 @@ describe('video-first copy', () => {
     expect(START_COPY.headline).toMatch(/video/i);
     expect(START_COPY.subline).toMatch(/video/i);
     expect(START_COPY.subline).toMatch(/voiceover|script/i);
-    expect(START_COPY.upload.title).toBe('Upload video or audio');
-    expect(START_COPY.upload.drop).toMatch(/video or audio/);
+    expect(START_COPY.upload.title).toBe('Upload files');
+    expect(START_COPY.upload.body).toMatch(/video/i);
+    expect(START_COPY.upload.body).toMatch(/voiceover/i);
+    expect(START_COPY.upload.drop).toMatch(/files/i);
     listsVideoFirst(START_COPY.upload.formats);
   });
 

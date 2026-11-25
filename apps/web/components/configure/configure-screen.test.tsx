@@ -313,4 +313,40 @@ describe('ConfigureScreen', () => {
       expect(lastEdit().resolved).toBeUndefined();
     });
   });
+
+  describe('motion graphic flow', () => {
+    it('auto-selects Paper Collage for Vox prompts, exposes Format & AI Cutout Visuals, and hides captions/sound', async () => {
+      h.take = {
+        blob: new Blob([new Uint8Array(64)], { type: 'audio/wav' }),
+        meta: {
+          source: 'upload',
+          name: 'Motion graphic.wav',
+          cleanup: false,
+          single: true,
+          graphicPrompt: 'design a vox style motion graphic about the white house',
+        },
+        draft: { title: 'Inside the White House', format: '16:9' },
+      };
+      render(<ConfigureScreen />);
+      await loaded();
+      expect(screen.getByText('Design your motion graphic.')).toBeTruthy();
+      expect(screen.getByText('Motion graphic directing')).toBeTruthy();
+      expect(screen.getByText('Transparent WebM export')).toBeTruthy();
+      expect(screen.queryByText('Captions')).toBeNull();
+      expect(screen.queryByText('Sound')).toBeNull();
+
+      // Format switcher updates the job's format
+      const formatGroup = screen.getByRole('group', { name: 'Canvas format' });
+      fireEvent.click(within(formatGroup).getByRole('button', { name: /9:16/ }));
+      const job = Object.values(useJobs.getState().jobs)[0];
+      expect(job?.format).toBe('9:16');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+      const edit = lastEdit();
+      expect(edit.styleId).toBe('paper-collage');
+      expect(edit.illustrations).toBe(true);
+      expect(edit.captions.enabled).toBe(false);
+      expect(edit.sound.music).toBe('none');
+    });
+  });
 });

@@ -422,7 +422,7 @@ export function filmPropsTask(
  * and zero cartoon SVG props.
  */
 export const reelDirectTask: TaskDef<FilmDirectInput, Storyboard> = {
-  id: 'reel.direct',
+  id: 'reel.storyboard',
   maxOutputTokens: 8192,
   input: FilmDirectInputSchema,
   output: StoryboardSchema,

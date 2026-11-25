@@ -1,6 +1,14 @@
 import { detectLocal, directVideo, planVideo } from '@motionpop/ai';
 import type { CreditsClient } from '../credits/client';
-import { directReelPaid, resolveReelMedia, resolveReelMusic, reviewReelCuts } from '../reel/media';
+import {
+  directGraphicPaid,
+  directReelPaid,
+  resolveReelMedia,
+  resolveReelMediaList,
+  resolveReelMusic,
+  reviewReelCuts,
+} from '../reel/media';
+import { composeGraphicScenes, composeReelHeroScenes } from '../reel/compose-graphic';
 import { requestPlanAllowance } from '../ai/plan-allowance';
 import { getRouter } from '../ai/router-client';
 import { appAudioStore } from '../audio/app-audio-store';
@@ -70,16 +78,43 @@ export function browserPipelineDeps(opts: { credits?: CreditsClient | null } = {
       }),
     directReel: ({ signal, ...params }) =>
       directReelPaid({ ...params, refId: 'reel' }, { credits }, signal),
+    directGraphic: ({ signal, ...params }) =>
+      directGraphicPaid({ ...params, refId: 'graphic' }, { credits }, signal),
     reviewEdit: ({ phrases }) => reviewReelCuts(phrases, { credits }),
-    resolveReelMedia: ({ plan, look, projectId, onProgress, maxIllustrations, signal }) =>
+    resolveReelMedia: ({ plan, look, projectId, onProgress, maxIllustrations, styleHint, signal }) =>
       resolveReelMedia(
         plan,
         look,
         projectId,
-        { credits, ...(maxIllustrations !== undefined ? { maxIllustrations } : {}) },
+        {
+          credits,
+          ...(maxIllustrations !== undefined ? { maxIllustrations } : {}),
+          ...(styleHint ? { styleHint } : {}),
+        },
         onProgress,
         signal,
       ),
+    resolveReelMediaList: ({ items, look, projectId, onProgress, maxIllustrations, styleHint, signal }) =>
+      resolveReelMediaList(
+        items,
+        look,
+        projectId,
+        {
+          credits,
+          ...(maxIllustrations !== undefined ? { maxIllustrations } : {}),
+          ...(styleHint ? { styleHint } : {}),
+        },
+        onProgress,
+        signal,
+      ),
+    composeGraphicScenes: (params) =>
+      composeGraphicScenes(params, {
+        getRouter: () => getRouter().catch(() => null),
+      }),
+    composeReelHeroScenes: (params) =>
+      composeReelHeroScenes(params, {
+        getRouter: () => getRouter().catch(() => null),
+      }),
     resolveReelMusic: ({ plan, durationMs, projectId, signal }) =>
       resolveReelMusic(plan, durationMs, projectId, { audioStore: appAudioStore() }, signal),
     ingestExtraClip: async (clip, projectId) => {

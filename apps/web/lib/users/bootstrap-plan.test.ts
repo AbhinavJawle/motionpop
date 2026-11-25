@@ -178,6 +178,9 @@ describe('planReturning (spec 13 R4.2–R4.4)', () => {
     expect(returning({ user: low, refilledToday: true })).toBeNull();
     expect(returning({ user: { plan: 'judge', credits: 100 } })).toBeNull();
     expect(returning({ user: low, nowMs: T0 + DAY })?.txId).toBe('judge-refill-2026-11-21');
+    expect(
+      returning({ user: low, profile: profile({ email: 'removed@example.com' }) }),
+    ).toBeNull();
   });
 
   it('leaves free, creator and pro accounts that are not listed alone', () => {

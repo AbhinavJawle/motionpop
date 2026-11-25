@@ -21,7 +21,22 @@ const config: NextConfig = {
   outputFileTracingRoot: join(import.meta.dirname, '..', '..'),
   outputFileTracingIncludes: {
     '/api/composition/assets': ['../../packages/motion/dist/**/*'],
+    '/api/composition/maps/[file]': ['../../packages/motion/dist/maps/**/*'],
+    '/api/composition/reel-custom': ['../../packages/motion/dist/reel-custom.js'],
     '/api/composition/reel-fonts': ['../../packages/motion/dist/reel-fonts.json'],
+  },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Permissions-Policy', value: 'camera=(), geolocation=()' },
+        ],
+      },
+    ];
   },
   reactStrictMode: true,
   // On App Hosting the web config arrives as FIREBASE_WEBAPP_CONFIG; inline it as NEXT_PUBLIC_*.

@@ -108,7 +108,7 @@ export function CloudProfileSection({
     try {
       const res = await fetch('/api/dev/cloud-profile', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Motionpop-Dev': '1' },
         body: JSON.stringify({ profile: name }),
       });
       const json: unknown = await res.json().catch(() => null);

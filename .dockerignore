@@ -11,6 +11,15 @@
 .env
 .env.*
 **/.env*
+*service-account*.json
+*credentials*.json
+**/*.pem
+**/*.key
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+services/render/scripts
+.kiro
 Information
 design
 docs

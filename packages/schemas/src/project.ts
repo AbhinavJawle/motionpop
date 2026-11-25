@@ -382,10 +382,14 @@ export const StockAudioClipSchema = z
       .max(MAX_TIMELINE_LANES - 1)
       .optional(),
     /** Linear playback gain (0..1.5). Default 0.9 for SFX, 0.28 for music. */
-    volume: z.number().min(0).max(1.5).default(0.9),
+    volume: z.number().min(0).max(1.5).optional(),
     attribution: z.string().max(240).optional(),
   })
-  .refine((c) => c.endMs > c.startMs, { message: 'endMs must be after startMs' });
+  .refine((c) => c.endMs > c.startMs, { message: 'endMs must be after startMs' })
+  .transform((c) => ({
+    ...c,
+    volume: c.volume ?? (c.kind === 'music' ? 0.28 : 0.9),
+  }));
 export type StockAudioClip = z.infer<typeof StockAudioClipSchema>;
 
 function resolveLanes(
@@ -422,6 +426,22 @@ export function resolvedAudioLanes(project: {
   stockAudio?: readonly Pick<StockAudioClip, 'track'>[] | undefined;
 }): TimelineLane[] {
   return resolveLanes(project.stockAudioLanes, project.stockAudio);
+}
+
+/** First non-colliding lane index in `lanes` for `[startMs, endMs)`, falling back to `lanes[0]` or 0. */
+export function pickOpenTrack(
+  lanes: readonly { index: number }[],
+  existing: readonly { startMs: number; endMs: number; track?: number | undefined }[],
+  startMs: number,
+  endMs: number,
+): number {
+  for (const lane of lanes) {
+    const collides = existing.some(
+      (c) => (c.track ?? 0) === lane.index && c.startMs < endMs && c.endMs > startMs,
+    );
+    if (!collides) return lane.index;
+  }
+  return lanes[0]?.index ?? 0;
 }
 
 /**
@@ -512,8 +532,8 @@ export const EditorProjectBaseSchema = z.object({
   transcript: TranscriptSchema,
   /** The transcript of the original (uncleaned) audio, for turning cleanup off (spec 09). */
   originalTranscript: TranscriptSchema.optional(),
-  slots: z.array(SlotSchema),
-  versions: z.array(VersionSchema),
+  slots: z.array(SlotSchema).max(200),
+  versions: z.array(VersionSchema).max(500),
   /** Epoch ms. */
   createdAt: IntMsSchema,
   updatedAt: IntMsSchema,
@@ -564,3 +584,24 @@ export const EditorProjectSchema = EditorProjectBaseSchema.superRefine((p, ctx) 
   }
 });
 export type EditorProject = z.infer<typeof EditorProjectSchema>;
+
+/** True when this project renders through the Reel engine (talking-head video, voiceover, or graphics-only). */
+export function isReelEngine(
+  project: { reel?: unknown } | null | undefined,
+): boolean {
+  return Boolean(project?.reel);
+}
+
+/** True when this project is a talking-head video reel (has speaker footage baked in). */
+export function isVideoReel(
+  project: { reel?: unknown; video?: unknown } | null | undefined,
+): boolean {
+  return Boolean(project?.reel && project?.video);
+}
+
+/** True when this project is a prompt-driven graphics-only reel (no video, no voiceover). */
+export function isGraphicReel(
+  project: { reel?: { graphicOnly?: boolean } | undefined; video?: unknown } | null | undefined,
+): boolean {
+  return Boolean(project?.reel && !project?.video && project.reel.graphicOnly);
+}

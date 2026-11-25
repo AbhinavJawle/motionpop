@@ -7,6 +7,7 @@ import type { PlaybackClock } from '@/lib/editor/playback';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 
 let sharedCtx: AudioContext | null = null;
+const MAX_BUFFER_CACHE = 24;
 const bufferCache = new Map<string, AudioBuffer>();
 const inflightDecode = new Map<string, Promise<AudioBuffer | null>>();
 
@@ -24,7 +25,12 @@ function getAudioContext(): AudioContext | null {
 
 async function decodeClipBuffer(src: string): Promise<AudioBuffer | null> {
   const cached = bufferCache.get(src);
-  if (cached) return cached;
+  if (cached) {
+    // Refresh LRU order.
+    bufferCache.delete(src);
+    bufferCache.set(src, cached);
+    return cached;
+  }
   const pending = inflightDecode.get(src);
   if (pending) return pending;
 
@@ -36,6 +42,10 @@ async function decodeClipBuffer(src: string): Promise<AudioBuffer | null> {
       if (!blob) return null;
       const raw = await blob.arrayBuffer();
       const decoded = await ctx.decodeAudioData(raw.slice(0));
+      if (bufferCache.size >= MAX_BUFFER_CACHE) {
+        const oldest = bufferCache.keys().next().value;
+        if (oldest !== undefined) bufferCache.delete(oldest);
+      }
       bufferCache.set(src, decoded);
       return decoded;
     } catch {
@@ -50,17 +60,20 @@ async function decodeClipBuffer(src: string): Promise<AudioBuffer | null> {
 }
 
 let activeAudition: AudioBufferSourceNode | null = null;
+let auditionSeq = 0;
 
 /**
  * Plays a single stock audio clip immediately (e.g. clicking play on the timeline or right after
  * placing an SFX), honoring `offsetMs` for split/trimmed clips.
  */
 export async function auditionStockAudio(src: string, volume = 0.9, offsetMs = 0): Promise<void> {
+  const seq = ++auditionSeq;
   const ctx = getAudioContext();
   if (!ctx) return;
   if (ctx.state === 'suspended') {
     await ctx.resume().catch(() => undefined);
   }
+  if (seq !== auditionSeq) return;
   try {
     activeAudition?.stop();
   } catch {
@@ -68,7 +81,7 @@ export async function auditionStockAudio(src: string, volume = 0.9, offsetMs = 0
   }
   activeAudition = null;
   const buf = await decodeClipBuffer(src);
-  if (!buf) return;
+  if (!buf || seq !== auditionSeq) return;
   const source = ctx.createBufferSource();
   source.buffer = buf;
   const gain = ctx.createGain();

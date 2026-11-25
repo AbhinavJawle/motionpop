@@ -1,4 +1,5 @@
 import {
+  APP_CONFIG_DEFAULTS,
   exportAvailability,
   exportCost,
   type AppConfig,
@@ -71,7 +72,7 @@ export function startFailureMessage(f: StartFailure, costNow?: number): string {
     case 'disabled':
       return 'Exports are paused for a moment. Try again soon.';
     case 'too-long':
-      return 'Exports are up to 3 min for now.';
+      return `Exports are up to ${Math.round(APP_CONFIG_DEFAULTS.exportMaxMs / 60_000)} min for now.`;
     case 'nothing-to-render':
       return 'Add a graphic first.';
     case 'voice-missing':

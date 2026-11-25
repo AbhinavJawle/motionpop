@@ -376,6 +376,10 @@ export const ReelPlanSchema = z.object({
   sfx: z.array(ReelAddedSfxSchema).max(REEL_ADDED_SFX_MAX).optional(),
   /** The hook title shown over the first scene (mono: dark band at the seam). */
   hook: short(48).optional(),
+  /** True for prompt-driven graphics-only projects (no video, no voiceover, no captions). */
+  graphicOnly: z.boolean().optional(),
+  /** The user's description prompt for graphics-only projects (used by Re-direct). */
+  prompt: z.string().trim().min(1).max(1000).optional(),
   scenes: z.array(ReelSceneSchema).min(1).max(80),
   /** Who made it: the director model, or `auto` for the deterministic fallback. */
   by: z.string().max(60).optional(),

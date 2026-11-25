@@ -1,3 +1,4 @@
+import { ACTIVE_RENDER_STATUSES } from '@motionpop/schemas';
 import { adminDb } from '@/lib/firebase/admin.server';
 import { errorResponse, verifyRequest } from '@/lib/firebase/verify.server';
 import { deleteProject, type DeleteProjectDeps } from '@/lib/projects/delete-project.server';
@@ -14,6 +15,16 @@ function adminDeps(): DeleteProjectDeps {
       const snap = await ref(id).get();
       const owner = snap.exists ? (snap.get('ownerId') as unknown) : null;
       return typeof owner === 'string' ? owner : snap.exists ? '' : null;
+    },
+    async hasActiveRender(uid, id) {
+      const snap = await db
+        .collection('renders')
+        .where('ownerId', '==', uid)
+        .where('projectId', '==', id)
+        .get();
+      return snap.docs.some((d) =>
+        (ACTIVE_RENDER_STATUSES as readonly string[]).includes(String(d.get('status') ?? '')),
+      );
     },
     async deleteSubCollections(id) {
       for (const sub of await ref(id).listCollections()) await db.recursiveDelete(sub);

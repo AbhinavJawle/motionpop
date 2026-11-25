@@ -13,19 +13,58 @@ export const DEFAULT_RECIPE: BuiltInRecipeId = 'tech-explainer';
 /** Voiceover looks offered for audio and script inputs, in gallery order. */
 export const VOICEOVER_LOOKS: readonly { id: string; name: string }[] = [
   'editorial-explainer',
+  'paper-collage',
+  'apple-keynote',
+  'kinetic-lime',
+  'risograph-zine',
+  'blueprint-schematic',
   'studio-light',
   'newsprint',
   'editorial-cream',
   'creator-dark',
   'keynote-clean',
   'field-notes',
+]
+  .filter((id) => id in looks)
+  .map((id) => ({ id, name: looks[id]!.name }));
+
+/** Motion graphic looks with Paper Collage / Vox, Apple Keynote, Kinetic Lime & Riso featured first. */
+export const GRAPHIC_LOOKS: readonly { id: string; name: string }[] = [
   'paper-collage',
+  'apple-keynote',
+  'kinetic-lime',
+  'risograph-zine',
+  'blueprint-schematic',
+  'newsprint',
+  'creator-dark',
+  'editorial-explainer',
+  'editorial-cream',
+  'studio-light',
+  'field-notes',
+  'keynote-clean',
 ]
   .filter((id) => id in looks)
   .map((id) => ({ id, name: looks[id]!.name }));
 
 const isVoiceoverLook = (id: string | undefined): id is string =>
   !!id && VOICEOVER_LOOKS.some((l) => l.id === id);
+
+/** Pick the strongest starting look for a motion-graphic prompt. */
+export function inferGraphicLook(promptHint?: string): string {
+  const s = (promptHint ?? '').toLowerCase();
+  if (/\b(apple|keynote|notch|macos|macbook|iphone)\b/.test(s)) return 'apple-keynote';
+  if (/\b(kinetic|lime|showreel|anti-ppt|colorblock)\b/.test(s)) return 'kinetic-lime';
+  if (/\b(risograph|riso|zine|overprint)\b/.test(s)) return 'risograph-zine';
+  if (/\b(blueprint|schematic|3b1b|3blue1brown|architecture|diagram)\b/.test(s))
+    return 'blueprint-schematic';
+  if (/\b(vox|collage|paper|cutout|scrapbook|documentary|magazine)\b/.test(s)) return 'paper-collage';
+  if (/\b(newsprint|newspaper|bloomberg|financial|economist|wsj|nyt|press)\b/.test(s))
+    return 'newsprint';
+  if (/\b(dark|neon|cyber|terminal|futuristic|midnight|hud|glitch)\b/.test(s)) return 'creator-dark';
+  if (/\b(swiss|minimal|clean|monochrome|geist)\b/.test(s)) return 'studio-light';
+  if (/\b(cream|warm|vintage|book|history|essay)\b/.test(s)) return 'editorial-cream';
+  return 'paper-collage';
+}
 
 /** The recipe whose skill drives a choice set (a custom recipe borrows its resolved one). */
 export function recipeOf(edit: Pick<EditConfig, 'recipeId' | 'resolved'>): BuiltInRecipeId {
@@ -36,22 +75,28 @@ export function recipeOf(edit: Pick<EditConfig, 'recipeId' | 'resolved'>): Built
 /** Choices for a fresh take. `lookHint` is the `?style=` a Try-a-look card carried. */
 export function defaultEdit(
   kind: JobKind,
-  opts: { recipeId?: RecipeId; source?: string; lookHint?: string } = {},
+  opts: { recipeId?: RecipeId; source?: string; lookHint?: string; promptHint?: string } = {},
 ): EditConfig {
+  const lookHint =
+    opts.lookHint ?? (kind === 'graphic' ? inferGraphicLook(opts.promptHint) : undefined);
   return withRecipe(
     {
       v: 1,
       recipeId: DEFAULT_RECIPE,
       styleId: '',
       hookStyle: 'headline',
-      captions: { enabled: true, style: 'seam' },
-      cta: { enabled: true },
-      sound: { cleanup: opts.source !== 'tts', sfx: true, music: 'auto' },
-      illustrations: kind === 'video',
+      captions: { enabled: kind !== 'graphic', style: 'seam' },
+      cta: { enabled: kind === 'video' },
+      sound: {
+        cleanup: kind !== 'graphic' && opts.source !== 'tts',
+        sfx: kind !== 'graphic',
+        music: kind === 'graphic' ? 'none' : 'auto',
+      },
+      illustrations: kind === 'video' || kind === 'graphic',
     },
     kind,
     opts.recipeId ?? DEFAULT_RECIPE,
-    opts.lookHint,
+    lookHint,
   );
 }
 
@@ -73,6 +118,20 @@ export function withRecipe(
       hookStyle: skill.defaults.hookStyle,
       captions: { ...edit.captions, style: style.captionStyle },
       cta: { ...edit.cta, enabled: skill.defaults.ctaEnabled },
+    };
+  }
+  if (kind === 'graphic') {
+    const look = isVoiceoverLook(lookHint)
+      ? lookHint
+      : isVoiceoverLook(edit.styleId)
+        ? edit.styleId
+        : skill.defaults.voiceoverLook;
+    return {
+      ...edit,
+      recipeId,
+      styleId: look,
+      captions: { enabled: false, style: VOICEOVER_CAPTION_DEFAULT },
+      cta: { enabled: false },
     };
   }
   const look = isVoiceoverLook(lookHint) ? lookHint : skill.defaults.voiceoverLook;

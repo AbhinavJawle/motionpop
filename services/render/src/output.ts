@@ -17,7 +17,7 @@ export function expectedSize(
 /** Problems with the rendered file, empty when it is what we asked for. Frames may be off by one. */
 export function outputIssues(
   probe: MediaProbe,
-  want: { format: Format; resolution: Resolution; durationMs: number },
+  want: { format: Format; resolution: Resolution; durationMs: number; transparent?: boolean },
 ): string[] {
   const issues: string[] = [];
   const size = expectedSize(want.format, want.resolution);
@@ -28,6 +28,14 @@ export function outputIssues(
   const frames = msToFrame(want.durationMs);
   if (probe.frames === undefined || Math.abs(probe.frames - frames) > 1) {
     issues.push(`${probe.frames ?? 'unknown'} frames, expected ${frames} ± 1`);
+  }
+  if (want.transparent) {
+    if (probe.codecName && probe.codecName !== 'vp9') {
+      issues.push(`expected vp9 codec for transparent export, found ${probe.codecName}`);
+    }
+    if (probe.alphaMode === false) {
+      issues.push('transparent export is missing alpha_mode=1');
+    }
   }
   return issues;
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  isGraphicReel,
   MAX_TIMELINE_LANES,
   resolvedAudioLanes,
   resolvedMediaLanes,
@@ -87,6 +88,7 @@ export function Timeline({
 }) {
   const durationMs = useEditor((s) => s.project?.durationMs ?? 0);
   const hasVideo = useEditor((s) => Boolean(s.project?.video));
+  const graphicOnly = useEditor((s) => isGraphicReel(s.project));
   const stockMediaLanesRaw = useEditor((s) => s.project?.stockMediaLanes ?? EMPTY_LANES);
   const stockAudioLanesRaw = useEditor((s) => s.project?.stockAudioLanes ?? EMPTY_LANES);
   const stockOverlays = useEditor((s) => s.project?.stockOverlays ?? EMPTY_OVERLAYS);
@@ -117,8 +119,8 @@ export function Timeline({
   );
 
   const layout = useMemo(
-    () => timelineLayout(hasVideo, mediaLanes.length, audioLanes.length),
-    [hasVideo, mediaLanes.length, audioLanes.length],
+    () => timelineLayout(hasVideo, mediaLanes.length, audioLanes.length, graphicOnly),
+    [hasVideo, mediaLanes.length, audioLanes.length, graphicOnly],
   );
 
   const trackRows = useMemo<DisplayTrackRow[]>(() => {
@@ -157,14 +159,16 @@ export function Timeline({
         canAdd: lane.index === 0 && mediaLanes.length < MAX_TIMELINE_LANES,
       });
     });
-    push({ key: 'words', label: 'Words', geom: layout.rows.words, icon: Type });
-    push({
-      key: 'voice',
-      label: 'Voice',
-      geom: layout.rows.voice,
-      icon: AudioLines,
-      tone: 'text-voice',
-    });
+    if (!graphicOnly) {
+      push({ key: 'words', label: 'Words', geom: layout.rows.words, icon: Type });
+      push({
+        key: 'voice',
+        label: 'Voice',
+        geom: layout.rows.voice,
+        icon: AudioLines,
+        tone: 'text-voice',
+      });
+    }
     push({
       key: 'audio',
       label: 'Sound',
@@ -187,7 +191,7 @@ export function Timeline({
       });
     });
     return list;
-  }, [hasVideo, layout, mediaLanes, audioLanes]);
+  }, [hasVideo, graphicOnly, layout, mediaLanes, audioLanes]);
 
   useEffect(() => {
     const el = areaRef.current;
@@ -414,6 +418,7 @@ export function Timeline({
               bucketMs={bucketMs}
               ready={widthPx > 0}
               hasVideo={hasVideo}
+              graphicOnly={graphicOnly}
               mediaLanes={mediaLanes}
               audioLanes={audioLanes}
               layout={layout}
@@ -466,6 +471,7 @@ function TimeArea({
   bucketMs,
   ready,
   hasVideo,
+  graphicOnly,
   mediaLanes,
   audioLanes,
   layout,
@@ -476,6 +482,7 @@ function TimeArea({
   bucketMs: number;
   ready: boolean;
   hasVideo: boolean;
+  graphicOnly: boolean;
   mediaLanes: readonly TimelineLane[];
   audioLanes: readonly TimelineLane[];
   layout: TimelineLayoutResult;
@@ -521,12 +528,16 @@ function TimeArea({
               </Row>
             );
           })}
-          <Row geom={layout.rows.words} label="Words">
-            <WordsTrack />
-          </Row>
-          <Row geom={layout.rows.voice} label="Voice">
-            <VoiceTrack peaks={peaks} bucketMs={bucketMs} />
-          </Row>
+          {!graphicOnly && (
+            <>
+              <Row geom={layout.rows.words} label="Words">
+                <WordsTrack />
+              </Row>
+              <Row geom={layout.rows.voice} label="Voice">
+                <VoiceTrack peaks={peaks} bucketMs={bucketMs} />
+              </Row>
+            </>
+          )}
           <Row geom={layout.rows.audio} label="Audio">
             <AudioTrack />
           </Row>

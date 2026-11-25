@@ -62,13 +62,11 @@ describe('parseRemoteConfig', () => {
     const cfg = parseRemoteConfig({
       routing_slots_detect_device_max_words: '250',
       routing_overrides: '{"edit.patch":"ONLY_IN_CLOUD"}',
-      flag_tier2: 'true',
       flag_auto_fill: 'false',
       free_credits: '30',
       judge_credits: '1000',
       daily_budget_credits: '5',
       kill_switch: 'true',
-      custom_provider: 'claude',
       model_fast: 'fast-x',
       model_strong: 'strong-x',
       model_film_build: 'film-x',
@@ -91,13 +89,11 @@ describe('parseRemoteConfig', () => {
     expect(cfg).toEqual({
       routingSlotsDetectDeviceMaxWords: 250,
       routingOverrides: { 'edit.patch': 'ONLY_IN_CLOUD' },
-      flagTier2: true,
       flagAutoFill: false,
       freeCredits: 30,
       judgeCredits: 1000,
       dailyBudgetCredits: 5,
       killSwitch: true,
-      customProvider: 'claude',
       modelFast: 'fast-x',
       modelStrong: 'strong-x',
       modelFilmBuild: 'film-x',
@@ -140,9 +136,9 @@ describe('parseRemoteConfig', () => {
   });
 
   // Spec 13: each new key falls back alone.
-  it('has the credit defaults of spec 13 (30 spends an hour, 30 refunds and 1000 usage events a day)', () => {
+  it('has the credit defaults of spec 13 (30 spends an hour, 5 refunds and 1000 usage events a day)', () => {
     expect(APP_CONFIG_DEFAULTS.rateLimitCloudPerHour).toBe(30);
-    expect(APP_CONFIG_DEFAULTS.refundsPerDay).toBe(30);
+    expect(APP_CONFIG_DEFAULTS.refundsPerDay).toBe(5);
     expect(APP_CONFIG_DEFAULTS.usageEventsPerDay).toBe(1000);
     expect(APP_CONFIG_DEFAULTS.creditCosts).toEqual({});
   });
@@ -150,7 +146,7 @@ describe('parseRemoteConfig', () => {
   it.each([
     ['rate_limit_cloud_per_hour', 'lots', 'rateLimitCloudPerHour', 30],
     ['rate_limit_cloud_per_hour', '-2', 'rateLimitCloudPerHour', 30],
-    ['refunds_per_day', '1.5', 'refundsPerDay', 30],
+    ['refunds_per_day', '1.5', 'refundsPerDay', 5],
     ['usage_events_per_day', '', 'usageEventsPerDay', 1000],
     ['credit_costs', '{not json', 'creditCosts', {}],
     ['credit_costs', '[1,2]', 'creditCosts', {}],
@@ -199,8 +195,6 @@ describe('parseRemoteConfig', () => {
     const cfg = parseRemoteConfig({
       judge_credits: 'lots',
       free_credits: '-3',
-      flag_tier2: 'yes',
-      custom_provider: 'gpt',
       routing_overrides: '{"x":"NOPE"}',
       model_fast: '   ',
       daily_budget_credits: '99',
@@ -208,8 +202,6 @@ describe('parseRemoteConfig', () => {
     });
     expect(cfg.judgeCredits).toBe(500);
     expect(cfg.freeCredits).toBe(15);
-    expect(cfg.flagTier2).toBe(false);
-    expect(cfg.customProvider).toBe('gemini');
     expect(cfg.routingOverrides).toEqual({});
     expect(cfg.modelFast).toBe(APP_CONFIG_DEFAULTS.modelFast);
     expect(cfg.dailyBudgetCredits).toBe(99);
@@ -229,13 +221,11 @@ describe('parseRemoteConfig', () => {
     const knownKeys = [
       'routing_slots_detect_device_max_words',
       'routing_overrides',
-      'flag_tier2',
       'flag_auto_fill',
       'free_credits',
       'judge_credits',
       'daily_budget_credits',
       'kill_switch',
-      'custom_provider',
       'model_fast',
       'model_strong',
       'model_film_build',

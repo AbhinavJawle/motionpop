@@ -2,7 +2,7 @@
 
 import type { StockAudioClip } from '@motionpop/schemas';
 import { Music2, Play, Plus, Scissors, Sparkles, X } from 'lucide-react';
-import { useMemo, useState, type PointerEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react';
 import { cn } from '@/lib/cn';
 import {
   MIN_STOCK_SPLIT_MS,
@@ -53,6 +53,9 @@ export function StockAudioTrack({
   const exec = useEditor((s) => s.exec);
   const setRail = useEditor((s) => s.setRail);
   const [drag, setDrag] = useState<DragPreview | null>(null);
+  const cleanupDragRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => () => cleanupDragRef.current?.(), []);
 
   const clips = useMemo(
     () => allClips.filter((c) => (c.track ?? 0) === laneIndex),
@@ -127,6 +130,14 @@ export function StockAudioTrack({
       }
     };
 
+    const cleanup = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      if (cleanupDragRef.current === cleanup) cleanupDragRef.current = null;
+    };
+    cleanupDragRef.current?.();
+    cleanupDragRef.current = cleanup;
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     window.addEventListener('pointercancel', onUp);

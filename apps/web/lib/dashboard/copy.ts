@@ -73,10 +73,10 @@ export const START_COPY = {
     'Upload a talking video or a voiceover, record one, or paste a script. Pip edits, captions and animates every word.',
   record: { title: 'Record', body: 'Your voice, in the moment.', cta: 'Start recording' },
   upload: {
-    title: 'Upload video or audio',
-    body: 'A talking video or a voiceover you already have.',
-    drop: 'Drop your video or audio, or browse',
-    formats: 'MP4, MOV, WebM · MP3, WAV, M4A',
+    title: 'Upload files',
+    body: 'Drop one or many — talking video, voiceover, B-roll & screenshots together.',
+    drop: 'Drop files, or browse',
+    formats: 'MP4, MOV, WebM · MP3, WAV, M4A · PNG, JPG',
     sample: 'Try a sample',
   },
   script: {

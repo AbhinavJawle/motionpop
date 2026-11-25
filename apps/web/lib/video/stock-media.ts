@@ -13,9 +13,11 @@ import {
   type MediaClip,
 } from '@motionpop/schemas';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
+import { getAuthSnapshot } from '@/lib/auth/auth-store';
 import { getAILogic } from '@/lib/firebase/client';
 import { putImage } from '@/lib/images/image-store';
 import { processImage, sha256Hex } from '@/lib/images/process';
+import { apiHeaders } from '@/lib/users/bootstrap-client';
 import type { StockMediaItem } from '@/app/api/media/stock/route';
 
 /**
@@ -36,15 +38,22 @@ export async function fetchStockMediaClip(
   const kind = opts.preferVideo === false ? 'photo' : 'video';
 
   try {
+    const auth = getAuthSnapshot();
+    const headers =
+      auth.status === 'signed-in' ? await apiHeaders(() => auth.user.getIdToken()) : undefined;
     const searchRes = await fetch(
       `/api/media/stock?q=${encodeURIComponent(q)}&kind=${kind}&orientation=${orientation}&limit=3`,
+      headers ? { headers } : undefined,
     );
     if (!searchRes.ok) return null;
     const payload = (await searchRes.json()) as { items?: StockMediaItem[] };
     const hit = payload.items?.[0];
     if (!hit) return null;
 
-    const blobRes = await fetch(`/api/media/stock?proxy=${encodeURIComponent(hit.url)}`);
+    const blobRes = await fetch(
+      `/api/media/stock?proxy=${encodeURIComponent(hit.url)}`,
+      headers ? { headers } : undefined,
+    );
     if (!blobRes.ok) return null;
     const blob = await blobRes.blob();
     if (blob.size < 1024) return null;

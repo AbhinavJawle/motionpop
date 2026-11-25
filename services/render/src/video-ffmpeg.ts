@@ -6,6 +6,7 @@ import {
   type VideoPunchIn,
   type VideoStageSegment,
 } from '@motionpop/schemas';
+import { demuxerForMedia } from './ffmpeg';
 
 export interface CompositeMediaClip {
   path: string;
@@ -106,7 +107,9 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
   const overlayDecoderArgs = args.overlayVideoPath.toLowerCase().endsWith('.webm')
     ? ['-c:v', 'libvpx-vp9']
     : [];
+  const srcDemuxer = demuxerForMedia(args.sourceVideoPath);
   const inputs: string[] = [
+    ...(srcDemuxer ? ['-f', srcDemuxer] : []),
     '-i',
     args.sourceVideoPath,
     ...overlayDecoderArgs,
@@ -135,9 +138,10 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
     if (!clipInputIdx.has(s.clipId)) {
       const clip = args.mediaClips[s.clipId]!;
       if (clip.isVideo) {
-        inputs.push('-stream_loop', '-1', '-i', clip.path);
+        const d = demuxerForMedia(clip.path);
+        inputs.push(...(d ? ['-f', d] : []), '-stream_loop', '-1', '-i', clip.path);
       } else {
-        inputs.push('-loop', '1', '-i', clip.path);
+        inputs.push('-f', 'image2', '-loop', '1', '-i', clip.path);
       }
       clipInputIdx.set(s.clipId, { idx: nextInputIndex, clip });
       nextInputIndex++;
@@ -209,23 +213,23 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
       `color=c=${ffHex(args.bgColor)}:s=${width}x${height}:r=${fps}:d=${sec(args.durationMs)}[vbg]`,
     );
 
-    const aRollLabelFor = new Map<string, string>();
+    const aRollLabelFor = new Map<VideoStageSegment, string>();
     if (aRollStages.length === 0) {
       filters.push(`[vzoom]nullsink`);
     } else if (aRollStages.length === 1) {
       filters.push(`[vzoom]null[vsrc0]`);
-      aRollLabelFor.set(aRollStages[0]!.id, 'vsrc0');
+      aRollLabelFor.set(aRollStages[0]!, 'vsrc0');
     } else {
       const splitOut = aRollStages.map((_, i) => `[vsrc${i}]`).join('');
       filters.push(`[vzoom]split=${aRollStages.length}${splitOut}`);
-      aRollStages.forEach((s, i) => aRollLabelFor.set(s.id, `vsrc${i}`));
+      aRollStages.forEach((s, i) => aRollLabelFor.set(s, `vsrc${i}`));
     }
 
     let canvas = 'vbg';
     let stepIdx = 0;
 
     const overlayARoll = (s: VideoStageSegment) => {
-      const srcLabel = aRollLabelFor.get(s.id);
+      const srcLabel = aRollLabelFor.get(s);
       if (!srcLabel) return;
       const lay = `vlay${stepIdx}`;
       const next = `vst${stepIdx}`;
@@ -295,23 +299,30 @@ export function buildVideoCompositeArgs(args: VideoCompositeArgs): string[] {
       const cropY = `max(0\\,min(ih-${bh}\\,round(ih*${fy.toFixed(3)}-${bh}/2)))`;
 
       const beatDurSec = sec(s.endMs - s.startMs);
-      const clipStartSec = sec(s.clipStartMs ?? 0);
+      const rawClipStartMs = s.clipStartMs ?? 0;
+      const wrappedStartMs =
+        info.clip.isVideo && info.clip.durationMs && info.clip.durationMs > 0
+          ? rawClipStartMs % info.clip.durationMs
+          : rawClipStartMs;
+      const clipStartSec = sec(wrappedStartMs);
+      // Keep PTS at 0 until after roundedCornerFilter so alphamerge aligns with the PTS=0 mask.
       const trimPart = info.clip.isVideo
-        ? `trim=start=${clipStartSec}:duration=${beatDurSec},setpts=PTS-STARTPTS+${sec(s.startMs)}/TB,`
-        : `trim=duration=${beatDurSec},setpts=PTS-STARTPTS+${sec(s.startMs)}/TB,`;
+        ? `trim=start=${clipStartSec}:duration=${beatDurSec},setpts=PTS-STARTPTS,`
+        : `trim=duration=${beatDurSec},setpts=PTS-STARTPTS,`;
 
       const borderPad = mBox.framed ? `,drawbox=x=0:y=0:w=iw:h=ih:color=0x262938@0.9:t=4` : '';
       const radiusPx =
         mBox.radiusFrac > 0 ? Math.round(mBox.radiusFrac * Math.min(width, height)) : 0;
-      const rawLay = radiusPx >= 4 ? `mraw${stepIdx}` : lay;
+      const rawLay = radiusPx >= 4 ? `mraw${stepIdx}` : `mpre${stepIdx}`;
+      const maskLay = `mmask${stepIdx}`;
       const mediaPrep =
         `[${rawStream}]${trimPart}fps=${fps},` +
         `scale=${zw}:${zh}:force_original_aspect_ratio=increase,` +
         `crop=${bw}:${bh}:${cropX}:${cropY},setsar=1${borderPad}[${rawLay}]`;
       const mediaFinal =
         radiusPx >= 4
-          ? `${mediaPrep};${roundedCornerFilter(rawLay, lay, bw, bh, radiusPx, fps, `m${stepIdx}`)}`
-          : mediaPrep;
+          ? `${mediaPrep};${roundedCornerFilter(rawLay, maskLay, bw, bh, radiusPx, fps, `m${stepIdx}`)};[${maskLay}]setpts=PTS-STARTPTS+${sec(s.startMs)}/TB[${lay}]`
+          : `${mediaPrep};[${rawLay}]setpts=PTS-STARTPTS+${sec(s.startMs)}/TB[${lay}]`;
 
       filters.push(
         `${mediaFinal};` +

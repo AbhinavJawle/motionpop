@@ -2,9 +2,9 @@
 // scene and fills it, asking for real pictures (logos, sites, illustrations, photos) wherever the
 // speaker names or describes something concrete. The engine does all of the craft. Version: v4 (v3 + the optional RECIPE block).
 import { REEL_ICONS, type ReelLook } from '@motionpop/schemas';
-import { recipeBlock, type ReelDirectBrief } from './brief';
+import { recipeBlock, styleCraftDirection, type ReelDirectBrief } from './brief';
 
-export const REEL_DIRECT_PROMPT_VERSION = 'v5';
+export const REEL_DIRECT_PROMPT_VERSION = 'v6';
 
 /** Layouts and templates in the director's language (shared with `reel.note`, spec 29). */
 export const REEL_LAYOUTS_AND_TEMPLATES = `LAYOUTS
@@ -123,18 +123,26 @@ export function reelDirectPromptV3(i: {
   frameTimesMs?: readonly number[];
   /** The creator's recipe and choices (spec 39 R3.5). */
   brief?: ReelDirectBrief | undefined;
+  /** True for voiceover-only projects (no speaker footage). */
+  noVideo?: boolean | undefined;
 }): string {
   const lines = i.words.map(([idx, ms, text]) => `${idx}@${(ms / 1000).toFixed(2)} ${text}`);
   const frames = i.frameTimesMs ?? [];
-  const seen = frames.length
-    ? `\nKeyframes attached: ${frames.length} images, in order, taken at ${frames
-        .map((ms, k) => `#${k} ${(ms / 1000).toFixed(1)} s`)
-        .join(', ')}.`
-    : '\nNo keyframes attached: assume a talking head centred in the frame (faces: []).';
-  return `Look: ${i.look} (default layout: ${i.look === 'mono' ? 'split' : 'card'}).
+  const seen = i.noVideo
+    ? '\nVOICEOVER ONLY (no speaker video): use layout "full" on EVERY scene. Never use "split", "card", "speaker", "punch", "cta", or "none" templates — every beat must be a visually arresting full-frame graphic (lean heavily on concrete "image" illustrations/photos, "logo"/"logos", "website", "chart", "flow", "compare", and "counter" — keep pure text cards under 30% so it feels like a Vox/editorial visual essay, not slides).'
+    : frames.length
+      ? `\nKeyframes attached: ${frames.length} images, in order, taken at ${frames
+          .map((ms, k) => `#${k} ${(ms / 1000).toFixed(1)} s`)
+          .join(', ')}.`
+      : '\nNo keyframes attached: assume a talking head centred in the frame (faces: []).';
+  const defaultLayout = i.noVideo ? 'full' : i.look === 'mono' ? 'split' : 'card';
+  const craftBlock = i.brief
+    ? `\n\n${styleCraftDirection({ styleId: i.brief.style, customStyle: i.brief.notes })}\n\n${recipeBlock(i.brief)}`
+    : '';
+  return `Look: ${i.look} (default layout: ${defaultLayout}).
 Duration: ${(i.durationMs / 1000).toFixed(1)} s.${seen}
 Words: ${i.words.length} (index@seconds word):
-${lines.join('\n')}${i.brief ? `\n\n${recipeBlock(i.brief)}` : ''}
+${lines.join('\n')}${craftBlock}
 
 Write the story, then plan the reel.`;
 }

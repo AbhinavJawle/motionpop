@@ -134,7 +134,7 @@ const ROUTING_ROWS: readonly RoutingRow[] = [
     job: 'Full template rewrites & bespoke sandboxed custom motion scenes on reels',
     mode: 'ONLY_IN_CLOUD',
     model: cfg.modelStrong,
-    cost: `1 cr / +${costOf('custom', 1, cfg)} cr`,
+    cost: `${costOf('edit', 1, cfg)} cr / +${costOf('custom', 1, cfg)} cr`,
     guardrail: 'lintCustom + opaque sandbox DOM critic + repair',
   },
   {
@@ -142,7 +142,7 @@ const ROUTING_ROWS: readonly RoutingRow[] = [
     job: 'Multi-step whole-timeline Pip plans + multimodal Media Bin B-roll indexing',
     mode: 'ONLY_IN_CLOUD',
     model: cfg.modelStrong,
-    cost: '2 cr + gens',
+    cost: `${costOf('pip-plan', 1, cfg)} cr + gens`,
     guardrail: 'Inspectable plan card + single composite undo',
   },
   {
@@ -230,15 +230,15 @@ const FRANKENSTEIN_ORGANS = [
     num: '05',
     tag: 'DUAL ENGINES',
     bg: '#8dbceb',
-    title: 'Reel Engine v3 + Film Engine',
-    body: '21 strict vertical reel templates (4 layouts, 5 captions) + 9 responsive explainer scenes & 8 OFL Style Packs — pure seek(tMs) JSON→HTML, zero GSAP.',
+    title: 'Reel Engine v3 + Bespoke Film Kit',
+    body: '21 vertical & responsive reel templates (4 layouts, 5 captions) + 6 flagship Film Kit motion archetypes upgrading hero scenes across Talking-Head Reels, Voiceover/Script Reels & Standalone Graphics (16:9, 9:16, 1:1) with 12 Studio Looks.',
   },
   {
     num: '06',
     tag: '4-STAGE QA',
     bg: '#fed7aa',
     title: 'Static Lint → Sandbox → Vision QA',
-    body: 'lintCustom (bans fetch/Date.now/random/timers) → @hyperframes/lint → opaque sandbox DOM critic (overflow, face-safe, contrast) → multimodal film.vision-critic repair.',
+    body: 'Static code safety checks → HyperFrames lint → opaque sandbox DOM critic (overflow, face-safe, contrast) → multimodal visual QA repair.',
   },
   {
     num: '07',
@@ -258,29 +258,29 @@ const FRANKENSTEIN_ORGANS = [
     num: '09',
     tag: 'SKILLS DB',
     bg: '#fef08a',
-    title: 'Firestore-Synced SKILL.md',
-    body: '5 Reel Recipes + 8 Slot Skills in Git, plus custom user & GitHub SKILL.md imports synced live with Firestore users/{uid}/skills/{id} straight into the directors.',
+    title: 'Open-Source & Custom SKILL.md',
+    body: '8 built-in Reel Recipes, 16 curated open-source community SKILL.md director skills with GitHub attribution, 8 Slot Skills, plus custom Markdown & GitHub imports synced to your account.',
   },
   {
     num: '10',
     tag: '7 FIREBASE',
     bg: '#ddd6fe',
     title: 'End-to-End Firebase Backbone',
-    body: 'AI Logic (default), App Check (reCAPTCHA Enterprise + limited-use), Auth, Firestore (skills DB + atomic credit ledger), Storage, Remote Config & App Hosting.',
+    body: 'AI Logic (default), App Check (reCAPTCHA Enterprise + limited-use), Auth, Firestore (projects, shared & personal skills, atomic credit ledger), Storage, Remote Config & App Hosting.',
   },
   {
     num: '11',
     tag: 'OPTIONAL BYOK',
     bg: '#ede9fe',
     title: 'Zero-Server Browser Gemini Key',
-    body: 'Power-user option in Settings: key stays in localStorage, hits Google AI Studio via x-goog-api-key, keeps multimodal Chrome Nano first at 0 Motionpop credits.',
+    body: 'Power-user option in Settings: key stays in localStorage, hits Google AI Studio via x-goog-api-key with live model discovery (pick any available Gemini model per role), keeping Chrome Nano first at 0 Motionpop credits.',
   },
   {
     num: '12',
     tag: 'CLOUD RUN',
     bg: '#ff8a5c',
     title: 'HyperFrames Producer + FFmpeg',
-    body: 'services/render steps headless Chromium over the exact preview HTML at 30 fps (≤ 1.02% diff) and composites A-roll, B-roll, alpha overlays & audio → MP4 / WebM.',
+    body: 'Cloud Run steps headless Chromium over the exact preview HTML at 30 fps (≤ 1.02% diff) and composites A-roll, B-roll, transparent alpha overlays & audio → MP4 / Alpha WebM.',
   },
 ] as const;
 
@@ -288,10 +288,10 @@ const FIREBASE_SEVEN = [
   ['Firebase AI Logic', 'Default hybrid SDK (AgentPlatformBackend("global") + limited-use App Check) driving 10 Chrome Nano tasks + cloud Gemini'],
   ['App Check', 'reCAPTCHA Enterprise + limited-use tokens enforced across AI Logic, Firestore, Storage & signed API routes'],
   ['Authentication', 'Google Sign-In & Email Link with server-side ID token checks on every spend, Lyria music & render route'],
-  ['Cloud Firestore', 'Projects, 200-step versions, bidirectional user SKILL.md DB (users/{uid}/skills/{id}), usage logs & server-only atomic credit ledger'],
+  ['Cloud Firestore', 'Projects, 200-step versions, shared open-source & personal SKILL.md library, usage logs & server-only atomic credit ledger'],
   ['Cloud Storage', 'Raw A-roll, cleaned 24 kHz WAVs, Media Bin B-roll, Vertex AI Lyria tracks, MP4/WebM renders & /share/[id] streams'],
-  ['Remote Config', 'Live routing_overrides, word thresholds, model IDs, credit prices, custom_provider & emergency kill_switch with zero redeploy'],
-  ['App Hosting', 'Next.js 16 production web runtime paired seamlessly with Cloud Run services/render & Secret Manager'],
+  ['Remote Config', 'Live routing overrides, word thresholds, model IDs, credit prices & emergency kill switch with zero redeploy'],
+  ['App Hosting', 'Next.js 16 production web runtime paired seamlessly with Cloud Run rendering & Secret Manager'],
 ] as const;
 
 const KIRO_SURFACES = [

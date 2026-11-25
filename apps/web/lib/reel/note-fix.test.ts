@@ -658,3 +658,100 @@ describe('runReelNoteFix: credits never stick on an unexpected throw (spec 30 re
     expect(t.credits.balance()).toBe(50);
   });
 });
+
+describe('runReelNoteFix: 16:9 graphics-only and no-video reels', () => {
+  it('composes custom graphics using the real 16:9 stage dimensions (1280x720) and full layout', async () => {
+    const t = composeSetup({});
+    const base = t.store.getState().project!;
+    t.store.getState().load(
+      EditorProjectSchema.parse({
+        ...base,
+        format: '16:9',
+        reel: {
+          v: 1,
+          look: 'mono',
+          focus: { x: 0.5, y: 0.32 },
+          graphicOnly: true,
+          captions: false,
+          scenes: [
+            {
+              id: 'r1',
+              startMs: 0,
+              endMs: 3000,
+              layout: 'full',
+              content: { template: 'headline', title: 'Old headline' },
+              notes: [
+                {
+                  id: 'n1',
+                  tMs: 1200,
+                  shape: { kind: 'circle', points: [0.5, 0.5, 0.2, 0.2] },
+                  text: 'make a custom animated diagram',
+                  status: 'open',
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const r = await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD);
+    expect(r).toMatchObject({ kind: 'applied', composed: true });
+    expect(t.seen[1]).toMatchObject({
+      layout: 'full',
+      area: { w: 1280, h: 720 },
+    });
+    expect(t.inspect.mock.calls[0]![0]).toMatchObject({
+      width: 1280,
+      height: 720,
+      format: '16:9',
+    });
+  });
+
+  it('never lets an AI note switch a graphicOnly scene to speaker layout or blank none template', async () => {
+    const speakerPunchAnswer = {
+      action: 'edit',
+      message: 'Turned into punch text.',
+      layout: 'speaker',
+      graphic: { template: 'punch', top: 'BIG', text: 'NEWS' },
+    };
+    const t = setup(speakerPunchAnswer);
+    const base = t.store.getState().project!;
+    t.store.getState().load(
+      EditorProjectSchema.parse({
+        ...base,
+        format: '16:9',
+        reel: {
+          v: 1,
+          look: 'mono',
+          focus: { x: 0.5, y: 0.32 },
+          graphicOnly: true,
+          captions: false,
+          scenes: [
+            {
+              id: 'r1',
+              startMs: 0,
+              endMs: 3000,
+              layout: 'full',
+              content: { template: 'headline', title: 'Old headline' },
+              notes: [
+                {
+                  id: 'n1',
+                  tMs: 1200,
+                  shape: { kind: 'circle', points: [0.5, 0.5, 0.2, 0.2] },
+                  text: 'change text to big news',
+                  status: 'open',
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const r = await runReelNoteFix(t.deps, 'r1', 'n1', CLOUD);
+    expect(r).toMatchObject({ kind: 'applied' });
+    expect(t.scene().layout).toBe('full');
+    expect(t.scene().content).toMatchObject({ template: 'headline', kicker: 'BIG', title: 'NEWS' });
+  });
+});

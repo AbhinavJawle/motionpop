@@ -430,7 +430,7 @@ export function ReadyView({
               <Captions className="size-3.5 text-violet-icon" strokeWidth={1.75} aria-hidden />
               .srt captions
             </span>
-            <span className="text-[10px] leading-3.5 text-text-3">YouTube &amp; editors</span>
+            <span className="text-[10px] leading-3.5 text-text-3">Video platforms &amp; editors</span>
           </button>
 
           <button
@@ -458,8 +458,21 @@ export function ReadyView({
             disabled={!thumb}
             onClick={() => {
               if (!thumb) return;
-              startDownload(thumb, sanitizeFilename(view.title, 'jpg'), { keepBlob: true });
-              toast.success('Downloaded cover image');
+              const name = sanitizeFilename(view.title, 'jpg');
+              if (thumb.startsWith('blob:') || thumb.startsWith('data:')) {
+                startDownload(thumb, name, { keepBlob: true });
+                toast.success('Downloaded cover image');
+                return;
+              }
+              void fetch(thumb)
+                .then((r) => (r.ok ? r.blob() : Promise.reject(new Error(String(r.status)))))
+                .then((blob) => {
+                  startDownload(URL.createObjectURL(blob), name);
+                  toast.success('Downloaded cover image');
+                })
+                .catch(() => {
+                  window.open(thumb, '_blank', 'noopener,noreferrer');
+                });
             }}
             className="flex flex-col items-start gap-0.5 rounded-[8px] border border-dialog-line bg-white/[0.03] px-2.5 py-2 text-left transition-colors hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-45"
           >

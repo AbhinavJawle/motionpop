@@ -216,10 +216,36 @@ export function compileProject(input: CompileInput, assets: CompileAssets): stri
   // behind the `<hyperframes-player>` iframe over the live `<video>` stage.
   const colorSchemeHead = opaque ? '' : '\n<meta name="color-scheme" content="dark">';
   const colorSchemeCss = opaque ? '' : '\n  html { color-scheme: dark; }';
+  // Strict CSP: compositions are self-contained and never touch external networks. In browser
+  // preview (`mode !== 'render'`), map assets in `input.images` may reference the app's own
+  // `/api/composition/maps/` route over HTTP(S).
+  const mapOrigins = new Set<string>();
+  if (input.mode !== 'render' && input.images) {
+    for (const ref of Object.values(input.images)) {
+      if (typeof ref.src === 'string' && /^https?:\/\//i.test(ref.src)) {
+        try {
+          const u = new URL(ref.src);
+          if (u.pathname.startsWith('/api/composition/maps/')) {
+            mapOrigins.add(`${u.origin}/api/composition/maps/`);
+          }
+        } catch {
+          // ignore invalid URL
+        }
+      }
+    }
+  }
+  const mapList = [...mapOrigins].join(' ');
+  const mapsSuffix = mapList ? ` ${mapList}` : '';
+  const csp =
+    "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; " +
+    `img-src 'self' data: blob:${mapsSuffix}; media-src 'self' data: blob:; ` +
+    `font-src 'self' data:; connect-src ${mapList || "'none'"}; ` +
+    "frame-src 'none'; object-src 'none'; form-action 'none'; base-uri 'none'";
   return `<!doctype html>
 <html>
 <head>
-<meta charset="utf-8">${colorSchemeHead}
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="${escapeAttr(csp)}">${colorSchemeHead}
 <style>
 ${fontFaceCss(families, assets.fonts)}${colorSchemeCss}
   html, body { margin: 0; background: ${pageBg}; }

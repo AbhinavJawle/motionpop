@@ -66,8 +66,8 @@ export const canFinish = (r: Pick<RenderDoc, 'status'>): boolean => canTransitio
 
 export const QUEUED_STALL_MS = 5 * 60_000;
 export const HEARTBEAT_STALL_MS = 90_000;
-/** The 20-minute task timeout plus 2 minutes. */
-export const ACTIVE_STALL_MS = 22 * 60_000;
+/** The 150-minute Cloud Run task timeout (`deploy.sh`) plus 2 minutes margin. */
+export const ACTIVE_STALL_MS = 152 * 60_000;
 
 /**
  * True when a render is queued for more than 5 minutes, or active with a heartbeat older than

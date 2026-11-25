@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { parseByteRange } from '@/lib/renders/byte-range';
 import { downloadRender } from '@/lib/renders/handlers.server';
 import { bucket, downloadDeps } from '@/lib/renders/deps.server';
 import { renderMode } from '@/lib/renders/mode.server';
@@ -26,10 +27,42 @@ export async function GET(
     const result = await downloadRender(downloadDeps(mode), caller.uid, id, { stream });
     if ('stream' in result) {
       const file = bucket().file(result.stream.path);
+      const [meta] = await file.getMetadata();
+      const total = Number(meta.size ?? 0);
+      if (total > 0) {
+        const range = parseByteRange(req.headers.get('range'), total);
+        if (range === 'unsatisfiable') {
+          return new Response(null, {
+            status: 416,
+            headers: {
+              'content-range': `bytes */${total}`,
+              'accept-ranges': 'bytes',
+              'cache-control': 'private, no-store',
+            },
+          });
+        }
+        if (range) {
+          return new Response(
+            Readable.toWeb(file.createReadStream({ start: range.start, end: range.end })) as ReadableStream,
+            {
+              status: 206,
+              headers: {
+                'content-type': result.stream.contentType,
+                'accept-ranges': 'bytes',
+                'content-range': `bytes ${range.start}-${range.end}/${total}`,
+                'content-length': String(range.end - range.start + 1),
+                'cache-control': 'private, no-store',
+              },
+            },
+          );
+        }
+      }
       return new Response(Readable.toWeb(file.createReadStream()) as ReadableStream, {
         headers: {
           'content-type': result.stream.contentType,
           'content-disposition': result.stream.disposition,
+          'accept-ranges': 'bytes',
+          ...(total > 0 ? { 'content-length': String(total) } : {}),
           'cache-control': 'private, no-store',
         },
       });

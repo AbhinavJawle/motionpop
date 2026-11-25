@@ -1,5 +1,6 @@
 import 'server-only';
 import { z } from 'zod';
+import { readResponseBytesWithLimit } from '@/lib/media/stock.server';
 
 /**
  * Uncommon Ear API client (https://uncommonear.com/docs/api):
@@ -343,9 +344,13 @@ export async function fetchUncommonEarTrackAudio(
         continue;
       }
       const len = Number(audioRes.headers.get('content-length') ?? 0);
-      if (len > MAX_AUDIO_BYTES) continue;
-      const bytes = await audioRes.arrayBuffer();
-      if (bytes.byteLength === 0 || bytes.byteLength > MAX_AUDIO_BYTES) continue;
+      if (len > MAX_AUDIO_BYTES) {
+        await audioRes.body?.cancel().catch(() => undefined);
+        continue;
+      }
+      const chunked = await readResponseBytesWithLimit(audioRes, MAX_AUDIO_BYTES);
+      if (!chunked || chunked.byteLength === 0) continue;
+      const bytes = chunked.slice().buffer;
 
       const ext = contentType.includes('wav')
         ? 'wav'
@@ -354,7 +359,7 @@ export async function fetchUncommonEarTrackAudio(
           : contentType.includes('flac')
             ? 'flac'
             : 'mp3';
-      const slug = (track.title || track.id)
+      const slug = (track.title || trackId)
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-|-$/g, '')
@@ -363,7 +368,7 @@ export async function fetchUncommonEarTrackAudio(
         bytes,
         contentType:
           !contentType || contentType.includes('octet-stream') ? 'audio/mpeg' : contentType,
-        filename: `${slug || track.id}.${ext}`,
+        filename: `${slug || 'track'}.${ext}`,
         creditLine: track.credit_line,
         title: track.title,
       };

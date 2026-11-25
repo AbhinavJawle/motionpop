@@ -5,6 +5,9 @@ import {
   readBillingConfig,
 } from '@/lib/billing/dodo.server';
 import { adminDb } from '@/lib/firebase/admin.server';
+import { readBodyText } from '@/lib/renders/route-support.server';
+
+const MAX_WEBHOOK_BYTES = 256 * 1024;
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -34,7 +37,11 @@ export async function POST(req: Request): Promise<Response> {
     return Response.json({ error: 'Billing configuration mismatch' }, { status: 503 });
   }
 
-  const rawBody = await req.text();
+  const bodyRead = await readBodyText(req, MAX_WEBHOOK_BYTES);
+  if ('tooLarge' in bodyRead) {
+    return Response.json({ error: 'Webhook payload too large' }, { status: 413 });
+  }
+  const rawBody = bodyRead.text;
   const webhookId = req.headers.get('webhook-id') ?? '';
   const webhookSignature = req.headers.get('webhook-signature') ?? '';
   const webhookTimestamp = req.headers.get('webhook-timestamp') ?? '';

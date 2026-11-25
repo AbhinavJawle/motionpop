@@ -1,9 +1,26 @@
-// Reel engine (spec 25): the two house looks. All sizes in this engine are logical px on a
-// 720 × 1280 stage; the compiler scales the stage to the output resolution.
-import type { ReelBg, ReelLook } from '@motionpop/schemas';
+// Reel engine (spec 25): the two house looks. All sizes in this engine are logical px on the
+// stage (`stageSizeForFormat`); the compiler scales the stage to the output resolution.
+import type { Format, ReelBg, ReelLook } from '@motionpop/schemas';
 
 export const STAGE_W = 720;
 export const STAGE_H = 1280;
+
+export interface StageSize {
+  w: number;
+  h: number;
+}
+
+/** Logical stage dimensions per aspect ratio (short side is always 720 px so typography scales consistently). */
+export function stageSizeForFormat(format?: Format): StageSize {
+  switch (format) {
+    case '16:9':
+      return { w: 1280, h: 720 };
+    case '1:1':
+      return { w: 720, h: 720 };
+    default:
+      return { w: STAGE_W, h: STAGE_H };
+  }
+}
 
 export interface Palette {
   bg: string;
@@ -168,7 +185,19 @@ export interface Area {
   h: number;
 }
 
-export function graphicArea(look: LookTokens, layout: 'split' | 'card' | 'full' | 'speaker'): Area {
+export function graphicArea(
+  look: LookTokens,
+  layout: 'split' | 'card' | 'full' | 'speaker',
+  stage: StageSize = { w: STAGE_W, h: STAGE_H },
+  opts: { noVideo?: boolean; captions?: boolean } = {},
+): Area {
+  const isDefaultVertical = stage.w === STAGE_W && stage.h === STAGE_H;
+  if (opts.noVideo || !isDefaultVertical) {
+    // No speaker footage (or non-9:16 format): graphics own the full stage, with breathing room at
+    // the bottom when voiceover captions are turned on.
+    const capReserve = opts.captions ? (stage.h >= 1000 ? 150 : 108) : 0;
+    return { x: 0, y: 0, w: stage.w, h: Math.max(360, stage.h - capReserve) };
+  }
   switch (layout) {
     case 'split':
       return { x: 0, y: 0, w: STAGE_W, h: STAGE_H / 2 };

@@ -19,7 +19,9 @@ import {
 import { Cloud, FileText, FolderGit2, Loader2, Sparkles, Upload, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { btn, paper, poster } from '@/components/paper/kit';
+import { getAuthSnapshot } from '@/lib/auth/auth-store';
 import { cn } from '@/lib/cn';
+import { apiHeaders } from '@/lib/users/bootstrap-client';
 
 type InputTab = 'paste' | 'github' | 'upload';
 
@@ -118,9 +120,12 @@ export function SkillImportModal({
     setStatus(null);
     setFetching(true);
     try {
+      const auth = getAuthSnapshot();
+      const authHeaders =
+        auth.status === 'signed-in' ? await apiHeaders(() => auth.user.getIdToken()) : undefined;
       const res = await fetch('/api/skills/import', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...(authHeaders ?? {}), 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: trimmed }),
       });
       const data = (await res.json().catch(() => null)) as
@@ -465,7 +470,7 @@ export function SkillImportModal({
               <Cloud className="mt-0.5 size-3.5 shrink-0" strokeWidth={2} aria-hidden />
               <span>
                 {cloudSynced
-                  ? 'Syncs to Firestore (users/{uid}/skills) + local browser cache.'
+                  ? 'Syncs to your Motionpop account and local browser cache.'
                   : 'Saved in this browser; signs in to sync to Firestore.'}{' '}
                 Art direction &amp; motion rules inject into our AI directors; external CLI/Python
                 scripts are stripped.

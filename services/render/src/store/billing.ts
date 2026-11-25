@@ -7,6 +7,7 @@ import {
   UserDocSchema,
   disputeRestoreTxId,
   disputeReversalTxId,
+  isSafeId,
   purchaseTxId,
   refundReversalTxId,
   type BillingEnvironment,
@@ -39,6 +40,7 @@ export const BillingPaymentRecordSchema = z.object({
   uid: z.string().min(1).max(128),
   paymentId: DodoResourceIdSchema,
   credits: z.number().int().positive(),
+  revokedCredits: z.number().int().nonnegative().optional(),
   items: z.array(PurchasedLineItemSchema).min(1),
   dodoCustomerId: z.string().min(1).max(128).optional(),
   environment: BillingEnvironmentSchema,
@@ -71,6 +73,9 @@ export function grantPurchasedCredits(
   db: Firestore,
   input: GrantPurchaseInput,
 ): Promise<GrantPurchaseResult> {
+  if (!isSafeId(input.uid)) {
+    throw new RangeError('Invalid user id');
+  }
   const safeWebhookId = DodoResourceIdSchema.parse(input.webhookId);
   const safePaymentId = DodoResourceIdSchema.parse(input.paymentId);
   const txId = purchaseTxId(safePaymentId);
@@ -221,8 +226,22 @@ export function revokePurchasedCredits(
     const user = UserDocSchema.parse(userSnap.data());
     const existingPurchase = buyTxSnap?.exists ? CreditTxSchema.parse(buyTxSnap.data()) : null;
     const existingReversal = revTxSnap?.exists ? CreditTxSchema.parse(revTxSnap.data()) : null;
+    const at = FieldValue.serverTimestamp();
 
-    const creditsToRevoke = input.creditsToRevoke ?? payment.credits;
+    const alreadyRevoked = payment.revokedCredits ?? 0;
+    const remainingRevocable = Math.max(0, payment.credits - alreadyRevoked);
+    if (remainingRevocable === 0) {
+      t.create(webhookRef, {
+        webhookId: safeWebhookId,
+        eventType: input.eventType,
+        paymentId: safePaymentId,
+        uid: payment.uid,
+        outcome: 'replay',
+        processedAt: at,
+      });
+      return { applied: false, revoked: 0, balance: user.credits, reason: 'replay' };
+    }
+    const creditsToRevoke = Math.min(input.creditsToRevoke ?? payment.credits, remainingRevocable);
     const decision = decidePurchaseReversal({
       balance: user.credits,
       creditsToRevoke,
@@ -231,7 +250,6 @@ export function revokePurchasedCredits(
       webhookProcessed,
     });
 
-    const at = FieldValue.serverTimestamp();
     if (decision.kind === 'replay') {
       t.create(webhookRef, {
         webhookId: safeWebhookId,
@@ -246,6 +264,9 @@ export function revokePurchasedCredits(
     if (decision.kind === 'skip') {
       return { applied: false, revoked: 0, balance: decision.balance, reason: 'no-purchase' };
     }
+
+    const totalRevoked = Math.min(payment.credits, alreadyRevoked + decision.requested);
+    const fullyReversed = totalRevoked >= payment.credits;
 
     t.create(webhookRef, {
       webhookId: safeWebhookId,
@@ -263,8 +284,12 @@ export function revokePurchasedCredits(
       balanceAfter: decision.balanceAfter,
       at,
     });
+    t.update(paymentRef, {
+      revokedCredits: totalRevoked,
+    });
     t.update(userRef, {
       credits: decision.balanceAfter,
+      ...(fullyReversed && user.plan !== 'judge' ? { plan: 'free' } : {}),
       lastSeenAt: at,
     });
 
@@ -283,6 +308,7 @@ export interface RestoreDisputeResult {
   applied: boolean;
   restored: number;
   balance?: number;
+  reason?: 'replay' | 'no-reversal';
 }
 
 /**
@@ -305,8 +331,11 @@ export function restoreDisputedCredits(
   return db.runTransaction(async (t) => {
     const [whSnap, paySnap] = await t.getAll(webhookRef, paymentRef);
     const webhookProcessed = whSnap?.exists ?? false;
-    if (webhookProcessed || !paySnap?.exists) {
-      return { applied: false, restored: 0 };
+    if (webhookProcessed) {
+      return { applied: false, restored: 0, reason: 'replay' };
+    }
+    if (!paySnap?.exists) {
+      return { applied: false, restored: 0, reason: 'no-reversal' };
     }
     const payment = BillingPaymentRecordSchema.parse(paySnap.data());
     const userRef = db.collection('users').doc(payment.uid);
@@ -314,7 +343,7 @@ export function restoreDisputedCredits(
     const resTxRef = userRef.collection('credits').doc(resTxId);
 
     const [userSnap, revTxSnap, resTxSnap] = await t.getAll(userRef, revTxRef, resTxRef);
-    if (!userSnap?.exists) return { applied: false, restored: 0 };
+    if (!userSnap?.exists) return { applied: false, restored: 0, reason: 'no-reversal' };
     const user = UserDocSchema.parse(userSnap.data());
     const existingReversal = revTxSnap?.exists ? CreditTxSchema.parse(revTxSnap.data()) : null;
     const existingRestore = resTxSnap?.exists ? CreditTxSchema.parse(resTxSnap.data()) : null;
@@ -338,7 +367,12 @@ export function restoreDisputedCredits(
           processedAt: at,
         });
       }
-      return { applied: false, restored: 0, balance: decision.balance };
+      return {
+        applied: false,
+        restored: 0,
+        balance: decision.balance,
+        reason: decision.kind === 'skip' ? 'no-reversal' : 'replay',
+      };
     }
 
     t.create(webhookRef, {

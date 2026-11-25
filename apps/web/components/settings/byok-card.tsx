@@ -1,22 +1,33 @@
 'use client';
 
-import { testGeminiApiKey, type ByokModelMode } from '@motionpop/ai';
+import { listGeminiModels, type GeminiModelInfo } from '@motionpop/ai';
 import {
   CheckCircle2,
   ExternalLink,
   Eye,
   EyeOff,
   KeyRound,
+  RefreshCw,
   ShieldCheck,
   Trash2,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { clearByokKey, getByokKey, setByokKey, setByokModelMode, useByok } from '@/lib/ai/byok';
+import {
+  clearByokKey,
+  getByokKey,
+  setByokKey,
+  setByokModel,
+  setByokModelMode,
+  useByok,
+} from '@/lib/ai/byok';
 import { cn } from '@/lib/cn';
 import type { SettingsVariant } from './section-card';
 
 export const AI_STUDIO_KEY_URL = 'https://aistudio.google.com/apikey';
+
+const PRESET_BALANCED = '__preset__:balanced';
+const PRESET_FLASH = '__preset__:flash';
 
 type Feedback =
   | { kind: 'idle' }
@@ -30,11 +41,39 @@ type Feedback =
  * `x-goog-api-key` header, never persisted to Motionpop servers or Firestore.
  */
 export function ByokCard({ variant }: { variant: SettingsVariant }) {
-  const { active, maskedKey, modelMode } = useByok();
+  const { active, maskedKey, modelMode, customModel } = useByok();
   const [draft, setDraft] = useState('');
   const [reveal, setReveal] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>({ kind: 'idle' });
+  const [models, setModels] = useState<GeminiModelInfo[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
   const page = variant === 'page';
+
+  const loadModelsForKey = useCallback(async (key: string) => {
+    setLoadingModels(true);
+    try {
+      const res = await listGeminiModels(key);
+      if (res.ok) setModels(res.models);
+      return res;
+    } finally {
+      setLoadingModels(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    const key = getByokKey();
+    if (!key) return;
+    let cancelled = false;
+    void listGeminiModels(key).then((res) => {
+      if (!cancelled && res.ok) setModels(res.models);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active, maskedKey]);
+
+  const visibleModels = active ? models : [];
 
   const onSaveAndTest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,9 +83,9 @@ export function ByokCard({ variant }: { variant: SettingsVariant }) {
       return;
     }
     setFeedback({ kind: 'testing' });
-    const test = await testGeminiApiKey(candidate);
-    if (!test.ok) {
-      setFeedback({ kind: 'error', message: test.message });
+    const res = await loadModelsForKey(candidate);
+    if (!res.ok) {
+      setFeedback({ kind: 'error', message: res.message });
       return;
     }
     const saved = setByokKey(candidate);
@@ -58,7 +97,7 @@ export function ByokCard({ variant }: { variant: SettingsVariant }) {
     setReveal(false);
     setFeedback({
       kind: 'ok',
-      message: 'Verified & saved in this browser. Cloud Gemini runs now cost 0 Motionpop credits.',
+      message: `Verified & saved in this browser (${res.models.length} Gemini models available). Cloud Gemini runs now cost 0 Motionpop credits.`,
     });
   };
 
@@ -66,10 +105,13 @@ export function ByokCard({ variant }: { variant: SettingsVariant }) {
     const key = getByokKey();
     if (!key) return;
     setFeedback({ kind: 'testing' });
-    const res = await testGeminiApiKey(key);
+    const res = await loadModelsForKey(key);
     setFeedback(
       res.ok
-        ? { kind: 'ok', message: 'Key verified with Google AI Studio.' }
+        ? {
+            kind: 'ok',
+            message: `Key verified with Google AI Studio (${res.models.length} models available).`,
+          }
         : { kind: 'error', message: res.message },
     );
   };
@@ -78,15 +120,33 @@ export function ByokCard({ variant }: { variant: SettingsVariant }) {
     clearByokKey();
     setDraft('');
     setReveal(false);
+    setModels([]);
     setFeedback({
       kind: 'ok',
       message: 'Key removed. Switched back to Motionpop cloud credits & on-device AI.',
     });
   };
 
-  const onModeChange = (next: ByokModelMode) => {
-    setByokModelMode(next);
+  const selectValue = customModel
+    ? customModel
+    : modelMode === 'flash'
+      ? PRESET_FLASH
+      : PRESET_BALANCED;
+
+  const onSelectChange = (value: string) => {
+    if (value === PRESET_BALANCED) {
+      setByokModel(null);
+      setByokModelMode('balanced');
+    } else if (value === PRESET_FLASH) {
+      setByokModel(null);
+      setByokModelMode('flash');
+    } else {
+      setByokModel(value);
+    }
   };
+
+  const hasCustomOutsideList =
+    Boolean(customModel) && !visibleModels.some((m) => m.id === customModel);
 
   return (
     <div
@@ -226,40 +286,70 @@ export function ByokCard({ variant }: { variant: SettingsVariant }) {
       </form>
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] text-text-2">BYOK model preset</span>
-        <div
-          role="radiogroup"
-          aria-label="BYOK Gemini model preset"
-          className="inline-flex gap-1.5"
-        >
-          {(
-            [
-              ['balanced', 'Balanced (2.5 Pro + Flash)'],
-              ['flash', 'Fast / Free tier (2.5 Flash)'],
-            ] as const
-          ).map(([id, label]) => (
+        <label htmlFor="byok-model-select" className="text-[11px] text-text-2">
+          Gemini model
+        </label>
+        <div className="flex min-w-[220px] flex-1 items-center justify-end gap-1.5 sm:max-w-[340px]">
+          <select
+            id="byok-model-select"
+            aria-label="BYOK Gemini model"
+            value={selectValue}
+            onChange={(e) => onSelectChange(e.target.value)}
+            className={cn(
+              'min-w-0 flex-1 rounded-lg px-2.5 text-xs outline-none',
+              page
+                ? 'h-8 border-2 border-ink bg-paper text-ink focus:ring-2 focus:ring-flame'
+                : 'h-8 border border-white/12 bg-card text-text-1',
+            )}
+          >
+            <optgroup label="Auto presets">
+              <option value={PRESET_BALANCED}>Auto · Balanced (2.5 Pro + Flash)</option>
+              <option value={PRESET_FLASH}>Auto · Fast / Free tier (2.5 Flash)</option>
+            </optgroup>
+            {(visibleModels.length > 0 || hasCustomOutsideList) && (
+              <optgroup label="Available on your API key">
+                {hasCustomOutsideList && customModel && (
+                  <option value={customModel}>{customModel}</option>
+                )}
+                {visibleModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.displayName !== m.id ? `${m.displayName} (${m.id})` : m.id}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+          </select>
+          {active && (
             <button
-              key={id}
               type="button"
-              role="radio"
-              aria-checked={modelMode === id}
-              onClick={() => onModeChange(id)}
+              disabled={loadingModels}
+              onClick={() => {
+                const key = getByokKey();
+                if (key) void loadModelsForKey(key);
+              }}
+              aria-label="Refresh available Gemini models"
+              title="Refresh available Gemini models"
               className={cn(
-                'rounded-md px-2 py-1 text-[11px] font-medium transition-colors',
+                'inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors disabled:opacity-50',
                 page
-                  ? modelMode === id
-                    ? 'border-2 border-ink bg-ink text-paper'
-                    : 'border-2 border-ink bg-paper text-ink hover:bg-mist'
-                  : modelMode === id
-                    ? 'bg-violet-sel text-violet-ink'
-                    : 'bg-card text-text-2 hover:text-text',
+                  ? 'border-2 border-ink bg-paper text-ink hover:bg-mist'
+                  : 'border border-white/12 bg-card text-text-2 hover:text-text',
               )}
             >
-              {label}
+              <RefreshCw
+                className={cn('size-3.5', loadingModels && 'animate-spin')}
+                strokeWidth={2}
+                aria-hidden
+              />
             </button>
-          ))}
+          )}
         </div>
       </div>
+      {!active && (
+        <p className="mt-1.5 text-[11px] leading-[15px] text-text-2">
+          Save your API key to load and choose any Gemini model available on your account.
+        </p>
+      )}
 
       {feedback.kind === 'ok' && (
         <p
