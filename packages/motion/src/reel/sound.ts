@@ -29,6 +29,17 @@ interface Hit {
   gainDb: number;
   /** Placed by the creator or Pip (spec 37 R3.3): never thinned out. */
   added?: boolean;
+  /** Index inside `plan.sfx` when `added === true`, for timeline retiming & removal. */
+  addedIndex?: number;
+  /** Optional human label attached to an added hit. */
+  label?: string;
+}
+
+/** One resolved sound effect on a reel timeline (for both audio mixing and the timeline UI). */
+export interface ReelSfxPlacement extends BedSfx {
+  source: 'scene' | 'added';
+  addedIndex?: number;
+  label?: string;
 }
 
 const cues = (c: ReelScene['content']): number[] => {
@@ -128,13 +139,14 @@ function sceneHits(s: ReelScene, origin: number, inPlace: boolean): Hit[] {
 }
 
 /**
- * Every effect in a reel, sorted, inside [0, durationMs), with takes rotating per kind so
- * repeated hits never sound identical.
+ * Every effect in a reel with source metadata (auto scene-derived vs Pip/creator-added), sorted,
+ * inside [0, durationMs), with takes rotating per kind so repeated hits never sound identical.
+ * Single source of truth shared by `reelSfx` (audio mix) and the timeline `Sound` track.
  */
-export function reelSfx(
+export function reelSfxPlacements(
   plan: Pick<ReelPlan, 'scenes'> & Partial<Pick<ReelPlan, 'sfx'>>,
   durationMs: number,
-): BedSfx[] {
+): ReelSfxPlacement[] {
   const hits: Hit[] = [];
   const origins = carryOrigins(plan.scenes);
   plan.scenes.forEach((s, i) => {
@@ -145,9 +157,18 @@ export function reelSfx(
       hits.push({ ...h, atMs: Math.max(i === 0 ? 0 : s.startMs, at) });
     }
   });
-  for (const a of plan.sfx ?? []) hits.push({ ...a, added: true });
+  (plan.sfx ?? []).forEach((a, idx) =>
+    hits.push({
+      kind: a.kind,
+      atMs: a.atMs,
+      gainDb: a.gainDb,
+      added: true,
+      addedIndex: idx,
+      ...(a.label ? { label: a.label } : {}),
+    }),
+  );
   hits.sort((a, b) => a.atMs - b.atMs);
-  const out: BedSfx[] = [];
+  const out: ReelSfxPlacement[] = [];
   const takes: Record<string, number> = {};
   let last = -Infinity;
   for (const h of hits) {
@@ -155,10 +176,34 @@ export function reelSfx(
     const soft = h.kind === 'tick' || h.kind === 'pop';
     if (soft && !h.added && h.atMs - last < MIN_GAP_MS) continue;
     const take = (takes[h.kind] = (takes[h.kind] ?? -1) + 1) % SFX_TAKES[h.kind];
-    out.push({ kind: h.kind, take, atMs: Math.round(h.atMs), gainDb: h.gainDb });
+    out.push({
+      kind: h.kind,
+      take,
+      atMs: Math.round(h.atMs),
+      gainDb: h.gainDb,
+      source: h.added ? 'added' : 'scene',
+      ...(h.addedIndex !== undefined ? { addedIndex: h.addedIndex } : {}),
+      ...(h.label ? { label: h.label } : {}),
+    });
     last = h.atMs;
   }
   return out;
+}
+
+/**
+ * Every effect in a reel, sorted, inside [0, durationMs), with takes rotating per kind so
+ * repeated hits never sound identical.
+ */
+export function reelSfx(
+  plan: Pick<ReelPlan, 'scenes'> & Partial<Pick<ReelPlan, 'sfx'>>,
+  durationMs: number,
+): BedSfx[] {
+  return reelSfxPlacements(plan, durationMs).map(({ kind, take, atMs, gainDb }) => ({
+    kind,
+    take,
+    atMs,
+    gainDb,
+  }));
 }
 
 export interface ReelBedOptions {

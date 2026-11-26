@@ -336,17 +336,22 @@ export function enforcePlan(
         break;
       }
       case 'addSound': {
-        const kind = ReelSfxKindSchema.safeParse(m.choice);
-        if (!reel) {
-          drop(label, NO_REEL);
-          continue;
-        }
-        if (!kind.success) {
-          drop(label, 'Unknown sound');
-          continue;
-        }
         if (m.atWord < 0 || !project.transcript.words[m.atWord]) {
           drop(label, 'No word to put it on');
+          continue;
+        }
+        if (m.choice === 'stock') {
+          const query = (instruction || label).trim().slice(0, 100);
+          if (!query) {
+            drop(label, 'Describe the sound to search for');
+            continue;
+          }
+          steps.push({ ...base, sfxQuery: query, atWord: m.atWord, credits: 0 });
+          break;
+        }
+        const kind = ReelSfxKindSchema.safeParse(m.choice);
+        if (!kind.success) {
+          drop(label, 'Unknown sound');
           continue;
         }
         steps.push({ ...base, sfxKind: kind.data, atWord: m.atWord, credits: 0 });

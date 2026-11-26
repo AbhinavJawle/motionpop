@@ -2,6 +2,7 @@ import {
   AudioSettingSchema,
   EnergySchema,
   MusicIdSchema,
+  ReelSfxKindSchema,
   SlotStatusSchema,
 } from '@motionpop/schemas';
 import { z } from 'zod';
@@ -57,7 +58,7 @@ export const BedRequestSchema = z.object({
 export type BedRequest = z.input<typeof BedRequestSchema>;
 
 export const BedPlacementSchema = z.object({
-  kind: z.enum(['whoosh', 'pop', 'tick', 'rise', 'impact']),
+  kind: ReelSfxKindSchema,
   take: z.number().int(),
   atMs: z.number(),
   slotId: z.string(),

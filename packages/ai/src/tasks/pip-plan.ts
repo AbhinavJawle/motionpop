@@ -91,6 +91,7 @@ const REEL_CHOICES = [
   'steady-pulse',
   'ai',
   ...REEL_SFX_KINDS,
+  'stock',
   'enable',
   'disable',
   'none',
@@ -104,12 +105,13 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
     ...(reel?.scenes.map((s) => s.ref) ?? []),
     'none',
   ];
-  // A reel with no slots takes reel choices + Media Bin clip IDs; slot projects keep the v1 list.
+  // A reel with no slots takes reel choices + Media Bin clip IDs; slot projects keep the v1 list + SFX.
   const mediaBinIds = input.project.mediaBin?.map((c) => c.id) ?? [];
   const slotChoices = reel && !input.project.slots.length ? [] : slotProjectChoices(input);
+  const maxChoices = reel && !input.project.slots.length ? 64 : 96;
   const choices = [
     ...new Set([...(reel ? [...REEL_CHOICES, ...mediaBinIds] : []), ...slotChoices]),
-  ].slice(0, 64);
+  ].slice(0, maxChoices);
   return {
     type: 'object',
     properties: {
@@ -161,6 +163,8 @@ function slotProjectChoices(input: PipPlanInput): string[] {
       'media-card-pop',
       'enable',
       'disable',
+      ...REEL_SFX_KINDS,
+      'stock',
       ...(input.project.mediaBin?.map((c) => c.id) ?? []),
       ...input.project.components.map((c) => c.id),
       'none',

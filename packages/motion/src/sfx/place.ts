@@ -22,7 +22,26 @@ const WORD_BY_WORD_IDS = new Set(['hook-statement']);
 /** Categories whose graphics enter with a large move: a whoosh on the entrance. */
 const WHOOSH_CATEGORIES = new Set(['data', 'map', 'transition']);
 
-const PRIORITY: Record<SfxKind, number> = { impact: 4, pop: 3, whoosh: 2, tick: 1, rise: 0 };
+const PRIORITY: Record<SfxKind, number> = {
+  boom: 5,
+  slam: 5,
+  impact: 4,
+  cash: 4,
+  chime: 3,
+  ding: 3,
+  sparkle: 3,
+  shutter: 3,
+  scratch: 3,
+  glitch: 3,
+  pop: 3,
+  whip: 2,
+  rewind: 2,
+  whoosh: 2,
+  type: 2,
+  tick: 1,
+  tension: 1,
+  rise: 0,
+};
 
 /** One placed effect. `atMs` is where its peak lands; `gainDb` is relative to the kind's level. */
 export interface SfxPlacement {

@@ -1,8 +1,17 @@
-import { audioOf, type PipPlan, type PipStep, type StepState } from '@motionpop/schemas';
+import {
+  audioOf,
+  pickOpenTrack,
+  resolvedAudioLanes,
+  type PipPlan,
+  type PipStep,
+  type StepState,
+} from '@motionpop/schemas';
+import { SFX_LABEL, sfxSpec, type SfxKind } from '@motionpop/motion/sfx';
 import type { Command } from '@/lib/commands/command';
 import {
   addReelNote,
   addReelSound,
+  addStockAudio,
   addVideoCut,
   addVideoPunchIn,
   clearReelScene,
@@ -27,6 +36,10 @@ import {
   setSlotVideoStage,
   setStyle,
 } from '@/lib/commands';
+import { appAudioStore } from '@/lib/audio/app-audio-store';
+import { getAuthSnapshot } from '@/lib/auth/auth-store';
+import { fallbackSfxKindForQuery, synthSfxWavBlob } from '@/lib/sound/audition-sfx';
+import { apiHeaders } from '@/lib/users/bootstrap-client';
 import { cleanedToSourceMs, keptSourceSegments } from '@motionpop/schemas';
 import { addSlot } from '@/lib/commands/slots';
 import type { Route } from '@/lib/ai/route';
@@ -101,9 +114,14 @@ const INSTANT = new Set<PipStep['action']>([
   'addSound',
 ]);
 
-/** Instant steps; generated music runs after them like the other model steps. */
-const isInstant = (s: PipStep) =>
-  INSTANT.has(s.action) || (s.action === 'setMusic' && s.music !== 'ai');
+/** Instant steps; generated music, stock SFX searches, and non-reel WAV SFX run async after them. */
+const isInstant = (
+  s: PipStep,
+  hasReel: boolean,
+) => {
+  if (s.action === 'addSound') return hasReel && Boolean(s.sfxKind) && !s.sfxQuery;
+  return INSTANT.has(s.action) || (s.action === 'setMusic' && s.music !== 'ai');
+};
 
 function instantCommand(
   step: PipStep,
@@ -251,7 +269,17 @@ function instantCommand(
     case 'addSound': {
       const w = step.atWord === undefined ? undefined : project.transcript.words[step.atWord];
       if (!w || !step.sfxKind) return 'No word to put it on';
-      return { cmd: addReelSound({ kind: step.sfxKind, atMs: w.startMs, gainDb: -2 }) };
+      const hitLabel = step.label.trim().slice(0, 48);
+      const addCmd = addReelSound({
+        kind: step.sfxKind,
+        atMs: w.startMs,
+        gainDb: -2,
+        ...(hitLabel ? { label: hitLabel } : {}),
+      });
+      if (!audioOf(project).autoSfx) {
+        return { cmd: composite('Add sound effect', [setAudio({ autoSfx: true }), addCmd]) };
+      }
+      return { cmd: addCmd };
     }
     case 'setMusic': {
       const cmds: Command[] = [];
@@ -306,7 +334,8 @@ export async function applyPlan(
   for (const s of plan.steps) if (!s.include) set(s.id, 'skipped', 'Left out');
 
   // 1. Instant steps, one undo entry. Each is tried on the project as it stands after the earlier ones.
-  const instant = steps.filter(isInstant);
+  const hasReel = Boolean(deps.store.getState().project?.reel);
+  const instant = steps.filter((s) => isInstant(s, hasReel));
   if (instant.length) {
     const cmds: Command[] = [];
     let project = deps.store.getState().project;
@@ -334,8 +363,8 @@ export async function applyPlan(
     }
   }
 
-  // 2. Model steps, one by one.
-  for (const s of steps.filter((x) => !isInstant(x))) {
+  // 2. Async/model steps, one by one.
+  for (const s of steps.filter((x) => !isInstant(x, hasReel))) {
     const before = deps.store.getState().history.past.length;
     set(s.id, 'running');
     try {
@@ -382,6 +411,111 @@ async function runModelStep(deps: ApplyDeps, s: PipStep): Promise<string | null>
       if (!project.reel) return 'This project has no reel';
       if (!deps.reelMusic) return 'Needs cloud AI';
       return (await deps.reelMusic(s.instruction ?? '')) ? null : 'Couldn’t write that music';
+    }
+    case 'addSound': {
+      const w = s.atWord === undefined ? undefined : project.transcript.words[s.atWord];
+      if (!w) return 'No word to put it on';
+      const dur = Math.max(1000, project.durationMs);
+      const placeStockClip = async (
+        blob: Blob,
+        name: string,
+        clipDurMs: number,
+        attribution?: string,
+      ): Promise<boolean> => {
+        const cur = deps.store.getState().project;
+        if (!cur) return false;
+        const src = await appAudioStore().put(blob);
+        const startMs = Math.max(0, Math.min(Math.max(0, dur - 250), Math.round(w.startMs)));
+        const rawDurMs = Math.max(300, Math.round(clipDurMs));
+        const endMs = Math.min(dur, Math.max(startMs + 250, startMs + Math.min(rawDurMs, 6000)));
+        const openTrack = pickOpenTrack(
+          resolvedAudioLanes(cur).filter((l) => !l.muted),
+          cur.stockAudio ?? [],
+          startMs,
+          endMs,
+        );
+        return deps.store.getState().exec(
+          addStockAudio({
+            id: `sa-${crypto.randomUUID().slice(0, 8)}`,
+            name: name.slice(0, 80),
+            src,
+            kind: 'sfx',
+            mimeType: blob.type || 'audio/wav',
+            startMs,
+            endMs,
+            clipDurationMs: rawDurMs,
+            volume: 0.9,
+            ...(openTrack > 0 ? { track: openTrack } : {}),
+            ...(attribution ? { attribution: attribution.slice(0, 220) } : {}),
+          }),
+        );
+      };
+
+      // 1. If Pip requested a stock foley library lookup (`choice: "stock"`), try Uncommon Ear first.
+      if (s.sfxQuery) {
+        try {
+          const auth = getAuthSnapshot();
+          const headers =
+            auth.status === 'signed-in'
+              ? await apiHeaders(() => auth.user.getIdToken())
+              : undefined;
+          const params = new URLSearchParams({ kind: 'sfx', q: s.sfxQuery, limit: '5' });
+          const res = await fetch(`/api/audio/search?${params.toString()}`, {
+            ...(headers ? { headers } : {}),
+          });
+          if (res.ok) {
+            const data = (await res.json()) as {
+              configured?: boolean;
+              tracks?: {
+                id: string;
+                title: string;
+                durationS: number;
+                creditLine?: string;
+              }[];
+            };
+            const best = data.configured && data.tracks?.length ? data.tracks[0] : undefined;
+            if (best) {
+              const dl = await fetch(`/api/audio/download?id=${encodeURIComponent(best.id)}`, {
+                ...(headers ? { headers } : {}),
+              });
+              if (dl.ok) {
+                const blob = await dl.blob();
+                if (blob.size >= 256) {
+                  const ok = await placeStockClip(
+                    blob,
+                    best.title || s.label,
+                    Math.max(800, Math.round((best.durationS || 1.5) * 1000)),
+                    best.creditLine,
+                  );
+                  if (ok) return null;
+                }
+              }
+            }
+          }
+        } catch {
+          // Fall through cleanly to the best-matching built-in studio SFX.
+        }
+      }
+
+      // 2. Built-in studio SFX (either directly on non-reel projects, or fallback for stock queries).
+      const kind: SfxKind = s.sfxKind ?? fallbackSfxKindForQuery(s.sfxQuery ?? s.label);
+      if (project.reel) {
+        const hitLabel = s.label.trim().slice(0, 48);
+        const addCmd = addReelSound({
+          kind,
+          atMs: w.startMs,
+          gainDb: -2,
+          ...(hitLabel ? { label: hitLabel } : {}),
+        });
+        const cmd = !audioOf(project).autoSfx
+          ? composite('Add sound effect', [setAudio({ autoSfx: true }), addCmd])
+          : addCmd;
+        return deps.store.getState().exec(cmd) ? null : 'Couldn’t add that sound';
+      }
+      const spec = sfxSpec(kind, 0);
+      const blob = synthSfxWavBlob(kind, 0);
+      const ok = await placeStockClip(blob, s.label || SFX_LABEL[kind], spec.lengthMs);
+      return ok ? null : 'Couldn’t place that sound effect';
     }
     case 'addImage': {
       const slot = s.slotId ? project.slots.find((x) => x.id === s.slotId) : undefined;

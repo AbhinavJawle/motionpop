@@ -25,7 +25,7 @@ export {
   stageSizeForFormat,
   type StageSize,
 } from './looks';
-export { reelSfx, reelBed, type ReelBedOptions } from './sound';
+export { reelSfx, reelSfxPlacements, reelBed, type ReelBedOptions, type ReelSfxPlacement } from './sound';
 export { logoSlugs, splitLogoQuery, illustrationPrompt } from './media-query';
 export type { ReelClipMedia, ReelImage } from './parts';
 export { cutsFromSegments, focusAt, punchChanges, punchLevelAt, transKind } from './motion';

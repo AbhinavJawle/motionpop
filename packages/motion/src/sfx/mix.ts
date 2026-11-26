@@ -11,13 +11,26 @@ import { sfxSamples, sfxSpec, type SfxKind } from './synth';
  * samples, so the preview and the export play the same bytes.
  */
 
-/** Effect level offsets by kind, in dB (design §7). */
+/** Effect level offsets by kind, in dB (design §7 + editorial SFX balance). */
 export const SFX_KIND_OFFSET_DB: Readonly<Record<SfxKind, number>> = {
   pop: 0,
   whoosh: -3,
   tick: -8,
   rise: -4,
   impact: 0,
+  boom: 1,
+  slam: 0,
+  whip: -2,
+  cash: -3,
+  chime: -4,
+  ding: -4,
+  sparkle: -5,
+  shutter: -2,
+  type: -5,
+  glitch: -4,
+  rewind: -3,
+  scratch: -3,
+  tension: -5,
 };
 /** Effects sit this far under the voice before the user's level and the kind offset (R8.2). */
 export const SFX_UNDER_VOICE_DB = 6;
@@ -135,7 +148,7 @@ export interface BedKeyInput {
 }
 
 /** Bumped when the DSP changes, so cached and uploaded beds are not reused across versions. */
-export const BED_VERSION = 1;
+export const BED_VERSION = 2;
 
 const hex = (h: number) => (h >>> 0).toString(16).padStart(8, '0');
 

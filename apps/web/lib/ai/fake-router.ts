@@ -262,14 +262,72 @@ function reelAnswer(i: PipPlanInput): PipModelOutput {
       label: 'Update captions',
     });
   if (/sound|sfx|effect/.test(m)) {
-    const choice = /\boff\b|remove|no /.test(m)
-      ? 'off'
-      : /louder|more|up/.test(m)
-        ? 'louder'
-        : /quieter|softer|less|down/.test(m)
-          ? 'quieter'
-          : 'on';
-    steps.push({ ...none, action: 'setSound', choice, label: `Sound effects ${choice}` });
+    const wantsToggle = /\boff\b|remove|no |louder|quieter|softer|down|clear/.test(m);
+    if (wantsToggle) {
+      const choice = /\boff\b|remove|no /.test(m)
+        ? 'off'
+        : /clear/.test(m)
+          ? 'clear'
+          : /louder/.test(m)
+            ? 'louder'
+            : 'quieter';
+      steps.push({ ...none, action: 'setSound', choice, label: `Sound effects ${choice}` });
+    } else {
+      // Story-matched sound design across transcript words instead of a bare on/off toggle.
+      const words = i.project.words;
+      const picks: { atWord: number; choice: string; label: string }[] = [];
+      let lastIdx = -10;
+      for (const [idx, raw] of words) {
+        if (idx - lastIdx < 5 || picks.length >= 6) continue;
+        const w = raw.toLowerCase();
+        if (/\$|\d+k\b|\d+m\b|\d+b\b|dollar|price|check|revenue|sold|cost|paid/.test(w)) {
+          picks.push({ atWord: idx, choice: 'cash', label: `Cash on '${raw}'` });
+          lastIdx = idx;
+        } else if (/billion|million|debt|massive|huge|100%/.test(w)) {
+          picks.push({ atWord: idx, choice: 'boom', label: `Boom on '${raw}'` });
+          lastIdx = idx;
+        } else if (/reject|quit|fail|wrong|never|stop|broke|denied/.test(w)) {
+          picks.push({ atWord: idx, choice: 'slam', label: `Slam on '${raw}'` });
+          lastIdx = idx;
+        } else if (/200\d|201\d|19\d\d|back|ago|before/.test(w)) {
+          picks.push({ atWord: idx, choice: 'rewind', label: `Rewind on '${raw}'` });
+          lastIdx = idx;
+        } else if (/crazy|pivot|twist|weird|unexpected|wait/.test(w)) {
+          picks.push({ atWord: idx, choice: 'scratch', label: `Scratch on '${raw}'` });
+          lastIdx = idx;
+        } else if (/photo|screen|proof|camera|shot|look/.test(w)) {
+          picks.push({ atWord: idx, choice: 'shutter', label: `Shutter on '${raw}'` });
+          lastIdx = idx;
+        } else if (/code|typed|wrote|script|terminal|prompt/.test(w)) {
+          picks.push({ atWord: idx, choice: 'type', label: `Type on '${raw}'` });
+          lastIdx = idx;
+        } else if (/launch|growth|win|built|idea|magic|ai\b/.test(w)) {
+          picks.push({ atWord: idx, choice: 'sparkle', label: `Sparkle on '${raw}'` });
+          lastIdx = idx;
+        }
+      }
+      if (picks.length === 0 && words.length > 0) {
+        const defaults = ['whip', 'chime', 'boom', 'ding', 'sparkle'] as const;
+        const stride = Math.max(1, Math.floor(words.length / Math.min(4, words.length)));
+        for (let k = 0; k < Math.min(4, words.length); k++) {
+          const entry = words[Math.min(words.length - 1, k * stride)];
+          if (!entry) continue;
+          const kind = defaults[k % defaults.length]!;
+          picks.push({
+            atWord: entry[0],
+            choice: kind,
+            label: `${kind[0]!.toUpperCase()}${kind.slice(1)} on '${entry[1]}'`,
+          });
+        }
+      }
+      if (picks.length > 0) {
+        for (const p of picks) {
+          steps.push({ ...none, action: 'addSound', choice: p.choice, atWord: p.atWord, label: p.label });
+        }
+      } else {
+        steps.push({ ...none, action: 'setSound', choice: 'on', label: 'Sound effects on' });
+      }
+    }
   }
   if (/music/.test(m))
     steps.push({

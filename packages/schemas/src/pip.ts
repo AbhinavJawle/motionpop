@@ -87,6 +87,8 @@ export const PipStepSchema = z.object({
   sound: z.enum(['on', 'off', 'louder', 'quieter', 'clear']).optional(),
   music: z.enum(['none', 'calm-pad', 'steady-pulse', 'ai']).optional(),
   sfxKind: ReelSfxKindSchema.optional(),
+  /** Optional stock SFX search query (Uncommon Ear) when `action === 'addSound'` with `choice === 'stock'`. */
+  sfxQuery: z.string().max(100).optional(),
   label: z.string().min(1).max(60),
   /** Credits this step spends when applied (code-computed, never from the model). */
   credits: z.number().int().nonnegative(),

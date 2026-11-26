@@ -56,6 +56,7 @@ export {
   clearReelScene,
   clearReelSounds,
   deleteReelScene,
+  removeReelSound,
   resizeReelSceneBoundary,
   setReel,
   setReelCaptionStyle,
@@ -66,6 +67,7 @@ export {
   setReelStyle,
   setReelTheme,
   updateReelClipScene,
+  updateReelSound,
   type ReelClipSceneOptions,
   type ReelStyleChange,
 } from './reel';

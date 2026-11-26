@@ -1,5 +1,7 @@
 'use client';
 
+import { reelSfxPlacements } from '@motionpop/motion/reel';
+import { SFX_CATALOG, SFX_LABEL, sfxSpec, type SfxCategory, type SfxKind } from '@motionpop/motion/sfx';
 import {
   audioOf,
   pickOpenTrack,
@@ -31,8 +33,15 @@ import { Toggle } from '@/components/ui/toggle';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
 import { getAuthSnapshot } from '@/lib/auth/auth-store';
 import { cn } from '@/lib/cn';
-import { addStockAudio, composite, setAudio, setReelMusicBrief } from '@/lib/commands';
+import {
+  addReelSound,
+  addStockAudio,
+  composite,
+  setAudio,
+  setReelMusicBrief,
+} from '@/lib/commands';
 import { useAppConfig } from '@/lib/renders/hooks';
+import { auditionSynthSfx, synthSfxWavBlob } from '@/lib/sound/audition-sfx';
 import { useBedState } from '@/lib/sound/bed-state';
 import { auditionStockAudio } from '@/lib/sound/use-stock-audio';
 import { editorStore, useEditor } from '@/lib/stores/editor';
@@ -198,9 +207,14 @@ export function AudioPanelBody() {
   const project = useEditor((s) => s.project);
   const exec = useEditor((s) => s.exec);
   const { musicSynthEnabled } = useAppConfig();
-  const placed = useBedState((s) => s.placements.length);
+  const bedPlaced = useBedState((s) => s.placements.length);
   const status = useBedState((s) => s.status);
   const audio = project ? audioOf(project) : null;
+  const placed =
+    project?.reel && audio?.autoSfx !== false
+      ? reelSfxPlacements(project.reel, project.durationMs).length
+      : bedPlaced;
+  const [sfxCat, setSfxCat] = useState<'all' | SfxCategory>('all');
   const apply = (patch: Partial<AudioSetting>) => exec(setAudio(patch));
   const [musicGain, onMusicGain] = useCommitted(audio?.musicGainDb ?? -18, (v) =>
     apply({ musicGainDb: v }),
@@ -581,13 +595,13 @@ export function AudioPanelBody() {
             <SectionLabel>Sound effects</SectionLabel>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[13px] leading-[17px] text-text">Pops and whooshes</p>
+                <p className="text-[13px] leading-[17px] text-text">Motion sound effects</p>
                 <p className="text-[11px] leading-[14px] text-text-3">
-                  On your graphics&apos; entrances and landings.
+                  Transitions, impacts, foley &amp; story accents synced to your timeline.
                 </p>
               </div>
               <Toggle
-                label="Pops and whooshes"
+                label="Motion sound effects"
                 checked={audio.autoSfx}
                 onCheckedChange={(autoSfx) => apply({ autoSfx })}
               />
@@ -596,7 +610,9 @@ export function AudioPanelBody() {
               <div className="mt-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <span className="text-[12px] leading-[16px] text-text-2">
-                    <span className="font-mono tabular">{status === 'mixing' ? '…' : placed}</span>{' '}
+                    <span className="font-mono tabular">
+                      {!project.reel && status === 'mixing' ? '…' : placed}
+                    </span>{' '}
                     {placed === 1 ? 'sound' : 'sounds'} placed
                   </span>
                   <Button
@@ -624,11 +640,125 @@ export function AudioPanelBody() {
                 </div>
               </div>
             )}
+
+            <div className="mt-5">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[11.5px] font-semibold text-text-2">
+                  Built-in SFX library ({SFX_CATALOG.length})
+                </span>
+                <span className="text-[10.5px] text-text-3">Click to preview · + to place</span>
+              </div>
+              <div className="mb-2 flex flex-wrap gap-1">
+                {(
+                  [
+                    { id: 'all', label: 'All' },
+                    { id: 'impact', label: 'Impacts' },
+                    { id: 'reward', label: 'Money & Wins' },
+                    { id: 'transition', label: 'Transitions' },
+                    { id: 'foley', label: 'Foley' },
+                  ] as const
+                ).map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => setSfxCat(c.id)}
+                    className={cn(
+                      'rounded-md px-2 py-0.5 text-[10.5px] font-medium transition-colors',
+                      sfxCat === c.id
+                        ? 'bg-violet-sel text-text'
+                        : 'bg-card-2 text-text-2 hover:bg-white/10 hover:text-text',
+                    )}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-1.5">
+                {SFX_CATALOG.filter((e) => sfxCat === 'all' || e.category === sfxCat).map(
+                  (entry) => {
+                    const placeAtPlayhead = async (kind: SfxKind) => {
+                      const cur = editorStore.getState().project;
+                      if (!cur) return;
+                      const atMs = Math.max(
+                        0,
+                        Math.min(Math.max(0, cur.durationMs - 50), Math.round(editorStore.getState().playheadMs)),
+                      );
+                      void auditionSynthSfx(kind, 0, -2);
+                      if (cur.reel) {
+                        const addCmd = addReelSound({
+                          kind,
+                          atMs,
+                          gainDb: -2,
+                          label: SFX_LABEL[kind],
+                        });
+                        const cmd = !audioOf(cur).autoSfx
+                          ? composite('Add sound effect', [setAudio({ autoSfx: true }), addCmd])
+                          : addCmd;
+                        if (exec(cmd)) {
+                          toast.success(`Placed ${entry.name} on Sound at ${(atMs / 1000).toFixed(1)}s`);
+                        }
+                        return;
+                      }
+                      const spec = sfxSpec(kind, 0);
+                      const src = await appAudioStore().put(synthSfxWavBlob(kind, 0));
+                      const endMs = Math.min(cur.durationMs, Math.max(atMs + 250, atMs + spec.lengthMs));
+                      const openTrack = pickOpenAudioTrack(cur, atMs, endMs);
+                      exec(
+                        addStockAudio({
+                          id: `sa-${crypto.randomUUID().slice(0, 8)}`,
+                          name: entry.name,
+                          src,
+                          kind: 'sfx',
+                          mimeType: 'audio/wav',
+                          startMs: atMs,
+                          endMs,
+                          clipDurationMs: spec.lengthMs,
+                          volume: 0.9,
+                          ...(openTrack > 0 ? { track: openTrack } : {}),
+                        }),
+                      );
+                      toast.success(`Placed ${entry.name} on Stock Audio at ${(atMs / 1000).toFixed(1)}s`);
+                    };
+                    return (
+                      <div
+                        key={entry.id}
+                        title={entry.hint}
+                        className="flex items-center justify-between gap-1 rounded-lg border border-line bg-card px-2 py-1.5 transition-colors hover:border-white/16"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => void auditionSynthSfx(entry.id, 0, -2)}
+                          className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                        >
+                          <Play
+                            className="size-2.5 shrink-0 text-flame"
+                            strokeWidth={2.2}
+                            aria-hidden
+                          />
+                          <span className="truncate text-[11.5px] font-medium text-text">
+                            {entry.name}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Add ${entry.name} at playhead`}
+                          title={`Place ${entry.name} at playhead`}
+                          onClick={() => void placeAtPlayhead(entry.id)}
+                          className="flex size-5 shrink-0 items-center justify-center rounded bg-flame/15 text-flame transition-colors hover:bg-flame hover:text-black"
+                        >
+                          <Plus className="size-3" strokeWidth={2.2} aria-hidden />
+                        </button>
+                      </div>
+                    );
+                  },
+                )}
+              </div>
+            </div>
           </section>
 
           <p className="text-[11px] leading-[14px] text-text-3">
-            Built-in transitions are synthesized in code. Browse free CC0 music &amp; SFX via
-            Uncommon Ear in the Search tab.
+            Built-in studio SFX play identically in preview and export. Browse additional CC0 music
+            &amp; foley in the Search tab.
           </p>
         </div>
       ) : (

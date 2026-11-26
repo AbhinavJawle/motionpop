@@ -330,7 +330,26 @@ export const ReelThemeSchema = z
 export type ReelTheme = z.infer<typeof ReelThemeSchema>;
 
 /** The synthesised hits a reel can play (the SFX synth's kinds). */
-export const REEL_SFX_KINDS = ['whoosh', 'pop', 'tick', 'rise', 'impact'] as const;
+export const REEL_SFX_KINDS = [
+  'whoosh',
+  'pop',
+  'tick',
+  'rise',
+  'impact',
+  'boom',
+  'slam',
+  'whip',
+  'cash',
+  'chime',
+  'ding',
+  'sparkle',
+  'shutter',
+  'type',
+  'glitch',
+  'rewind',
+  'scratch',
+  'tension',
+] as const;
 export const ReelSfxKindSchema = z.enum(REEL_SFX_KINDS);
 export type ReelSfxKind = z.infer<typeof ReelSfxKindSchema>;
 /** Most hits a creator (or Pip) adds on top of the derived ones (spec 37 R3.3). */
@@ -339,6 +358,8 @@ export const ReelAddedSfxSchema = z.object({
   kind: ReelSfxKindSchema,
   atMs: ms,
   gainDb: z.number().min(-24).max(6).default(-2),
+  /** Optional short label shown on the timeline pill (e.g. "Cash on '$40'"). */
+  label: z.string().trim().min(1).max(48).optional(),
 });
 export type ReelAddedSfx = z.infer<typeof ReelAddedSfxSchema>;
 

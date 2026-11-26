@@ -191,6 +191,28 @@ describe('enforcePlan on a reel (R1.3, R4)', () => {
     ]);
   });
 
+  it('supports the expanded SFX palette (cash, boom, slam, shutter, chime, etc.) and stock SFX queries', () => {
+    const r = enforcePlan(
+      out([
+        { action: 'addSound', choice: 'cash', atWord: 1, label: "Cash on '$40'" },
+        { action: 'addSound', choice: 'boom', atWord: 4, label: "Boom on '$80 billion'" },
+        { action: 'addSound', choice: 'slam', atWord: 6, label: "Slam on 'rejected'" },
+        { action: 'addSound', choice: 'shutter', atWord: 8, label: 'Camera shutter' },
+        { action: 'addSound', choice: 'stock', atWord: 10, instruction: 'crowd applause', label: 'Crowd applause' },
+      ]),
+      p,
+      'cloud',
+    );
+    expect(r.dropped).toEqual([]);
+    expect(r.steps.map((s) => s.sfxKind ?? s.sfxQuery)).toEqual([
+      'cash',
+      'boom',
+      'slam',
+      'shutter',
+      'crowd applause',
+    ]);
+  });
+
   it('AI music needs a brief', () => {
     const r = enforcePlan(
       out([{ action: 'setMusic', choice: 'ai', instruction: ' ' }]),
@@ -278,7 +300,7 @@ describe('applyPlan on a reel (R2, R3)', () => {
     const next = store.getState().project!;
     expect(next.reel!.theme).toEqual({ accent: '#FF5A36', background: 'soft' });
     expect(audioOf(next)).toMatchObject({ sfxGainDb: 4, musicId: 'steady-pulse' });
-    expect(next.reel!.sfx).toEqual([{ kind: 'impact', atMs: 1500, gainDb: -2 }]);
+    expect(next.reel!.sfx).toEqual([{ kind: 'impact', atMs: 1500, gainDb: -2, label: 'x' }]);
     expect(next.reel!.captions).toBe(false);
     expect(next.reel!.scenes.find((s) => s.id === 'a')).toMatchObject({
       layout: 'speaker',

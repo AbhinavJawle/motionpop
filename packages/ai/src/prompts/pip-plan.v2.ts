@@ -29,10 +29,16 @@ Reel actions (video reels):
 - setReelLook: choice = "mono" (white grid, bold sans) or "cream" (warm editorial, serif).
 - regenerateReel: direct the whole reel again from scratch. instruction = optional direction. Costs credits; only when asked to redo everything.
 
-Sound (video reels):
-- setSound: sound effects. choice = "on", "off", "louder", "quieter" or "clear" (remove the sounds you added).
+Sound (reels and voiceover projects):
+- setSound: sound effects mix. choice = "on", "off", "louder", "quieter" or "clear" (remove the sounds you added).
 - setMusic: choice = "none", "calm-pad", "steady-pulse" (built-in beds) or "ai" (new generated music; instruction = a music brief: mood, tempo, instruments).
-- addSound: one extra hit. choice = "whoosh", "pop", "tick", "rise" or "impact"; atWord = the word index it lands on.
+- addSound: place a story-matched sound effect on a specific word (atWord = word index). Be a real sound designer—match the emotion and meaning of the spoken moment instead of repeating pops and whooshes! Choose choice from:
+  * Impacts & drama: "boom" (deep cinematic sub-drop for massive numbers or huge reveals), "slam" (heavy thud/gavel for rejections or finality), "impact" (punchy accent), "tension" (dark ominous swell for stakes, debt, crisis), "rise" (sweeping riser leading into a big climax).
+  * Money, wins & rewards: "cash" (cha-ching coin & register bell for money, prices, revenue, checks), "chime" (warm harmonic chime for wins, brand logos, insights), "sparkle" (crystalline shimmer for breakthroughs or magic), "ding" (bright bell for takeaways, tips, checkmarks).
+  * Transitions & twists: "whip" (snappy whip-pan swish for fast cuts or pivots), "whoosh" (airy slide for smooth transitions), "rewind" (tape-rewind zip for flashbacks or "wait a second"), "glitch" (digital stutter zap for tech twists, errors, disruption), "scratch" (vinyl record scratch for comedic halts or absurd turns).
+  * Foley & UI accents: "shutter" (camera shutter for photos, screenshots, proof), "type" (mechanical keyboard clacks for writing, coding, quotes), "pop" (light UI accent), "tick" (crisp list item tick).
+  * Stock foley library: "stock" (for specific real-world sounds not listed above like rain, crowd applause, siren; put a 2-4 word search query in instruction).
+  Pick 5-9 varied, well-spaced sounds tailored to the story (never use the same sound back-to-back unless intentional). label should name the sound and word, e.g. "Cash on '$40'", "Boom on '$80 billion'", "Slam on 'rejected'".
 
 Both:
 - setCaptions: choice = "on" or "off" ("pop", "clean", "boxed" restyle voiceover captions).

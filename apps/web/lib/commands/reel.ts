@@ -148,6 +148,43 @@ export function addReelSound(hit: ReelAddedSfx): Command {
   });
 }
 
+/** Updates one added sound hit (retime, swap kind, or adjust gain). One undo step. */
+export function updateReelSound(
+  index: number,
+  patch: Partial<Pick<ReelAddedSfx, 'atMs' | 'kind' | 'gainDb' | 'label'>>,
+): Command {
+  return changeReel('Update sound effect', (r) => {
+    const have = r.sfx ?? [];
+    const cur = have[index];
+    if (!cur) throw new CommandRejected('That sound effect is gone');
+    const nextHit: ReelAddedSfx = {
+      ...cur,
+      ...(patch.atMs !== undefined ? { atMs: Math.max(0, Math.round(patch.atMs)) } : {}),
+      ...(patch.kind !== undefined ? { kind: patch.kind } : {}),
+      ...(patch.gainDb !== undefined
+        ? { gainDb: Math.max(-24, Math.min(6, patch.gainDb)) }
+        : {}),
+      ...(patch.label !== undefined
+        ? patch.label.trim()
+          ? { label: patch.label.trim().slice(0, 48) }
+          : {}
+        : {}),
+    };
+    const next = have.map((h, i) => (i === index ? nextHit : h)).sort((a, b) => a.atMs - b.atMs);
+    return { ...r, sfx: next };
+  });
+}
+
+/** Removes one added sound hit by index. One undo step. */
+export function removeReelSound(index: number): Command {
+  return changeReel('Remove sound effect', (r) => {
+    const have = r.sfx ?? [];
+    if (index < 0 || index >= have.length) throw new CommandRejected('That sound effect is gone');
+    const next = have.filter((_, i) => i !== index);
+    return next.length ? { ...r, sfx: next } : omit(r, 'sfx');
+  });
+}
+
 /** Removes every added sound (the scenes' own hits stay, under the effects switch). */
 export function clearReelSounds(): Command {
   return changeReel('Remove added sounds', (r) => {
