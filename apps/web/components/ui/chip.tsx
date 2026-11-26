@@ -1,9 +1,10 @@
 'use client';
 
-import { Check, Cloud, KeyRound, Zap } from 'lucide-react';
+import { Check, Cloud, KeyRound, Server, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import type { ReactNode } from 'react';
 import { useByok } from '@/lib/ai/byok';
+import { useLocalLlm } from '@/lib/ai/local-llm';
 import { cn } from '@/lib/cn';
 import { popIn } from '@/lib/motion/presets';
 
@@ -55,11 +56,12 @@ export function Chip({
   );
 }
 
-/** Route chip shown before every AI action (hybrid-ai.md): mint `⚡ free · on-device`, violet `☁ N`, or `BYOK · 0`. */
+/** Route chip shown before every AI action (hybrid-ai.md): mint `⚡ free · on-device`, `Local · 0`, `BYOK · 0`, or violet `☁ N`. */
 export function CostChip({
   route,
   credits = 0,
   byok,
+  localLlm,
   label,
   hint,
   className,
@@ -68,6 +70,8 @@ export function CostChip({
   credits?: number;
   /** True when user-supplied Gemini BYOK is active (0 Motionpop credits). Defaults to live store. */
   byok?: boolean;
+  /** True when a local LLM server (Ollama / LM Studio) is active (0 Motionpop credits). */
+  localLlm?: boolean;
   /** Shown instead of the number when the cost is a range ("1–4"). */
   label?: string;
   /** What the range means (tooltip and screen readers). */
@@ -75,6 +79,8 @@ export function CostChip({
   className?: string;
 }) {
   const { active: byokStoreActive } = useByok();
+  const { active: localStoreActive, model: localModel } = useLocalLlm();
+  const usingLocalLlm = localLlm ?? localStoreActive;
   const usingByok = byok ?? byokStoreActive;
   if (route === 'device') {
     return (
@@ -85,6 +91,26 @@ export function CostChip({
         className={cn('shadow-[inset_0_0_0_1px_rgb(61_220_151/0.14)]', className)}
       >
         free · on-device
+      </Chip>
+    );
+  }
+  if (usingLocalLlm) {
+    return (
+      <Chip
+        tone="mint"
+        pill={false}
+        icon={<Server strokeWidth={1.75} aria-hidden />}
+        className={cn('h-[18px] px-1.5 font-mono', className)}
+      >
+        <span
+          title={
+            hint ??
+            `Using your local LLM${localModel ? ` (${localModel})` : ''} (0 Motionpop credits)`
+          }
+          aria-label={hint ?? '0 credits, using your local LLM'}
+        >
+          Local · 0
+        </span>
       </Chip>
     );
   }

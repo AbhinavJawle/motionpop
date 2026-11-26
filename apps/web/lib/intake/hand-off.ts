@@ -38,6 +38,7 @@ export async function handOffFile(
         ref,
         name: extra.name.slice(0, 120),
         mimeType: guessMimeType(extra),
+        sizeBytes: extra.size,
       });
     }
     await setPending(
@@ -56,9 +57,14 @@ export async function handOffFile(
   }
 }
 
+const SECONDARY_NAME_RE =
+  /(screen[\s_-]?rec|screencast|screen[\s_-]?shot|b[\s_-]?roll|cutaway|overlay|capture|demo[\s_-]?screen)/i;
+
 /**
- * Multi-file drop helper (spec 20): picks the main A-roll (first audio/video file; if multiple
- * videos are dropped, picks the largest as A-roll and attaches the rest as Media Bin clips).
+ * Multi-file drop helper (spec 20 + spec 48): picks a sensible initial primary A-roll
+ * (preferring the first audio/video file that does not look like a screen recording or B-roll;
+ * creators can always swap the main talking-head clip on `/start/configure`), and attaches up to
+ * 12 remaining files as Media Bin clips.
  */
 export async function handOffFiles(
   files: readonly File[],
@@ -75,7 +81,8 @@ export async function handOffFiles(
   if (audioOrVideo.length === 0) {
     return { ok: false, message: 'Include your main talking-head video or voiceover first.' };
   }
-  const primary = [...audioOrVideo].sort((a, b) => b.size - a.size)[0]!;
+  const primary =
+    audioOrVideo.find((f) => !SECONDARY_NAME_RE.test(f.name)) ?? audioOrVideo[0]!;
   const extras = files.filter((f) => f !== primary);
   return handOffFile(primary, draft, extras);
 }

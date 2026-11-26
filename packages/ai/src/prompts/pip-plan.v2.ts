@@ -23,6 +23,7 @@ Slot actions (voiceover projects):
 
 Reel actions (video reels):
 - editScene: change one scene the way a designer would: its text, layout, colours, background, animation, or a brand-new custom motion graphic. slot = "rK", instruction = a specific design brief in plain words (what to show, colours, motion, energy; max 200 chars). Costs credits; a new graphic costs more.
+- setBeatClip: place or clear an uploaded Media Bin clip (B-roll, screen recording, screenshot) on one reel scene. slot = "rK", choice = a clip id from mediaBin (or "none" to clear). Free and instant.
 - clearScene: take the graphic off one scene (speaker only). slot = "rK".
 - setReelTheme: colours and gradients over the whole reel. instruction = two hex colours "#RRGGBB #RRGGBB" (main, second); choice = "soft" (gentle gradient), "bold" (strong gradient) or "plain" (colour, no gradient). Free and instant. Use it for "more colour", "gradients", "brand colours", "warmer", "less black and white".
 - setReelLook: choice = "mono" (white grid, bold sans) or "cream" (warm editorial, serif).
@@ -110,6 +111,7 @@ export function pipPlanPromptV2(i: PipPlanPromptInputV2): string {
     ? [
         `This is a VIDEO REEL with ${r.scenes.filter((s) => s.template !== 'none').length} motion graphic scenes.`,
         `reel: look ${r.look}; captions ${r.captions ? 'on' : 'off'}; colours ${r.theme}; sound ${r.sound}; ai cuts ${r.cuts}`,
+        ...(clips ? [clips] : []),
         `scenes:\n${r.scenes
           .map(
             (s) =>

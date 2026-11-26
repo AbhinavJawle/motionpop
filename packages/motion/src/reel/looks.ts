@@ -187,7 +187,7 @@ export interface Area {
 
 export function graphicArea(
   look: LookTokens,
-  layout: 'split' | 'card' | 'full' | 'speaker',
+  layout: 'split' | 'card' | 'pip' | 'full' | 'speaker',
   stage: StageSize = { w: STAGE_W, h: STAGE_H },
   opts: { noVideo?: boolean; captions?: boolean } = {},
 ): Area {
@@ -203,6 +203,8 @@ export function graphicArea(
       return { x: 0, y: 0, w: STAGE_W, h: STAGE_H / 2 };
     case 'card':
       return { x: 0, y: 0, w: STAGE_W, h: look.cardTop - 100 };
+    case 'pip':
+      return { x: 0, y: 0, w: STAGE_W, h: STAGE_H };
     case 'full':
       return look.id === 'mono'
         ? { x: 0, y: 0, w: STAGE_W, h: 1060 }

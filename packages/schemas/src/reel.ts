@@ -16,10 +16,11 @@ export type ReelLook = z.infer<typeof ReelLookSchema>;
  * Where the speaker and the graphic sit.
  * - `split`: graphic in the top half, speaker in the bottom half.
  * - `card`: graphic fills the frame, speaker is a rounded-top card along the bottom.
+ * - `pip`: graphic or screen recording fills the frame, speaker floats in a rounded corner PiP.
  * - `full`: graphic only (the voice keeps playing).
  * - `speaker`: speaker fills the frame, optional overlay template.
  */
-export const ReelLayoutSchema = z.enum(['split', 'card', 'full', 'speaker']);
+export const ReelLayoutSchema = z.enum(['split', 'card', 'pip', 'full', 'speaker']);
 export type ReelLayout = z.infer<typeof ReelLayoutSchema>;
 
 export const ReelBgSchema = z.enum(['light', 'cream', 'dark']);
@@ -207,6 +208,24 @@ export const ReelTemplateSchema = z.discriminatedUnion('template', [
     url: short(40),
     headline: short(48).optional(),
     strikeAt: ms.optional(),
+  }),
+  /** A user-uploaded Media Bin clip (B-roll video, screen recording, or screenshot, spec 48). */
+  z.object({
+    template: z.literal('clip'),
+    clipId: z.string().min(1).max(64),
+    /** Trim offset inside the source video clip (ms). */
+    clipStartMs: ms.default(0),
+    /** Visual presentation: edge-to-edge cover, macOS-style tilted screen window, or elevated card. */
+    fit: z.enum(['cover', 'screen-window', 'card']).default('cover'),
+    /** Normalized focal point (0..1) for smooth Ken Burns / UI zoom-ins. */
+    focusX: z.number().min(0).max(1).default(0.5),
+    focusY: z.number().min(0).max(1).default(0.5),
+    /** Target zoom factor reached during the scene (1 = no zoom, up to 2.5 = tight UI focus). */
+    zoom: z.number().min(1).max(2.5).default(1),
+    /** Optional short pill/caption label shown cleanly over the clip. */
+    label: short(40).optional(),
+    /** Secondary clip audio handling: silent cutaway, ducked under speaker, or solo. */
+    audioMode: z.enum(['mute', 'duck', 'solo']).default('mute'),
   }),
   /** Speaker overlays (layout `speaker`). */
   z.object({
@@ -439,6 +458,16 @@ export function tileReelScenes(scenes: readonly ReelScene[], durationMs: number)
  * cream backgrounds read as light in mono, and the mono-only seam tags and hook band are kept but
  * ignored by cream. Speaker and full scenes are unchanged.
  */
+/** Every Media Bin `clipId` referenced by `clip` scenes in a reel plan (spec 48). */
+export function reelClipIdsOf(plan: Pick<ReelPlan, 'scenes'> | undefined): string[] {
+  if (!plan) return [];
+  const seen = new Set<string>();
+  for (const s of plan.scenes) {
+    if (s.content.template === 'clip') seen.add(s.content.clipId);
+  }
+  return [...seen];
+}
+
 /** Every picture request in a plan, in scene order (spec 26). */
 export function reelMediaOf(plan: Pick<ReelPlan, 'scenes'>): ReelMedia[] {
   const out: ReelMedia[] = [];

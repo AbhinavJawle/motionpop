@@ -5,6 +5,8 @@ import {
   pickOpenTrack,
   resolvedMediaLanes,
   type MediaClip,
+  type ReelLayout,
+  type ReelTemplate,
   type StockOverlayClip,
 } from '@motionpop/schemas';
 import {
@@ -17,6 +19,7 @@ import {
   Sparkles,
   Trash2,
   Upload,
+  Wand2,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -31,13 +34,18 @@ import {
   addStockOverlay,
   composite,
   removeMediaClip,
+  setReel,
+  setReelSceneClip,
   setSlotMediaClip,
   updateMediaClips,
+  updateReelClipScene,
 } from '@/lib/commands';
+import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import { seekPreview } from '@/lib/editor/preview-bridge';
 import { addOwnImage, imageRoleOf } from '@/lib/images/generate';
 import { sceneFor } from '@/lib/motion/registry';
 import { usePipModel } from '@/lib/pip/model-store';
+import { directReelPaid } from '@/lib/reel/media';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 import { apiHeaders } from '@/lib/users/bootstrap-client';
 import {
@@ -233,9 +241,11 @@ const KIND_LABEL: Record<MediaClip['kind'], string> = {
 export function MediaPanelBody() {
   const project = useEditor((s) => s.project);
   const selected = useEditor((s) => s.selectedSlotId);
+  const playheadMs = useEditor((s) => s.playheadMs);
   const exec = useEditor((s) => s.exec);
+  const { client: credits } = useCreditsClient();
   const [tab, setTab] = useState<'clips' | 'photos'>(() =>
-    editorStore.getState().project?.video ? 'clips' : 'photos',
+    editorStore.getState().project?.video || editorStore.getState().project?.reel ? 'clips' : 'photos',
   );
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<Hit[] | null>(null);
@@ -243,6 +253,7 @@ export function MediaPanelBody() {
   const [adding, setAdding] = useState<string | null>(null);
   const [uploadingClips, setUploadingClips] = useState(false);
   const [indexing, setIndexing] = useState(false);
+  const [weaving, setWeaving] = useState(false);
   const [stockQ, setStockQ] = useState('');
   const [stockKind, setStockKind] = useState<'video' | 'photo'>('video');
   const [stockItems, setStockItems] = useState<StockItem[] | null>(null);
@@ -255,6 +266,15 @@ export function MediaPanelBody() {
 
   const mediaBin = project.mediaBin ?? [];
   const slot = project.slots.find((s) => s.id === selected) ?? null;
+  const activeReelScene = project.reel
+    ? (project.reel.scenes.find((s) => playheadMs >= s.startMs && playheadMs < s.endMs) ??
+      project.reel.scenes[0] ??
+      null)
+    : null;
+  const activeClipContent: Extract<ReelTemplate, { template: 'clip' }> | null =
+    activeReelScene && activeReelScene.content.template === 'clip'
+      ? activeReelScene.content
+      : null;
   const role = slot ? imageRoleOf(slot.componentId) : null;
   const target = slot && role ? { slot, role } : null;
   const hint = !slot
@@ -291,6 +311,69 @@ export function MediaPanelBody() {
       toast('Couldn’t analyze clips right now.');
     } finally {
       setIndexing(false);
+    }
+  };
+
+  /** Indexes any unindexed clips and weaves all Media Bin clips into matching Reel scenes (spec 48 R4.2). */
+  const weaveIntoReel = async () => {
+    const cur = editorStore.getState().project;
+    if (!cur?.reel || !(cur.mediaBin?.length)) return;
+    setWeaving(true);
+    try {
+      let clips = cur.mediaBin;
+      if (clips.some((c) => !c.indexedAt)) {
+        const router = await getRouter().catch(() => null);
+        const res = await indexUnindexedMediaClips(clips, router);
+        if (res.indexedCount > 0) {
+          clips = res.clips;
+          exec(updateMediaClips(clips));
+        }
+      }
+      const directMediaBin = clips.slice(0, 24).map((c) => ({
+        id: c.id,
+        name: c.name,
+        kind: c.kind,
+        ...(c.durationMs !== undefined ? { durationMs: c.durationMs } : {}),
+        summary: c.summary ?? c.name,
+        ...(c.tags?.length ? { tags: c.tags.slice(0, 12) } : {}),
+        ...(c.moments?.length ? { moments: c.moments.slice(0, 6) } : {}),
+      }));
+      const words = cur.transcript.words.map((w) => ({
+        text: w.text,
+        startMs: w.startMs,
+        endMs: w.endMs,
+      }));
+      const directed = await directReelPaid(
+        {
+          look: cur.reel.look,
+          words,
+          durationMs: cur.durationMs,
+          refId: cur.id,
+          ...(!cur.video ? { noVideo: true } : {}),
+          mediaBin: directMediaBin,
+        },
+        { credits },
+      );
+      const nextPlan = {
+        ...directed.plan,
+        captions: cur.reel.captions,
+        ...(cur.reel.captionStyle ? { captionStyle: cur.reel.captionStyle } : {}),
+        ...(cur.reel.theme ? { theme: cur.reel.theme } : {}),
+        ...(cur.reel.footage ? { footage: cur.reel.footage } : {}),
+        ...(cur.reel.music ? { music: cur.reel.music } : {}),
+        ...(cur.reel.sfx ? { sfx: cur.reel.sfx } : {}),
+      };
+      exec(setReel(nextPlan, 'Weave clips into reel'));
+      const clipScenes = nextPlan.scenes.filter((s) => s.content.template === 'clip').length;
+      toast.success(
+        clipScenes > 0
+          ? `Wove ${clipScenes} clip ${clipScenes === 1 ? 'scene' : 'scenes'} into your reel`
+          : 'Updated reel scenes with your clips',
+      );
+    } catch {
+      toast('Couldn’t weave clips right now.');
+    } finally {
+      setWeaving(false);
     }
   };
 
@@ -548,19 +631,159 @@ export function MediaPanelBody() {
               Upload B-roll, screen recordings, or screenshots. AI watches them and weaves them into
               your beats.
             </p>
-            {unindexedCount > 0 && (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={indexing}
-                onClick={() => void runIndex(mediaBin)}
-                className="shrink-0"
-              >
-                <Sparkles className="size-3" strokeWidth={1.5} aria-hidden />
-                {indexing ? 'Analyzing…' : 'Analyze'}
-              </Button>
-            )}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {unindexedCount > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={indexing}
+                  onClick={() => void runIndex(mediaBin)}
+                >
+                  <Sparkles className="size-3" strokeWidth={1.5} aria-hidden />
+                  {indexing ? 'Analyzing…' : 'Analyze'}
+                </Button>
+              )}
+              {project.reel && mediaBin.length > 0 && (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={weaving || indexing}
+                  data-testid="media-bin-weave-reel"
+                  onClick={() => void weaveIntoReel()}
+                >
+                  {weaving ? (
+                    <Loader2 className="size-3 animate-spin" strokeWidth={1.6} aria-hidden />
+                  ) : (
+                    <Wand2 className="size-3" strokeWidth={1.6} aria-hidden />
+                  )}
+                  {weaving ? 'Weaving…' : 'Weave into reel'}
+                </Button>
+              )}
+            </div>
           </div>
+
+          {activeReelScene && activeClipContent && (
+            <div
+              data-testid="reel-clip-scene-controls"
+              className="mt-3 rounded-xl border border-violet/40 bg-violet/8 p-2.5"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-text">
+                  Active clip scene ({(activeReelScene.startMs / 1000).toFixed(1)}s–
+                  {(activeReelScene.endMs / 1000).toFixed(1)}s)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => exec(setReelSceneClip(activeReelScene.id, null))}
+                  className="text-[10.5px] font-medium text-text-3 hover:text-text"
+                >
+                  Clear scene
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {project.video && (
+                  <label className="flex flex-col gap-1 text-[10px] text-text-3">
+                    Layout
+                    <select
+                      aria-label="Clip scene layout"
+                      value={activeReelScene.layout}
+                      onChange={(e) =>
+                        exec(
+                          updateReelClipScene(activeReelScene.id, {
+                            layout: e.target.value as ReelLayout,
+                          }),
+                        )
+                      }
+                      className="h-7 rounded-md border border-line bg-card px-2 text-[11px] text-text"
+                    >
+                      <option value="split">Split (top clip + speaker)</option>
+                      <option value="pip">Full clip + speaker PiP</option>
+                      <option value="full">Full-screen cutaway</option>
+                      <option value="card">Card + bottom speaker</option>
+                    </select>
+                  </label>
+                )}
+                <label className="flex flex-col gap-1 text-[10px] text-text-3">
+                  Framing
+                  <select
+                    aria-label="Clip scene framing"
+                    value={activeClipContent.fit}
+                    onChange={(e) =>
+                      exec(
+                        updateReelClipScene(activeReelScene.id, {
+                          fit: e.target.value as 'cover' | 'screen-window' | 'card',
+                        }),
+                      )
+                    }
+                    className="h-7 rounded-md border border-line bg-card px-2 text-[11px] text-text"
+                  >
+                    <option value="cover">Edge-to-edge B-roll</option>
+                    <option value="screen-window">3D Screen window</option>
+                    <option value="card">Elevated card</option>
+                  </select>
+                </label>
+                <label className="flex flex-col gap-1 text-[10px] text-text-3">
+                  Zoom ({activeClipContent.zoom.toFixed(2)}×)
+                  <input
+                    type="range"
+                    min={1}
+                    max={2.2}
+                    step={0.05}
+                    aria-label="Clip scene zoom"
+                    value={activeClipContent.zoom}
+                    onChange={(e) =>
+                      exec(
+                        updateReelClipScene(activeReelScene.id, {
+                          zoom: Number(e.target.value),
+                        }),
+                      )
+                    }
+                    className="h-7 accent-violet"
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-[10px] text-text-3">
+                  Clip audio
+                  <select
+                    aria-label="Clip scene audio"
+                    value={activeClipContent.audioMode}
+                    onChange={(e) =>
+                      exec(
+                        updateReelClipScene(activeReelScene.id, {
+                          audioMode: e.target.value as 'mute' | 'duck' | 'solo',
+                        }),
+                      )
+                    }
+                    className="h-7 rounded-md border border-line bg-card px-2 text-[11px] text-text"
+                  >
+                    <option value="mute">Muted (B-roll)</option>
+                    <option value="duck">Ducked under voice</option>
+                    <option value="solo">Full volume</option>
+                  </select>
+                </label>
+              </div>
+              <div className="mt-2 flex items-center gap-2">
+                <label className="flex flex-1 items-center justify-between gap-2 text-[10px] text-text-3">
+                  <span>Start offset (sec)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    aria-label="Clip start offset seconds"
+                    value={Number((activeClipContent.clipStartMs / 1000).toFixed(1))}
+                    onChange={(e) => {
+                      const v = Math.max(0, Number(e.target.value) || 0);
+                      exec(
+                        updateReelClipScene(activeReelScene.id, {
+                          clipStartMs: Math.round(v * 1000),
+                        }),
+                      );
+                    }}
+                    className="h-6 w-16 rounded-md border border-line bg-card px-1.5 text-right font-mono text-[11px] text-text"
+                  />
+                </label>
+              </div>
+            </div>
+          )}
 
           {/* Pixabay / stock B-roll & photos search */}
           <div className="mt-3 rounded-xl border border-line bg-card p-2.5">
@@ -706,6 +929,7 @@ export function MediaPanelBody() {
             <ul className="mt-3 space-y-2.5" data-testid="media-bin-list">
               {mediaBin.map((clip) => {
                 const isUsedOnSelected = slot?.clipId === clip.id;
+                const isUsedOnScene = activeClipContent?.clipId === clip.id;
                 const activeStage = slot?.videoStage;
                 return (
                   <li
@@ -713,7 +937,7 @@ export function MediaPanelBody() {
                     data-testid={`media-clip-${clip.id}`}
                     className={cn(
                       'overflow-hidden rounded-xl border bg-card-2 transition-colors',
-                      isUsedOnSelected ? 'border-violet/60' : 'border-white/8',
+                      isUsedOnSelected || isUsedOnScene ? 'border-violet/60' : 'border-white/8',
                     )}
                   >
                     <div className="flex gap-2.5 p-2">
@@ -773,6 +997,28 @@ export function MediaPanelBody() {
                         >
                           + Timeline
                         </button>
+                        {activeReelScene && (
+                          <button
+                            type="button"
+                            data-testid={`media-clip-on-scene-${clip.id}`}
+                            onClick={() => {
+                              exec(
+                                setReelSceneClip(
+                                  activeReelScene.id,
+                                  isUsedOnScene ? null : clip.id,
+                                ),
+                              );
+                            }}
+                            className={cn(
+                              'rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors',
+                              isUsedOnScene
+                                ? 'bg-violet-sel text-text'
+                                : 'bg-white/8 text-text-2 hover:bg-white/14 hover:text-text',
+                            )}
+                          >
+                            {isUsedOnScene ? 'On scene ✓' : 'On scene'}
+                          </button>
+                        )}
                         {slot && (
                           <button
                             type="button"

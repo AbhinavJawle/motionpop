@@ -52,6 +52,8 @@ export interface RouteInput {
   forceCloud?: boolean;
   /** True when a browser-local Gemini BYOK key is active (0 Motionpop credits). */
   byok?: boolean;
+  /** True when a local LLM server (Ollama / LM Studio) is active as full local provider (0 credits, works offline). */
+  localLlm?: boolean;
 }
 
 export type Route =
@@ -63,6 +65,7 @@ export type Route =
       credits: number;
       insufficient: boolean;
       byok?: true;
+      localLlm?: true;
     }
   /** Deterministic code (the prefill template, the scene's safe defaults). */
   | { kind: 'local' }
@@ -72,6 +75,16 @@ const DEVICE: Route = { kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: fals
 const disabled = (reason: BlockedReason): Route => ({ kind: 'disabled', reason });
 
 function cloudRoute(i: RouteInput): Route {
+  if (i.localLlm) {
+    return {
+      kind: 'cloud',
+      mode: 'ONLY_IN_CLOUD',
+      allowCloud: false,
+      credits: 0,
+      insufficient: false,
+      localLlm: true,
+    };
+  }
   if (!i.online) return disabled('Needs connection');
   if (i.byok) {
     return {
@@ -97,17 +110,21 @@ function cloudRoute(i: RouteInput): Route {
 /**
  * Rules, in order (`checking` counts as not available, so the first second after load shows
  * ☁ 1 rather than a mint chip that could turn into a charge):
- * 1. `prompt.prefill` and `autofill`: the device when available, else deterministic code. Never cloud.
- * 2. `generate`: always the cloud route (offline, no cloud, paused, else cloud).
- * 3. `edit.patch` and `note.fix`: the device when it is available and (the user prefers it, or
- *    the cloud can't be used) and the user did not ask for the cloud; otherwise the cloud route.
+ * 1. `prompt.prefill` and `autofill`: the device when available (or local LLM), else deterministic code. Never cloud.
+ * 2. `generate`: always the cloud/local-LLM route (offline, no cloud, paused, else cloud).
+ * 3. `edit.patch` and `note.fix`: when local LLM is active, routes directly to it (0 credits, offline ok);
+ *    otherwise the device when it is available and (the user prefers it, or the cloud can't be used)
+ *    and the user did not ask for the cloud; otherwise the cloud route.
  * 4. Remote Config overrides: a cloud mode acts like `preferOnDevice: false`; `ONLY_ON_DEVICE`
  *    forbids the cloud for that task. They never make prefill or autofill cloud, or generate device.
  */
 export function chooseRoute(i: RouteInput): Route {
   const deviceReady = i.availability === 'available';
   if (i.task === 'prompt.prefill' || i.task === 'autofill') {
-    return deviceReady ? DEVICE : { kind: 'local' };
+    return deviceReady || i.localLlm ? DEVICE : { kind: 'local' };
+  }
+  if (i.localLlm) {
+    return cloudRoute(i);
   }
   // Pip plans reason over the whole timeline: the cloud (hybrid-ai.md, PREFER_IN_CLOUD).
   if (
@@ -128,12 +145,13 @@ export function chooseRoute(i: RouteInput): Route {
   return cloudRoute(i);
 }
 
-/** The chip shown before the action: mint `⚡ free · on-device`, violet `☁ N`, `BYOK · 0`, or none. */
+/** The chip shown before the action: mint `⚡ free · on-device`, `Local · 0`, `BYOK · 0`, violet `☁ N`, or none. */
 export function chipFor(
   r: Route,
-): { route: 'device' } | { route: 'cloud'; credits: number; byok?: true } | null {
+): { route: 'device' } | { route: 'cloud'; credits: number; byok?: true; localLlm?: true } | null {
   if (r.kind === 'device') return { route: 'device' };
   if (r.kind === 'cloud') {
+    if (r.localLlm) return { route: 'cloud', credits: 0, localLlm: true };
     return r.byok
       ? { route: 'cloud', credits: 0, byok: true }
       : { route: 'cloud', credits: r.credits };

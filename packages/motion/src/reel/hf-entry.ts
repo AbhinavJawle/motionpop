@@ -13,7 +13,10 @@ declare global {
 const data = window.__REEL__;
 const stage = document.getElementById('reel-stage');
 if (data && stage) {
-  const videos = Array.from(stage.querySelectorAll('video'));
+  const vwrap = stage.querySelector('[data-reel-vwrap]');
+  const videos: HTMLVideoElement[] = vwrap
+    ? Array.from(vwrap.querySelectorAll<HTMLVideoElement>('video'))
+    : Array.from(stage.querySelectorAll<HTMLVideoElement>('video:not([data-reel-clip-scene])'));
   const reel = mountReel(stage, data, videos);
   const hasCustom = data.plan.scenes.some((s) => s.content.template === 'custom');
   let ready = false;

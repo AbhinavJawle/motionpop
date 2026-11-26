@@ -187,8 +187,10 @@ describe('AISection', () => {
     expect(screen.getByText('Usage is reported by your browser.')).toBeTruthy();
   });
 
-  it('renders the BYOK Gemini API key configuration card inside AI & models', () => {
+  it('renders the Local LLM and BYOK Gemini API key configuration cards inside AI & models', () => {
     render(<AISection variant="page" />);
+    expect(screen.getByTestId('local-llm-section')).toBeTruthy();
+    expect(screen.getByLabelText('Local LLM server URL')).toBeTruthy();
     expect(screen.getByTestId('byok-section')).toBeTruthy();
     expect(screen.getByLabelText('Gemini API key')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Save & test key' })).toBeTruthy();

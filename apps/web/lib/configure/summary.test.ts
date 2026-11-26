@@ -277,3 +277,47 @@ describe('summarize: graphic', () => {
     expect(s.total).toBe(0);
   });
 });
+
+describe('summarize: Local LLM (Ollama / LM Studio)', () => {
+  it('prices video & graphic directing at 0 credits even offline/signed out while keeping cloud images honest', () => {
+    const v = summarize(
+      defaultEdit('video'),
+      ctx({ signedIn: false, online: false, balance: 0, localLlm: true }),
+    );
+    expect(row(v, 'direct')).toMatchObject({
+      value: 'Free · local LLM',
+      credits: 0,
+      route: 'device',
+    });
+    expect(row(v, 'illustrations')).toMatchObject({
+      value: 'Off · needs credits',
+      credits: 0,
+    });
+    expect(v.total).toBe(0);
+    expect(v.note).toContain('local LLM');
+
+    const signedInVideo = summarize(
+      defaultEdit('video'),
+      ctx({ signedIn: true, online: true, balance: 50, localLlm: true }),
+    );
+    expect(row(signedInVideo, 'direct')).toMatchObject({
+      value: 'Free · local LLM',
+      credits: 0,
+    });
+    expect(row(signedInVideo, 'illustrations')).toMatchObject({
+      value: 'up to 6 credits',
+      credits: 6,
+      upTo: true,
+    });
+    expect(signedInVideo.total).toBe(6);
+  });
+
+  it('still requires sign-in/credits or BYOK for cloud TTS voices when only local LLM is active', () => {
+    const edit = defaultEdit('voiceover', { source: 'tts' });
+    const blocked = summarize(
+      edit,
+      ctx({ kind: 'voiceover', script: { minutes: 2 }, signedIn: false, localLlm: true }),
+    );
+    expect(blocked.block).toBe('Sign in to generate a voice');
+  });
+});

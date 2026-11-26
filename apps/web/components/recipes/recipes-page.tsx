@@ -12,7 +12,7 @@ import { btn, paper, PaperPage, poster } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
 import { pairedSlotSkillsFor, reelDirectorSkills } from '@/lib/skills/catalog';
 
-const LAYOUT_ORDER: readonly { key: ReelLayout; label: string; color: string }[] = [
+const LAYOUT_ORDER: readonly { key: Exclude<ReelLayout, 'pip'>; label: string; color: string }[] = [
   { key: 'split', label: 'Split', color: '#8dbceb' },
   { key: 'speaker', label: 'Speaker', color: '#a7f3d0' },
   { key: 'full', label: 'Full', color: '#ff8a5c' },

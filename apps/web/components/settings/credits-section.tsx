@@ -1,11 +1,12 @@
 'use client';
 
-import { Cloud, Coins, KeyRound } from 'lucide-react';
+import { Cloud, Coins, KeyRound, Server } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { NumberRoll } from '@/components/ui/number-roll';
 import { Shimmer } from '@/components/ui/shimmer';
 import { useByok } from '@/lib/ai/byok';
+import { useLocalLlm } from '@/lib/ai/local-llm';
 import { cn } from '@/lib/cn';
 import { useCreditsBalance } from '@/lib/credits/use-credits-client';
 import { useCredits } from '@/lib/credits/use-credits';
@@ -26,6 +27,7 @@ export function CreditsSection({ variant, nowMs }: { variant: SettingsVariant; n
   const balance = useCreditsBalance();
   const { plan } = useCredits();
   const { active: byokActive } = useByok();
+  const { active: localLlmActive, model: localLlmModel } = useLocalLlm();
   const config = useAppConfig();
   const ledger = useLedger(balance);
   // Fixed when the section opens; the ledger itself is re-read when the balance changes.
@@ -69,6 +71,23 @@ export function CreditsSection({ variant, nowMs }: { variant: SettingsVariant; n
           Buy credits
         </Link>
       </div>
+
+      {localLlmActive && (
+        <div
+          className={cn(
+            'mt-4 flex items-center gap-2 rounded-lg px-3 py-2 text-xs leading-4',
+            variant === 'page'
+              ? 'border-2 border-ink bg-[#d1fae5] text-ink'
+              : 'bg-mint-tint text-mint-ink',
+          )}
+        >
+          <Server className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+          <span>
+            Local LLM (<code className="font-mono">{localLlmModel}</code>) is active — directing,
+            edits &amp; notes run locally at <strong>0 Motionpop credits</strong>.
+          </span>
+        </div>
+      )}
 
       {byokActive && (
         <div

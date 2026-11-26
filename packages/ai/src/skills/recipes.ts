@@ -31,8 +31,8 @@ export interface DirectorSkill {
   /** One line under the card. */
   blurb: string;
   sceneMs: { min: number; max: number };
-  /** Share of the runtime per layout (targets; they sum to 1). */
-  layoutMix: Readonly<Record<ReelLayout, number>>;
+  /** Share of the runtime per base layout (targets; they sum to 1). */
+  layoutMix: Readonly<Record<Exclude<ReelLayout, 'pip'>, number>>;
   preferredTemplates: readonly ReelTemplateId[];
   hookPattern: string;
   visualGrammar: string;

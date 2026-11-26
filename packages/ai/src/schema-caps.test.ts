@@ -9,6 +9,10 @@ import { reelNoteLocalJsonSchema, ReelNoteLocalOutputSchema } from './reel/note-
 import { pipPlanJsonSchema, type PipPlanInput } from './tasks/pip-plan';
 import { pipQuickJsonSchema, PipQuickOutputSchema } from './tasks/pip-quick';
 import { recipeResolveJsonSchema } from './tasks/recipe-resolve';
+import {
+  setupRecommendJsonSchema,
+  SetupRecommendModelOutputSchema,
+} from './tasks/setup-recommend';
 
 /**
  * String caps on the hand-written structured-output schemas (spec 39 AI QA). Without a cap the
@@ -95,6 +99,7 @@ const SCHEMAS: Record<string, Json> = {
   'reel.draft': reelDraftJsonSchema(),
   'reel.edit': reelEditJsonSchema(),
   'recipe.resolve': recipeResolveJsonSchema(),
+  'setup.recommend': setupRecommendJsonSchema(),
   'pip.plan': pipPlanJsonSchema(PIP_INPUT),
   'pip.quick': pipQuickJsonSchema(),
 };
@@ -164,6 +169,12 @@ describe('structured-output string caps (spec 39 AI QA)', () => {
         at(SCHEMAS['recipe.resolve']!, 'directorNotes'),
         ResolvedRecipeSchema.shape.directorNotes,
         400,
+      ],
+      // setup.recommend
+      [
+        at(SCHEMAS['setup.recommend']!, 'reason'),
+        SetupRecommendModelOutputSchema.shape.reason,
+        120,
       ],
       // reel.note.local
       [at(SCHEMAS['reel.note.local']!, 'message'), ReelNoteLocalOutputSchema.shape.message, 140],

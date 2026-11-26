@@ -63,6 +63,15 @@ export function peekPending(
   return r.success ? r.data : null;
 }
 
+/** Updates the stored pending meta/draft in place without deleting any referenced blobs (spec 48). */
+export function updatePendingMeta(
+  meta: PendingIntake,
+  draft: StartDraft,
+  deps: Pick<PendingDeps, 'storage'> = browserDeps(),
+): void {
+  deps.storage?.setItem(PENDING_KEY, JSON.stringify({ meta, draft }));
+}
+
 /** Points the hand-off at audio that is already stored (a finished recording). */
 export async function setPendingRef(
   meta: PendingIntake,

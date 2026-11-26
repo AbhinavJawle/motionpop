@@ -14,6 +14,7 @@ import {
   type GraphicSceneBlueprint,
   type PlannedVideo,
   type ReelDirectBrief,
+  type ReelDirectMediaClip,
   type TaggedSpan,
   type ValidatedParams,
   styleFor as recipeStyleFor,
@@ -37,6 +38,7 @@ import {
   type Format,
   type Look,
   type MediaClip,
+  type MediaClipKind,
   type OverlayAnchor,
   type PendingExtraClip,
   type ReelCaptionStyle,
@@ -200,6 +202,8 @@ export interface PipelineDeps {
     choices?: EditChoices;
     /** True for voiceover-only projects without speaker footage (`layout: 'full'`). */
     noVideo?: boolean;
+    /** Indexed creator-uploaded Media Bin clips to weave into matching beats (spec 48). */
+    mediaBin?: readonly ReelDirectMediaClip[];
     /** Fires when the job is cancelled: a charge made by this call is handed back (R6.9). */
     signal?: AbortSignal;
   }): Promise<{ plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string }>;
@@ -300,8 +304,13 @@ export interface PipelineDeps {
     onProgress?: (done: number, total: number, label: string) => void;
     signal?: AbortSignal;
   }): Promise<ReelPlan>;
-  /** Optional extra-clip ingester for B-roll / screen-recordings / screenshots dropped on /start (spec 20). */
+  /** Optional extra-clip ingester for B-roll / screen-recordings / screenshots dropped on /start (spec 20 + 48). */
   ingestExtraClip?(clip: PendingExtraClip, projectId: string): Promise<MediaClip | null>;
+  /** Optional vision indexer (`media.index`) run before directing a reel with extra clips (spec 48). */
+  indexMediaClips?(
+    clips: readonly MediaClip[],
+    lockedKinds?: ReadonlyMap<string, MediaClipKind>,
+  ): Promise<MediaClip[]>;
   /** `imagesPerVideoMax` (Remote Config). */
   imagesMax?: number;
 }
@@ -794,8 +803,11 @@ export async function runPipeline(
         transcriptSummary(t.words.length, audio.durationMs),
     });
 
-    // Talking-head video (spec 25): the automatic edit (spec 28), then a template reel.
+    // Talking-head video (spec 25 + spec 48): automatic edit (spec 28), extra-clip ingest &
+    // vision indexing in parallel, then a multi-clip template reel.
     if (isVideoInput && !input.single) {
+      // Kick off extra B-roll / screen-recording ingestion + vision indexing in parallel with cuts.
+      const extraMediaPromise = prepareExtraMediaBin(input.extraClips, id, deps);
       step = 'clean';
       onEvent({ type: 'step', step, state: 'active', detail: 'Measuring your speech' });
       const probe = deps.probeVideo ? await deps.probeVideo(input.file).catch(() => null) : null;
@@ -887,9 +899,13 @@ export async function runPipeline(
         type: 'step',
         step,
         state: 'active',
-        detail: 'Writing the story',
+        detail: input.extraClips?.length ? 'Analyzing clips & writing the story' : 'Writing the story',
         ...(deps.directReel ? { route: 'cloud' as const } : {}),
       });
+      const preparedMedia = await extraMediaPromise;
+      checkAbort();
+      const reelMediaBin = preparedMedia.clips;
+      const directMediaBin = reelMediaBin.length ? toDirectMediaBin(reelMediaBin) : undefined;
       // The creator's style decides the look before the director runs (spec 39 review 18).
       const editStyle = edit ? reelStyleOf(edit) : null;
       const look: ReelLook = editStyle?.look ?? input.reelLook ?? 'mono';
@@ -919,6 +935,7 @@ export async function runPipeline(
                 words,
                 durationMs: reelMs,
                 frames,
+                ...(directMediaBin ? { mediaBin: directMediaBin } : {}),
                 ...(edit && choices ? { brief: briefFromEdit(edit) ?? undefined, choices } : {}),
                 ...(signal ? { signal } : {}),
               })
@@ -1030,7 +1047,7 @@ export async function runPipeline(
       }
 
       checkAbort();
-      const written: string[] = [];
+      const written: string[] = [...preparedMedia.written];
       try {
         const place = { projectId: id, kind: 'voice' } as const;
         const reuse = input.storedRef && !deps.audioStore.syncs?.() ? input.storedRef : null;
@@ -1089,6 +1106,7 @@ export async function runPipeline(
             defaultOverlayAnchor: 'top-right',
           },
           reel,
+          ...(reelMediaBin.length ? { mediaBin: reelMediaBin } : {}),
           ...(reelAssets.length ? { assets: reelAssets } : {}),
           transcript: transcript(reelWords, videoCuts.length > 0),
           originalTranscript: transcript(sourceWords, false),
@@ -1191,6 +1209,7 @@ export async function runPipeline(
     // Voiceover-only projects (Record / Upload audio / Paste script) now use the Reel engine too,
     // with full-frame graphics (`noVideo: true`), all 3 aspect ratios, and transparent WebM support.
     if (!isVideoInput && !input.single && deps.directReel) {
+      const extraMediaPromise = prepareExtraMediaBin(input.extraClips, id, deps);
       step = 'moments';
       onEvent({ type: 'step', step, state: 'active', detail: 'Pacing your voiceover' });
       const spans = tagSpans(cleanedWords);
@@ -1212,9 +1231,13 @@ export async function runPipeline(
         type: 'step',
         step,
         state: 'active',
-        detail: 'Writing the story',
+        detail: input.extraClips?.length ? 'Analyzing clips & writing the story' : 'Writing the story',
         route: 'cloud',
       });
+      const preparedMedia = await extraMediaPromise;
+      checkAbort();
+      const reelMediaBin = preparedMedia.clips;
+      const directMediaBin = reelMediaBin.length ? toDirectMediaBin(reelMediaBin) : undefined;
       const editStyle = edit ? reelStyleOf(edit) : null;
       const look: ReelLook = editStyle?.look ?? input.reelLook ?? 'mono';
       const choices: EditChoices | null = edit
@@ -1239,6 +1262,7 @@ export async function runPipeline(
             words: reelWords,
             durationMs: cleanedMs,
             noVideo: true,
+            ...(directMediaBin ? { mediaBin: directMediaBin } : {}),
             ...(edit && choices ? { brief: briefFromEdit(edit) ?? undefined, choices } : {}),
             ...(signal ? { signal } : {}),
           })
@@ -1380,7 +1404,7 @@ export async function runPipeline(
       }
 
       checkAbort();
-      const written: string[] = [];
+      const written: string[] = [...preparedMedia.written];
       try {
         const place = { projectId: id, kind: 'voice' } as const;
         const reuse = input.storedRef && !deps.audioStore.syncs?.() ? input.storedRef : null;
@@ -1425,6 +1449,7 @@ export async function runPipeline(
             ...(input.tts ? { tts: input.tts } : {}),
           },
           reel,
+          ...(reelMediaBin.length ? { mediaBin: reelMediaBin } : {}),
           ...(reelAssets.length ? { assets: reelAssets } : {}),
           transcript: {
             ...transcript(cleanedWords, cuts.length > 0),
@@ -1692,6 +1717,44 @@ export async function runPipeline(
     onEvent({ type: 'error', step: e.step, message: e.message });
     throw e;
   }
+}
+
+/** Maps stored Media Bin clips to the compact summary shape `directReel` consumes (spec 48). */
+function toDirectMediaBin(clips: readonly MediaClip[]): ReelDirectMediaClip[] {
+  return clips.slice(0, 24).map((c) => ({
+    id: c.id,
+    name: c.name,
+    kind: c.kind,
+    ...(c.durationMs !== undefined ? { durationMs: c.durationMs } : {}),
+    summary: c.summary ?? c.name,
+    ...(c.tags?.length ? { tags: c.tags.slice(0, 12) } : {}),
+    ...(c.moments?.length ? { moments: c.moments.slice(0, 6) } : {}),
+  }));
+}
+
+async function prepareExtraMediaBin(
+  extraClips: readonly PendingExtraClip[] | undefined,
+  projectId: string,
+  deps: Pick<PipelineDeps, 'ingestExtraClip' | 'indexMediaClips'>,
+): Promise<{ clips: MediaClip[]; written: string[] }> {
+  if (!extraClips?.length || !deps.ingestExtraClip) return { clips: [], written: [] };
+  const raw: MediaClip[] = [];
+  const written: string[] = [];
+  const lockedKinds = new Map<string, MediaClipKind>();
+  for (const extra of extraClips.slice(0, 20)) {
+    const clip = await deps.ingestExtraClip(extra, projectId).catch(() => null);
+    if (clip) {
+      raw.push(clip);
+      if (clip.src !== extra.ref) written.push(clip.src);
+      if (extra.kindHint) lockedKinds.set(clip.id, extra.kindHint);
+    }
+  }
+  if (raw.length === 0) return { clips: [], written };
+  if (deps.indexMediaClips) {
+    const indexed = await deps.indexMediaClips(raw, lockedKinds).catch(() => raw);
+    return { clips: indexed, written };
+  }
+  return { clips: raw, written };
 }
 
 /** What each processing step does for a talking-head reel (spec 28 R4). */

@@ -5,7 +5,7 @@ import {
   type MediaIndexClipInput,
   type Router,
 } from '@motionpop/ai';
-import type { MediaClip } from '@motionpop/schemas';
+import type { MediaClip, MediaClipKind } from '@motionpop/schemas';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
 import type { AudioStore } from '@/lib/audio/audio-store';
 import { probeAndSampleVideo } from './frames';
@@ -88,7 +88,13 @@ async function sampleImageBlob(
  */
 export async function ingestMediaClipBlob(
   blob: Blob,
-  meta: { name: string; mimeType?: string; projectId?: string; existingRef?: string },
+  meta: {
+    name: string;
+    mimeType?: string;
+    projectId?: string;
+    existingRef?: string;
+    kindHint?: MediaClipKind;
+  },
   store: AudioStore = appAudioStore(),
 ): Promise<ProbedMediaClip> {
   const mimeType = meta.mimeType || guessMimeType({ name: meta.name, type: blob.type });
@@ -134,7 +140,7 @@ export async function ingestMediaClipBlob(
     }
   }
 
-  const kind = inferClipKind(meta.name, mimeType);
+  const kind = meta.kindHint ?? inferClipKind(meta.name, mimeType);
   const clip: MediaClip = {
     id,
     name: meta.name.slice(0, 120),
@@ -158,6 +164,8 @@ export async function indexUnindexedMediaClips(
   opts?: {
     store?: AudioStore;
     preSampled?: ReadonlyMap<string, ProbedMediaClip['frames']>;
+    /** Clips whose `kind` was explicitly chosen by the creator and must not be overwritten. */
+    lockedKinds?: ReadonlyMap<string, MediaClipKind>;
     model?: string;
     now?: () => number;
   },
@@ -225,7 +233,7 @@ export async function indexUnindexedMediaClips(
     if (!hit) return c;
     return {
       ...c,
-      kind: hit.kind,
+      kind: opts?.lockedKinds?.get(c.id) ?? hit.kind,
       summary: hit.summary,
       tags: hit.tags,
       dominantColors: hit.dominantColors,

@@ -2,6 +2,7 @@
 
 import { useCallback, useSyncExternalStore } from 'react';
 import { useByok } from '../ai/byok';
+import { useLocalLlm } from '../ai/local-llm';
 import { useAuth, type AuthUser } from '../auth/auth-provider';
 import { firebaseEnabled } from '../firebase/client';
 import { apiHeaders, bootstrapCurrentUser } from '../users/bootstrap-client';
@@ -9,6 +10,7 @@ import { ByokCredits } from './byok-credits';
 import type { CreditsClient } from './client';
 import { userStore } from './firestore-listen';
 import { LocalCredits } from './local-credits';
+import { LocalLlmCredits } from './local-llm-credits';
 import { fakeAiFlag, pickCreditsClient, type CreditsPick } from './pick-client';
 import { ServerCredits } from './server-credits';
 
@@ -16,6 +18,8 @@ let local: LocalCredits | undefined;
 const servers = new Map<string, ServerCredits>();
 const byokWrappers = new WeakMap<CreditsClient, ByokCredits>();
 let standaloneByok: ByokCredits | undefined;
+const localLlmWrappers = new WeakMap<CreditsClient, LocalLlmCredits>();
+let standaloneLocalLlm: LocalLlmCredits | undefined;
 
 function byokCreditsFor(inner: CreditsClient | null): ByokCredits {
   if (!inner) return (standaloneByok ??= new ByokCredits(null));
@@ -23,6 +27,16 @@ function byokCreditsFor(inner: CreditsClient | null): ByokCredits {
   if (!wrapped) {
     wrapped = new ByokCredits(inner);
     byokWrappers.set(inner, wrapped);
+  }
+  return wrapped;
+}
+
+function localLlmCreditsFor(inner: CreditsClient | null): LocalLlmCredits {
+  if (!inner) return (standaloneLocalLlm ??= new LocalLlmCredits(null));
+  let wrapped = localLlmWrappers.get(inner);
+  if (!wrapped) {
+    wrapped = new LocalLlmCredits(inner);
+    localLlmWrappers.set(inner, wrapped);
   }
   return wrapped;
 }
@@ -53,17 +67,23 @@ export interface UseCreditsClient {
   cloudBlockedReason: string | null;
   /** True when cloud Gemini calls are routed through the user's browser-local API key (0 credits). */
   byok?: boolean;
+  /** True when routed text/JSON AI tasks run through a browser-local Ollama/LM Studio server (0 credits). */
+  localLlm?: boolean;
+  /** True when the session can pay for cloud-only media (TTS / images) via account credits or BYOK. */
+  hasAccountCredits?: boolean;
 }
 
 /**
- * The credits client for this session (spec 13 task 8; spec 42 BYOK). `ServerCredits` with
- * Firebase and a signed-in user; `LocalCredits` only without Firebase or with
- * `NEXT_PUBLIC_FAKE_AI=1`; when a browser-local Gemini API key is saved (outside fake-AI mode),
- * `ByokCredits` wraps the active client so cloud Gemini calls run at 0 Motionpop credits.
+ * The credits client for this session (spec 13 task 8; spec 42 BYOK; local LLM). `ServerCredits`
+ * with Firebase and a signed-in user; `LocalCredits` only without Firebase or with
+ * `NEXT_PUBLIC_FAKE_AI=1`; when a browser-local Gemini API key or Ollama/LM Studio provider is
+ * enabled (outside fake-AI mode), the active client is wrapped so covered AI calls run at 0
+ * Motionpop credits while cloud-only media (TTS/image) still enforce credits when BYOK is absent.
  */
 export function useCreditsClient(): UseCreditsClient {
   const auth = useAuth();
   const { active: byokActive } = useByok();
+  const { active: localLlmActive } = useLocalLlm();
   const user = auth.status === 'signed-in' ? auth.user : null;
   const fakeAi = fakeAiFlag({
     NODE_ENV: process.env.NODE_ENV,
@@ -80,12 +100,25 @@ export function useCreditsClient(): UseCreditsClient {
   if (pick.client === 'local') client = local ??= new LocalCredits();
   else if (pick.client === 'server' && user) client = serverCreditsFor(user);
 
+  if (localLlmActive && !fakeAi) {
+    const base = byokActive ? byokCreditsFor(client) : client;
+    return {
+      client: localLlmCreditsFor(base),
+      cloudAvailable: true,
+      cloudBlockedReason: null,
+      byok: byokActive,
+      localLlm: true,
+      hasAccountCredits: byokActive || client !== null,
+    };
+  }
   if (byokActive && !fakeAi) {
     return {
       client: byokCreditsFor(client),
       cloudAvailable: true,
       cloudBlockedReason: null,
       byok: true,
+      localLlm: false,
+      hasAccountCredits: true,
     };
   }
   return {
@@ -93,6 +126,8 @@ export function useCreditsClient(): UseCreditsClient {
     cloudAvailable: pick.cloudAvailable,
     cloudBlockedReason: pick.cloudBlockedReason,
     byok: false,
+    localLlm: false,
+    hasAccountCredits: client !== null,
   };
 }
 

@@ -241,6 +241,12 @@ function extractReelGraphic(
         kicker: clip(g.verb, 80),
         headline: clip(g.keyword, 140),
       };
+    case 'clip':
+      return {
+        heroKind,
+        kicker: g.fit === 'screen-window' ? 'SCREEN RECORDING' : 'B-ROLL CLIP',
+        headline: clip(g.label ?? 'Uploaded clip', 140),
+      };
     case 'custom':
       return {
         heroKind,

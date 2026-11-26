@@ -117,6 +117,61 @@ describe('MediaCard', () => {
     expect(screen.queryByText('Duration')).toBeNull();
     expect(screen.getAllByText('Ready').length).toBeGreaterThan(0);
   });
+
+  it('shows the extra-clip tray and lets the creator pick their main talking head, tag roles, or remove clips (spec 48)', () => {
+    const onAdd = vi.fn();
+    const onRemoveClip = vi.fn();
+    const onSetKind = vi.fn();
+    const onMakeMain = vi.fn();
+    render(
+      <MediaCard
+        job={job({
+          kind: 'video',
+          media: {
+            name: 'cam-take.mp4',
+            mimeType: 'video/mp4',
+            sizeBytes: 15_000_000,
+            durationMs: 42_000,
+          },
+          extraClips: [
+            {
+              ref: 'idb:screen-1',
+              name: 'dashboard-demo.mp4',
+              mimeType: 'video/mp4',
+              sizeBytes: 22_000_000,
+              durationMs: 18_000,
+            },
+            {
+              ref: 'idb:shot-1',
+              name: 'pricing.png',
+              mimeType: 'image/png',
+              sizeBytes: 400_000,
+            },
+          ],
+        })}
+        onRemove={() => {}}
+        onAddExtraClips={onAdd}
+        onRemoveExtraClip={onRemoveClip}
+        onSetExtraClipKind={onSetKind}
+        onMakeMainClip={onMakeMain}
+      />,
+    );
+    expect(screen.getByTestId('main-aroll-badge').textContent).toBe('Main talking head');
+    expect(screen.getByText('B-roll & extra clips (2)')).toBeTruthy();
+    // Only the video clip offers "Make main" (not the PNG screenshot).
+    const makeMainBtns = screen.getAllByRole('button', { name: /Make main/i });
+    expect(makeMainBtns).toHaveLength(1);
+    fireEvent.click(makeMainBtns[0]!);
+    expect(onMakeMain).toHaveBeenCalledWith('idb:screen-1');
+    // Role tag update
+    fireEvent.change(screen.getByLabelText('Role for dashboard-demo.mp4'), {
+      target: { value: 'screen-recording' },
+    });
+    expect(onSetKind).toHaveBeenCalledWith('idb:screen-1', 'screen-recording');
+    // Remove extra clip
+    fireEvent.click(screen.getByRole('button', { name: 'Remove pricing.png' }));
+    expect(onRemoveClip).toHaveBeenCalledWith('idb:shot-1');
+  });
 });
 
 describe('pipLine', () => {

@@ -47,7 +47,7 @@ export const ProjectPreviewSchema = z.object({
   /** Compact JPEG keyframe data URL when already captured at upload/probe time. */
   videoPoster: z.string().max(120_000).optional(),
   reelLook: z.enum(['mono', 'cream']).optional(),
-  reelLayout: z.enum(['split', 'card', 'full', 'speaker']).optional(),
+  reelLayout: z.enum(['split', 'card', 'pip', 'full', 'speaker']).optional(),
   reelSceneCount: z.number().int().nonnegative().optional(),
   /** Hero template or scene id (e.g. `headline`, `counter`, `stat-punch`, `versus`, `map-zoom`). */
   heroKind: z.string().max(40).optional(),

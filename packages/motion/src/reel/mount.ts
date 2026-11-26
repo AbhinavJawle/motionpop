@@ -15,7 +15,7 @@ import {
   type Palette,
 } from './looks';
 import { readable, themedLook } from './theme';
-import type { ReelImage } from './parts';
+import type { ReelClipMedia, ReelImage } from './parts';
 import { carriedInPlace, carryOrigins } from './carry';
 import {
   focusAt,
@@ -42,6 +42,8 @@ export interface ReelData {
   transparent?: boolean;
   /** Pictures by `project.assets` id (spec 26): composition-relative or blob URLs. */
   images?: Record<string, ReelImage>;
+  /** Creator-uploaded Media Bin clips by clip id (spec 48): composition-relative or blob URLs. */
+  clips?: Record<string, ReelClipMedia>;
   /** Reel-time jump cuts in the speaker video (spec 27 R1.2): the framing alternates on them. */
   cuts?: readonly number[];
   /**
@@ -87,9 +89,12 @@ interface SceneView {
   on?: boolean;
 }
 
-/** Takes a scene off screen. */
+/** Takes a scene off screen (and pauses any preview-managed clip video inside it). */
 function hideScene(v: SceneView): void {
   v.on = false;
+  for (const vid of v.host.querySelectorAll<HTMLVideoElement>('video[data-reel-clip-preview]')) {
+    if (!vid.paused) vid.pause();
+  }
   if (v.keepLaidOut) {
     v.host.style.display = 'block';
     v.host.style.visibility = 'hidden';
@@ -104,6 +109,8 @@ interface Box {
   w: number;
   h: number;
   radius: number;
+  /** True when all four corners are rounded (floating speaker PiP, spec 48). */
+  allCorners?: boolean;
   /** Where the face should land inside the box (0..1). */
   ay: number;
   zoom: number;
@@ -289,8 +296,18 @@ export function mountReel(
   const customAssets = data.custom;
   const frames: CustomFrame[] = [];
   const images = data.images ?? {};
+  const clipsMap = data.clips ?? {};
+  const isExport = Boolean(existing);
+  const preEmittedClipVideos = new Map<string, HTMLVideoElement>();
+  for (const el of host.querySelectorAll<HTMLVideoElement>('video[data-reel-clip-scene]')) {
+    const sid = el.getAttribute('data-reel-clip-scene');
+    if (sid) preEmittedClipVideos.set(sid, el);
+  }
   const img = (m: ReelMedia | undefined): ReelImage | null =>
     m?.asset ? (images[m.asset] ?? null) : null;
+  const clipLookup = (id: string): ReelClipMedia | null => clipsMap[id] ?? null;
+  const clipVideoEl = (sceneId: string): HTMLVideoElement | null =>
+    preEmittedClipVideos.get(sceneId) ?? null;
   // A carried scene (spec 26 R1.5) continues the last graphic with the same template across a
   // speaker cut: it is built as if it started with that graphic, so items already revealed stay
   // revealed and nothing replays its entrance.
@@ -345,7 +362,11 @@ export function mountReel(
         startMs: s.startMs,
         endMs: s.endMs,
         layout,
+        sceneId: s0.id,
         img,
+        clip: clipLookup,
+        clipVideoEl,
+        isExport,
         ...(customAssets
           ? {
               custom: (p) => {
@@ -447,6 +468,21 @@ export function mountReel(
           ay: 0.44,
           zoom: 1.05,
         };
+      case 'pip': {
+        const pipW = Math.round(stageW * 0.31);
+        const pipH = Math.round(pipW * 1.24);
+        const margin = 28;
+        return {
+          x: stageW - pipW - margin,
+          y: stageH - pipH - 186,
+          w: pipW,
+          h: pipH,
+          radius: 28,
+          allCorners: true,
+          ay: 0.36,
+          zoom: 1.08,
+        };
+      }
       case 'speaker':
         return { x: 0, y: 0, w: stageW, h: stageH, radius: 0, ay: 0.36, zoom: 1 };
       case 'full':
@@ -473,7 +509,14 @@ export function mountReel(
       top: box.y,
       width: box.w,
       height: box.h,
-      borderRadius: box.radius ? `${box.radius}px ${box.radius}px 0 0` : '0',
+      borderRadius: box.radius
+        ? box.allCorners
+          ? `${box.radius}px`
+          : `${box.radius}px ${box.radius}px 0 0`
+        : '0',
+      boxShadow: box.allCorners ? '0 20px 52px rgba(0,0,0,0.48)' : 'none',
+      border: box.allCorners ? '3px solid rgba(255,255,255,0.28)' : 'none',
+      boxSizing: 'border-box',
       background: contain ? '#0B0B0C' : '#111',
     });
     // Slow push-in across the scene keeps a static camera alive.
@@ -549,7 +592,7 @@ export function mountReel(
     }
     const c = chunks[i]!;
     if (cap.textContent !== c.text) cap.textContent = c.text;
-    const onSpeaker = s.layout === 'speaker';
+    const onSpeaker = s.layout === 'speaker' || (s.layout === 'pip' && s.content.template === 'clip');
     // Seam labels sit on the seam itself; the other styles sit just above it.
     const y = !hasVideo
       ? stageH >= 1000
@@ -560,16 +603,20 @@ export function mountReel(
           ? stageH / 2
           : s.layout === 'card'
             ? look.cardTop
-            : s.layout === 'full'
-              ? 1133
-              : 1010
+            : s.layout === 'pip'
+              ? stageH - 120
+              : s.layout === 'full'
+                ? 1133
+                : 1010
         : s.layout === 'split'
           ? stageH / 2 - 52
           : s.layout === 'card'
             ? look.cardTop - 64
-            : s.layout === 'full'
-              ? 900
-              : 960;
+            : s.layout === 'pip'
+              ? stageH - 110
+              : s.layout === 'full'
+                ? 900
+                : 960;
     const lift = '0 2px 18px rgba(0,0,0,0.45), 0 1px 2px rgba(0,0,0,0.3)';
     if (capStyle === 'seam') {
       css(cap, {
@@ -749,7 +796,7 @@ export function mountReel(
       bgLayer,
       transparent
         ? { background: 'transparent', backgroundImage: 'none' }
-        : s.layout === 'card' || s.layout === 'full'
+        : s.layout === 'card' || s.layout === 'full' || s.layout === 'pip'
           ? gridCss(pal)
           : { background: '#000', backgroundImage: 'none' },
     );
@@ -841,6 +888,7 @@ function lerpBox(a: Box, b: Box, e: number): Box {
     w: lerp(a.w, b.w, e),
     h: lerp(a.h, b.h, e),
     radius: lerp(a.radius, b.radius, e),
+    ...(e >= 0.5 ? (b.allCorners ? { allCorners: true } : {}) : a.allCorners ? { allCorners: true } : {}),
     ay: lerp(a.ay, b.ay, e),
     zoom: lerp(a.zoom, b.zoom, e),
   };
@@ -867,6 +915,9 @@ const HOOK_LEAD_MS = 650;
 
 const KEEP = new Set([
   'template',
+  'clipId',
+  'fit',
+  'audioMode',
   'icon',
   'leftIcon',
   'rightIcon',

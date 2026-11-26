@@ -30,6 +30,29 @@ import { applyEditChoices, type EditChoices } from './edit-choices';
 export { cut };
 import { REEL_DIRECT_PROMPT_VERSION, REEL_DIRECT_SYSTEM_V3, reelDirectPromptV3 } from './prompt';
 
+export const ReelDirectMediaClipSchema = z.object({
+  id: z.string().min(1).max(64),
+  name: z.string().min(1).max(120),
+  kind: z.enum(['broll', 'screen-recording', 'screenshot', 'photo']),
+  durationMs: z.number().int().positive().optional(),
+  summary: z.string().max(320),
+  tags: z.array(z.string().max(40)).max(12).optional(),
+  moments: z
+    .array(
+      z.object({
+        startMs: z.number().int().nonnegative(),
+        endMs: z.number().int().nonnegative(),
+        focusX: z.number().min(0).max(1),
+        focusY: z.number().min(0).max(1),
+        zoom: z.number().min(1).max(2.5),
+        description: z.string().max(220),
+      }),
+    )
+    .max(6)
+    .optional(),
+});
+export type ReelDirectMediaClip = z.infer<typeof ReelDirectMediaClipSchema>;
+
 export const ReelDirectInputSchema = z.object({
   look: z.enum(['mono', 'cream']),
   durationMs: z.number().int().positive(),
@@ -47,6 +70,8 @@ export const ReelDirectInputSchema = z.object({
   brief: ReelDirectBriefSchema.optional(),
   /** True for voiceover-only projects without speaker camera footage (every scene is `full`). */
   noVideo: z.boolean().optional(),
+  /** Indexed creator-uploaded Media Bin clips (B-roll, screen recordings, screenshots, spec 48). */
+  mediaBin: z.array(ReelDirectMediaClipSchema).max(24).optional(),
 });
 export type ReelDirectInput = z.infer<typeof ReelDirectInputSchema>;
 
@@ -154,6 +179,17 @@ const G = {
     headline: str,
     strikeWord: word,
   }),
+  clip: z.object({
+    template: z.literal('clip'),
+    clipId: z.string(),
+    clipStartMs: z.number().int().nonnegative().optional(),
+    fit: z.enum(['cover', 'screen-window', 'card']).default('cover'),
+    focusX: z.number().min(0).max(1).optional(),
+    focusY: z.number().min(0).max(1).optional(),
+    zoom: z.number().min(1).max(2.5).optional(),
+    label: str,
+    audioMode: z.enum(['mute', 'duck', 'solo']).optional(),
+  }),
   punch: z.object({ template: z.literal('punch'), text: z.string(), top: str }),
   cta: z.object({ template: z.literal('cta'), verb: z.string(), keyword: z.string() }),
   none: z.object({ template: z.literal('none') }),
@@ -179,6 +215,7 @@ export const GraphicSchema = z.discriminatedUnion('template', [
   G.logos,
   G.image,
   G.website,
+  G.clip,
   G.punch,
   G.cta,
   G.none,
@@ -190,7 +227,7 @@ const BEATS = ['hook', 'setup', 'tension', 'turn', 'proof', 'payoff', 'cta'] as 
 const DirectedSceneSchema = z.object({
   fromWord: z.number().int(),
   toWord: z.number().int(),
-  layout: z.enum(['split', 'card', 'full', 'speaker']),
+  layout: z.enum(['split', 'card', 'pip', 'full', 'speaker']),
   beat: z.enum(BEATS).optional(),
   carry: z.boolean().optional(),
   tag: str,
@@ -246,10 +283,28 @@ const arr = (items: unknown, minItems?: number, maxItems?: number) => ({
 });
 
 /** The structured-output branches of a graphic, one per template (shared with `reel.note`). */
-export function reelGraphicBranches(): Record<string, unknown>[] {
+export function reelGraphicBranches(opts?: { includeClip?: boolean }): Record<string, unknown>[] {
   const t = (id: string) => ({ type: 'string', enum: [id] });
   const item = (extra: Record<string, unknown> = {}, req: string[] = []) =>
     obj({ word: i, text: s, ...extra }, ['word', 'text', ...req]);
+  const clipBranch = opts?.includeClip
+    ? [
+        obj(
+          {
+            template: t('clip'),
+            clipId: sl(64),
+            clipStartMs: i,
+            fit: { type: 'string', enum: ['cover', 'screen-window', 'card'] },
+            focusX: n,
+            focusY: n,
+            zoom: n,
+            label: sl(40),
+            audioMode: { type: 'string', enum: ['mute', 'duck', 'solo'] },
+          },
+          ['template', 'clipId', 'fit'],
+        ),
+      ]
+    : [];
   return [
     obj({ template: t('headline'), title: s, kicker: s, sub: s, accent: s }, ['template', 'title']),
     obj(
@@ -352,6 +407,7 @@ export function reelGraphicBranches(): Record<string, unknown>[] {
       ['template', 'kind', 'subject', 'fit'],
     ),
     obj({ template: t('website'), domain: s, headline: s, strikeWord: i }, ['template', 'domain']),
+    ...clipBranch,
     obj({ template: t('punch'), text: s, top: s }, ['template', 'text']),
     obj({ template: t('cta'), verb: sl(14), keyword: sl(16) }, ['template', 'verb', 'keyword']),
     obj({ template: t('none') }, ['template']),
@@ -365,8 +421,9 @@ export function reelGraphicBranches(): Record<string, unknown>[] {
  * `checkReelDirect` (one repair round), not by the schema. Keep new constraints off this schema
  * unless `scripts/schema-live-check.ts` passes against the real endpoint.
  */
-export function reelDirectJsonSchema(): Record<string, unknown> {
-  const branches = reelGraphicBranches();
+export function reelDirectJsonSchema(input?: Partial<ReelDirectInput>): Record<string, unknown> {
+  const hasClips = Boolean(input?.mediaBin?.length);
+  const branches = reelGraphicBranches({ includeClip: hasClips });
   return obj(
     {
       story: obj({ topic: sl(300), arc: arr(sl(200), undefined, 12), motif: sl(300) }, [
@@ -389,7 +446,10 @@ export function reelDirectJsonSchema(): Record<string, unknown> {
           {
             fromWord: i,
             toWord: i,
-            layout: { type: 'string', enum: ['split', 'card', 'full', 'speaker'] },
+            layout: {
+              type: 'string',
+              enum: hasClips ? ['split', 'card', 'pip', 'full', 'speaker'] : ['split', 'card', 'full', 'speaker'],
+            },
             beat: { type: 'string', enum: [...BEATS] },
             carry: { type: 'boolean' },
             tag: sl(28),
@@ -713,6 +773,22 @@ export function contentFor(
       };
       break;
     }
+    case 'clip': {
+      const id = g.clipId.trim().slice(0, 64);
+      if (!id) return null;
+      c = {
+        template: 'clip',
+        clipId: id,
+        clipStartMs: Math.max(0, Math.round(g.clipStartMs ?? 0)),
+        fit: g.fit ?? 'cover',
+        focusX: Math.min(1, Math.max(0, g.focusX ?? 0.5)),
+        focusY: Math.min(1, Math.max(0, g.focusY ?? 0.5)),
+        zoom: Math.min(2.5, Math.max(1, g.zoom ?? (g.fit === 'screen-window' ? 1.25 : 1))),
+        label: cut(g.label, 40),
+        audioMode: g.audioMode ?? 'mute',
+      };
+      break;
+    }
     case 'punch':
       c = { template: 'punch', top: cut(g.top, 28), text: cut(g.text, 28) };
       break;
@@ -784,10 +860,11 @@ export function toReelPlan(
   by: string,
   /** Reel-clock times of the keyframes the director saw (face keys are placed on them). */
   frameTimesMs: readonly number[] = [],
-  opts: { noVideo?: boolean } = {},
+  opts: { noVideo?: boolean; mediaBinIds?: readonly string[] } = {},
 ): ReelPlan {
   const out = ReelDirectOutputSchema.parse(raw);
   const noVideo = Boolean(opts.noVideo);
+  const knownClips = opts.mediaBinIds ? new Set(opts.mediaBinIds) : null;
   const n = words.length;
   const wStart = (i: number) => words[Math.max(0, Math.min(n - 1, i))]!.startMs;
   const brands: Brands = new Map(
@@ -819,6 +896,9 @@ export function toReelPlan(
     };
     let layout = noVideo ? ('full' as const) : d.layout;
     let content = contentFor(d.graphic, at, brands);
+    if (content?.template === 'clip' && knownClips && !knownClips.has(content.clipId)) {
+      content = null;
+    }
     if (content && carry && lastGraphic) content = mergeCarry(lastGraphic.content, content);
     if (noVideo) {
       // Voiceover-only: never emit speaker-only layouts (`none` / `punch` / `cta` without video).
@@ -931,9 +1011,13 @@ export async function directReel(
     choices?: EditChoices;
     /** True for voiceover-only projects (no speaker footage: every scene uses `full` layout). */
     noVideo?: boolean;
+    /** Indexed creator-uploaded Media Bin clips to weave into matching beats (spec 48). */
+    mediaBin?: readonly ReelDirectMediaClip[];
   },
 ): Promise<{ plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string }> {
   const { look, words, durationMs, choices, noVideo } = params;
+  const mediaBin = params.mediaBin?.length ? [...params.mediaBin].slice(0, 24) : undefined;
+  const mediaBinIds = mediaBin?.map((c) => c.id);
   const frames = noVideo ? [] : (params.frames ?? []).slice(0, 6);
   const stripSpeaker = (plan: ReelPlan): ReelPlan =>
     noVideo
@@ -992,6 +1076,7 @@ export async function directReel(
       frames: frames.map((f) => ({ atMs: Math.max(0, Math.round(f.atMs)), base64: f.base64 })),
       ...(params.brief ? { brief: params.brief } : {}),
       ...(noVideo ? { noVideo: true } : {}),
+      ...(mediaBin ? { mediaBin } : {}),
     };
     const res = await router.run(reelTemplateDirectTask(), input, {
       mode: 'ONLY_IN_CLOUD',
@@ -1006,7 +1091,10 @@ export async function directReel(
           look,
           res.model,
           input.frames.map((f) => f.atMs),
-          { ...(noVideo ? { noVideo: true } : {}) },
+          {
+            ...(noVideo ? { noVideo: true } : {}),
+            ...(mediaBinIds ? { mediaBinIds } : {}),
+          },
         ),
       ),
       source: 'cloud',

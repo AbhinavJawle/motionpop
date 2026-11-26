@@ -3,6 +3,7 @@ import { RecipeIdSchema } from './edit-config';
 import { FormatSchema } from './format';
 import { ReelLookSchema } from './reel';
 import { WordSchema } from './transcript';
+import { MediaClipKindSchema } from './video';
 
 /** What the Start screen collects before a voice exists (spec 11, design §2.5). */
 export const StartDraftSchema = z.object({
@@ -32,6 +33,10 @@ export const PendingExtraClipSchema = z.object({
   ref: z.string().min(1),
   name: z.string().min(1).max(120),
   mimeType: z.string().min(1).max(80),
+  /** Optional byte size for displaying on `/start/configure` and swapping primary A-roll (spec 48). */
+  sizeBytes: z.number().int().nonnegative().optional(),
+  /** Optional creator-chosen role (`broll`, `screen-recording`, `screenshot`, `photo`) before indexing. */
+  kindHint: MediaClipKindSchema.optional(),
 });
 export type PendingExtraClip = z.infer<typeof PendingExtraClipSchema>;
 

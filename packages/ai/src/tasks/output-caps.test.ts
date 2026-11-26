@@ -15,6 +15,7 @@ import { pipPlanTask } from './pip-plan';
 import { pipQuickTask } from './pip-quick';
 import { promptPrefill } from './prompt-prefill';
 import { recipeResolveTask } from './recipe-resolve';
+import { setupRecommendTask } from './setup-recommend';
 import { slotsDetect } from './slots-detect';
 import { transcribeCloud } from './transcribe-cloud';
 import type { TaskDef } from '../router';
@@ -45,6 +46,7 @@ function allTasks(): TaskDef<never, unknown>[] {
     pipQuickTask(),
     promptPrefill,
     recipeResolveTask,
+    setupRecommendTask,
     slotsDetect,
     transcribeCloud,
   ] as unknown as TaskDef<never, unknown>[];
@@ -70,6 +72,7 @@ const EXPECTED: Record<string, number> = {
   'pip.quick': 512,
   'prompt.prefill': 512,
   'recipe.resolve': 300,
+  'setup.recommend': 220,
   'slots.detect': 4096,
   'transcribe.cloud': 16384,
 };

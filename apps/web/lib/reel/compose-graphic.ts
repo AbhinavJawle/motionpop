@@ -291,7 +291,13 @@ export function selectHeroReelScenes(
   for (let i = 0; i < scenes.length; i++) {
     const s = scenes[i]!;
     if (!noVideo && s.layout === 'speaker') continue;
-    if (s.content.template === 'custom' || s.content.template === 'none' || s.content.template === 'cta' || s.content.template === 'punch') {
+    if (
+      s.content.template === 'custom' ||
+      s.content.template === 'clip' ||
+      s.content.template === 'none' ||
+      s.content.template === 'cta' ||
+      s.content.template === 'punch'
+    ) {
       continue;
     }
     const dur = s.endMs - s.startMs;

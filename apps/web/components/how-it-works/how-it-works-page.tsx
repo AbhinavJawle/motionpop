@@ -14,6 +14,7 @@ import {
   Layers,
   Lock,
   RefreshCw,
+  Server,
   ShieldCheck,
   Sparkles,
   Terminal,
@@ -36,6 +37,7 @@ import {
 } from '@/lib/ai/ai-status';
 import { progressLabel } from '@/lib/ai/availability';
 import { useByok } from '@/lib/ai/byok';
+import { useLocalLlm } from '@/lib/ai/local-llm';
 import { cn } from '@/lib/cn';
 import {
   FrankensteinStackDiagram,
@@ -58,259 +60,267 @@ interface RoutingRow {
 
 const ROUTING_ROWS: readonly RoutingRow[] = [
   {
-    task: 'Whisper + Auto-Cut DSP',
-    job: 'Word timings, 10 ms speech map, dead-air, hiccup & LCS retake cuts, vocal prosody',
+    task: 'Whisper + Auto-Cut',
+    job: 'Transcribes every word with exact timing and trims awkward pauses, hiccups, and bad retakes',
     mode: 'LOCAL_DSP',
-    model: 'whisper-base_timestamped (WebGPU/WASM) + Web Audio',
+    model: 'Whisper in your browser (GPU / WASM) + Web Audio',
     cost: 'Free · local',
-    guardrail: 'Cloud fallback (transcribe.cloud) + non-destructive EDL',
+    guardrail: 'Non-destructive cuts (undo anytime) + cloud transcription backup',
+  },
+  {
+    task: 'setup.recommend',
+    job: 'Reads your transcript or idea and automatically picks the best recipe, director skill, and look',
+    mode: 'ONLY_ON_DEVICE',
+    model: 'Chrome Gemini Nano (or your local Ollama / LM Studio)',
+    cost: 'Free · on-device',
+    guardrail: 'Instant offline fallback if Chrome AI is off; never overwrites your manual picks',
   },
   {
     task: 'reel.note.local',
-    job: 'Multimodal talking-head reel frame notes (JPEG crop + text/number/bg/layout/caption)',
+    job: 'Fixes circled frame notes right on your talking-head reel (text, numbers, colors, layout, captions)',
     mode: 'ONLY_ON_DEVICE',
-    model: 'Gemini Nano (Firebase AI Logic Prompt API)',
+    model: 'Chrome Gemini Nano (Firebase AI Logic)',
     cost: 'Free · on-device',
-    guardrail: 'Depth-1 (≤ 5 opt) · D-035 explicit cloud click',
+    guardrail: 'Never bills cloud credits silently — asks before trying the cloud',
   },
   {
     task: 'pip.quick',
-    job: 'Instant Pip chat commands (look, captions, theme, SFX, music, format, cuts, slot)',
+    job: 'Handles instant chat edits with Pip (change look, toggle captions, swap music, trim cuts)',
     mode: 'ONLY_ON_DEVICE',
-    model: 'Gemini Nano (Firebase AI Logic Prompt API)',
+    model: 'Chrome Gemini Nano (Firebase AI Logic)',
     cost: 'Free · on-device',
-    guardrail: 'Theme normalizer + enforcePlan + cloud handoff',
+    guardrail: 'Checks every edit against your project before applying; 1-click undo',
   },
   {
     task: 'reel.draft',
-    job: 'Free, offline, or cloud-fallback 4-template talking-head reel director',
+    job: 'Directs a complete talking-head reel completely free and offline using 4 core visual templates',
     mode: 'ONLY_ON_DEVICE',
-    model: 'Gemini Nano (Firebase AI Logic Prompt API)',
+    model: 'Chrome Gemini Nano (Firebase AI Logic)',
     cost: 'Free · on-device',
-    guardrail: 'Tiled ReelPlanSchema + deterministic auto fallback',
+    guardrail: 'Clean scene timing check + instant built-in backup director',
   },
   {
     task: 'recipe.resolve',
-    job: 'Custom recipe/style prose → strict ResolvedRecipe JSON',
+    job: 'Turns plain English like "dark tech news vibe" into a matching recipe, color theme, and caption style',
     mode: 'ONLY_ON_DEVICE',
-    model: 'Gemini Nano (Chrome Prompt API)',
+    model: 'Chrome Gemini Nano',
     cost: 'Free · on-device',
-    guardrail: 'Strict Zod + keyword fallback',
+    guardrail: 'Strict output check + fast keyword match backup',
   },
   {
     task: 'edit.patch / note.fix',
-    job: 'Quick edits & multimodal JPEG frame notes on explainer slots',
+    job: 'Quick text edits and circled frame notes on explainer motion graphics',
     mode: 'PREFER_ON_DEVICE',
-    model: `Gemini Nano → ${cfg.modelFast}`,
+    model: `Gemini Nano → ${cfg.modelFast} (or Ollama / LM Studio)`,
     cost: `Free / ${costOf('edit', 1, cfg)} cr`,
-    guardrail: 'RFC 6902 JSON Patch + Zod + 1 repair',
+    guardrail: 'Validates every patch and auto-repairs once if anything looks off',
   },
   {
     task: 'component.fill (auto) / slots.detect',
-    job: 'Auto-fill detected slots + chunked ≤ 400-word spoken-moment detection',
+    job: 'Finds the key moments in what you said and fills graphics automatically',
     mode: 'PREFER_ON_DEVICE',
-    model: `Gemini Nano → ${cfg.modelFast}`,
+    model: `Gemini Nano → ${cfg.modelFast} (or Ollama / LM Studio)`,
     cost: 'Free · on-device',
-    guardrail: 'gateSlot DOM check + snap/de-overlap post-pass',
+    guardrail: 'Measures text so nothing clips or overlaps before placing on the timeline',
   },
   {
     task: 'direct.plan / prompt.prefill',
-    job: 'Whole-video energy arc & slot prompt drafts',
+    job: 'Plans your video pacing arc and drafts starting prompts for each graphic slot',
     mode: 'PREFER_ON_DEVICE',
-    model: `Gemini Nano → ${cfg.modelFast}`,
+    model: `Gemini Nano → ${cfg.modelFast} (or Ollama / LM Studio)`,
     cost: 'Free · on-device',
-    guardrail: 'Deterministic rules fallback (never throws)',
+    guardrail: 'Always falls back cleanly to built-in pacing rules',
   },
   {
     task: 'reel.direct / reel.edit',
-    job: 'Flagship 21-template talking-head director (6 keyframes) + semantic retake check',
+    job: 'Full 21-template talking-head director that watches 6 keyframes and double-checks retake cuts',
     mode: 'ONLY_IN_CLOUD',
-    model: `${cfg.modelStrong} · ${cfg.modelFast}`,
+    model: `${cfg.modelStrong} · ${cfg.modelFast} (or 0 cr with Ollama / BYOK)`,
     cost: `${costOf('reel', 1, cfg)} cr / reel`,
-    guardrail: 'Per-template strict schema + Nano/auto fallback + refund',
+    guardrail: 'Checks every scene field; auto-refunds and falls back to Nano if cloud fails',
   },
   {
     task: 'reel.note / reel.compose',
-    job: 'Full template rewrites & bespoke sandboxed custom motion scenes on reels',
+    job: 'Big creative rewrites and one-off custom animated scenes built from scratch',
     mode: 'ONLY_IN_CLOUD',
-    model: cfg.modelStrong,
+    model: `${cfg.modelStrong} (or 0 cr with Ollama / BYOK)`,
     cost: `${costOf('edit', 1, cfg)} cr / +${costOf('custom', 1, cfg)} cr`,
-    guardrail: 'lintCustom + opaque sandbox DOM critic + repair',
+    guardrail: 'Safety scan + isolated sandbox preview check + auto-repair loop',
   },
   {
     task: 'pip.plan / media.index',
-    job: 'Multi-step whole-timeline Pip plans + multimodal Media Bin B-roll indexing',
+    job: 'Multi-step timeline plans from Pip chat plus smart indexing of your uploaded B-roll clips',
     mode: 'ONLY_IN_CLOUD',
-    model: cfg.modelStrong,
+    model: `${cfg.modelStrong} (or 0 cr with Ollama / BYOK)`,
     cost: `${costOf('pip-plan', 1, cfg)} cr + gens`,
-    guardrail: 'Inspectable plan card + single composite undo',
+    guardrail: 'Shows the full plan before applying; whole plan undoes in one click',
   },
   {
     task: 'component.fill (Generate)',
-    job: 'Upgraded cloud fill driven by Markdown slot SKILL.md shot sequences',
+    job: 'Upgraded graphic generation guided by your chosen Markdown skill playbook',
     mode: 'ONLY_IN_CLOUD',
-    model: cfg.modelStrong,
+    model: `${cfg.modelStrong} (or 0 cr with Ollama / BYOK)`,
     cost: `${costOf('generate', 1, cfg)} cr`,
-    guardrail: 'Zod + gateSlot + 2 repair rounds',
+    guardrail: 'Layout check + up to 2 automatic repair rounds',
   },
   {
     task: 'film.direct / build / vision',
-    job: 'Multi-beat storyboard + parallel sandboxed motion beats + Vision QA critic',
+    job: 'Builds multi-beat custom motion sequences and inspects screenshots to catch visual bugs',
     mode: 'ONLY_IN_CLOUD',
-    model: `${cfg.modelStrong} / ${cfg.modelFilmBuild}`,
+    model: `${cfg.modelStrong} / ${cfg.modelFilmBuild} (or 0 cr with Ollama / BYOK)`,
     cost: `${costOf('film', 1, cfg)} cr / 30s`,
-    guardrail: 'Static lint + DOM critic + multimodal visual QA',
+    guardrail: 'Code safety scan + layout check + visual screenshot review',
   },
   {
     task: 'tts.generate / images / music',
-    job: '5-voice narration, 1K chroma-key illustrations & crossfade-looped soundtracks',
+    job: '5 natural AI voices, crisp transparent cutout art, and custom looping background music',
     mode: 'ONLY_IN_CLOUD',
     model: `${cfg.modelTts} · ${cfg.modelImage} · lyria-002`,
     cost: `${costOf('tts', 1, cfg)} cr/m · ${cfg.imageCredits} cr`,
-    guardrail: 'PartCache + 429 backoff + atomic spend & auto refund',
+    guardrail: 'Caches repeated lines, retries rate limits, and auto-refunds on any failure',
   },
   {
     task: 'Export (1080p MP4 · Alpha WebM)',
-    job: 'Cloud Run HyperFrames producer + FFmpeg A-roll/B-roll/alpha/audio compositor',
+    job: 'Turns your exact preview into a finished 1080p video or transparent overlay file',
     mode: 'ONLY_IN_CLOUD',
-    model: 'Cloud Run · @hyperframes/producer + FFmpeg',
+    model: 'Cloud Run · HyperFrames + FFmpeg',
     cost:
       exportCost('1080p', 60_000, cfg.exportCredits) === 0
         ? 'Free'
         : `${exportCost('1080p', 60_000, cfg.exportCredits)} cr/min`,
-    guardrail: 'Same HTML as preview · ≤ 1.02% pixel diff',
+    guardrail: 'Renders the exact same HTML as your preview (within 1.02% pixel match)',
   },
 ];
 
 const MODE_STYLE: Readonly<Record<RoutingRow['mode'], { label: string; bg: string }>> = {
-  LOCAL_DSP: { label: 'LOCAL WORKER', bg: '#a7f3d0' },
-  ONLY_ON_DEVICE: { label: 'ONLY_ON_DEVICE', bg: '#3ddc97' },
-  PREFER_ON_DEVICE: { label: 'PREFER_ON_DEVICE', bg: '#a7f3d0' },
-  ONLY_IN_CLOUD: { label: 'ONLY_IN_CLOUD', bg: '#c4b5fd' },
+  LOCAL_DSP: { label: 'LOCAL BROWSER', bg: '#a7f3d0' },
+  ONLY_ON_DEVICE: { label: 'ON-DEVICE', bg: '#3ddc97' },
+  PREFER_ON_DEVICE: { label: 'DEVICE FIRST', bg: '#a7f3d0' },
+  ONLY_IN_CLOUD: { label: 'CLOUD / LOCAL LLM', bg: '#c4b5fd' },
 };
 
 const SECTIONS = [
-  { id: 'frankenstein-monster', label: '1. Frankenstein Monster' },
-  { id: 'on-device-nano', label: '2. Hybrid AI & Sequence' },
-  { id: 'pipeline-engines', label: '3. Pipeline & Sandbox' },
-  { id: 'judges', label: '4. Firebase & Kiroween Brief' },
-  { id: 'security-credits', label: '5. Security & Credits' },
+  { id: 'frankenstein-monster', label: '1. The 12 Engines' },
+  { id: 'on-device-nano', label: '2. Free Local & Hybrid AI' },
+  { id: 'pipeline-engines', label: '3. Video to Export' },
+  { id: 'judges', label: '4. Firebase & Kiro Brief' },
+  { id: 'security-credits', label: '5. Privacy & Safety' },
 ] as const;
 
 const FRANKENSTEIN_ORGANS = [
   {
     num: '01',
-    tag: 'ON-DEVICE AI',
+    tag: 'BUILT-IN AI',
     bg: '#3ddc97',
-    title: '10 Chrome Gemini Nano Tasks',
-    body: 'reel.note.local, pip.quick, reel.draft, edit.patch, note.fix, recipe.resolve, auto-fill, slots.detect, direct.plan & prompt.prefill — 0 credits, offline.',
+    title: '11 On-Device Chrome AI Tasks',
+    body: 'Quick edits, circled frame notes, instant Pip commands, style auto-picking, and offline reel drafts run right inside Chrome via Gemini Nano — 0 credits, even with Wi-Fi off.',
   },
   {
     num: '02',
     tag: 'LOCAL SPEECH',
     bg: '#a7f3d0',
-    title: 'Whisper WebGPU + Vocal Prosody',
-    body: 'transformers.js whisper-base_timestamped in a Web Worker (WebGPU → WASM) plus 70–400 Hz autocorrelation pitch & RMS stress scoring.',
+    title: 'Private Browser Transcription',
+    body: 'Whisper runs locally in your browser (using your GPU when available) to timestamp every word and hear where your voice emphasizes key points — your audio never has to leave your laptop.',
   },
   {
     num: '03',
     tag: 'AUTO CUTTER',
     bg: '#fde68a',
-    title: 'Retakes, Hiccups & Dead-Air EDL',
-    body: '10 ms dBFS speech map + LCS retake detector (tense folding, parallel-list & negation guards) trims false starts, repeats, fillers & >380 ms pauses non-destructively.',
+    title: 'Automatic Retake & Pause Trimmer',
+    body: 'Spots bad takes, repeated lines, stumbles, and awkward dead air automatically, then trims them cleanly without ever touching your original clip.',
   },
   {
     num: '04',
     tag: 'CLOUD MODELS',
     bg: '#c4b5fd',
-    title: 'Gemini 4 Neon, TTS, Art & Lyria 2',
-    body: `${cfg.modelStrong} directing/code/Vision QA/media.index, ${cfg.modelFast}, ${cfg.modelTts} (5 voices + PartCache), ${cfg.modelImage} (#00FF00 cutouts), Vertex AI lyria-002 music & Claude Tier-2 hook.`,
+    title: 'Frontier Directing, Voices & Music',
+    body: `When you want full creative firepower, ${cfg.modelStrong} and ${cfg.modelFast} direct complex scenes, ${cfg.modelTts} generates 5 natural voices, ${cfg.modelImage} paints transparent cutouts, and Vertex AI lyria-002 composes custom looping soundtracks.`,
   },
   {
     num: '05',
     tag: 'DUAL ENGINES',
     bg: '#8dbceb',
-    title: 'Reel Engine v3 + Bespoke Film Kit',
-    body: '21 vertical & responsive reel templates (4 layouts, 5 captions) + 6 flagship Film Kit motion archetypes upgrading hero scenes across Talking-Head Reels, Voiceover/Script Reels & Standalone Graphics (16:9, 9:16, 1:1) with 12 Studio Looks.',
+    title: 'Talking-Head Reels & Custom Graphics',
+    body: '21 animated reel templates for vertical talking-head videos plus 9 responsive motion-graphic scenes and 12 studio looks — working seamlessly in 9:16, 16:9, and 1:1.',
   },
   {
     num: '06',
     tag: '4-STAGE QA',
     bg: '#fed7aa',
-    title: 'Static Lint → Sandbox → Vision QA',
-    body: 'Static code safety checks → HyperFrames lint → opaque sandbox DOM critic (overflow, face-safe, contrast) → multimodal visual QA repair.',
+    title: 'Self-Checking AI Visuals',
+    body: 'Before any AI-generated scene lands on your timeline, we scan the code for safety, render it in a locked-down sandbox, check for clipped text or covered faces, and auto-fix issues.',
   },
   {
     num: '07',
     tag: 'AUDIO SYNTH',
     bg: '#a7f3d0',
-    title: 'Procedural SFX & Voice Ducking',
-    body: 'Zero stock SFX MP3s: 14 seeded takes across 5 families (whoosh, pop, tick, rise, impact) synthesized in Web Audio, peak-aligned to entrances + auto voice ducking.',
+    title: 'Built-In Sound Effects & Ducking',
+    body: 'No stock sound packs needed. Every whoosh, pop, tick, rise, and hit is generated live in your browser, synced to the exact moment graphics enter, with music automatically dipping while you speak.',
   },
   {
     num: '08',
     tag: '6 MEDIA APIS',
     bg: '#dbeafe',
-    title: 'Pixabay, Openverse, Logos & Geo',
-    body: 'Pixabay (24 h cache) → Pexels → Wikimedia stock proxy, Openverse (CC0/BY, UUID anti-SSRF), Simple Icons + Favicons, Headless Chrome screenshots & Natural Earth d3-geo maps.',
+    title: 'Photos, Icons, Screenshots & Maps',
+    body: 'Finds real, properly licensed visuals from Pixabay, Pexels, Wikimedia, and Openverse, pulls crisp brand icons, takes live website screenshots, and draws smooth offline vector maps.',
   },
   {
     num: '09',
     tag: 'SKILLS DB',
     bg: '#fef08a',
-    title: 'Open-Source & Custom SKILL.md',
-    body: '8 built-in Reel Recipes, 16 curated open-source community SKILL.md director skills with GitHub attribution, 8 Slot Skills, plus custom Markdown & GitHub imports synced to your account.',
+    title: 'Open-Source Director Playbooks',
+    body: 'Includes 8 built-in video recipes, 16 open-source community director skills, and 8 graphic skills — plus you can write your own plain Markdown playbooks or import them from GitHub.',
   },
   {
     num: '10',
     tag: '7 FIREBASE',
     bg: '#ddd6fe',
-    title: 'End-to-End Firebase Backbone',
-    body: 'AI Logic (default), App Check (reCAPTCHA Enterprise + limited-use), Auth, Firestore (projects, shared & personal skills, atomic credit ledger), Storage, Remote Config & App Hosting.',
+    title: '7 Firebase Products Working Together',
+    body: 'Powered end-to-end by Firebase AI Logic, App Check, Auth, Firestore (projects, skills, and credit ledger), Cloud Storage, Remote Config, and App Hosting.',
   },
   {
     num: '11',
-    tag: 'OPTIONAL BYOK',
+    tag: 'LOCAL & BYOK',
     bg: '#ede9fe',
-    title: 'Zero-Server Browser Gemini Key',
-    body: 'Power-user option in Settings: key stays in localStorage, hits Google AI Studio via x-goog-api-key with live model discovery (pick any available Gemini model per role), keeping Chrome Nano first at 0 Motionpop credits.',
+    title: 'Ollama, LM Studio & Your Own Key',
+    body: 'Run all directing, edits, and notes on your own computer with Ollama or LM Studio (0 credits, works offline in any browser) — or paste your own Google AI Studio Gemini key right in Settings.',
   },
   {
     num: '12',
     tag: 'CLOUD RUN',
     bg: '#ff8a5c',
-    title: 'HyperFrames Producer + FFmpeg',
-    body: 'Cloud Run steps headless Chromium over the exact preview HTML at 30 fps (≤ 1.02% diff) and composites A-roll, B-roll, transparent alpha overlays & audio → MP4 / Alpha WebM.',
+    title: 'What You Preview Is What Exports',
+    body: 'Cloud Run steps through the exact same HTML you see in the editor at 30 frames a second and mixes your video, animations, and audio into 1080p MP4 or transparent WebM (within 1.02% of preview).',
   },
 ] as const;
 
 const FIREBASE_SEVEN = [
-  ['Firebase AI Logic', 'Default hybrid SDK (AgentPlatformBackend("global") + limited-use App Check) driving 10 Chrome Nano tasks + cloud Gemini'],
-  ['App Check', 'reCAPTCHA Enterprise + limited-use tokens enforced across AI Logic, Firestore, Storage & signed API routes'],
-  ['Authentication', 'Google Sign-In & Email Link with server-side ID token checks on every spend, Lyria music & render route'],
-  ['Cloud Firestore', 'Projects, 200-step versions, shared open-source & personal SKILL.md library, usage logs & server-only atomic credit ledger'],
-  ['Cloud Storage', 'Raw A-roll, cleaned 24 kHz WAVs, Media Bin B-roll, Vertex AI Lyria tracks, MP4/WebM renders & /share/[id] streams'],
-  ['Remote Config', 'Live routing overrides, word thresholds, model IDs, credit prices & emergency kill switch with zero redeploy'],
-  ['App Hosting', 'Next.js 16 production web runtime paired seamlessly with Cloud Run rendering & Secret Manager'],
+  ['Firebase AI Logic', 'Powers our default hybrid setup — trying Chrome Gemini Nano on your device first and seamlessly reaching cloud Gemini when needed'],
+  ['App Check', 'Protects our AI calls, database, storage, and API routes with reCAPTCHA Enterprise and short-lived tokens so bots stay out'],
+  ['Authentication', 'Google Sign-In and Email Link with verified server checks on every credit spend, music track, and video export'],
+  ['Cloud Firestore', 'Stores your projects, 200-step undo history, shared and personal director skills, usage stats, and server-verified credit balance'],
+  ['Cloud Storage', 'Safely holds your uploaded clips, cleaned voice tracks, B-roll, generated soundtracks, finished exports, and share links'],
+  ['Remote Config', 'Lets us tune model routing, credit prices, and emergency pauses live without redeploying the app'],
+  ['App Hosting', 'Runs our Next.js 16 web app in production right alongside Cloud Run video rendering and Secret Manager'],
 ] as const;
 
 const KIRO_SURFACES = [
-  ['142 Kiro CLI runs', 'Logged automatically in KIRO_LOG.md via our Stop hook — genuine end-to-end engineering across the entire build'],
-  ['44 EARS Specs & 21 Steering Docs', 'Requirements → Design → Tasks in .kiro/specs/ plus always/fileMatch guardrails in .kiro/steering/ (motion-principles, hybrid-ai, security)'],
-  ['3 Custom Scoped Agents', 'motionpop-builder, motion-qa & spec-reviewer (.kiro/agents/) with explicit allowedPaths, deniedPaths & deniedCommands'],
-  ['3 Automated Hooks', 'session-start.mjs (context), check-touched.mjs (PostToolUse lint/type check) & log-run.mjs (auto-logs commits to KIRO_LOG.md)'],
-  ['3 Live MCP Servers', 'context7 (fresh Firebase AI Logic docs), chrome-devtools (visual frame checks) & firebase-tools MCP (.kiro/settings/mcp.json)'],
-  ['PBT & Schema Guards', '236+ test files incl. 350 fast-check Nano fuzz runs, schema-rules/caps CI guards (catching >6 opt props & uncapped strings) & ledger invariants'],
-  ['Antigravity + 8 Firebase Skills', 'Built with Antigravity & 8 official Firebase Agent Skills + HyperFrames skills checked into .kiro/skills/ & .claude/skills/'],
+  ['142 Kiro CLI runs', 'Every run is logged honestly in KIRO_LOG.md by our automated hook — real spec-driven engineering from day one'],
+  ['44 EARS Specs & 21 Steering Docs', 'Clear requirements, designs, and task checklists in .kiro/specs/ backed by guardrails in .kiro/steering/ for motion, hybrid AI, and security'],
+  ['3 Custom Scoped Agents', 'Dedicated motionpop-builder, motion-qa, and spec-reviewer agents (.kiro/agents/) with tight file and command permissions'],
+  ['3 Automated Hooks', 'Loads context at session start, checks lint/types on edited files automatically, and logs finished work to KIRO_LOG.md'],
+  ['3 Live MCP Servers', 'Connected to context7 (live docs), chrome-devtools (visual frame checks), and firebase-tools (.kiro/settings/mcp.json)'],
+  ['Automated Quality Guards', '245+ test files including 350 randomized Gemini Nano fuzz tests, strict schema guards, and credit-safety checks'],
+  ['Antigravity + 8 Firebase Skills', 'Built with Antigravity plus 8 official Firebase Agent Skills and HyperFrames skills checked directly into the repo'],
 ] as const;
 
 const MONOREPO_STITCHES = [
-  ['apps/web', 'Next.js 16 · React 19 · Tailwind 4 · Zustand', 'Paper Editor, Pip Chat, Whisper worker, auto-cut DSP, IndexedDB, Firestore skills sync & signed APIs'],
-  ['packages/ai', 'Firebase AI Logic · Zod 4 · Vertex AI', 'Hybrid router, 20+ typed tasks (10 Nano), capped schemas, repair loops, Lyria 2 music & BYOK'],
-  ['packages/motion', 'Pure TS · HyperFrames · d3-geo · Web Audio', 'Zero-GSAP seek(tMs) core, 21 reel templates, 9 scenes, 8 looks, 14-take SFX synth & DOM critic'],
-  ['packages/schemas', 'Zod 4 · TypeScript 6 Strict', 'Shared Project, ReelPlan, EditConfig, UserSkill, Remote Config, int-ms time & credit cost schemas'],
-  ['services/render', 'Cloud Run · @hyperframes/producer · FFmpeg', '30 fps headless Chromium capture + multi-layer FFmpeg compositing → MP4, alpha WebM & thumbs'],
-  ['skills/ & .kiro/', 'Kiro · Antigravity · Firebase Agent Skills', '13 Markdown director/slot skills, 8 Firebase Agent Skills, 44 specs, 21 steering docs, 3 agents & hooks'],
+  ['apps/web', 'Next.js 16 · React 19 · Tailwind 4', 'The editor, Pip chat, local Whisper worker, auto-cutter, local Ollama/LM Studio & BYOK settings, and signed APIs'],
+  ['packages/ai', 'Firebase AI Logic · Ollama/LM Studio · Zod', 'One clean AI router for 20+ tasks (11 Nano-ready), automatic repair loops, local OpenAI-compatible provider, Lyria 2 music, and BYOK'],
+  ['packages/motion', 'Pure TypeScript · HyperFrames · Web Audio', 'Frame-accurate animation core (zero GSAP), 21 reel templates, 9 scenes, studio looks, built-in SFX synth, and layout checker'],
+  ['packages/schemas', 'Zod 4 · Strict TypeScript', 'Shared data contracts for projects, reels, director skills, timings in milliseconds, and credit pricing'],
+  ['services/render', 'Cloud Run · HyperFrames · FFmpeg', '30 fps headless browser capture + video/audio mixing into 1080p MP4, transparent WebM, and thumbnails'],
+  ['skills/ & .kiro/', 'Kiro · Antigravity · Firebase Agent Skills', 'Open-source Markdown playbooks, 8 Firebase Agent Skills, 44 specs, 21 steering docs, 3 custom agents, and hooks'],
 ] as const;
 
 function LiveNanoProbe() {
@@ -319,21 +329,23 @@ function LiveNanoProbe() {
   const setupError = useAIStatusStore((s) => s.setupError);
   const online = useAIStatusStore((s) => s.online);
   const { active: byokActive } = useByok();
+  const { active: localLlmActive, model: localLlmModel } = useLocalLlm();
 
   useEffect(() => {
     void detectAvailability();
     return watchConnection();
   }, []);
 
-  const badge =
-    availability === 'available'
+  const badge = localLlmActive
+    ? { bg: '#3ddc97', label: `Local LLM READY (${localLlmModel})` }
+    : availability === 'available'
       ? { bg: '#3ddc97', label: 'Gemini Nano READY in this browser' }
       : availability === 'downloadable'
         ? { bg: '#fde68a', label: 'Gemini Nano downloadable in this browser' }
         : availability === 'downloading'
           ? { bg: '#8dbceb', label: progressLabel(progress) }
           : availability === 'checking'
-            ? { bg: '#e5e7eb', label: 'Probing Chrome Prompt API…' }
+            ? { bg: '#e5e7eb', label: 'Checking your browser AI…' }
             : { bg: '#ddd6fe', label: 'Cloud fallback active in this browser' };
 
   return (
@@ -349,7 +361,9 @@ function LiveNanoProbe() {
           className="grid size-9 shrink-0 place-items-center rounded-lg border-2 border-ink"
           style={{ background: badge.bg }}
         >
-          {availability === 'available' ? (
+          {localLlmActive ? (
+            <Server className="size-4" strokeWidth={2} aria-hidden />
+          ) : availability === 'available' ? (
             <CheckCircle2 className="size-4" strokeWidth={2} aria-hidden />
           ) : (
             <Cpu className="size-4" strokeWidth={2} aria-hidden />
@@ -372,7 +386,9 @@ function LiveNanoProbe() {
               ) : (
                 <>
                   <WifiOff className="size-3" strokeWidth={2} aria-hidden />
-                  Offline (10 Nano tasks active)
+                  {localLlmActive
+                    ? 'Offline (local LLM active)'
+                    : 'Offline (built-in Chrome AI active)'}
                 </>
               )}
             </span>
@@ -387,16 +403,18 @@ function LiveNanoProbe() {
             )}
           </div>
           <p className="mt-1 text-[12px] text-black/70">
-            {availability === 'available'
-              ? '10 multimodal & quick AI tasks run locally at 0 credits right now — even offline.'
-              : 'Desktop Chrome 139+ with Prompt API flag enables on-device Nano; Firebase AI Logic cloud fallback handles every other browser.'}
+            {localLlmActive
+              ? 'Your local Ollama / LM Studio server is powering directing, edits, and notes right now at 0 credits — even offline.'
+              : availability === 'available'
+                ? 'Built-in Chrome AI is ready — quick edits, notes, and style picks run right on your laptop at 0 credits, even offline.'
+                : 'Use Chrome 139+ for built-in Gemini Nano, connect Ollama / LM Studio in any browser, or let our cloud AI handle everything automatically.'}
           </p>
           {setupError && <p className="mt-0.5 text-[11px] font-medium text-flame">{setupError}</p>}
         </div>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {availability === 'downloadable' && (
+        {availability === 'downloadable' && !localLlmActive && (
           <button type="button" onClick={() => void setUpOnDevice()} className={btn('flame', 'sm')}>
             <Download className="size-3.5" strokeWidth={2} aria-hidden />
             Set up Gemini Nano
@@ -407,6 +425,10 @@ function LiveNanoProbe() {
             Cancel
           </button>
         )}
+        <Link href="/settings#local-llm" className={btn('paper', 'sm')}>
+          <Server className="size-3.5" strokeWidth={2} aria-hidden />
+          {localLlmActive ? 'Manage Local AI' : 'Connect Ollama'}
+        </Link>
         <Link href="/settings#byok" className={btn('paper', 'sm')}>
           <KeyRound className="size-3.5" strokeWidth={2} aria-hidden />
           {byokActive ? 'Manage BYOK' : 'Optional BYOK'}
@@ -421,8 +443,9 @@ function LiveNanoProbe() {
 }
 
 /**
- * Public `/how-it-works` route (spec 40 R5): concise, diagram-driven architecture portal for
- * `#BuildHybridAI` (Firebase) and `Kiroween` (Frankenstein) judges.
+ * Public `/how-it-works` route (spec 40 R5): clear, human, diagram-driven walkthrough of how
+ * Motionpop works — covering on-device Chrome Gemini Nano, Ollama / LM Studio, BYOK, Firebase,
+ * HyperFrames export parity, and Kiro engineering.
  */
 export function HowItWorksPage() {
   const [routeFilter, setRouteFilter] = useState<'all' | 'local' | 'cloud'>('all');
@@ -444,7 +467,7 @@ export function HowItWorksPage() {
     <PaperPage>
       <AppBar active="how" />
       <main className="mx-auto w-full max-w-[1240px] px-6 pt-12 pb-20 lg:px-10">
-        {/* HERO — Crisp, visual, immediately scannable */}
+        {/* HERO — Clear, human, still genuinely impressive */}
         <section className="border-b-2 border-ink pb-9">
           <div className="flex items-end justify-between gap-8">
             <div className="min-w-0 flex-1">
@@ -461,16 +484,16 @@ export function HowItWorksPage() {
               </div>
 
               <h1 className={cn(poster, 'mt-4 text-[clamp(48px,6.4vw,96px)]')}>
-                Under the hood. Every stitch, mapped.
+                How Motionpop actually works.
               </h1>
-              <p className="mt-3 max-w-[740px] text-[15px] leading-[1.6] text-black/80">
-                Motionpop stitches <strong>12 specialized engines</strong> into one open-source AI
-                video editor: local WebGPU Whisper + auto-retake cutting,{' '}
-                <strong>10 on-device Chrome Gemini Nano tasks</strong> via{' '}
-                <strong>Firebase AI Logic</strong>, frontier cloud Gemini + Vertex AI Lyria 2, 6
-                open media resolvers, Firestore-synced{' '}
-                <code className="text-[13px]">SKILL.md</code> recipes, and a deterministic zero-GSAP
-                HyperFrames engine with ≤ 1.02% preview-to-MP4 parity.
+              <p className="mt-3 max-w-[760px] text-[15px] leading-[1.6] text-black/80">
+                Drop in a raw video, a voiceover, or just an idea. Motionpop transcribes every word
+                right in your browser, cuts out awkward pauses and bad takes automatically, directs
+                animated visuals around what you say, checks its own work, and exports a video that
+                matches your preview frame for frame. We wired <strong>12 engines</strong> together
+                so quick edits run free on your device (via <strong>Chrome Gemini Nano</strong> or
+                your own <strong>Ollama / LM Studio</strong> models), while big creative lifts tap
+                into <strong>Firebase AI Logic</strong> and cloud Gemini.
               </p>
             </div>
             <PipLoop
@@ -481,12 +504,12 @@ export function HowItWorksPage() {
 
           <dl className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             {[
-              { n: '10', label: 'On-device Nano tasks' },
+              { n: '11', label: 'Free on-device AI tasks' },
               { n: '7', label: 'Firebase products' },
-              { n: `${templateCount} + ${builtSceneCount}`, label: 'Reel & scene templates' },
+              { n: `${templateCount} + ${builtSceneCount}`, label: 'Reel & graphic templates' },
               { n: '142', label: 'Logged Kiro CLI runs' },
-              { n: '44', label: 'Kiro EARS specs' },
-              { n: '≤ 1.02%', label: 'Preview vs MP4 diff' },
+              { n: '44', label: 'Written Kiro specs' },
+              { n: '≤ 1.02%', label: 'Preview vs export diff' },
             ].map((stat) => (
               <div
                 key={stat.label}
@@ -513,17 +536,22 @@ export function HowItWorksPage() {
           </nav>
         </section>
 
-        {/* SECTION 1: THE FRANKENSTEIN MONSTER (High-Level Architecture + 12 Compact Organs) */}
+        {/* SECTION 1: THE FRANKENSTEIN MONSTER (High-Level Architecture + 12 Plain-English Organs) */}
         <section id="frankenstein-monster" className="scroll-mt-24 border-b-2 border-ink py-12">
           <div id="frankenstein-stack" className="flex items-end justify-between gap-6">
             <div>
               <span className="inline-flex items-center gap-1.5 rounded-md border-2 border-ink bg-[#8dbceb] px-2.5 py-0.5 text-[11px] font-semibold uppercase">
                 <Wrench className="size-3.5" strokeWidth={2} aria-hidden />
-                01 · Frankenstein Monster
+                01 · The 12 Engines
               </span>
               <h2 className={cn(poster, 'mt-2.5 text-[clamp(38px,5vw,66px)]')}>
                 The Frankenstein Monster — 12 stitched organs.
               </h2>
+              <p className="mt-2 max-w-[700px] text-[14px] leading-[1.55] text-black/75">
+                Instead of one giant black-box prompt, Motionpop connects 12 focused tools that each
+                do one job really well — from local speech recognition and sound synthesis to
+                sandboxed animations and cloud rendering.
+              </p>
             </div>
             <PipLoop
               name="craft"
@@ -550,15 +578,14 @@ export function HowItWorksPage() {
                   </span>
                 </div>
                 <h3 className={cn(poster, 'mt-2 text-[22px] leading-tight')}>{o.title}</h3>
-                <p className="mt-1.5 text-[12px] leading-[1.5] text-black/75">{o.body}</p>
+                <p className="mt-1.5 text-[12.5px] leading-[1.55] text-black/75">{o.body}</p>
               </article>
             ))}
           </div>
 
-          {/* Expandable package map + explicit non-choices so page stays lean */}
           <details className={cn(paper.frame, 'group mt-5 overflow-hidden')}>
             <summary className="flex cursor-pointer items-center justify-between gap-3 bg-mist/60 px-4 py-3 text-[12px] font-semibold select-none hover:bg-mist">
-              <span>Inspect monorepo package boundaries (6 stitches) &amp; deliberate non-choices</span>
+              <span>Want the codebase breakdown? See how the 6 folders fit together</span>
               <ChevronDown
                 className="size-4 shrink-0 transition-transform group-open:rotate-180"
                 aria-hidden
@@ -579,41 +606,49 @@ export function HowItWorksPage() {
                 ))}
               </div>
               <p className="mt-4 rounded-lg border-2 border-ink bg-black px-4 py-2.5 text-[12px] text-paper">
-                <strong className="text-flame uppercase">Deliberate non-choices:</strong> No GSAP
-                (licence incompatible with no-code motion tools), no Remotion, no ElevenLabs
-                (Gemini TTS), no AWS runtime services, and zero stock SFX MP3s (100% Web Audio DSP).
+                <strong className="text-flame uppercase">What we intentionally left out:</strong> No
+                GSAP (incompatible licence for open no-code editors), no Remotion, no third-party
+                voice APIs (we use Gemini TTS), and zero stock sound-effect MP3s (every SFX is
+                synthesized live in your browser).
               </p>
             </div>
           </details>
         </section>
 
-        {/* SECTION 2: HYBRID AI SEQUENCE & LIVE FILTERABLE MATRIX */}
+        {/* SECTION 2: FREE LOCAL AI, HYBRID ROUTING, OLLAMA / LM STUDIO & BYOK */}
         <section id="on-device-nano" className="scroll-mt-24 border-b-2 border-ink py-12">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-md border-2 border-ink bg-[#3ddc97] px-2.5 py-0.5 text-[11px] font-semibold uppercase">
               <Zap className="size-3.5" strokeWidth={2} aria-hidden />
-              02 · Firebase AI Logic Hybrid Inference
+              02 · Free Local &amp; Hybrid AI
             </span>
             <span className="text-[12px] text-black/60">
-              packages/ai/src/router.ts · Default path (zero setup)
+              Built-in Chrome AI · Ollama &amp; LM Studio · Cloud Gemini
             </span>
           </div>
           <h2 className={cn(poster, 'mt-2.5 text-[clamp(38px,5vw,66px)]')}>
             On-device Gemini Nano first. Cloud only when it counts.
           </h2>
+          <p className="mt-2 max-w-[740px] text-[14px] leading-[1.6] text-black/75">
+            Most video editors send every tiny click to an expensive cloud server. Motionpop flips
+            that: small, fast jobs run right on your computer for <strong>0 credits</strong>, and
+            cloud AI only steps in for heavy directing, voices, or custom artwork — unless you
+            connect your own local Ollama / LM Studio model to run everything locally too.
+          </p>
 
           <div className="mt-6">
             <HybridRouterDiagram />
           </div>
 
-          {/* 3 Ultra-tight scannable pillars */}
+          {/* 3 Simple, scannable pillars */}
           <div className="mt-6 grid gap-4 lg:grid-cols-3">
             <div className={cn(paper.frame, 'p-4')}>
               <span className="inline-block rounded border border-ink bg-[#3ddc97] px-2 py-0.5 text-[10px] font-semibold uppercase">
-                10 On-Device Nano Tasks (0 cr · offline)
+                11 Built-in Chrome AI Tasks (0 cr)
               </span>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {[
+                  'setup.recommend',
                   'reel.note.local',
                   'pip.quick',
                   'reel.draft',
@@ -633,40 +668,41 @@ export function HowItWorksPage() {
                   </code>
                 ))}
               </div>
-              <p className="mt-2.5 text-[12px] leading-[1.5] text-black/75">
-                Multimodal JPEG frame notes, instant Pip commands, free/offline reel drafts, quick
-                patches &amp; recipe parsing all run inside Desktop Chrome via Firebase AI Logic.
+              <p className="mt-2.5 text-[12.5px] leading-[1.55] text-black/75">
+                Circle a spot on a frame, ask Pip to tweak captions, or let Motionpop pick your best
+                style from your transcript — it all runs privately inside Chrome with zero credits.
               </p>
             </div>
 
             <div className={cn(paper.frame, 'p-4')}>
               <span className="inline-block rounded border border-ink bg-[#fde68a] px-2 py-0.5 text-[10px] font-semibold uppercase">
-                Engineered for Nano Limits + D-035
+                No Surprise Charges, Ever
               </span>
-              <ul className="mt-2.5 space-y-1.5 text-[12px] leading-[1.5] text-black/80">
+              <ul className="mt-2.5 space-y-2 text-[12.5px] leading-[1.55] text-black/80">
                 <li>
-                  • <strong>CI-guarded schemas:</strong> depth ≤ 3, ≤ 6 optional props, numeric{' '}
-                  <code>maxLength</code> on every string, prompts 968–1,622 chars (inside Nano&apos;s
-                  9,216-token cap).
+                  • <strong>Built to fit small models:</strong> Every on-device prompt and response
+                  shape is kept lean and tested automatically so Chrome&apos;s built-in model gives
+                  clean, reliable answers.
                 </li>
                 <li>
-                  • <strong>No silent charges (D-035):</strong> Mint chips never bill cloud credits;
-                  escalations surface Nano&apos;s reason + one-click <strong>Try in the cloud</strong>.
+                  • <strong>Free chips stay free:</strong> If a free on-device edit runs into
+                  something too complex, it never quietly charges you — it tells you why and lets
+                  you click <strong>Try in the cloud</strong> only if you want to.
                 </li>
                 <li>
-                  • <strong>No audio in Nano:</strong> Local Whisper WebGPU handles speech; cloud{' '}
-                  <code>{cfg.modelTts}</code> handles TTS.
+                  • <strong>Right tool for speech:</strong> Local Whisper handles transcription in
+                  your browser; cloud <code>{cfg.modelTts}</code> handles AI voiceovers.
                 </li>
               </ul>
             </div>
 
             <div className={cn(paper.frame, 'p-4')}>
               <span className="inline-block rounded border border-ink bg-[#c4b5fd] px-2 py-0.5 text-[10px] font-semibold uppercase">
-                Verify Offline in 30 Seconds
+                Test It Offline in 30 Seconds
               </span>
-              <ol className="mt-2.5 list-decimal space-y-1.5 pl-4 text-[12px] leading-[1.5] text-black/80">
+              <ol className="mt-2.5 list-decimal space-y-1.5 pl-4 text-[12.5px] leading-[1.55] text-black/80">
                 <li>
-                  Desktop Chrome 139+: enable{' '}
+                  In Desktop Chrome 139+, turn on{' '}
                   <code className="break-all text-[10.5px]">
                     chrome://flags/#prompt-api-for-gemini-nano-multimodal-input
                   </code>
@@ -680,45 +716,110 @@ export function HowItWorksPage() {
                   ).
                 </li>
                 <li>
-                  Toggle <strong>DevTools → Offline</strong>, then run a Pip edit or circle a frame
-                  note → lands locally at 0 cr (<code className="text-[11px]">ranOn: &quot;device&quot;</code>).
+                  Turn off your Wi-Fi (or toggle DevTools → Offline), circle something on your
+                  video, and ask for a fix — it still works right on your laptop at 0 credits.
                 </li>
               </ol>
             </div>
           </div>
 
-          {/* Compact Optional BYOK strip */}
-          <div
-            className={cn(
-              paper.frame,
-              'mt-4 flex flex-wrap items-center justify-between gap-3 bg-[#ede9fe]/45 px-4 py-3',
-            )}
-          >
-            <p className="min-w-0 flex-1 text-[12px] leading-[1.5] text-black/80">
-              <strong className="text-ink">Optional Bring Your Own Key (Power-User Setting):</strong>{' '}
-              Firebase AI Logic is the zero-setup default. Power users can optionally paste a Google
-              AI Studio key in <code className="text-[11px]">localStorage</code> (direct{' '}
-              <code className="text-[11px]">x-goog-api-key</code>, multimodal Nano still first, 0
-              Motionpop credits).
-            </p>
-            <Link href="/settings#byok" className={btn('paper', 'sm')}>
-              <KeyRound className="size-3.5" strokeWidth={2} aria-hidden />
-              Settings → BYOK
-            </Link>
+          {/* Two clear zero-credit power-user options: Local LLM (Ollama / LM Studio) + Optional BYOK */}
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+            <div
+              className={cn(
+                paper.frame,
+                'flex flex-col justify-between gap-3 bg-[#ecfdf5]/75 p-4',
+              )}
+            >
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded border border-ink bg-[#3ddc97] px-2 py-0.5 text-[10px] font-semibold uppercase">
+                    <Server className="size-3" strokeWidth={2} aria-hidden />
+                    Ollama &amp; LM Studio · Full Local AI
+                  </span>
+                  <span className="text-[11px] font-semibold text-black/60">
+                    Any browser · 0 credits · Works offline
+                  </span>
+                </div>
+                <p className="mt-2 text-[12.5px] leading-[1.55] text-black/80">
+                  Already running models like <code className="text-[11px]">qwen3:8b</code> or{' '}
+                  <code className="text-[11px]">gemma3:12b</code> on your own computer? Connect{' '}
+                  <strong>Ollama</strong> (<code className="text-[11px]">localhost:11434</code>),{' '}
+                  <strong>LM Studio</strong> (<code className="text-[11px]">localhost:1234</code>),
+                  or any OpenAI-compatible local server. Your browser talks straight to your machine
+                  to run directing, edits, and notes locally — nothing leaves your laptop.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <span className="text-[11px] text-black/65">
+                  Auto-detects installed models + strips thinking tags + handles text-only models.
+                </span>
+                <Link href="/settings#local-llm" className={btn('ink', 'sm')}>
+                  <Server className="size-3.5" strokeWidth={2} aria-hidden />
+                  Connect Ollama / LM Studio
+                </Link>
+              </div>
+            </div>
+
+            <div
+              className={cn(
+                paper.frame,
+                'flex flex-col justify-between gap-3 bg-[#ede9fe]/45 p-4',
+              )}
+            >
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 rounded border border-ink bg-[#ddd6fe] px-2 py-0.5 text-[10px] font-semibold uppercase">
+                    <KeyRound className="size-3" strokeWidth={2} aria-hidden />
+                    Optional Bring Your Own Key
+                  </span>
+                  <span className="text-[11px] font-semibold text-black/60">
+                    Browser-only · 0 Motionpop credits
+                  </span>
+                </div>
+                <p className="mt-2 text-[12.5px] leading-[1.55] text-black/80">
+                  Prefer using your own Google AI Studio billing for cloud directing, AI voices, and
+                  cutout images? Paste your Gemini API key in Settings. It stays strictly in your
+                  browser (<code className="text-[11px]">localStorage</code>), goes straight to
+                  Google, and still runs Chrome Nano first whenever it can.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <span className="text-[11px] text-black/65">
+                  Never sent to Motionpop servers. Pick any Gemini model on your key.
+                </span>
+                <Link href="/settings#byok" className={btn('paper', 'sm')}>
+                  <KeyRound className="size-3.5" strokeWidth={2} aria-hidden />
+                  Settings → BYOK
+                </Link>
+              </div>
+            </div>
           </div>
 
           {/* Filterable Live Task Routing Table */}
           <div id="routing-matrix" className="mt-7 scroll-mt-24">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className={cn(poster, 'text-[30px]')}>
-                Live AI Routing &amp; Credit Matrix
-              </h3>
+              <div>
+                <h3 className={cn(poster, 'text-[30px]')}>
+                  Where Every Task Runs &amp; What It Costs
+                </h3>
+                <p className="text-[12px] text-black/65">
+                  With Ollama / LM Studio connected, every text &amp; directing task runs locally on
+                  your machine for 0 credits.
+                </p>
+              </div>
               <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filter AI tasks">
                 {(
                   [
                     ['all', `All (${ROUTING_ROWS.length})`],
-                    ['local', `On-Device & Local (${ROUTING_ROWS.filter((r) => r.mode !== 'ONLY_IN_CLOUD').length})`],
-                    ['cloud', `Cloud (${ROUTING_ROWS.filter((r) => r.mode === 'ONLY_IN_CLOUD').length})`],
+                    [
+                      'local',
+                      `On-Device & Local (${ROUTING_ROWS.filter((r) => r.mode !== 'ONLY_IN_CLOUD').length})`,
+                    ],
+                    [
+                      'cloud',
+                      `Cloud (${ROUTING_ROWS.filter((r) => r.mode === 'ONLY_IN_CLOUD').length})`,
+                    ],
                   ] as const
                 ).map(([key, label]) => (
                   <button
@@ -741,11 +842,11 @@ export function HowItWorksPage() {
                 <table className="w-full min-w-[780px] border-collapse text-left text-[11.5px]">
                   <thead>
                     <tr className="border-b-2 border-ink bg-black text-paper">
-                      <th className="px-3.5 py-2.5 font-semibold uppercase">Task</th>
-                      <th className="px-3.5 py-2.5 font-semibold uppercase">Mode</th>
-                      <th className="px-3.5 py-2.5 font-semibold uppercase">Model / Runtime</th>
-                      <th className="px-3.5 py-2.5 font-semibold uppercase">Price</th>
-                      <th className="px-3.5 py-2.5 font-semibold uppercase">Guardrail &amp; Fallback</th>
+                      <th className="px-3.5 py-2.5 font-semibold uppercase">What it does</th>
+                      <th className="px-3.5 py-2.5 font-semibold uppercase">Runs on</th>
+                      <th className="px-3.5 py-2.5 font-semibold uppercase">Engine / Model</th>
+                      <th className="px-3.5 py-2.5 font-semibold uppercase">Cost</th>
+                      <th className="px-3.5 py-2.5 font-semibold uppercase">Safety net</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-ink/15">
@@ -755,7 +856,7 @@ export function HowItWorksPage() {
                         <tr key={row.task} className="align-top hover:bg-mist/55">
                           <td className="px-3.5 py-2.5">
                             <code className="font-semibold">{row.task}</code>
-                            <div className="mt-0.5 text-[11px] text-black/65">{row.job}</div>
+                            <div className="mt-0.5 text-[11.5px] text-black/70">{row.job}</div>
                           </td>
                           <td className="px-3.5 py-2.5">
                             <span
@@ -765,11 +866,11 @@ export function HowItWorksPage() {
                               {m.label}
                             </span>
                           </td>
-                          <td className="px-3.5 py-2.5 text-[11px] text-black/85">{row.model}</td>
+                          <td className="px-3.5 py-2.5 text-[11.5px] text-black/85">{row.model}</td>
                           <td className="px-3.5 py-2.5 font-semibold whitespace-nowrap tabular-nums">
                             {row.cost}
                           </td>
-                          <td className="px-3.5 py-2.5 text-[11px] text-black/75">
+                          <td className="px-3.5 py-2.5 text-[11.5px] text-black/75">
                             {row.guardrail}
                           </td>
                         </tr>
@@ -782,17 +883,22 @@ export function HowItWorksPage() {
           </div>
         </section>
 
-        {/* SECTION 3: END-TO-END PIPELINE & SANDBOXED DETERMINISTIC PARITY */}
+        {/* SECTION 3: END-TO-END PIPELINE & FRAME-EXACT EXPORT */}
         <section id="pipeline-engines" className="scroll-mt-24 border-b-2 border-ink py-12">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-md border-2 border-ink bg-[#ff8a5c] px-2.5 py-0.5 text-[11px] font-semibold uppercase">
               <Film className="size-3.5" strokeWidth={2} aria-hidden />
-              03 · Pipeline, Dual Engines &amp; Parity Sandbox
+              03 · Raw Clip to Finished Video
             </span>
           </div>
           <h2 className={cn(poster, 'mt-2.5 text-[clamp(38px,5vw,66px)]')}>
             Raw footage to frame-exact MP4 — zero drift.
           </h2>
+          <p className="mt-2 max-w-[740px] text-[14px] leading-[1.6] text-black/75">
+            The moment you drop a clip in, Motionpop starts transcribing and finding retakes in the
+            background while you pick your style. Every animation is driven by exact timestamps in
+            milliseconds — so the video you export looks identical to the preview you edited.
+          </p>
 
           <div className="mt-6">
             <PipelineFlowDiagram />
@@ -801,32 +907,36 @@ export function HowItWorksPage() {
           <div className="mt-6 grid gap-4 lg:grid-cols-2">
             <article className={cn(paper.frame, 'p-4')}>
               <div className="flex items-center justify-between gap-2">
-                <h3 className={cn(poster, 'text-[28px]')}>Reel Engine v3</h3>
+                <h3 className={cn(poster, 'text-[28px]')}>Talking-Head Reel Engine</h3>
                 <span className="rounded border border-ink bg-[#8dbceb]/60 px-2 py-0.5 text-[10px] font-semibold uppercase">
-                  Talking-Head 9:16
+                  Vertical 9:16
                 </span>
               </div>
-              <p className="mt-1.5 text-[12px] leading-[1.55] text-black/80">
-                <strong>{templateCount} strict templates</strong> (<code className="text-[11px]">headline, list, stack, checklist, compare, statement, counter, progress, terminal, chart, browser, flow, quote, logo, logos, image, website, punch, cta, none, custom</code>),{' '}
-                <strong>4 stage layouts</strong> (<code>split, card, full, speaker</code>),{' '}
-                <strong>{recipeCount} Recipes / {reelStyleCount} styles</strong> + custom Firestore{' '}
-                <code>SKILL.md</code>, 5 kinetic captions, hybrid <code>reel.note.local</code> +{' '}
-                <code>reel.compose</code>.
+              <p className="mt-1.5 text-[12.5px] leading-[1.6] text-black/80">
+                Built for creators talking to camera. Mixes{' '}
+                <strong>{templateCount} visual templates</strong> (big headlines, lists, stat
+                counters, charts, terminals, comparisons, quotes, logos, screenshots, and custom
+                scenes) across <strong>4 stage layouts</strong>,{' '}
+                <strong>
+                  {recipeCount} recipes / {reelStyleCount} styles
+                </strong>
+                , and 5 kinetic caption styles.
               </p>
             </article>
 
             <article className={cn(paper.frame, 'p-4')}>
               <div className="flex items-center justify-between gap-2">
-                <h3 className={cn(poster, 'text-[28px]')}>Motion Graphic &amp; Film Engine</h3>
+                <h3 className={cn(poster, 'text-[28px]')}>Motion Graphics &amp; Film Engine</h3>
                 <span className="rounded border border-ink bg-[#fde68a]/80 px-2 py-0.5 text-[10px] font-semibold uppercase">
-                  16:9 · 9:16 · 1:1 Reflow
+                  16:9 · 9:16 · 1:1
                 </span>
               </div>
-              <p className="mt-1.5 text-[12px] leading-[1.55] text-black/80">
-                <strong>{builtSceneCount} responsive scenes</strong> (<code className="text-[11px]">stat-punch, hook-statement, versus, chart-story, list-stack, timeline, quote, map-zoom, photo-evidence</code>),{' '}
-                <strong>8 bundled OFL Style Packs</strong>, <strong>{slotSkillCount} slot skills</strong>,
-                and <strong>Film Mode</strong> (<code>film.direct</code> → parallel{' '}
-                <code>film.build</code> → sandbox DOM + multimodal <code>film.vision-critic</code>).
+              <p className="mt-1.5 text-[12.5px] leading-[1.6] text-black/80">
+                Built for explainers, voiceovers, and standalone transparent overlays. Includes{' '}
+                <strong>{builtSceneCount} responsive scenes</strong> (stats, timelines, maps,
+                charts, versus cards, and photo callouts), <strong>8 curated style packs</strong>,{' '}
+                <strong>{slotSkillCount} graphic skills</strong>, and a multi-beat{' '}
+                <strong>Film Mode</strong> that reviews its own screenshots to catch layout bugs.
               </p>
             </article>
           </div>
@@ -860,7 +970,7 @@ export function HowItWorksPage() {
                   Web (Desktop Chrome)
                 </span>
               </div>
-              <div className="flex flex-1 flex-col gap-4 p-5 text-[12.5px] leading-[1.55]">
+              <div className="flex flex-1 flex-col gap-4 p-5 text-[12.5px] leading-[1.6]">
                 <ul className="space-y-2">
                   {FIREBASE_SEVEN.map(([name, desc]) => (
                     <li key={name} className="text-black/80">
@@ -869,12 +979,11 @@ export function HowItWorksPage() {
                   ))}
                 </ul>
                 <div className="mt-auto rounded-lg border-2 border-ink bg-[#eff6ff] p-3.5 text-[12px] text-black/85">
-                  <strong>Why Desktop Chrome:</strong> Pro multi-track video editing belongs on a
-                  desktop canvas — Desktop Chrome 139+ uniquely unites{' '}
-                  <strong>WebGPU Whisper</strong>, <strong>multimodal Gemini Nano</strong> via
-                  Firebase AI Logic, <strong>Web Audio DSP</strong>, <strong>IndexedDB</strong> and{' '}
-                  <strong>sandboxed 30 fps HyperFrames</strong> in one zero-install URL. Built with{' '}
-                  <strong>Antigravity</strong> and <strong>8 official Firebase Agent Skills</strong>.
+                  <strong>Why Desktop Chrome:</strong> Serious timeline editing belongs on a big
+                  screen — and Desktop Chrome 139+ lets us run local Whisper transcription,
+                  multimodal Gemini Nano, live audio synthesis, and 30 fps animations straight from
+                  a single URL with zero install. Built with <strong>Antigravity</strong> and{' '}
+                  <strong>8 official Firebase Agent Skills</strong>.
                 </div>
               </div>
             </article>
@@ -890,7 +999,7 @@ export function HowItWorksPage() {
                   /.kiro Checked In
                 </span>
               </div>
-              <div className="flex flex-1 flex-col gap-4 p-5 text-[12.5px] leading-[1.55]">
+              <div className="flex flex-1 flex-col gap-4 p-5 text-[12.5px] leading-[1.6]">
                 <ul className="space-y-2">
                   {KIRO_SURFACES.map(([name, desc]) => (
                     <li key={name} className="text-black/80">
@@ -914,44 +1023,44 @@ export function HowItWorksPage() {
           </div>
         </section>
 
-        {/* SECTION 5: SECURITY & CREDIT SAFETY */}
+        {/* SECTION 5: SECURITY, PRIVACY & CREDIT SAFETY */}
         <section id="security-credits" className="scroll-mt-24 pt-12">
           <div className="flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-md border-2 border-ink bg-black px-2.5 py-0.5 text-[11px] font-semibold text-paper uppercase">
               <ShieldCheck className="size-3.5 text-flame" strokeWidth={2} aria-hidden />
-              05 · Production Safety
+              05 · Privacy &amp; Safety
             </span>
           </div>
           <h2 className={cn(poster, 'mt-2.5 text-[clamp(36px,4.6vw,60px)]')}>
-            Security, privacy &amp; honest credit accounting.
+            Private by default. Honest about every credit.
           </h2>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
             {[
               {
                 icon: Lock,
-                title: 'App Check enforced',
-                body: 'reCAPTCHA Enterprise + limited-use tokens on AI Logic, Firestore, Storage & signed routes.',
+                title: 'App Check protected',
+                body: 'Every AI request, database write, and upload is verified by Firebase App Check so only the real app can call it.',
               },
               {
                 icon: ShieldCheck,
-                title: 'Server-only ledger',
-                body: 'Firestore rules block client credit writes; atomic Admin SDK transactions + hourly rate limits.',
+                title: 'Tamper-proof credits',
+                body: 'Your credit balance is updated only by verified server code — never trusted from the browser.',
               },
               {
                 icon: RefreshCw,
-                title: 'Auto refunds + D-035',
-                body: 'Prices show before every click; mint chips never silently charge; failed cloud runs auto-refund.',
+                title: 'Clear prices & auto refunds',
+                body: 'You always see the cost before you click. Free local buttons never bill you, and any failed cloud run refunds itself automatically.',
               },
               {
                 icon: KeyRound,
                 title: 'Zero-server BYOK safety',
-                body: 'Optional Gemini keys stay in localStorage and go straight to Google via x-goog-api-key only.',
+                body: 'Both your optional Gemini key and your local Ollama / LM Studio address stay strictly in your browser — never sent to our servers.',
               },
               {
                 icon: Terminal,
-                title: 'Remote Config controls',
-                body: 'Live kill_switch, export pause, model routing overrides & prices with zero redeploy.',
+                title: 'Instant safety switches',
+                body: 'Remote Config lets us adjust models, pricing, or pause cloud spending in seconds if anything unexpected happens.',
               },
             ].map((item) => {
               const Icon = item.icon;
@@ -961,7 +1070,7 @@ export function HowItWorksPage() {
                     <Icon className="size-4" strokeWidth={2} aria-hidden />
                   </span>
                   <h3 className={cn(poster, 'mt-2.5 text-[22px]')}>{item.title}</h3>
-                  <p className="mt-1 text-[12px] leading-[1.5] text-black/80">{item.body}</p>
+                  <p className="mt-1 text-[12.5px] leading-[1.55] text-black/80">{item.body}</p>
                 </div>
               );
             })}
@@ -972,11 +1081,11 @@ export function HowItWorksPage() {
             <div className="flex flex-wrap items-center justify-between gap-6 px-6 py-7 sm:px-8">
               <div>
                 <h2 className={cn(poster, 'text-[clamp(34px,4.2vw,52px)]')}>
-                  See the monster in action.
+                  See it in action.
                 </h2>
-                <p className="mt-1.5 max-w-[520px] text-[13.5px] text-paper/75">
-                  Drop a talking-head video, try a sample voiceover, or inspect every commit,
-                  decision and Kiro spec on GitHub.
+                <p className="mt-1.5 max-w-[540px] text-[13.5px] text-paper/75">
+                  Drop in a talking-head clip, connect Ollama or LM Studio on your laptop, try a
+                  sample project, or read every single line of code on GitHub.
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">

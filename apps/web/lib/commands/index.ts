@@ -62,8 +62,11 @@ export {
   setReelCaptions,
   setReelLook,
   setReelMusicBrief,
+  setReelSceneClip,
   setReelStyle,
   setReelTheme,
+  updateReelClipScene,
+  type ReelClipSceneOptions,
   type ReelStyleChange,
 } from './reel';
 export {

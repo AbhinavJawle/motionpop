@@ -35,7 +35,7 @@ import { REEL_LAYOUTS_AND_TEMPLATES } from './prompt';
 
 export const REEL_NOTE_PROMPT_VERSION = 'v2';
 
-const LAYOUTS = ['split', 'card', 'full', 'speaker'] as const;
+const LAYOUTS = ['split', 'card', 'pip', 'full', 'speaker'] as const;
 const PARTS = ['graphic', 'speaker', 'caption', 'tag', 'hook'] as const;
 export type ReelNotePart = (typeof PARTS)[number];
 const Unit = z.number().min(0).max(1);
@@ -317,6 +317,19 @@ export function reelNoteContext(
         domain: c.media.query,
         headline: c.headline,
         strikeWord: wordAt(c.strikeAt),
+      };
+      break;
+    case 'clip':
+      g = {
+        template: c.template,
+        clipId: c.clipId,
+        clipStartMs: c.clipStartMs,
+        fit: c.fit,
+        focusX: c.focusX,
+        focusY: c.focusY,
+        zoom: c.zoom,
+        label: c.label,
+        audioMode: c.audioMode,
       };
       break;
     case 'punch':

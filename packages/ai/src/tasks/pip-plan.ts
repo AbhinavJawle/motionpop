@@ -104,9 +104,12 @@ export function pipPlanJsonSchema(input: PipPlanInput): Record<string, unknown> 
     ...(reel?.scenes.map((s) => s.ref) ?? []),
     'none',
   ];
-  // A reel with no slots takes reel choices only; slot projects keep the v1 list.
+  // A reel with no slots takes reel choices + Media Bin clip IDs; slot projects keep the v1 list.
+  const mediaBinIds = input.project.mediaBin?.map((c) => c.id) ?? [];
   const slotChoices = reel && !input.project.slots.length ? [] : slotProjectChoices(input);
-  const choices = [...new Set([...(reel ? REEL_CHOICES : []), ...slotChoices])].slice(0, 64);
+  const choices = [
+    ...new Set([...(reel ? [...REEL_CHOICES, ...mediaBinIds] : []), ...slotChoices]),
+  ].slice(0, 64);
   return {
     type: 'object',
     properties: {

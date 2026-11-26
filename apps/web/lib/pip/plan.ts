@@ -445,6 +445,20 @@ export function enforcePlan(
         break;
       }
       case 'setBeatClip': {
+        if (reel && sceneId) {
+          const clipChoice = m.choice === 'none' ? '' : m.choice;
+          if (clipChoice && !project.mediaBin?.some((c) => c.id === clipChoice)) {
+            drop(label, 'That clip is not in the Media Bin');
+            continue;
+          }
+          steps.push({
+            ...base,
+            sceneId,
+            clipId: clipChoice,
+            credits: 0,
+          });
+          break;
+        }
         if (!project.video) {
           drop(label, 'Only available for video projects');
           continue;

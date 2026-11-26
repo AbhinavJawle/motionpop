@@ -3,6 +3,7 @@ import {
   isGraphicReel,
   isSafeId,
   mediaClipPathFor,
+  reelClipIdsOf,
   stockAudioPathFor,
   stockOverlayPathFor,
   videoPathFor,
@@ -195,9 +196,10 @@ export async function uploadReferencedMediaClips(
 ): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
   if (!isSafeId(uid) || !isSafeId(project.id) || !project.mediaBin?.length) return out;
-  const usedIds = new Set(
-    (project.video?.stages ?? []).map((s) => s.clipId).filter((id): id is string => Boolean(id)),
-  );
+  const usedIds = new Set([
+    ...(project.video?.stages ?? []).map((s) => s.clipId).filter((id): id is string => Boolean(id)),
+    ...reelClipIdsOf(project.reel),
+  ]);
   if (usedIds.size === 0) return out;
   const storage = await remote();
   const re = mediaClipPathFor(uid, project.id);
@@ -224,9 +226,10 @@ export async function resolveReferencedMediaClipBlobs(
 ): Promise<Record<string, { blob: Blob; ext: string }>> {
   const out: Record<string, { blob: Blob; ext: string }> = {};
   if (!project.mediaBin?.length) return out;
-  const usedIds = new Set(
-    (project.video?.stages ?? []).map((s) => s.clipId).filter((id): id is string => Boolean(id)),
-  );
+  const usedIds = new Set([
+    ...(project.video?.stages ?? []).map((s) => s.clipId).filter((id): id is string => Boolean(id)),
+    ...reelClipIdsOf(project.reel),
+  ]);
   if (usedIds.size === 0) return out;
   for (const clip of project.mediaBin) {
     if (!usedIds.has(clip.id)) continue;

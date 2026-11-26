@@ -17,6 +17,7 @@ import { editPatchTask } from './tasks/edit-patch';
 import { noteFixTask } from './tasks/note-fix';
 import { pipQuickTask } from './tasks/pip-quick';
 import { promptPrefill } from './tasks/prompt-prefill';
+import { setupRecommendTask } from './tasks/setup-recommend';
 import { reelDraftLocalTask } from './reel/draft-local';
 import { reelNoteLocalTask } from './reel/note-local';
 import { slotsDetect, slotsDetectInput } from './tasks/slots-detect';
@@ -322,6 +323,14 @@ const CASES: Case[] = [
         words: TEXT.map((t, i) => [i, t] as [number, string]),
       }),
   },
+  {
+    id: 'setup.recommend',
+    run: () =>
+      measure(setupRecommendTask, {
+        transcript: TEXT.join(' '),
+        kind: 'video' as const,
+      }),
+  },
 ];
 
 /** Real violations today: task id → rule → why. Claude Code fixes these when scenes are wired in. */
@@ -369,6 +378,7 @@ describe('task schema rules (ai-tasks.md)', () => {
         'prompt.prefill',
         'reel.draft',
         'reel.note.local',
+        'setup.recommend',
         'slots.detect',
         'transcribe.cloud',
       ].sort(),
@@ -386,7 +396,14 @@ describe('task schema rules (ai-tasks.md)', () => {
 
   it('on-device task prompts stay far inside the on-device limit (9,216 tokens, image not counted)', () => {
     // About 4 characters per token: 8,000 characters is roughly 2,000 tokens, leaving room for the structured-output schema and the picture.
-    const ON_DEVICE = new Set(['edit.patch', 'note.fix', 'reel.note.local', 'pip.quick', 'reel.draft']);
+    const ON_DEVICE = new Set([
+      'edit.patch',
+      'note.fix',
+      'reel.note.local',
+      'pip.quick',
+      'reel.draft',
+      'setup.recommend',
+    ]);
     for (const r of results.filter((x) => ON_DEVICE.has(x.id))) {
       expect(r.systemChars + r.promptChars, r.id).toBeLessThan(8000);
     }

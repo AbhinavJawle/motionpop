@@ -48,6 +48,8 @@ export type ThinkingLevel = 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
 export interface ProviderResponse {
   text: string;
   ranOn: RanOn;
+  /** Explicit model ID reported by the provider (e.g. a local Ollama/LM Studio model). */
+  model?: string;
   /** Input tokens the provider served from its implicit cache, when it reports them (cloud). */
   cachedTokens?: number;
 }
@@ -309,6 +311,7 @@ export function createRouter(deps: {
           return {
             value: parsed.value,
             ranOn: res.ranOn,
+            ...(res.model ? { model: res.model } : {}),
             ...(res.cachedTokens !== undefined ? { cachedTokens: res.cachedTokens } : {}),
           };
         }
@@ -352,8 +355,9 @@ export function createRouter(deps: {
         throw new RouterError(task.id, lastFailure, lastError);
       }
       const costCredits = result.ranOn === 'cloud' ? cloudCost : 0;
-      // The cloud model name is only true for a cloud run; on the device it is Chrome's model.
-      const usedModel = result.ranOn === 'device' ? DEVICE_MODEL : model;
+      // The cloud model name is only true for a cloud run; on the device it is Chrome's model
+      // unless the provider explicitly reports a local model ID (e.g. Ollama / LM Studio).
+      const usedModel = result.model ?? (result.ranOn === 'device' ? DEVICE_MODEL : model);
       const cachedTokens = result.cachedTokens;
       // Only a valid answer is stored (it passed the schema and the task's check above).
       if (cacheKey !== undefined && deps.cache) {

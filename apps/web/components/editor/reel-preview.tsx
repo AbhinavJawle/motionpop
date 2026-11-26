@@ -7,6 +7,7 @@ import {
   mixReelMusic,
   mountReel,
   stageSizeForFormat,
+  type ReelClipMedia,
   type ReelCustomAssets,
   type ReelHandle,
   type ReelImage,
@@ -22,10 +23,12 @@ import {
   isVideoReel,
   keptSourceSegments,
   reelBedSound,
+  reelClipIdsOf,
   reelMediaOf,
   reelSceneData,
   type Format,
   type ImageAsset,
+  type MediaClip,
   type ReelPlan,
 } from '@motionpop/schemas';
 import { getImage } from '@/lib/images/image-store';
@@ -112,6 +115,72 @@ function useReelCustom(
   }, [wanted, ids, assets, key]);
   if (!wanted) return null;
   return state && state.key === key ? state.value : undefined;
+}
+
+/**
+ * Blob URLs and sizes for creator-uploaded Media Bin clips referenced by `clip` scenes (spec 48).
+ */
+function useReelClips(
+  reel: ReelPlan | undefined,
+  mediaBin: readonly MediaClip[] | undefined,
+): Record<string, ReelClipMedia> | null {
+  const clipKey = useMemo(() => {
+    const wanted = reelClipIdsOf(reel);
+    if (wanted.length === 0 || !mediaBin?.length) return '';
+    return wanted
+      .map((id) => {
+        const c = mediaBin.find((x) => x.id === id);
+        return c ? `${c.id}:${c.src}` : '';
+      })
+      .filter(Boolean)
+      .sort()
+      .join('|');
+  }, [reel, mediaBin]);
+  const [state, setState] = useState<{ key: string; clips: Record<string, ReelClipMedia> }>({
+    key: '',
+    clips: {},
+  });
+  useEffect(() => {
+    if (!clipKey) return;
+    const bin = editorStore.getState().project?.mediaBin ?? [];
+    const wanted = new Set(reelClipIdsOf(editorStore.getState().project?.reel));
+    const list = bin.filter((c) => wanted.has(c.id));
+    let cancelled = false;
+    const made: string[] = [];
+    void Promise.all(
+      list.map(async (c) => {
+        const blob = await appAudioStore()
+          .get(c.src)
+          .catch(() => null);
+        if (!blob || cancelled) return null;
+        const url = URL.createObjectURL(blob);
+        made.push(url);
+        const media: ReelClipMedia = {
+          src: url,
+          isVideo: c.mimeType.startsWith('video/'),
+          w: c.width,
+          h: c.height,
+          ...(c.durationMs !== undefined ? { durationMs: c.durationMs } : {}),
+          name: c.name,
+        };
+        return [c.id, media] as const;
+      }),
+    ).then((pairs) => {
+      if (cancelled) {
+        made.forEach((u) => URL.revokeObjectURL(u));
+        return;
+      }
+      const clips: Record<string, ReelClipMedia> = {};
+      for (const p of pairs) if (p) clips[p[0]] = p[1];
+      setState({ key: clipKey, clips });
+    });
+    return () => {
+      cancelled = true;
+      made.forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, [clipKey]);
+  if (!clipKey) return {};
+  return state.key === clipKey ? state.clips : null;
 }
 
 /**
@@ -303,8 +372,10 @@ export function ReelPreview({ transparent = false }: { transparent?: boolean } =
   const words = useEditor((s) => s.project?.transcript.words);
   const durationMs = useEditor((s) => s.project?.durationMs ?? 0);
   const assets = useEditor((s) => s.project?.assets);
+  const mediaBin = useEditor((s) => s.project?.mediaBin);
   const playing = useEditor((s) => s.playing);
   const images = useReelImages(reel, assets);
+  const clips = useReelClips(reel, mediaBin);
   const custom = useReelCustom(reel, assets);
   const voiceSrc = useEditor((s) => s.project?.voiceover.src);
   const voiceLevel = useVoiceLevel(graphicOnly ? undefined : voiceSrc, words);
@@ -366,7 +437,7 @@ export function ReelPreview({ transparent = false }: { transparent?: boolean } =
   // Mount the engine whenever the plan, format, transparency, words, or video change.
   useEffect(() => {
     const host = hostRef.current;
-    if (!host || !reel || !images || custom === undefined) return;
+    if (!host || !reel || !images || !clips || custom === undefined) return;
     if (video && !url) return;
     let cancelled = false;
     let v: HTMLVideoElement | null = null;
@@ -393,6 +464,7 @@ export function ReelPreview({ transparent = false }: { transparent?: boolean } =
           ...(transparent && !video ? { transparent: true } : {}),
           ...(video ? { video: { w: video.width, h: video.height } } : {}),
           images,
+          ...(Object.keys(clips).length ? { clips } : {}),
           // AI-written scenes run sandboxed in their own frames (spec 30).
           ...(custom
             ? { custom: custom.assets, customImages: custom.images, customSandbox: true }
@@ -421,7 +493,7 @@ export function ReelPreview({ transparent = false }: { transparent?: boolean } =
       }
       host.replaceChildren();
     };
-  }, [reel, video, url, words, durationMs, format, transparent, images, segments, custom]);
+  }, [reel, video, url, words, durationMs, format, transparent, images, clips, segments, custom]);
 
   // The sound tracks follow the editor clock like the video does.
   useEffect(() => {
@@ -439,12 +511,20 @@ export function ReelPreview({ transparent = false }: { transparent?: boolean } =
     };
   }, [bedUrl, musicUrl]);
 
-  // Every clock tick: draw the reel and keep the video (if any) & sound tracks on the editor clock.
+  // Every clock tick: draw the reel and keep the video (if any), active clip videos & sound tracks on the editor clock.
   useEffect(() => {
     const apply = (ms: number) => {
       handleRef.current?.seek(ms);
       const isPlaying = editorStore.getState().playing;
       syncTracks(tracksRef.current, ms / 1000, isPlaying);
+      if (isPlaying && hostRef.current) {
+        for (const cv of hostRef.current.querySelectorAll<HTMLVideoElement>('video[data-reel-clip-preview]')) {
+          const sceneHost = cv.closest<HTMLElement>('[data-reel-scene]');
+          const visible = sceneHost ? sceneHost.style.display !== 'none' : true;
+          if (visible && cv.paused) void cv.play().catch(() => undefined);
+          else if (!visible && !cv.paused) cv.pause();
+        }
+      }
       const v = videoElRef.current;
       if (!v || v.readyState < 1) return;
       const target = cleanedToSourceMs(ms, segments) / 1000;
@@ -456,11 +536,21 @@ export function ReelPreview({ transparent = false }: { transparent?: boolean } =
 
   useEffect(() => {
     const v = videoElRef.current;
+    const clipVids = hostRef.current
+      ? Array.from(hostRef.current.querySelectorAll<HTMLVideoElement>('video[data-reel-clip-preview]'))
+      : [];
     if (playing) {
       if (v) void v.play().catch(() => undefined);
+      for (const cv of clipVids) {
+        const sceneHost = cv.closest<HTMLElement>('[data-reel-scene]');
+        if (!sceneHost || sceneHost.style.display !== 'none') {
+          void cv.play().catch(() => undefined);
+        }
+      }
       playTracks(tracksRef.current, editorStore.getState().playheadMs / 1000);
     } else {
       if (v) v.pause();
+      for (const cv of clipVids) cv.pause();
       pauseTracks(tracksRef.current);
     }
   }, [playing, url, bedUrl, musicUrl]);

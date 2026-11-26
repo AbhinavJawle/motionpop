@@ -43,6 +43,7 @@ const NAMES: Record<ReelScene['content']['template'], string> = {
   logos: 'Logos',
   image: 'Picture',
   website: 'Website',
+  clip: 'Clip',
   custom: 'Custom',
 };
 
@@ -85,6 +86,8 @@ function sceneText(s: ReelScene): string {
       return c.title ?? (c.words.map((w) => w.text).join(' · ') || c.media.query);
     case 'website':
       return c.headline ?? c.url;
+    case 'clip':
+      return c.label ?? (c.fit === 'screen-window' ? 'Screen showcase' : 'Uploaded clip');
     case 'custom':
       return c.title;
   }

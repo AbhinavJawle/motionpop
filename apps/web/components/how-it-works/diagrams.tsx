@@ -347,7 +347,7 @@ export function FrankensteinStackDiagram() {
         <Node x={226} y={66} w={184} h={46} fill="#ecfdf5" label="Chrome Gemini Nano" sub="10 tasks · JPEG + JSON" dot="#10b981" />
         <Node x={30} y={126} w={180} h={52} fill="#ecfdf5" label="Whisper + Auto-Cut DSP" sub="WebGPU · LCS retakes · prosody" dot="#10b981" />
         <Node x={226} y={126} w={184} h={52} fill="#eff6ff" label="HyperFrames Sandbox" sub="seek(tMs) · 21+9 templates" dot="#3b82f6" />
-        <Node x={30} y={194} w={380} h={56} fill="#fffbeb" label="IndexedDB + Procedural Audio Synth + Optional BYOK" sub="Local media · 14-take Web Audio SFX · localStorage x-goog-api-key" />
+        <Node x={30} y={194} w={380} h={56} fill="#fffbeb" label="IndexedDB + Web Audio SFX + Ollama / LM Studio + BYOK" sub="Local media · 14-take SFX · localhost:11434/1234 · localStorage key" />
 
         {/* TOP-RIGHT GROUP: Cloud AI Orchestra */}
         <rect x={486} y={18} width={498} height={154} rx={14} fill="#faf8ff" stroke="#18181b" strokeWidth={1.6} />

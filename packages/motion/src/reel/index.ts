@@ -27,7 +27,7 @@ export {
 } from './looks';
 export { reelSfx, reelBed, type ReelBedOptions } from './sound';
 export { logoSlugs, splitLogoQuery, illustrationPrompt } from './media-query';
-export type { ReelImage } from './parts';
+export type { ReelClipMedia, ReelImage } from './parts';
 export { cutsFromSegments, focusAt, punchChanges, punchLevelAt, transKind } from './motion';
 export {
   decodeWavStereo16,

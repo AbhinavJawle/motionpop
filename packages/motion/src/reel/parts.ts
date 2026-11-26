@@ -10,15 +10,33 @@ export interface ReelImage {
   h: number;
 }
 
+/** A loaded creator-uploaded Media Bin clip (spec 48): video or image URL plus intrinsic size. */
+export interface ReelClipMedia {
+  src: string;
+  isVideo: boolean;
+  w: number;
+  h: number;
+  durationMs?: number;
+  name?: string;
+}
+
 export interface TplCtx {
   look: LookTokens;
   pal: Palette;
   area: Area;
   startMs: number;
   endMs: number;
-  layout: 'split' | 'card' | 'full' | 'speaker';
+  layout: 'split' | 'card' | 'pip' | 'full' | 'speaker';
+  /** The scene id (used to adopt pre-emitted HyperFrames `<video>` clip nodes at export). */
+  sceneId?: string;
   /** The picture for a media request, or null (draw the fallback). */
   img(m: ReelMedia | undefined): ReelImage | null;
+  /** Looks up a creator-uploaded Media Bin clip by `clipId` (spec 48). */
+  clip?(id: string): ReelClipMedia | null;
+  /** Adopts a HyperFrames-managed `<video>` element for a `clip` scene during export (spec 48). */
+  clipVideoEl?(sceneId: string): HTMLVideoElement | null;
+  /** True when running inside the HyperFrames export runtime (HyperFrames drives video `currentTime`). */
+  isExport?: boolean;
   /**
    * Builds an AI-written scene (spec 30) in its own frame. Absent (no custom runtime loaded) the
    * scene shows its title as a headline until it is.

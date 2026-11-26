@@ -12,6 +12,7 @@ import { SectionCard, type SettingsVariant } from './section-card';
 import { UsageChart } from './usage-chart';
 import { OnDeviceDownloadModal } from './on-device-download-modal';
 import { ByokCard } from './byok-card';
+import { LocalLlmCard } from './local-llm-card';
 
 /** Where the Chrome flag instructions live (the README's "On-device AI in Chrome" section). */
 export const ON_DEVICE_HELP_URL =
@@ -78,7 +79,7 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
     <SectionCard
       id="ai"
       title="AI & models"
-      subtitle="Run edits free on your device with Gemini Nano, or bring your own Gemini API key."
+      subtitle="Run edits free on your device with Gemini Nano, connect Ollama or LM Studio, or bring your own Gemini API key."
       variant={variant}
     >
       <div className="flex items-center justify-between gap-4">
@@ -170,6 +171,10 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
         onConfirm={handleConfirmDownload}
         confirmLabel={confirmLabel}
       />
+
+      <div className="mt-5">
+        <LocalLlmCard variant={variant} />
+      </div>
 
       <div className="mt-5">
         <ByokCard variant={variant} />

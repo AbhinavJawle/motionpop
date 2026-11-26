@@ -20,6 +20,8 @@ export interface SummaryContext {
   resolvedBy?: 'device' | 'rules';
   /** True when user-supplied Gemini BYOK key is saved in this browser (Spec 42). */
   byok?: boolean;
+  /** True when a local LLM server (Ollama / LM Studio) is active as full local provider. */
+  localLlm?: boolean;
 }
 
 /** The creator described their own recipe or style, so `resolved` is what the edit follows. */
@@ -57,6 +59,7 @@ export const REEL_ILLUSTRATIONS_MAX = 3;
 const credits = (n: number) => `${n} ${n === 1 ? 'credit' : 'credits'}`;
 
 export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
+  const localLlm = Boolean(ctx.localLlm);
   const byok = Boolean(ctx.byok) && ctx.online;
   const paid = byok || (ctx.signedIn && ctx.online && !ctx.config.killSwitch);
   const rows: SummaryRow[] = [];
@@ -103,12 +106,25 @@ export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
   }
   if (ctx.kind !== 'graphic' && edit.sound.cleanup && !ctx.script) free('cleanup', 'Speech cleanup');
 
-  let note: string | undefined = byok
-    ? 'Using your Gemini API key (0 Motionpop credits).'
-    : undefined;
+  let note: string | undefined = localLlm
+    ? byok
+      ? 'Using your local LLM for directing & Gemini API key for voice/images (0 Motionpop credits).'
+      : 'Using your local LLM for directing & edits (0 Motionpop credits).'
+    : byok
+      ? 'Using your Gemini API key (0 Motionpop credits).'
+      : undefined;
   if (ctx.kind === 'graphic') {
-    const reel = byok ? 0 : costOf('reel', 1, ctx.config);
-    if (paid)
+    const reel = localLlm || byok ? 0 : costOf('reel', 1, ctx.config);
+    if (localLlm)
+      rows.push({
+        id: 'direct',
+        label: 'Motion graphic directing',
+        value: 'Free · local LLM',
+        credits: 0,
+        route: 'device',
+        note: 'Bespoke custom scenes via your local server',
+      });
+    else if (paid)
       rows.push({
         id: 'direct',
         label: 'Motion graphic directing',
@@ -139,13 +155,22 @@ export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
         });
     }
     free('alpha', 'Transparent WebM export', 'none', 'Free');
-    if (!paid)
+    if (!paid && !localLlm)
       note = ctx.signedIn
         ? 'Paid steps run their free versions.'
         : 'Sign in or add a Gemini key for bespoke scenes and AI cutouts.';
   } else if (ctx.kind === 'video') {
-    const reel = byok ? 0 : costOf('reel', 1, ctx.config);
-    if (paid)
+    const reel = localLlm || byok ? 0 : costOf('reel', 1, ctx.config);
+    if (localLlm)
+      rows.push({
+        id: 'direct',
+        label: 'Reel directing',
+        value: 'Free · local LLM',
+        credits: 0,
+        route: 'device',
+        note: edit.sound.cleanup ? 'Includes the retake check' : undefined,
+      });
+    else if (paid)
       rows.push({
         id: 'direct',
         label: 'Reel directing',
@@ -175,7 +200,7 @@ export function summarize(edit: EditConfig, ctx: SummaryContext): Summary {
           route: 'none',
         });
     }
-    if (!paid)
+    if (!paid && !localLlm)
       note = ctx.signedIn
         ? 'Paid steps run their free versions.'
         : 'Sign in for the AI director and illustrations.';

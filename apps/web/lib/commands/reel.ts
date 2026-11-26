@@ -6,11 +6,14 @@ import {
   tileReelScenes,
   type EditorProject,
   type ImageAsset,
+  type MediaClip,
   type ReelAddedSfx,
   type ReelCaptionStyle,
+  type ReelLayout,
   type ReelLook,
   type ReelPlan,
   type ReelScene,
+  type ReelTemplate,
   type ReelTheme,
 } from '@motionpop/schemas';
 import { produce } from 'immer';
@@ -351,6 +354,173 @@ export function appendReelScenes(
         d.durationMs = prev.durationMs;
         if (prev.assets === undefined) delete d.assets;
         else d.assets = prev.assets;
+      });
+    },
+  };
+}
+
+export type ReelClipTemplate = Extract<ReelTemplate, { template: 'clip' }>;
+
+export interface ReelClipSceneOptions {
+  layout?: ReelLayout;
+  fit?: ReelClipTemplate['fit'];
+  clipStartMs?: number;
+  focusX?: number;
+  focusY?: number;
+  zoom?: number;
+  label?: string;
+  audioMode?: ReelClipTemplate['audioMode'];
+}
+
+function defaultClipSceneFor(
+  clip: MediaClip,
+  hasVideo: boolean,
+  look: ReelLook,
+  opts?: ReelClipSceneOptions,
+): { layout: ReelLayout; content: ReelClipTemplate } {
+  const firstMoment = clip.moments?.[0];
+  const fit: ReelClipTemplate['fit'] =
+    opts?.fit ??
+    (clip.kind === 'screen-recording'
+      ? 'screen-window'
+      : clip.kind === 'screenshot' || clip.kind === 'photo'
+        ? 'card'
+        : 'cover');
+  const layout: ReelLayout =
+    opts?.layout ??
+    (!hasVideo
+      ? 'full'
+      : clip.kind === 'screen-recording'
+        ? 'pip'
+        : clip.kind === 'screenshot' || clip.kind === 'photo'
+          ? look === 'mono'
+            ? 'split'
+            : 'card'
+          : look === 'mono'
+            ? 'split'
+            : 'full');
+  const content: ReelClipTemplate = {
+    template: 'clip',
+    clipId: clip.id,
+    clipStartMs: Math.max(0, Math.round(opts?.clipStartMs ?? firstMoment?.startMs ?? 0)),
+    fit,
+    focusX: Math.min(1, Math.max(0, opts?.focusX ?? firstMoment?.focusX ?? 0.5)),
+    focusY: Math.min(1, Math.max(0, opts?.focusY ?? firstMoment?.focusY ?? 0.5)),
+    zoom: Math.min(
+      2.5,
+      Math.max(1, opts?.zoom ?? firstMoment?.zoom ?? (fit === 'screen-window' ? 1.35 : 1.08)),
+    ),
+    ...(opts?.label?.trim() ? { label: opts.label.trim().slice(0, 40) } : {}),
+    audioMode: opts?.audioMode ?? 'mute',
+  };
+  return { layout, content };
+}
+
+/**
+ * Binds or clears a Media Bin clip directly on one `ReelScene` as a native `clip` template
+ * (spec 48 R4.1 + R4.4). One undo step.
+ */
+export function setReelSceneClip(
+  sceneId: string,
+  clipId: string | null,
+  opts?: ReelClipSceneOptions,
+): Command {
+  let prev: ReelPlan | undefined;
+  return {
+    label: clipId ? 'Place clip on scene' : 'Clear clip from scene',
+    do(p) {
+      if (!p.reel) throw new CommandRejected('This project has no reel');
+      const idx = p.reel.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) throw new CommandRejected('Scene not found');
+      const cur = p.reel.scenes[idx]!;
+      let nextScene: ReelScene;
+      if (clipId) {
+        const clip = p.mediaBin?.find((c) => c.id === clipId);
+        if (!clip) throw new CommandRejected('Clip not found in Media Bin');
+        const built = defaultClipSceneFor(clip, Boolean(p.video), p.reel.look, opts);
+        nextScene = { ...cur, layout: built.layout, content: built.content };
+      } else {
+        nextScene = p.video
+          ? { ...cur, layout: 'speaker', content: { template: 'none' } }
+          : {
+              ...cur,
+              layout: 'full',
+              content: { template: 'headline', title: 'Key point' },
+            };
+      }
+      const nextScenes = p.reel.scenes.map((s, i) => (i === idx ? nextScene : s));
+      const parsed = ReelPlanSchema.safeParse({ ...p.reel, scenes: nextScenes });
+      if (!parsed.success) throw new CommandRejected('Invalid clip scene');
+      prev = p.reel;
+      return produce(p, (d) => {
+        d.reel = parsed.data;
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (prev) d.reel = prev;
+      });
+    },
+  };
+}
+
+/** Updates layout, framing, zoom, offset, or audio settings on an existing `clip` Reel scene (spec 48 R4.3). */
+export function updateReelClipScene(
+  sceneId: string,
+  patch: Partial<{
+    layout: ReelLayout;
+    clipId: string;
+    fit: ReelClipTemplate['fit'];
+    clipStartMs: number;
+    focusX: number;
+    focusY: number;
+    zoom: number;
+    label: string | null;
+    audioMode: ReelClipTemplate['audioMode'];
+  }>,
+): Command {
+  let prev: ReelPlan | undefined;
+  return {
+    label: 'Update clip scene',
+    do(p) {
+      if (!p.reel) throw new CommandRejected('This project has no reel');
+      const idx = p.reel.scenes.findIndex((s) => s.id === sceneId);
+      if (idx < 0) throw new CommandRejected('Scene not found');
+      const cur = p.reel.scenes[idx]!;
+      if (cur.content.template !== 'clip') {
+        throw new CommandRejected('Selected scene is not a clip scene');
+      }
+      const nextContent: ReelClipTemplate = {
+        ...cur.content,
+        ...(patch.clipId !== undefined ? { clipId: patch.clipId } : {}),
+        ...(patch.fit !== undefined ? { fit: patch.fit } : {}),
+        ...(patch.clipStartMs !== undefined
+          ? { clipStartMs: Math.max(0, Math.round(patch.clipStartMs)) }
+          : {}),
+        ...(patch.focusX !== undefined ? { focusX: Math.min(1, Math.max(0, patch.focusX)) } : {}),
+        ...(patch.focusY !== undefined ? { focusY: Math.min(1, Math.max(0, patch.focusY)) } : {}),
+        ...(patch.zoom !== undefined ? { zoom: Math.min(2.5, Math.max(1, patch.zoom)) } : {}),
+        ...(patch.audioMode !== undefined ? { audioMode: patch.audioMode } : {}),
+      };
+      if (patch.label !== undefined) {
+        const trimmed = patch.label?.trim().slice(0, 40);
+        if (trimmed) nextContent.label = trimmed;
+        else delete nextContent.label;
+      }
+      const nextLayout: ReelLayout =
+        patch.layout !== undefined ? (!p.video ? 'full' : patch.layout) : cur.layout;
+      const nextScene: ReelScene = { ...cur, layout: nextLayout, content: nextContent };
+      const nextScenes = p.reel.scenes.map((s, i) => (i === idx ? nextScene : s));
+      const parsed = ReelPlanSchema.safeParse({ ...p.reel, scenes: nextScenes });
+      if (!parsed.success) throw new CommandRejected('Invalid clip scene update');
+      prev = p.reel;
+      return produce(p, (d) => {
+        d.reel = parsed.data;
+      });
+    },
+    undo(p) {
+      return produce(p, (d) => {
+        if (prev) d.reel = prev;
       });
     },
   };

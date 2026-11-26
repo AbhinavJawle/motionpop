@@ -1542,6 +1542,260 @@ export function mix(a: string, b: string, p: number): string {
   return `rgb(${ch(16)}, ${ch(8)}, ${ch(0)})`;
 }
 
+/** Creator-uploaded Media Bin clip (B-roll, screen recording, screenshot, spec 48). */
+function clipTemplate(p: Of<'clip'>, ctx: TplCtx): Tpl {
+  const media = ctx.clip?.(p.clipId) ?? null;
+  if (!media) {
+    return p.label
+      ? headline({ template: 'headline', title: p.label }, ctx)
+      : none({ template: 'none' }, ctx);
+  }
+
+  const root = h('div', {
+    position: 'absolute',
+    left: ctx.area.x,
+    top: ctx.area.y,
+    width: ctx.area.w,
+    height: ctx.area.h,
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box',
+  });
+
+  const fxPct = Math.round(clamp(p.focusX) * 100);
+  const fyPct = Math.round(clamp(p.focusY) * 100);
+  const targetZoom = clamp(p.zoom, 1, 2.5);
+  const fitMode = p.fit ?? 'cover';
+
+  // Media node: either a HyperFrames-adopted `<video>` (export), a preview `<video>`, or an `<img>`.
+  let mediaEl: HTMLVideoElement | HTMLImageElement;
+  let previewVideo: HTMLVideoElement | null = null;
+  if (media.isVideo) {
+    const adopted = ctx.sceneId ? ctx.clipVideoEl?.(ctx.sceneId) ?? null : null;
+    if (adopted) {
+      mediaEl = adopted;
+      css(adopted, {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        objectPosition: `${fxPct}% ${fyPct}%`,
+        transformOrigin: `${fxPct}% ${fyPct}%`,
+        display: 'block',
+      });
+    } else {
+      const v = document.createElement('video');
+      v.setAttribute('data-reel-clip-preview', p.clipId);
+      v.src = media.src;
+      v.playsInline = true;
+      v.loop = true;
+      v.preload = 'auto';
+      v.muted = p.audioMode === 'mute';
+      v.volume = p.audioMode === 'duck' ? 0.35 : 1;
+      css(v, {
+        position: 'absolute',
+        left: 0,
+        top: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        objectPosition: `${fxPct}% ${fyPct}%`,
+        transformOrigin: `${fxPct}% ${fyPct}%`,
+        display: 'block',
+      });
+      mediaEl = v;
+      previewVideo = v;
+    }
+  } else {
+    const im = document.createElement('img');
+    im.src = media.src;
+    im.alt = '';
+    css(im, {
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      objectPosition: `${fxPct}% ${fyPct}%`,
+      transformOrigin: `${fxPct}% ${fyPct}%`,
+      display: 'block',
+    });
+    mediaEl = im;
+  }
+
+  let frameBox: HTMLElement | null = null;
+  let labelEl: HTMLElement | null = null;
+
+  if (fitMode === 'screen-window') {
+    const padX = Math.round(ctx.area.w * 0.045);
+    const maxW = ctx.area.w - padX * 2;
+    const aspect = media.w > 0 && media.h > 0 ? media.w / media.h : 16 / 10;
+    const chromeH = 36;
+    const availH = ctx.layout === 'pip' ? ctx.area.h - 260 : ctx.area.h - 72;
+    let bodyW = maxW;
+    let bodyH = Math.round(bodyW / Math.max(0.7, Math.min(2.2, aspect)));
+    if (bodyH + chromeH > availH) {
+      bodyH = Math.max(220, availH - chromeH);
+      bodyW = Math.min(maxW, Math.round(bodyH * Math.max(0.7, Math.min(2.2, aspect))));
+    }
+    const win = h('div', {
+      width: bodyW,
+      borderRadius: 18,
+      overflow: 'hidden',
+      background: '#111216',
+      border: '1.5px solid rgba(255,255,255,0.16)',
+      boxShadow: '0 28px 72px rgba(0,0,0,0.44)',
+      marginTop: ctx.layout === 'pip' ? -72 : 0,
+      willChange: 'transform, opacity',
+    });
+    const bar = h('div', {
+      height: chromeH,
+      background: '#1b1c22',
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
+      display: 'flex',
+      alignItems: 'center',
+      padding: '0 14px',
+      gap: 7,
+      boxSizing: 'border-box',
+    });
+    for (const c of ['#ff5f57', '#febc2e', '#28c840']) {
+      bar.append(h('span', { width: 10, height: 10, borderRadius: 99, background: c }));
+    }
+    const barTitle = h(
+      'span',
+      {
+        marginLeft: 8,
+        fontFamily: ctx.look.mono,
+        fontSize: 12,
+        color: 'rgba(255,255,255,0.65)',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      },
+      [p.label ?? (media.name ? media.name.replace(/\.[^.]+$/, '') : 'Screen Recording')],
+    );
+    bar.append(barTitle);
+    const viewport = h('div', {
+      position: 'relative',
+      width: bodyW,
+      height: bodyH,
+      overflow: 'hidden',
+      background: '#09090b',
+    });
+    viewport.append(mediaEl);
+    win.append(bar, viewport);
+    root.append(win);
+    frameBox = win;
+  } else if (fitMode === 'card') {
+    const padX = Math.round(ctx.area.w * 0.06);
+    const maxW = ctx.area.w - padX * 2;
+    const availH = ctx.layout === 'pip' ? ctx.area.h - 260 : ctx.area.h - 88;
+    const aspect = media.w > 0 && media.h > 0 ? media.w / media.h : 16 / 10;
+    let cardW = maxW;
+    let cardH = Math.round(cardW / Math.max(0.6, Math.min(2.1, aspect)));
+    if (cardH > availH) {
+      cardH = Math.max(200, availH);
+      cardW = Math.min(maxW, Math.round(cardH * Math.max(0.6, Math.min(2.1, aspect))));
+    }
+    const card = h('div', {
+      position: 'relative',
+      width: cardW,
+      height: cardH,
+      borderRadius: 22,
+      overflow: 'hidden',
+      background: '#111',
+      border: ctx.pal.dark ? '1.5px solid rgba(255,255,255,0.16)' : '2px solid rgba(0,0,0,0.12)',
+      boxShadow: ctx.pal.shadow,
+      marginTop: ctx.layout === 'pip' ? -64 : 0,
+      willChange: 'transform, opacity',
+    });
+    card.append(mediaEl);
+    root.append(card);
+    frameBox = card;
+  } else {
+    // Full-bleed cover B-roll inside graphic area.
+    const box = h('div', {
+      position: 'relative',
+      width: '100%',
+      height: '100%',
+      overflow: 'hidden',
+      background: '#0b0b0c',
+    });
+    box.append(mediaEl);
+    root.append(box);
+  }
+
+  if (p.label && fitMode !== 'screen-window') {
+    labelEl = h(
+      'div',
+      {
+        position: 'absolute',
+        left: 28,
+        top: 28,
+        padding: '7px 14px',
+        borderRadius: 999,
+        background: 'rgba(10,10,12,0.72)',
+        color: '#FFFFFF',
+        fontFamily: ctx.look.sans,
+        fontWeight: 700,
+        fontSize: 18,
+        letterSpacing: '-0.01em',
+        backdropFilter: 'blur(8px)',
+        pointerEvents: 'none',
+      },
+      [p.label],
+    );
+    root.append(labelEl);
+  }
+
+  const span = Math.max(1, ctx.endMs - ctx.startMs);
+  return {
+    el: root,
+    seek(tt) {
+      const local = Math.max(0, tt - ctx.startMs);
+      const u = clamp(local / span);
+      // Smooth Screen-Studio-style zoom curve: hold briefly, glide smoothly to targetZoom, hold.
+      const zoomPhase = easeInOutCubic(clamp((u - 0.08) / 0.65));
+      const scale = lerp(1, Math.max(1.02, targetZoom), zoomPhase);
+      mediaEl.style.transform = `scale(${scale.toFixed(4)})`;
+
+      if (frameBox) {
+        const enter = easeOutCubic(prog(tt, ctx.startMs, 420));
+        const ty = (1 - enter) * 28;
+        const sc = lerp(0.94, 1, enter);
+        if (fitMode === 'screen-window') {
+          const rx = lerp(7, 1.2, enter);
+          const ry = lerp(-5, 0, enter);
+          frameBox.style.transform = `perspective(1200px) translate3d(0, ${ty.toFixed(1)}px, 0) rotateX(${rx.toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) scale(${sc.toFixed(4)})`;
+        } else {
+          frameBox.style.transform = `translate3d(0, ${ty.toFixed(1)}px, 0) scale(${sc.toFixed(4)})`;
+        }
+        frameBox.style.opacity = clamp(enter * 1.8).toFixed(3);
+      }
+
+      if (labelEl) revealAt(labelEl, tt, ctx.startMs + 140, 320, 10, 6);
+
+      // Preview-only video clock sync (export `<video>` timing is driven by HyperFrames).
+      if (previewVideo && !ctx.isExport) {
+        const clipDur = media.durationMs && media.durationMs > 0 ? media.durationMs : 0;
+        const rawMs = p.clipStartMs + local;
+        const targetSec = (clipDur > 0 ? rawMs % clipDur : rawMs) / 1000;
+        if (previewVideo.readyState >= 1) {
+          if (previewVideo.paused || Math.abs(previewVideo.currentTime - targetSec) > 0.18) {
+            previewVideo.currentTime = targetSec;
+          }
+        }
+      }
+    },
+  };
+}
+
 /** An AI-written scene (spec 30): its own frame, or its title until the custom runtime is in. */
 function custom(p: Of<'custom'>, ctx: TplCtx): Tpl {
   return ctx.custom ? ctx.custom(p, ctx) : headline({ template: 'headline', title: p.title }, ctx);
@@ -1549,6 +1803,7 @@ function custom(p: Of<'custom'>, ctx: TplCtx): Tpl {
 
 const BUILDERS: { [K in ReelTemplate['template']]: (p: Of<K>, ctx: TplCtx) => Tpl } = {
   custom,
+  clip: clipTemplate,
   headline,
   list,
   stack,

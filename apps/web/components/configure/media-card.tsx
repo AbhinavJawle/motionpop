@@ -1,11 +1,14 @@
 'use client';
 
-import { FileText, Film, Music2, Sparkles, X } from 'lucide-react';
+import type { MediaClipKind } from '@motionpop/schemas';
+import { ArrowUpRight, FileText, Film, Image as ImageIcon, Music2, Plus, Sparkles, X } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useRef } from 'react';
 import { paper, poster } from '@/components/paper/kit';
 import { cn } from '@/lib/cn';
 import type { Job } from '@/lib/pipeline/jobs-store';
 import { useStill } from '@/lib/motion/use-still';
+import { MEDIA_BIN_ACCEPT } from '@/lib/video/media-bin';
 
 const fmtTime = (ms: number | undefined) => {
   if (ms === undefined) return '–';
@@ -43,27 +46,56 @@ export function pipLine(job: Job): string {
   return job.kind === 'video' ? 'Reading your video…' : 'Reading your audio…';
 }
 
+const ROLE_OPTIONS: readonly { value: '' | MediaClipKind; label: string }[] = [
+  { value: '', label: 'Auto-detect' },
+  { value: 'broll', label: 'B-roll' },
+  { value: 'screen-recording', label: 'Screen rec' },
+  { value: 'screenshot', label: 'Screenshot' },
+  { value: 'photo', label: 'Photo' },
+];
+
+export interface MediaCardProps {
+  job: Job;
+  onRemove: () => void;
+  onAddExtraClips?: (files: readonly File[]) => void;
+  onRemoveExtraClip?: (ref: string) => void;
+  onSetExtraClipKind?: (ref: string, kind: MediaClipKind | undefined) => void;
+  onMakeMainClip?: (ref: string) => void;
+}
+
 /**
- * The take on top of the configure screen (spec 39 R2.2, R2.3): a frame of the video, a waveform,
- * a graphic prompt card, or the script's first lines, its facts, Remove, and the free preparation
- * as one bar.
+ * The take on top of the configure screen (spec 39 R2.2, R2.3, spec 48 R1.2–R1.4): a frame of
+ * the video, a waveform, a graphic prompt card, or the script's first lines, its facts, Remove,
+ * the free preparation bar, and an optional tray for extra B-roll / screen recordings with
+ * 1-click "Make main" A-roll selection.
  */
-export function MediaCard({ job, onRemove }: { job: Job; onRemove: () => void }) {
+export function MediaCard({
+  job,
+  onRemove,
+  onAddExtraClips,
+  onRemoveExtraClip,
+  onSetExtraClipKind,
+  onMakeMainClip,
+}: MediaCardProps) {
   const still = useStill();
+  const extraInputRef = useRef<HTMLInputElement>(null);
   const m = job.media;
   const graphic = job.kind === 'graphic';
   const ratio = graphic ? (job.format ?? '16:9') : aspect(m.width, m.height);
   const failed = job.prep.stage === 'failed';
   const ready = job.prep.stage === 'ready';
+  const extras = job.extraClips ?? [];
+  const supportsExtraClips = !graphic && !job.script && Boolean(onAddExtraClips);
   const Icon = graphic ? Sparkles : job.script ? FileText : job.kind === 'video' ? Film : Music2;
   return (
     <div
       className={cn(
         paper.frame,
         paper.raised,
-        'relative flex flex-col gap-5 p-4 sm:flex-row sm:p-5',
+        'relative flex flex-col gap-4 p-4 sm:p-5',
       )}
     >
+      <div className="flex flex-col gap-5 sm:flex-row">
       {/* the picture */}
       <div className="relative h-[150px] w-full shrink-0 overflow-hidden rounded-[8px] border-2 border-black bg-[#1d1d22] sm:w-[240px]">
         {graphic ? (
@@ -111,11 +143,19 @@ export function MediaCard({ job, onRemove }: { job: Job; onRemove: () => void })
 
       {/* the facts and the bar */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-start gap-3 pr-10">
-          <Icon className="mt-1 size-4 shrink-0" strokeWidth={2} aria-hidden />
+        <div className="flex flex-wrap items-center gap-2 pr-10">
+          <Icon className="size-4 shrink-0" strokeWidth={2} aria-hidden />
           <p className="min-w-0 truncate text-[14px] font-semibold" title={graphic ? job.graphicPrompt : m.name}>
             {graphic ? 'Your motion graphic prompt' : job.script ? 'Your script' : m.name}
           </p>
+          {extras.length > 0 && !graphic && !job.script && (
+            <span
+              data-testid="main-aroll-badge"
+              className="rounded-md border border-black bg-[#a7f3d0] px-1.5 py-0.5 font-mono text-[10px] font-bold tracking-[0.03em] text-black uppercase"
+            >
+              {job.kind === 'video' ? 'Main talking head' : 'Main audio'}
+            </span>
+          )}
         </div>
         <dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-[12px] text-black/65">
           {graphic ? (
@@ -186,6 +226,143 @@ export function MediaCard({ job, onRemove }: { job: Job; onRemove: () => void })
           </div>
         </div>
       </div>
+      </div>
+
+      {supportsExtraClips && (
+        <div
+          data-testid="configure-extra-clips"
+          className="border-t-2 border-black/10 pt-3.5"
+        >
+          <input
+            ref={extraInputRef}
+            type="file"
+            multiple
+            accept={MEDIA_BIN_ACCEPT}
+            aria-label="Add B-roll, screen recordings, or screenshots"
+            className="hidden"
+            onChange={(e) => {
+              const list = e.target.files ? Array.from(e.target.files) : [];
+              e.target.value = '';
+              if (list.length > 0) onAddExtraClips?.(list);
+            }}
+          />
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-bold tracking-[0.02em] text-ink">
+                {extras.length > 0
+                  ? `B-roll & extra clips (${extras.length})`
+                  : 'Have B-roll, screen recordings, or screenshots?'}
+              </span>
+              {extras.length > 0 && (
+                <span className="text-[11px] text-black/55">
+                  AI weaves these into matching beats · click &ldquo;Make main&rdquo; to switch talking head
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              data-testid="configure-add-clips"
+              onClick={() => extraInputRef.current?.click()}
+              className="inline-flex items-center gap-1 rounded-lg border-2 border-black bg-paper px-2.5 py-1 text-[11.5px] font-semibold text-ink transition-colors hover:bg-[#fde68a]"
+            >
+              <Plus className="size-3.5" strokeWidth={2.2} aria-hidden />
+              Add B-roll / clips
+            </button>
+          </div>
+
+          {extras.length > 0 && (
+            <ul className="mt-3 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {extras.map((clip) => {
+                const isVideo = clip.mimeType.startsWith('video/');
+                const canBeMain =
+                  (isVideo || clip.mimeType.startsWith('audio/')) && Boolean(onMakeMainClip);
+                return (
+                  <li
+                    key={clip.ref}
+                    data-testid={`extra-clip-${clip.ref}`}
+                    className="flex items-center gap-2.5 rounded-[8px] border-2 border-black/80 bg-mist/40 p-2"
+                  >
+                    <div className="relative h-12 w-16 shrink-0 overflow-hidden rounded-[6px] border border-black/40 bg-[#1d1d22]">
+                      {clip.thumbUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element -- local thumbnail data URL
+                        <img
+                          src={clip.thumbUrl}
+                          alt=""
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center text-white/60">
+                          {isVideo ? (
+                            <Film className="size-4" aria-hidden />
+                          ) : (
+                            <ImageIcon className="size-4" aria-hidden />
+                          )}
+                        </div>
+                      )}
+                      {clip.durationMs !== undefined && (
+                        <span className="absolute right-1 bottom-0.5 rounded bg-black/75 px-1 font-mono text-[9px] text-white">
+                          {fmtTime(clip.durationMs)}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12px] font-semibold text-ink" title={clip.name}>
+                        {clip.name}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {onSetExtraClipKind && (
+                          <select
+                            aria-label={`Role for ${clip.name}`}
+                            value={clip.kindHint ?? ''}
+                            onChange={(e) => {
+                              const v = e.target.value as '' | MediaClipKind;
+                              onSetExtraClipKind(clip.ref, v || undefined);
+                            }}
+                            className="rounded border border-black/40 bg-paper px-1.5 py-0.5 text-[10.5px] font-medium text-ink"
+                          >
+                            {ROLE_OPTIONS.map((opt) => (
+                              <option key={opt.label} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        )}
+                        {canBeMain && (
+                          <button
+                            type="button"
+                            onClick={() => onMakeMainClip?.(clip.ref)}
+                            className="inline-flex items-center gap-0.5 rounded border border-black bg-paper px-1.5 py-0.5 text-[10.5px] font-semibold text-ink hover:bg-[#a7f3d0]"
+                          >
+                            <ArrowUpRight className="size-3" strokeWidth={2.2} aria-hidden />
+                            Make main
+                          </button>
+                        )}
+                        {clip.sizeBytes !== undefined && (
+                          <span className="font-mono text-[10px] text-black/50">
+                            {fmtSize(clip.sizeBytes)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {onRemoveExtraClip && (
+                      <button
+                        type="button"
+                        onClick={() => onRemoveExtraClip(clip.ref)}
+                        aria-label={`Remove ${clip.name}`}
+                        className="grid size-6 shrink-0 place-items-center rounded-full border border-black/40 bg-paper text-ink hover:bg-mist"
+                      >
+                        <X className="size-3" strokeWidth={2.2} aria-hidden />
+                      </button>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
 
       <button
         type="button"

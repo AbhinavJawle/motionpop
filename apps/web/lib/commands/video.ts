@@ -501,12 +501,14 @@ export function removeMediaClip(clipId: string): Command {
   let prevBin: MediaClip[] | undefined;
   let prevSlots: EditorProject['slots'] | undefined;
   let prevStages: VideoStageSegment[] | undefined;
+  let prevReel: EditorProject['reel'] | undefined;
   return {
     label: 'Remove clip',
     do(p) {
       prevBin = p.mediaBin;
       prevSlots = p.slots;
       prevStages = p.video?.stages;
+      prevReel = p.reel;
       return produce(p, (d) => {
         if (d.mediaBin) {
           d.mediaBin = d.mediaBin.filter((c) => c.id !== clipId);
@@ -546,6 +548,19 @@ export function removeMediaClip(clipId: string): Command {
               : st,
           );
         }
+        if (d.reel) {
+          d.reel.scenes = d.reel.scenes.map((sc) =>
+            sc.content.template === 'clip' && sc.content.clipId === clipId
+              ? d.video
+                ? { ...sc, layout: 'speaker' as const, content: { template: 'none' as const } }
+                : {
+                    ...sc,
+                    layout: 'full' as const,
+                    content: { template: 'headline' as const, title: 'Key point' },
+                  }
+              : sc,
+          );
+        }
       });
     },
     undo(p) {
@@ -557,6 +572,7 @@ export function removeMediaClip(clipId: string): Command {
           if (prevStages === undefined) delete d.video.stages;
           else d.video.stages = prevStages as typeof d.video.stages;
         }
+        if (prevReel !== undefined) d.reel = prevReel as typeof d.reel;
       });
     },
   };

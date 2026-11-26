@@ -349,4 +349,62 @@ describe('ConfigureScreen', () => {
       expect(edit.sound.music).toBe('none');
     });
   });
+
+  describe('transcript auto-pick', () => {
+    it('automatically pre-selects the best recipe, skill & look from the transcript and supports Reset', async () => {
+      h.take = {
+        blob: null,
+        meta: {
+          source: 'tts',
+          name: 'Finance Script',
+          cleanup: false,
+          tts: {
+            voiceId: 'Kore',
+            speed: 1,
+            script:
+              'Nvidia revenue jumped 94% to 35 billion last quarter as stock market valuation surged.',
+          },
+        },
+        draft: { title: 'Untitled Project', format: '16:9' },
+      };
+      render(<ConfigureScreen />);
+      const banner = await screen.findByTestId('auto-pick-banner');
+      expect(banner.textContent).toMatch(/Auto-picked from your transcript:/);
+      expect(banner.textContent).toMatch(/Bloomberg Data Story/);
+
+      fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+      const edit = lastEdit();
+      expect(edit.recipeId).toBe('finance-business');
+      expect(edit.userSkill?.id).toBe('financial-data-story');
+      expect(edit.styleId).toBe('newsprint');
+      expect(edit.hookStyle).toBe('stat');
+    });
+
+    it('never overwrites an explicit preset from /start?recipe= and offers a non-intrusive Apply suggestion instead', async () => {
+      h.take = {
+        blob: null,
+        meta: {
+          source: 'tts',
+          name: 'Finance Script',
+          cleanup: false,
+          tts: {
+            voiceId: 'Kore',
+            speed: 1,
+            script:
+              'Nvidia revenue jumped 94% to 35 billion last quarter as stock market valuation surged.',
+          },
+        },
+        draft: { title: 'Untitled Project', format: '16:9', recipeId: 'podcast-story' },
+      };
+      render(<ConfigureScreen />);
+      const banner = await screen.findByTestId('auto-pick-banner');
+      expect(banner.textContent).toMatch(/Suggested from your transcript:/);
+      expect(within(banner).getByRole('button', { name: 'Apply' })).toBeTruthy();
+
+      // Submitting before clicking Apply preserves the creator's explicit recipe.
+      fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+      expect(lastEdit().recipeId).toBe('podcast-story');
+      expect(lastEdit().userSkill).toBeUndefined();
+    });
+  });
 });

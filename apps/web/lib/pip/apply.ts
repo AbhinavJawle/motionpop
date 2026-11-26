@@ -14,6 +14,7 @@ import {
   setReelCaptions,
   setReelLook,
   setReelMusicBrief,
+  setReelSceneClip,
   setReelTheme,
   setAllSlotsPlacement,
   setAllSlotsVideoStage,
@@ -157,8 +158,11 @@ function instantCommand(
       return { cmd: setAllSlotsVideoStage(st) };
     }
     case 'setBeatClip': {
-      if (!step.slotId) return 'No beat selected';
       const clipId = step.clipId ? step.clipId : null;
+      if (step.sceneId && project.reel) {
+        return { cmd: setReelSceneClip(step.sceneId, clipId) };
+      }
+      if (!step.slotId) return 'No beat selected';
       return { cmd: setSlotMediaClip(step.slotId, clipId), slotId: step.slotId };
     }
     case 'toggleCuts':

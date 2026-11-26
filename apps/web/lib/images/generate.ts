@@ -118,7 +118,8 @@ async function generateNow(deps: ImageDeps, req: ImageRequest): Promise<ImageOut
   }
 
   if (cfg.killSwitch) return { ok: false, reason: 'Cloud AI is paused right now' };
-  if (!deps.credits) return { ok: false, reason: 'Sign in to make pictures' };
+  if (!deps.credits || (deps.credits.canSpend && !deps.credits.canSpend('image')))
+    return { ok: false, reason: 'Sign in to make pictures' };
   const cost = imageCost(cfg);
   const spent = await spendWithUi(
     deps.credits,

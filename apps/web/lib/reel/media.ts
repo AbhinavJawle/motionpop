@@ -8,6 +8,7 @@ import {
   type EditChoices,
   type GraphicSceneBlueprint,
   type ReelDirectBrief,
+  type ReelDirectMediaClip,
   type UsageEvent,
 } from '@motionpop/ai';
 import type { EditReview } from '@/lib/audio/retakes';
@@ -28,6 +29,7 @@ import {
 import { abortError, isAbortError, raceAbort, throwIfAborted } from '@/lib/abort';
 import { useAIStatusStore } from '@/lib/ai/ai-status';
 import { getByokKey } from '@/lib/ai/byok';
+import { isLocalLlmActive } from '@/lib/ai/local-llm';
 import { emitAIUsage, getRouter } from '@/lib/ai/router-client';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
 import { spendWithUi } from '@/lib/credits/spend-with-ui';
@@ -324,7 +326,10 @@ export async function resolveReelMedia(
       const max = deps.maxIllustrations ?? 3;
       const parsed = ImageSubjectSchema.safeParse(subject.slice(0, 120));
       const byokKey = !deps.generate ? getByokKey() : null;
-      if (!parsed.success || illustrations >= max || cfg.killSwitch || (!byokKey && !deps.credits))
+      const canPayForImage = Boolean(
+        byokKey || (deps.credits && (deps.credits.canSpend?.('image') ?? true)),
+      );
+      if (!parsed.success || illustrations >= max || cfg.killSwitch || !canPayForImage)
         return null;
       // No spend for a call that is already cancelled.
       throwIfAborted(signal);
@@ -451,6 +456,8 @@ export async function directReelPaid(
     choices?: EditChoices;
     /** True for voiceover-only projects without speaker video (every scene uses `full` layout). */
     noVideo?: boolean;
+    /** Indexed creator-uploaded Media Bin clips to weave into matching beats (spec 48). */
+    mediaBin?: readonly ReelDirectMediaClip[];
   },
   deps: {
     credits: CreditsClient | null;
@@ -481,6 +488,7 @@ export async function directReelPaid(
     ...base,
     ...(params.frames?.length ? { frames: params.frames } : {}),
     ...(params.brief ? { brief: params.brief } : {}),
+    ...(params.mediaBin?.length ? { mediaBin: params.mediaBin } : {}),
   };
   const onDeviceReady =
     deps.onDeviceReady ?? useAIStatusStore.getState().availability === 'available';
@@ -494,8 +502,13 @@ export async function directReelPaid(
     throwIfAborted(signal);
     return out;
   };
+  const hasLocalLlm = isLocalLlmActive();
   const hasByok = Boolean(getByokKey());
-  if (hasByok && router && !deps.free && !cfg.killSwitch && params.words.length >= 4) {
+  if (
+    ((hasLocalLlm && !deps.free) || (hasByok && !deps.free && !cfg.killSwitch)) &&
+    router &&
+    params.words.length >= 4
+  ) {
     const r = await raceAbort(
       directReel(router, { ...withFrames, fallbackOnDevice: onDeviceReady }),
       signal,
@@ -596,8 +609,9 @@ export async function directGraphicPaid(
     throwIfAborted(signal);
     return out;
   };
+  const hasLocalLlm = isLocalLlmActive();
   const hasByok = Boolean(getByokKey());
-  if (hasByok && router && !deps.free && !cfg.killSwitch) {
+  if (((hasLocalLlm && !deps.free) || (hasByok && !deps.free && !cfg.killSwitch)) && router) {
     const r = await raceAbort(directGraphic(router, base), signal);
     throwIfAborted(signal);
     return r;
@@ -643,10 +657,16 @@ export async function reviewReelCuts(
   deps: { credits: CreditsClient | null; config?: Partial<ReelCfg>; timeoutMs?: number },
 ): Promise<EditReview | null> {
   const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
-  // R3.1: only for creators with credits (a signed-in account at 0 gets the rules alone).
+  // R3.1: runs for creators with credits, active local LLM, or BYOK (a signed-in account at 0
+  // without local LLM / BYOK gets the rules alone).
+  const hasLocalLlm = isLocalLlmActive();
+  const hasByok = Boolean(getByokKey());
   const balance = deps.credits?.balance() ?? null;
-  if (!deps.credits || balance === null || balance <= 0 || cfg.killSwitch || phrases.length < 2)
-    return null;
+  const allowed =
+    hasLocalLlm ||
+    (hasByok && !cfg.killSwitch) ||
+    (Boolean(deps.credits) && balance !== null && balance > 0 && !cfg.killSwitch);
+  if (!allowed || phrases.length < 2) return null;
   const router = await getRouter().catch(() => null);
   // A hung call must not hold the "Removing retakes" step: after this long the rules stand.
   let timer: ReturnType<typeof setTimeout> | undefined;

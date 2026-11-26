@@ -48,6 +48,8 @@ export interface ReelCompileInput {
   musicSrc?: string;
   /** Pictures by asset id, with composition-relative `src` (spec 26). */
   images?: ReelData['images'];
+  /** Creator-uploaded Media Bin clips by clip id, with composition-relative `src` (spec 48). */
+  clips?: ReelData['clips'];
 }
 
 /** Font faces the reel needs, with the weights each file covers. */
@@ -117,8 +119,32 @@ export function compileReel(input: ReelCompileInput, assets: ReelCompileAssets):
     ...(input.format ? { format: input.format } : {}),
     ...(transparent ? { transparent: true } : {}),
     ...(input.images ? { images: input.images } : {}),
+    ...(input.clips ? { clips: input.clips } : {}),
     cuts: hasVideo ? cutsFromSegments(segments) : [],
   };
+  // Secondary Media Bin video clips referenced by `clip` scenes (spec 48): HyperFrames seeks and
+  // mixes audio on each timed `.clip` `<video>` node, and `mountReel` adopts it by scene id.
+  const mediaClipEls: string[] = [];
+  if (input.clips) {
+    plan.scenes.forEach((s, idx) => {
+      if (s.content.template !== 'clip') return;
+      const meta = input.clips![s.content.clipId];
+      if (!meta || !meta.isVideo) return;
+      const dur = Math.max(40, s.endMs - s.startMs);
+      const maxStart =
+        meta.durationMs && meta.durationMs > dur ? meta.durationMs - dur : meta.durationMs ?? 0;
+      const mediaStart =
+        meta.durationMs && meta.durationMs > 0
+          ? Math.min(s.content.clipStartMs % meta.durationMs, maxStart)
+          : s.content.clipStartMs;
+      const needsLoop = Boolean(meta.durationMs && dur > meta.durationMs);
+      const hasAudio = s.content.audioMode !== 'mute';
+      const vol = s.content.audioMode === 'duck' ? '0.35' : '1';
+      mediaClipEls.push(
+        `<video id="mclip${idx}" data-reel-clip-scene="${attr(s.id)}" class="clip" data-start="${sec(s.startMs)}" data-duration="${sec(dur)}" data-media-start="${sec(mediaStart)}" data-track-index="1" data-has-audio="${hasAudio ? 'true' : 'false'}" data-volume="${vol}"${needsLoop ? ' loop' : ''} playsinline src="${attr(meta.src)}"></video>`,
+      );
+    });
+  }
   // AI-written scenes (spec 30) draw in their own frames, from the same documents as the editor.
   // The render container is the isolation here, so the frames are not sandboxed: the capture
   // then sees them in-process.
@@ -158,7 +184,7 @@ ${reelFontCss(assets.fonts)}
 </head>
 <body>
   <div id="reel-root" data-composition-id="reel" data-width="${out.w}" data-height="${out.h}" data-start="0" data-duration="${sec(durationMs)}" data-no-timeline>
-    <div id="reel-stage"><div data-reel-vwrap${hasVideo ? '' : ' style="display:none"'}>${clips.join('')}</div></div>${sfx}
+    <div id="reel-stage"><div data-reel-vwrap${hasVideo ? '' : ' style="display:none"'}>${clips.join('')}</div>${mediaClipEls.length ? `<div data-reel-clips>${mediaClipEls.join('')}</div>` : ''}</div>${sfx}
   </div>
   <script>${scriptText(assets.hyperframesRuntimeJs)}</script>
   <script>window.__REEL__ = ${scriptJson(data)};</script>

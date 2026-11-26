@@ -461,3 +461,35 @@ describe('chooseRoute: Gemini BYOK (spec 42)', () => {
     });
   });
 });
+
+describe('chooseRoute: Local LLM (Ollama / LM Studio)', () => {
+  it('routes all tasks at 0 Motionpop credits even offline, signed out, or when killSwitch is on', () => {
+    const r = route({
+      task: 'generate',
+      online: false,
+      cloudAvailable: false,
+      killSwitch: true,
+      balance: 0,
+      cloudCost: 3,
+      localLlm: true,
+    });
+    expect(r).toEqual({
+      kind: 'cloud',
+      mode: 'ONLY_IN_CLOUD',
+      allowCloud: false,
+      credits: 0,
+      insufficient: false,
+      localLlm: true,
+    });
+    expect(chipFor(r)).toEqual({ route: 'cloud', credits: 0, localLlm: true });
+  });
+
+  it('acts as full local provider for edits and notes as well as prefill/autofill', () => {
+    expect(
+      route({ task: 'edit.patch', availability: 'unavailable', online: false, localLlm: true }),
+    ).toMatchObject({ kind: 'cloud', credits: 0, localLlm: true });
+    expect(
+      route({ task: 'prompt.prefill', availability: 'unavailable', online: false, localLlm: true }),
+    ).toMatchObject({ kind: 'device' });
+  });
+});

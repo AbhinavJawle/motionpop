@@ -166,4 +166,67 @@ describe('compileReel', () => {
     expect(html).toContain('width: 720px; height: 720px;');
     expect(html).toContain('data-width="1080" data-height="1080"');
   });
+
+  it('compiles native Media Bin clip scenes with pip layout and timed HyperFrames video elements (spec 48)', () => {
+    const plan = ReelPlanSchema.parse({
+      v: 1,
+      look: 'mono',
+      captions: true,
+      scenes: [
+        {
+          id: 'r1',
+          startMs: 0,
+          endMs: 4000,
+          layout: 'pip',
+          content: {
+            template: 'clip',
+            clipId: 'clip-demo',
+            clipStartMs: 1500,
+            fit: 'screen-window',
+            focusX: 0.65,
+            focusY: 0.35,
+            zoom: 1.45,
+            label: 'Live app demo',
+            audioMode: 'duck',
+          },
+        },
+      ],
+    });
+    const html = compileReel(
+      {
+        plan,
+        words,
+        durationMs: 4000,
+        videoSrc: 'assets/speaker.mp4',
+        video: { w: 1080, h: 1920 },
+        clips: {
+          'clip-demo': {
+            src: 'assets/mclip-0-proxy.mp4',
+            isVideo: true,
+            w: 1920,
+            h: 1080,
+            durationMs: 12000,
+            name: 'demo.mp4',
+          },
+        },
+      },
+      {
+        reelRuntimeJs: '/*rt*/',
+        hyperframesRuntimeJs: '/*hf*/',
+        fonts: {
+          Inter: 'AA',
+          Newsreader: 'AA',
+          'Playfair Display Italic': 'AA',
+          'Geist Mono': 'AA',
+        },
+      },
+    );
+    expect(html).toContain('<div data-reel-clips>');
+    expect(html).toContain('data-reel-clip-scene="r1"');
+    expect(html).toContain('data-media-start="1.5"');
+    expect(html).toContain('data-has-audio="true"');
+    expect(html).toContain('data-volume="0.35"');
+    expect(html).toContain('src="assets/mclip-0-proxy.mp4"');
+    expect(html).toContain('"clip-demo"');
+  });
 });

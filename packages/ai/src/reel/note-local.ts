@@ -124,7 +124,7 @@ export const reelNoteLocalJsonSchema = (): Record<string, unknown> => ({
     to: { type: 'string', maxLength: 80 },
     from: { type: 'string', maxLength: 80 },
     bg: { type: 'string', enum: ['light', 'cream', 'dark'] },
-    layout: { type: 'string', enum: ['split', 'card', 'full', 'speaker'] },
+    layout: { type: 'string', enum: ['split', 'card', 'pip', 'full', 'speaker'] },
   },
   required: ['action', 'message'],
 });

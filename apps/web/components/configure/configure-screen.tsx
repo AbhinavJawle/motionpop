@@ -2,11 +2,13 @@
 
 import {
   builtInSkills,
+  recommendSetup,
   resolveByKeywords,
   resolveRecipe,
   toUserSkillRef,
   ttsMinutes,
   type BuiltInRecipeId,
+  type SetupRecommendation,
 } from '@motionpop/ai';
 import type {
   EditConfig,
@@ -17,7 +19,7 @@ import type {
   ReelHookStyle,
   UserSkill,
 } from '@motionpop/schemas';
-import { FolderGit2, Plus, Sparkles } from 'lucide-react';
+import { FolderGit2, Plus, RotateCcw, Sparkles, Wand2, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -38,11 +40,15 @@ import { useCreditsBalance, useCreditsClient } from '@/lib/credits/use-credits-c
 import { LOOK_STILLS } from '@/lib/editor/look-stills';
 import { takePending } from '@/lib/intake/pending';
 import {
+  addJobExtraClips,
   discard,
   prepare,
   release,
+  removeJobExtraClip,
+  setJobExtraClipKind,
   setJobFormat,
   submit,
+  swapJobPrimaryClip,
   useJobs,
   watch,
 } from '@/lib/pipeline/jobs-store';
@@ -108,10 +114,20 @@ export function ConfigureScreen() {
   const config = useAppConfig();
   const online = useOnline();
   const balance = useCreditsBalance();
-  const { client, byok } = useCreditsClient();
+  const { client, byok, localLlm, hasAccountCredits } = useCreditsClient();
   const { skills: communitySkills } = useCommunitySkills();
   const { skills: userSkills } = useUserSkills();
   const [resolving, setResolving] = useState<'idle' | 'thinking' | 'device' | 'rules'>('idle');
+  const [autoRec, setAutoRec] = useState<{
+    rec: SetupRecommendation;
+    status: 'applied' | 'suggested' | 'dismissed';
+  } | null>(null);
+  /** True once the creator clicks any recipe/skill/style option or arrived with an explicit preset. */
+  const userTouchedRef = useRef(false);
+  /** Snapshot of the initial defaults before auto-pick, for 1-click Reset. */
+  const initialEditRef = useRef<EditConfig | null>(null);
+  /** Tracks which `jobId|transcript` we already recommended for so we never re-run needlessly. */
+  const recommendedKeyRef = useRef('');
   const resolveSeq = useRef(0);
   /** The words `edit.resolved` was made from, so Create can tell when it is out of date. */
   const resolvedFor = useRef('');
@@ -156,6 +172,10 @@ export function ConfigureScreen() {
         setJobId(id);
         const kind = useJobs.getState().jobs[id]?.kind ?? 'voiceover';
         const preSkill = getAnySkillById(take.draft.userSkillId);
+        // Respect explicit presets carried from /skills, /recipes, or /styles.
+        userTouchedRef.current = Boolean(
+          preSkill || take.draft.recipeId || take.draft.styleId,
+        );
         const initial = defaultEdit(kind, {
           source: take.meta.source,
           ...(preSkill
@@ -170,20 +190,20 @@ export function ConfigureScreen() {
               : {}),
           ...(take.meta.graphicPrompt ? { promptHint: take.meta.graphicPrompt } : {}),
         });
-        setEdit(
-          preSkill
-            ? {
-                ...initial,
-                hookStyle: preSkill.hookStyle,
-                captions: { ...initial.captions, style: preSkill.captionStyle },
-                sound: {
-                  ...initial.sound,
-                  music: kind === 'graphic' ? 'none' : preSkill.music,
-                },
-                userSkill: toUserSkillRef(preSkill),
-              }
-            : initial,
-        );
+        const startingEdit = preSkill
+          ? {
+              ...initial,
+              hookStyle: preSkill.hookStyle,
+              captions: { ...initial.captions, style: preSkill.captionStyle },
+              sound: {
+                ...initial.sound,
+                music: kind === 'graphic' ? 'none' : preSkill.music,
+              },
+              userSkill: toUserSkillRef(preSkill),
+            }
+          : initial;
+        initialEditRef.current = startingEdit;
+        setEdit(startingEdit);
       });
     return () => {
       live = false;
@@ -191,6 +211,53 @@ export function ConfigureScreen() {
   }, [router]);
 
   const kind = job?.kind ?? 'voiceover';
+  const transcriptText = job?.transcriptText;
+
+  // Automatically pick the best skill, recipe, style & hook once the transcript/prompt is ready.
+  useEffect(() => {
+    if (!job?.id || !transcriptText?.trim()) return;
+    const key = `${job.id}|${transcriptText.slice(0, 160)}`;
+    if (recommendedKeyRef.current === key) return;
+    recommendedKeyRef.current = key;
+    let live = true;
+    void getRouter()
+      .catch(() => null)
+      .then((routerClient) =>
+        recommendSetup(routerClient, { transcript: transcriptText, kind }),
+      )
+      .then((rec) => {
+        if (!live || rec.confidence !== 'high') return;
+        const matchedSkill = rec.skillId
+          ? (communitySkills.find((s) => s.id === rec.skillId) ?? getAnySkillById(rec.skillId))
+          : undefined;
+        if (!userTouchedRef.current) {
+          setEdit((prev) => {
+            if (!prev) return prev;
+            const next = withRecipe(prev, kind, rec.recipeId, rec.styleId);
+            const styled = withStyle(next, kind, rec.styleId);
+            return {
+              ...styled,
+              hookStyle: rec.hookStyle,
+              captions:
+                matchedSkill && kind !== 'graphic'
+                  ? { ...styled.captions, style: matchedSkill.captionStyle }
+                  : styled.captions,
+              sound: {
+                ...styled.sound,
+                music: kind === 'graphic' ? 'none' : rec.musicMood,
+              },
+              userSkill: matchedSkill ? toUserSkillRef(matchedSkill) : undefined,
+            };
+          });
+          setAutoRec({ rec, status: 'applied' });
+        } else {
+          setAutoRec({ rec, status: 'suggested' });
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [job?.id, transcriptText, kind, communitySkills]);
   const video = kind === 'video';
   const graphic = kind === 'graphic';
   const script = job?.script;
@@ -200,15 +267,29 @@ export function ConfigureScreen() {
         ? summarize(edit, {
             kind,
             ...(script ? { script: { minutes: ttsMinutes(script, ttsSpeed) } } : {}),
-            signedIn: client !== null,
+            signedIn: hasAccountCredits ?? client !== null,
             ...(resolving === 'device' || resolving === 'rules' ? { resolvedBy: resolving } : {}),
             balance,
             online,
             config,
             ...(byok ? { byok: true } : {}),
+            ...(localLlm ? { localLlm: true } : {}),
           })
         : null,
-    [edit, kind, script, ttsSpeed, client, balance, online, config, resolving, byok],
+    [
+      edit,
+      kind,
+      script,
+      ttsSpeed,
+      client,
+      hasAccountCredits,
+      balance,
+      online,
+      config,
+      resolving,
+      byok,
+      localLlm,
+    ],
   );
 
   if (!job || !edit || !summary) {
@@ -222,7 +303,10 @@ export function ConfigureScreen() {
     );
   }
 
-  const set = (patch: Partial<EditConfig>) => setEdit((e) => (e ? { ...e, ...patch } : e));
+  const set = (patch: Partial<EditConfig>) => {
+    userTouchedRef.current = true;
+    setEdit((e) => (e ? { ...e, ...patch } : e));
+  };
   const recipe = edit.recipeId;
   const skill = recipe === 'custom' ? undefined : builtInSkills.recipe(recipe);
 
@@ -354,7 +438,39 @@ export function ConfigureScreen() {
     } else setCreating(false);
   };
 
+  const applyAutoRec = (rec: SetupRecommendation) => {
+    const matchedSkill = rec.skillId
+      ? (communitySkills.find((s) => s.id === rec.skillId) ?? getAnySkillById(rec.skillId))
+      : undefined;
+    setEdit((prev) => {
+      if (!prev) return prev;
+      const next = withRecipe(prev, kind, rec.recipeId, rec.styleId);
+      const styled = withStyle(next, kind, rec.styleId);
+      return {
+        ...styled,
+        hookStyle: rec.hookStyle,
+        captions:
+          matchedSkill && kind !== 'graphic'
+            ? { ...styled.captions, style: matchedSkill.captionStyle }
+            : styled.captions,
+        sound: {
+          ...styled.sound,
+          music: kind === 'graphic' ? 'none' : rec.musicMood,
+        },
+        userSkill: matchedSkill ? toUserSkillRef(matchedSkill) : undefined,
+      };
+    });
+    setAutoRec({ rec, status: 'applied' });
+  };
+
+  const resetAutoRec = () => {
+    userTouchedRef.current = true;
+    if (initialEditRef.current) setEdit(initialEditRef.current);
+    setAutoRec((cur) => (cur ? { ...cur, status: 'dismissed' } : null));
+  };
+
   const toggleUserSkill = (sk: UserSkill) => {
+    userTouchedRef.current = true;
     setEdit((e) => {
       if (!e) return e;
       if (e.userSkill?.id === sk.id) {
@@ -388,7 +504,20 @@ export function ConfigureScreen() {
         />
         <div className="grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="flex min-w-0 flex-col gap-8">
-            <MediaCard job={job} onRemove={remove} />
+            <MediaCard
+              job={job}
+              onRemove={remove}
+              onAddExtraClips={(files) => {
+                void addJobExtraClips(job.id, files);
+              }}
+              onRemoveExtraClip={(ref) => removeJobExtraClip(job.id, ref)}
+              onSetExtraClipKind={(ref, kindHint) => setJobExtraClipKind(job.id, ref, kindHint)}
+              onMakeMainClip={(ref) => {
+                recommendedKeyRef.current = '';
+                setAutoRec(null);
+                void swapJobPrimaryClip(job.id, ref);
+              }}
+            />
 
             <div className={cn(paper.frame, 'p-5 sm:p-7')}>
               {!video && (
@@ -429,13 +558,106 @@ export function ConfigureScreen() {
                 </div>
               )}
 
+              {/* Auto-pick status / banner driven by the prepared transcript or prompt */}
+              {!autoRec && job.prep.stage === 'transcribing' && (
+                <div
+                  role="status"
+                  className="mb-6 flex items-center gap-2.5 rounded-xl border-2 border-dashed border-ink/30 bg-mist/40 px-4 py-3 text-[12px] text-black/70"
+                >
+                  <Wand2 className="size-4 shrink-0 animate-pulse text-flame" aria-hidden />
+                  <span>
+                    Listening to your audio to auto-pick the best recipe, skill, and visual style…
+                  </span>
+                </div>
+              )}
+              {autoRec && autoRec.status !== 'dismissed' && (() => {
+                const recSkill = autoRec.rec.skillId
+                  ? (communitySkills.find((s) => s.id === autoRec.rec.skillId) ??
+                    getAnySkillById(autoRec.rec.skillId))
+                  : undefined;
+                const recRecipe = builtInSkills.recipe(autoRec.rec.recipeId);
+                const applied = autoRec.status === 'applied';
+                return (
+                  <div
+                    role="status"
+                    data-testid="auto-pick-banner"
+                    className={cn(
+                      'mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-ink px-4 py-3',
+                      applied ? 'bg-[#a7f3d0]/45 shadow-[3px_3px_0_var(--color-hard)]' : 'bg-[#fde68a]/45',
+                    )}
+                  >
+                    <div className="flex min-w-0 items-start gap-2.5">
+                      <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-lg border-2 border-ink bg-paper">
+                        <Wand2 className="size-3.5 text-ink" strokeWidth={2.2} aria-hidden />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 text-[12px] font-bold text-ink">
+                          <span>
+                            {applied
+                              ? 'Auto-picked from your transcript:'
+                              : 'Suggested from your transcript:'}
+                          </span>
+                          <span className="rounded-md border border-ink bg-paper px-1.5 py-0.5 text-[11px]">
+                            {recSkill ? recSkill.name : (recRecipe?.name ?? autoRec.rec.recipeId)}
+                          </span>
+                          {recRecipe && recSkill && (
+                            <span className="font-normal text-black/65">
+                              · {recRecipe.name}
+                            </span>
+                          )}
+                          <span className="rounded-full border border-ink/30 bg-paper/80 px-1.5 py-0.5 font-mono text-[9.5px] font-semibold text-black/65">
+                            {autoRec.rec.ranOn === 'device' ? '⚡ on-device' : 'instant match'}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 text-[11.5px] text-black/75">{autoRec.rec.reason}</p>
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {applied ? (
+                        <button
+                          type="button"
+                          onClick={resetAutoRec}
+                          className="inline-flex items-center gap-1 rounded-lg border-2 border-ink bg-paper px-2.5 py-1 text-[11px] font-semibold hover:bg-mist"
+                        >
+                          <RotateCcw className="size-3" strokeWidth={2} aria-hidden />
+                          Reset
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => applyAutoRec(autoRec.rec)}
+                            className="inline-flex items-center gap-1 rounded-lg border-2 border-ink bg-ink px-2.5 py-1 text-[11px] font-semibold text-paper hover:bg-ink/90"
+                          >
+                            Apply
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Dismiss suggestion"
+                            onClick={() =>
+                              setAutoRec((cur) => (cur ? { ...cur, status: 'dismissed' } : null))
+                            }
+                            className="grid size-7 place-items-center rounded-lg border-2 border-ink/40 bg-paper text-ink hover:border-ink"
+                          >
+                            <X className="size-3.5" aria-hidden />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <Section n={1} id="cfg-recipe" title={C.recipe.title} hint={C.recipe.hint}>
                 <OptionRow
                   layoutKey="recipe"
                   label={C.recipe.title}
                   options={recipeOptions}
                   value={recipe}
-                  onChange={(r) => setEdit((e) => (e ? withRecipe(e, kind, r) : e))}
+                  onChange={(r) => {
+                    userTouchedRef.current = true;
+                    setEdit((e) => (e ? withRecipe(e, kind, r) : e));
+                  }}
                   soon={C.soon.recipes}
                 />
                 {recipe === 'custom' && (
@@ -520,6 +742,11 @@ export function ConfigureScreen() {
                               style={{ background: sk.accent }}
                               aria-hidden
                             />
+                            {autoRec?.status === 'applied' && autoRec.rec.skillId === sk.id && (
+                              <span className="absolute top-1.5 left-1.5 rounded-md border border-black bg-[#a7f3d0] px-1.5 py-0.5 font-mono text-[8.5px] font-bold tracking-[0.04em] text-black uppercase">
+                                Auto-picked
+                              </span>
+                            )}
                           </div>
                           <div className="flex flex-1 flex-col justify-between p-2">
                             <span className="line-clamp-1 text-[11px] leading-[1.3] font-bold">
@@ -589,11 +816,11 @@ export function ConfigureScreen() {
                   label={C.style.title}
                   options={styleOptions}
                   value={styleValue}
-                  onChange={(v) =>
-                    v === '__custom'
-                      ? set({ customStyle: edit.customStyle ?? '' })
-                      : setEdit((e) => (e ? withStyle(e, kind, v) : e))
-                  }
+                  onChange={(v) => {
+                    userTouchedRef.current = true;
+                    if (v === '__custom') set({ customStyle: edit.customStyle ?? '' });
+                    else setEdit((e) => (e ? withStyle(e, kind, v) : e));
+                  }}
                   soon={C.soon.styles}
                 />
                 {edit.customStyle !== undefined && (

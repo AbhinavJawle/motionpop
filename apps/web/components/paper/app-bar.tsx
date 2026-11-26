@@ -1,10 +1,11 @@
 'use client';
 
-import { KeyRound, Plus } from 'lucide-react';
+import { KeyRound, Plus, Server } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AccountMenu } from '@/components/settings/account-menu';
 import { useByok } from '@/lib/ai/byok';
+import { useLocalLlm } from '@/lib/ai/local-llm';
 import { useAuth } from '@/lib/auth/auth-provider';
 import { useCreditsBalance } from '@/lib/credits/use-credits-client';
 import { DASHBOARD_COPY as C } from '@/lib/dashboard/copy';
@@ -39,6 +40,7 @@ export function AppBar({
   const router = useRouter();
   const balance = useCreditsBalance();
   const { active: byokActive } = useByok();
+  const { active: localLlmActive, model: localLlmModel } = useLocalLlm();
   const auth = useAuth();
   // The public "How it works" page uses this bar too: signed out, it offers sign-in instead.
   const signedOut = auth.status === 'signed-out';
@@ -78,6 +80,16 @@ export function AppBar({
             </Link>
           ) : (
             <>
+              {localLlmActive && (
+                <Link
+                  href="/settings#local-llm"
+                  title={`Local LLM active (${localLlmModel ?? 'localhost'}) — 0 Motionpop credits`}
+                  className="hidden h-7 items-center gap-1 rounded-md border border-[#3ddc97]/60 bg-[#3ddc97]/15 px-2 font-mono text-[10px] font-semibold text-[#3ddc97] uppercase transition-colors hover:bg-[#3ddc97]/25 md:inline-flex"
+                >
+                  <Server className="size-3" strokeWidth={2} aria-hidden />
+                  LOCAL
+                </Link>
+              )}
               {byokActive && (
                 <Link
                   href="/settings#byok"

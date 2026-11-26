@@ -2,6 +2,7 @@ import {
   chromeOnDeviceProvider,
   createRouter,
   geminiByokProvider,
+  localLlmProvider,
   type AIProvider,
   type Router,
   type UsageEvent,
@@ -12,13 +13,16 @@ import { loadAppConfig } from '@/lib/firebase/remote-config';
 import { getByokKey, getByokModel, getByokModelMode, subscribeByok } from './byok';
 import { createFakeRouter, routerKind } from './fake-router';
 import { idbRouterCache } from './idb-cache';
+import { getLocalLlmConfig, subscribeLocalLlm } from './local-llm';
 
 /**
- * The browser's AI router (hybrid-ai.md, Spec 42 BYOK):
- * - Default: Firebase AI Logic provider (on-device Gemini Nano + cloud Gemini) + Remote Config.
+ * The browser's AI router (hybrid-ai.md, Spec 42 BYOK, Local LLM):
+ * - With Local LLM enabled (Ollama / LM Studio / custom OpenAI-compatible): full local provider
+ *   running all routed tasks directly against the user's local server at 0 Motionpop credits.
  * - With BYOK key saved in browser: `geminiByokProvider` sending cloud requests directly to
- *   Google AI Studio (`x-goog-api-key` header) while STILL trying on-device Gemini Nano first!
- * - `null` when neither Firebase nor BYOK is configured (local mode); callers use deterministic fallbacks.
+ *   Google AI Studio (`x-goog-api-key` header) while STILL trying on-device Gemini Nano first.
+ * - Default: Firebase AI Logic provider (on-device Gemini Nano + cloud Gemini) + Remote Config.
+ * - `null` when none of the above is configured (local mode); callers use deterministic fallbacks.
  */
 let routerPromise: Promise<Router | null> | null = null;
 const listeners = new Set<(e: UsageEvent) => void>();
@@ -33,13 +37,14 @@ export function emitAIUsage(e: UsageEvent): void {
   listeners.forEach((l) => l(e));
 }
 
-/** Drops the cached router so the next call rebuilds with the latest BYOK / provider state. */
+/** Drops the cached router so the next call rebuilds with the latest provider state. */
 export function resetRouter(): void {
   routerPromise = null;
 }
 
-// Automatically swap the router when the user saves, switches mode, or clears their BYOK key.
+// Automatically swap the router when the user updates Local LLM or BYOK settings.
 subscribeByok(resetRouter);
+subscribeLocalLlm(resetRouter);
 
 export function getRouter(): Promise<Router | null> {
   routerPromise ??= (async () => {
@@ -55,6 +60,26 @@ export function getRouter(): Promise<Router | null> {
       return createFakeRouter({
         search: typeof window === 'undefined' ? '' : window.location.search,
         onUsage: emitAIUsage,
+      });
+    }
+
+    const localCfg = getLocalLlmConfig();
+    if (localCfg) {
+      return createRouter({
+        provider: localLlmProvider({
+          baseUrl: localCfg.baseUrl,
+          model: localCfg.model,
+          apiKey: localCfg.apiKey,
+        }),
+        config: () => ({
+          ...APP_CONFIG_DEFAULTS,
+          killSwitch: false,
+          modelFast: localCfg.model,
+          modelStrong: localCfg.model,
+          modelFilmBuild: localCfg.model,
+        }),
+        onUsage: (e) => emitAIUsage({ ...e, credits: 0, ranOn: 'device' }),
+        cache: idbRouterCache(),
       });
     }
 

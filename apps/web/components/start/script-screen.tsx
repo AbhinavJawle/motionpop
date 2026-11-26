@@ -61,7 +61,7 @@ export function ScriptScreen() {
   const [draft] = useStartDraft();
   const config = useAppConfig();
   const online = useOnline();
-  const { client, byok } = useCreditsClient();
+  const { client, byok, hasAccountCredits } = useCreditsClient();
   const [text, setText] = useState(() => search.get('text') ?? readScriptDraft());
   const over = text.length - SCRIPT_MAX_CHARS;
   const [voice, setVoice] = useState<TtsVoiceId>('Kore');
@@ -77,7 +77,7 @@ export function ScriptScreen() {
     over,
     online,
     killSwitch: byok ? false : config.killSwitch,
-    signedIn: client !== null,
+    signedIn: hasAccountCredits ?? client !== null,
   });
 
   // Spec 39 R2.1/R2.4: the script goes to Configure; its voice is made (and charged) after Create.

@@ -350,4 +350,59 @@ describe('directReel', () => {
     expect(r.source).toBe('auto');
     expect(ReelPlanSchema.safeParse(r.plan).success).toBe(true);
   });
+
+  it('weaves valid Media Bin clip scenes with pip layout and drops unknown clipIds (spec 48)', () => {
+    const ws = words();
+    const plan = toReelPlan(
+      {
+        brands: [],
+        scenes: [
+          {
+            fromWord: 0,
+            toWord: 5,
+            layout: 'pip',
+            beat: 'proof',
+            graphic: {
+              template: 'clip',
+              clipId: 'clip-screen-1',
+              clipStartMs: 1200,
+              fit: 'screen-window',
+              focusX: 0.7,
+              focusY: 0.3,
+              zoom: 1.5,
+              label: 'Dashboard walkthrough',
+              audioMode: 'mute',
+            },
+          },
+          {
+            fromWord: 6,
+            toWord: 15,
+            layout: 'full',
+            beat: 'payoff',
+            graphic: {
+              template: 'clip',
+              clipId: 'clip-hallucinated',
+              fit: 'cover',
+            },
+          },
+        ],
+      },
+      ws,
+      20000,
+      'mono',
+      'm',
+      [],
+      { mediaBinIds: ['clip-screen-1'] },
+    );
+    expect(plan.scenes[0]?.layout).toBe('pip');
+    expect(plan.scenes[0]?.content).toMatchObject({
+      template: 'clip',
+      clipId: 'clip-screen-1',
+      fit: 'screen-window',
+      clipStartMs: 1200,
+      zoom: 1.5,
+    });
+    // Unknown clipId falls back safely instead of producing a broken clip scene.
+    expect(plan.scenes[1]?.content.template).toBe('none');
+  });
 });

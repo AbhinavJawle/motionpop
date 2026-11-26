@@ -23,6 +23,10 @@ export interface SpendRequestInput {
 export interface CreditsClient {
   /** True when user-supplied Gemini BYOK is active (cloud Gemini actions cost 0 Motionpop credits). */
   readonly isByok?: boolean;
+  /** Optional per-action 0-credit check (used by Local LLM so LLM tasks are 0 cr while cloud TTS/image still use credits). */
+  isZeroCostFor?(action: ClientCreditAction): boolean;
+  /** Optional capability check: false when this client cannot pay for a given action (e.g. signed-out Local LLM for cloud TTS/image). */
+  canSpend?(action: ClientCreditAction): boolean;
   /** The balance, or null while it is not known yet. */
   balance(): number | null;
   subscribe(fn: (balance: number | null) => void): () => void;

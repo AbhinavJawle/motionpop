@@ -284,27 +284,67 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
       !transparentMode &&
       Boolean(project.video && sourceVideoFile && ffmpeg.compositeVideo);
 
-    // 2f. Secondary Media Bin clips referenced by video stages (spec 21 R5.3).
+    // 2f. Secondary Media Bin clips referenced by legacy video stages (spec 21 R5.3) OR Reel
+    // Engine `clip` scenes (spec 48 R3.4). For Reel exports, clips land inside `compDir/assets/`
+    // and video clips are transcoded into upright CFR H.264 proxies for frame-accurate Chromium seek.
     const downloadedClips: Record<string, { path: string; isVideo: boolean; durationMs?: number }> =
       {};
-    if (videoComposite && doc.clipPaths && project.mediaBin?.length) {
+    const reelClips: Record<
+      string,
+      { src: string; isVideo: boolean; w: number; h: number; durationMs?: number; name?: string }
+    > = {};
+    if ((videoComposite || (useReelEngine && !transparentMode)) && doc.clipPaths && project.mediaBin?.length) {
       const clipRe = mediaClipPathFor(doc.ownerId, doc.projectId);
       let idx = 0;
       for (const [clipId, storagePath] of Object.entries(doc.clipPaths)) {
         if (!clipRe.test(storagePath)) continue;
         const meta = project.mediaBin.find((c) => c.id === clipId);
         if (!meta) continue;
-        const ext = storagePath.slice(storagePath.lastIndexOf('.'));
-        const dest = join(deps.workDir, `media-clip-${idx++}${ext}`);
-        try {
-          await blobs.download(storagePath, dest);
-          downloadedClips[clipId] = {
-            path: dest,
-            isVideo: meta.mimeType.startsWith('video/'),
-            ...(meta.durationMs !== undefined ? { durationMs: meta.durationMs } : {}),
-          };
-        } catch (e) {
-          log.error({ event: 'media-clip-missing', renderId, clipId, error: errorText(e) });
+        const isVideo = meta.mimeType.startsWith('video/');
+        const ext = storagePath.slice(storagePath.lastIndexOf('.')) || (isVideo ? '.mp4' : '.jpg');
+        const clipNum = idx++;
+        if (useReelEngine) {
+          let rel = `assets/mclip-${clipNum}${ext.toLowerCase()}`;
+          const dest = join(compDir, rel);
+          try {
+            await blobs.download(storagePath, dest);
+            if (isVideo && ffmpeg.proxyVideo) {
+              const proxyRel = `assets/mclip-${clipNum}-proxy.mp4`;
+              try {
+                await ffmpeg.proxyVideo({
+                  src: dest,
+                  dest: join(compDir, proxyRel),
+                  longSide: 1920,
+                });
+                await rm(dest, { force: true });
+                rel = proxyRel;
+              } catch (e) {
+                log.error({ event: 'media-clip-proxy-failed', renderId, clipId, error: errorText(e) });
+              }
+            }
+            reelClips[clipId] = {
+              src: rel,
+              isVideo,
+              w: meta.width,
+              h: meta.height,
+              ...(meta.durationMs !== undefined ? { durationMs: meta.durationMs } : {}),
+              name: meta.name,
+            };
+          } catch (e) {
+            log.error({ event: 'media-clip-missing', renderId, clipId, error: errorText(e) });
+          }
+        } else {
+          const dest = join(deps.workDir, `media-clip-${clipNum}${ext}`);
+          try {
+            await blobs.download(storagePath, dest);
+            downloadedClips[clipId] = {
+              path: dest,
+              isVideo,
+              ...(meta.durationMs !== undefined ? { durationMs: meta.durationMs } : {}),
+            };
+          } catch (e) {
+            log.error({ event: 'media-clip-missing', renderId, clipId, error: errorText(e) });
+          }
         }
       }
     }
@@ -343,6 +383,7 @@ export async function runRender(renderId: string, deps: RenderDeps): Promise<Ren
                 : {}),
             out: { w: dims.width, h: dims.height },
             images: reelImages,
+            ...(Object.keys(reelClips).length ? { clips: reelClips } : {}),
             ...(bedSrc ? { sfxSrc: bedSrc } : {}),
             ...(musicSrc ? { musicSrc } : {}),
           },

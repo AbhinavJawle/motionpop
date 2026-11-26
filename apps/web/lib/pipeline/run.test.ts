@@ -1191,6 +1191,110 @@ describe('runPipeline: talking-head reels (spec 25)', () => {
     });
   });
 
+  it('ingests and vision-indexes extraClips in talking-head reels and forwards mediaBin to directReel (spec 48)', async () => {
+    const h = makeHarness();
+    h.deps.probeVideo = async () => ({
+      width: 1080,
+      height: 1920,
+      durationMs: 4000,
+      format: '9:16' as const,
+      frames: [{ atMs: 500, base64: 'x'.repeat(40) }],
+    });
+    h.deps.ingestExtraClip = vi.fn<NonNullable<PipelineDeps['ingestExtraClip']>>(async (extra) => ({
+      id: 'clip-screen-1',
+      name: extra.name,
+      src: extra.ref,
+      kind: extra.kindHint ?? 'broll',
+      mimeType: extra.mimeType,
+      width: 1920,
+      height: 1080,
+      durationMs: 8000,
+    }));
+    h.deps.indexMediaClips = vi.fn<NonNullable<PipelineDeps['indexMediaClips']>>(async (clips, lockedKinds) =>
+      clips.map((c) => ({
+        ...c,
+        kind: lockedKinds?.get(c.id) ?? 'broll',
+        summary: 'Dashboard pricing table walkthrough',
+        tags: ['dashboard', 'pricing'],
+        moments: [
+          {
+            startMs: 1000,
+            endMs: 4000,
+            focusX: 0.6,
+            focusY: 0.3,
+            zoom: 1.5,
+            description: 'Pricing tiers',
+          },
+        ],
+        indexedAt: 1000,
+      })),
+    );
+    const seenBins: unknown[] = [];
+    h.deps.directReel = async (i) => {
+      seenBins.push(i.mediaBin);
+      return {
+        plan: {
+          v: 1 as const,
+          look: i.look,
+          focus: { x: 0.5, y: 0.32 },
+          captions: true,
+          scenes: [
+            {
+              id: 'r1',
+              startMs: 0,
+              endMs: i.durationMs,
+              layout: 'pip' as const,
+              content: {
+                template: 'clip' as const,
+                clipId: 'clip-screen-1',
+                clipStartMs: 1000,
+                fit: 'screen-window' as const,
+                focusX: 0.6,
+                focusY: 0.3,
+                zoom: 1.5,
+                audioMode: 'mute' as const,
+              },
+            },
+          ],
+        },
+        source: 'cloud' as const,
+      };
+    };
+
+    await runPipeline(
+      makeInput({
+        file: new Blob(['fake mp4'], { type: 'video/mp4' }),
+        name: 'talking-head.mp4',
+        extraClips: [
+          {
+            ref: 'idb:screen-rec',
+            name: 'demo.mp4',
+            mimeType: 'video/mp4',
+            kindHint: 'screen-recording',
+          },
+        ],
+      }),
+      h.deps,
+      h.onEvent,
+    );
+
+    expect(h.deps.ingestExtraClip).toHaveBeenCalledOnce();
+    expect(h.deps.indexMediaClips).toHaveBeenCalledOnce();
+    expect(seenBins[0]).toEqual([
+      expect.objectContaining({
+        id: 'clip-screen-1',
+        kind: 'screen-recording',
+        summary: 'Dashboard pricing table walkthrough',
+      }),
+    ]);
+    const loaded = await h.repo.load(PROJECT_ID);
+    if (!loaded.ok) throw new Error('not saved');
+    expect(loaded.project.mediaBin).toHaveLength(1);
+    expect(loaded.project.mediaBin?.[0]?.kind).toBe('screen-recording');
+    expect(loaded.project.reel?.scenes[0]?.layout).toBe('pip');
+    expect(loaded.project.reel?.scenes[0]?.content.template).toBe('clip');
+  });
+
   it('cuts dead air from the audio and removes a retake, with the cloud review (spec 28)', async () => {
     const { h } = rawTake();
     const reviewEdit = vi.fn<NonNullable<PipelineDeps['reviewEdit']>>(async () => ({

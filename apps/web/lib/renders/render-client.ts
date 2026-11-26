@@ -135,7 +135,7 @@ export function offlineRenderClient(): RenderClient {
       const videoBlob = skipSourceVideo ? null : await resolveVideoBlob(project).catch(() => null);
       if (videoBlob) form.set('video', videoBlob, 'source.mp4');
       const [clipBlobs, ovBlobs, auBlobs] = await Promise.all([
-        project.video && !skipSourceVideo
+        !skipSourceVideo
           ? resolveReferencedMediaClipBlobs(project).catch(() => ({}))
           : Promise.resolve({}),
         resolveStockOverlayBlobs(project).catch(() => ({})),
@@ -233,6 +233,8 @@ export function cloudRenderClient(): RenderClient {
             const uploaded = await uploadVideo(uid, project.id, videoBlob).catch(() => null);
             if (uploaded) videoPath = uploaded;
           }
+        }
+        if (!skipSourceVideo) {
           const uploadedClips = await uploadReferencedMediaClips(uid, project).catch(() => ({}));
           if (Object.keys(uploadedClips).length > 0) clipPaths = uploadedClips;
         }

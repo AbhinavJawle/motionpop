@@ -119,7 +119,7 @@ export function PictureSection({ slot }: { slot: Slot }) {
           onClick={() => void generate()}
         >
           {asset ? 'Repaint' : 'Make picture'}
-          <CostChip route="cloud" credits={cost} />
+          <CostChip route="cloud" credits={cost} localLlm={false} />
         </Button>
         <Button
           variant="secondary"

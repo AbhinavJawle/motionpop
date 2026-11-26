@@ -10,8 +10,10 @@ export const REEL_DIRECT_PROMPT_VERSION = 'v6';
 export const REEL_LAYOUTS_AND_TEMPLATES = `LAYOUTS
 - split: graphic in the top half, speaker in the bottom half. The default for the "mono" look.
 - card: graphic fills the frame, speaker in a rounded card at the bottom. The default for "cream".
-- full: graphic only, speaker hidden (voice continues). 1–3 big moments per reel (an image with
-  fit "bleed", a website, a big logo wall).
+- pip: graphic or uploaded screen recording fills the frame while the speaker floats cleanly in a
+  rounded corner PiP. Best for screen recordings and app walkthroughs.
+- full: graphic or B-roll only, speaker hidden (voice continues). 1–3 big moments per reel (an
+  image with fit "bleed", a website, a big logo wall, or full-bleed B-roll J/L-cut).
 - speaker: speaker full-frame; template must be punch, cta or none. For punchlines, the CTA and
   breathing room: 15–30% of the runtime, never two in a row.
 
@@ -36,6 +38,12 @@ TEMPLATES (word = index of the word where that item is spoken; it appears exactl
 - image {kind photo|illustration, subject, fit frame|bleed, kicker?, title?, items[{word, text}] 0–3}:
   a picture with up to 3 kinetic words (≤ 3 words each) that land on their spoken word.
 - website {domain, headline?, strikeWord?}: the real page of a named site (domain like "example.com").
+- clip {clipId, clipStartMs?, fit cover|screen-window|card, focusX?, focusY?, zoom?, label?, audioMode?}:
+  ONLY when UPLOADED MEDIA BIN clips are provided below. Weave the creator's own B-roll, screen
+  recordings, and screenshots into matching beats! Use fit "screen-window" + layout "pip" (or
+  "split") for screen recordings (pulling clipStartMs, focusX, focusY, zoom from its indexed
+  moments for smooth UI zoom-ins); fit "cover" + layout "split" or "full" for B-roll; fit "card"
+  for screenshots/photos.
 - punch {text, top?} (speaker only): one punchline ≤ 4 words; top = small lead-in.
 - cta {verb, keyword} (speaker only): "Comment GUIDE", "Follow for more".
 - none (speaker only).
@@ -125,11 +133,28 @@ export function reelDirectPromptV3(i: {
   brief?: ReelDirectBrief | undefined;
   /** True for voiceover-only projects (no speaker footage). */
   noVideo?: boolean | undefined;
+  /** Indexed user-uploaded Media Bin clips (B-roll, screen recordings, screenshots, spec 48). */
+  mediaBin?: readonly {
+    id: string;
+    name: string;
+    kind: string;
+    durationMs?: number | undefined;
+    summary: string;
+    tags?: readonly string[] | undefined;
+    moments?: readonly {
+      startMs: number;
+      endMs: number;
+      focusX: number;
+      focusY: number;
+      zoom: number;
+      description: string;
+    }[] | undefined;
+  }[] | undefined;
 }): string {
   const lines = i.words.map(([idx, ms, text]) => `${idx}@${(ms / 1000).toFixed(2)} ${text}`);
   const frames = i.frameTimesMs ?? [];
   const seen = i.noVideo
-    ? '\nVOICEOVER ONLY (no speaker video): use layout "full" on EVERY scene. Never use "split", "card", "speaker", "punch", "cta", or "none" templates — every beat must be a visually arresting full-frame graphic (lean heavily on concrete "image" illustrations/photos, "logo"/"logos", "website", "chart", "flow", "compare", and "counter" — keep pure text cards under 30% so it feels like a Vox/editorial visual essay, not slides).'
+    ? '\nVOICEOVER ONLY (no speaker video): use layout "full" on EVERY scene. Never use "split", "card", "pip", "speaker", "punch", "cta", or "none" templates — every beat must be a visually arresting full-frame graphic or uploaded clip (lean heavily on uploaded Media Bin clips when provided, plus concrete "image" illustrations/photos, "logo"/"logos", "website", "chart", "flow", "compare", and "counter" — keep pure text cards under 30% so it feels like a Vox/editorial visual essay, not slides).'
     : frames.length
       ? `\nKeyframes attached: ${frames.length} images, in order, taken at ${frames
           .map((ms, k) => `#${k} ${(ms / 1000).toFixed(1)} s`)
@@ -139,10 +164,28 @@ export function reelDirectPromptV3(i: {
   const craftBlock = i.brief
     ? `\n\n${styleCraftDirection({ styleId: i.brief.style, customStyle: i.brief.notes })}\n\n${recipeBlock(i.brief)}`
     : '';
+  const mediaBlock = i.mediaBin?.length
+    ? `\n\nUPLOADED MEDIA BIN (${i.mediaBin.length} creator ${i.mediaBin.length === 1 ? 'clip' : 'clips'} — weave these into matching beats with template "clip" using exact clipId! Prefer real uploaded footage over stock/text wherever it matches what the speaker says):\n${i.mediaBin
+        .map((c) => {
+          const dur = c.durationMs ? `${(c.durationMs / 1000).toFixed(1)}s` : 'still';
+          const tags = c.tags?.length ? ` [${c.tags.join(', ')}]` : '';
+          const moments = c.moments?.length
+            ? ` · moments: ${c.moments
+                .slice(0, 3)
+                .map(
+                  (m) =>
+                    `[startMs=${m.startMs} focus=(${m.focusX.toFixed(2)},${m.focusY.toFixed(2)}) zoom=${m.zoom.toFixed(2)}: ${m.description}]`,
+                )
+                .join('; ')}`
+            : '';
+          return `- clipId="${c.id}" (${c.kind}, ${dur}, "${c.name}"): ${c.summary}${tags}${moments}`;
+        })
+        .join('\n')}`
+    : '';
   return `Look: ${i.look} (default layout: ${defaultLayout}).
 Duration: ${(i.durationMs / 1000).toFixed(1)} s.${seen}
 Words: ${i.words.length} (index@seconds word):
-${lines.join('\n')}${craftBlock}
+${lines.join('\n')}${mediaBlock}${craftBlock}
 
 Write the story, then plan the reel.`;
 }

@@ -61,7 +61,8 @@ export async function generateVoice(
   throwIfAborted(signal);
   const text = input.text.trim();
   if (!text) return { ok: false, reason: 'Write a script first' };
-  if (!deps.credits) return { ok: false, reason: 'Sign in to generate a voice' };
+  if (!deps.credits || (deps.credits.canSpend && !deps.credits.canSpend('tts')))
+    return { ok: false, reason: 'Sign in to generate a voice' };
   const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
   const minutes = ttsMinutes(text, input.speed ?? 1);
   const spent = await spendWithUi(

@@ -4,18 +4,22 @@ import {
   type AppConfig,
   type EditConfig,
   type Format,
+  type MediaClipKind,
+  type PendingExtraClip,
   type PendingIntake,
   type StartDraft,
 } from '@motionpop/schemas';
 import { create } from 'zustand';
 import type { CreditsClient } from '../credits/client';
+import { appAudioStore } from '../audio/app-audio-store';
 import { checkDuration, validateIntake } from '../audio/intake';
 import { isSilent, type DecodedAudio } from '../audio/decode';
 import { START_COPY } from '../dashboard/copy';
-import { clearPending, peekPending } from '../intake/pending';
+import { clearPending, peekPending, updatePendingMeta } from '../intake/pending';
 import { generateVoice } from '../tts/generate-voice';
 import { withWhisper, type WhisperPriority } from '../transcribe/whisper-lock';
 import type { VideoProbeResult } from '../video/frames';
+import { guessMimeType, isSupportedMediaBinFile } from '../video/media-bin';
 import { etaMs, jobProgress, STEP_WEIGHTS, type JobKind } from './eta';
 import type { PipelineEvent } from './events';
 import { initialProcessing, reduceProcessing, type ProcessingState } from './processing-state';
@@ -50,16 +54,33 @@ export interface JobMedia {
   thumbUrl?: string;
 }
 
+export interface JobExtraClip {
+  ref: string;
+  name: string;
+  mimeType: string;
+  sizeBytes?: number;
+  kindHint?: MediaClipKind;
+  durationMs?: number;
+  width?: number;
+  height?: number;
+  /** JPEG data URL thumbnail for the Configure clip tray (spec 48). */
+  thumbUrl?: string;
+}
+
 export interface Job {
   id: string;
   title: string;
   kind: JobKind;
   source: PendingIntake['source'];
   media: JobMedia;
+  /** Secondary B-roll, screen recordings, or screenshots attached on Start / Configure (spec 48). */
+  extraClips?: JobExtraClip[];
   /** The script, for a script job (shown instead of media). */
   script?: string;
   /** The prompt, for a standalone motion graphic job. */
   graphicPrompt?: string;
+  /** Prepared plain-text transcript (from script, prompt, sample, or local Whisper) for auto-picking setup. */
+  transcriptText?: string;
   /** Target aspect ratio (16:9, 9:16, 1:1) editable on Configure for graphic/voiceover jobs. */
   format?: Format;
   recipeLabel?: string;
@@ -114,6 +135,8 @@ interface Runtime {
   reuse: PipelineReuse;
   /** The take now belongs to the job (the hand-off is cleared). */
   owned: boolean;
+  /** Guards against rapid double-clicks on "Make main" while loading the replacement blob. */
+  swapping?: boolean;
   startProgress: number;
   lastProgressWrite: number;
 }
@@ -202,6 +225,19 @@ export function prepare(take: PendingTake, now = Date.now()): string {
   }
   const id = newJobId();
   const kind = kindOf(take);
+  const initialWords = wordsOf(take.meta);
+  const initialTranscript =
+    take.meta.tts?.script.trim() ||
+    take.meta.graphicPrompt?.trim() ||
+    (initialWords?.length ? initialWords.map((w) => w.text).join(' ').trim() : '') ||
+    undefined;
+  const initialExtras: JobExtraClip[] = (take.meta.extraClips ?? []).map((c) => ({
+    ref: c.ref,
+    name: c.name,
+    mimeType: c.mimeType,
+    ...(c.sizeBytes !== undefined ? { sizeBytes: c.sizeBytes } : {}),
+    ...(c.kindHint ? { kindHint: c.kindHint } : {}),
+  }));
   const job: Job = {
     id,
     title: titleOf(take),
@@ -212,8 +248,10 @@ export function prepare(take: PendingTake, now = Date.now()): string {
       mimeType: take.blob?.type ?? 'audio/wav',
       sizeBytes: take.blob?.size ?? 0,
     },
+    ...(initialExtras.length ? { extraClips: initialExtras } : {}),
     ...(take.meta.tts ? { script: take.meta.tts.script } : {}),
     ...(take.meta.graphicPrompt ? { graphicPrompt: take.meta.graphicPrompt } : {}),
+    ...(initialTranscript ? { transcriptText: initialTranscript } : {}),
     format: take.draft.format,
     status: 'preparing',
     prep:
@@ -239,7 +277,320 @@ export function prepare(take: PendingTake, now = Date.now()): string {
   };
   runtimes.set(id, rt);
   if (take.blob && kind !== 'graphic') void runPrep(id, rt, take.blob);
+  if (initialExtras.length) void probeExtraClips(id, rt, initialExtras.map((c) => c.ref));
   return id;
+}
+
+const MAX_CONFIG_EXTRA_CLIPS = 12;
+
+function audioStoreOf() {
+  try {
+    return deps().pipeline.audioStore;
+  } catch {
+    return appAudioStore();
+  }
+}
+
+async function sampleImageThumb(blob: Blob): Promise<{
+  thumbUrl?: string;
+  width?: number;
+  height?: number;
+}> {
+  if (typeof document === 'undefined' || typeof URL === 'undefined') return {};
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error('decode'));
+      el.src = url;
+    });
+    const w = Math.max(1, img.naturalWidth || 1);
+    const h = Math.max(1, img.naturalHeight || 1);
+    const scale = Math.min(1, 240 / Math.max(w, h));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(32, Math.round(w * scale));
+    canvas.height = Math.max(32, Math.round(h * scale));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return { width: w, height: h };
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    return { thumbUrl: canvas.toDataURL('image/jpeg', 0.72), width: w, height: h };
+  } catch {
+    return {};
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function probeExtraClips(id: string, rt: Runtime, refs: readonly string[]): Promise<void> {
+  if (refs.length === 0) return;
+  const store = audioStoreOf();
+  let probeVideo: PipelineDeps['probeVideo'];
+  try {
+    probeVideo = deps().pipeline.probeVideo;
+  } catch {
+    probeVideo = undefined;
+  }
+  for (const ref of refs) {
+    if (rt.abort.signal.aborted) return;
+    const cur = useJobs.getState().jobs[id]?.extraClips?.find((c) => c.ref === ref);
+    if (!cur || cur.thumbUrl) continue;
+    const blob = await store.get(ref).catch(() => null);
+    if (!blob || rt.abort.signal.aborted) continue;
+    const sizeBytes = cur.sizeBytes ?? blob.size;
+    if (cur.mimeType.startsWith('video/') && probeVideo) {
+      const p = await probeVideo(blob).catch(() => null);
+      if (rt.abort.signal.aborted) return;
+      if (p) {
+        const f = p.frames[0];
+        patch(id, (j) => ({
+          extraClips: (j.extraClips ?? []).map((c) =>
+            c.ref === ref
+              ? {
+                  ...c,
+                  sizeBytes,
+                  durationMs: p.durationMs,
+                  width: p.width,
+                  height: p.height,
+                  ...(f ? { thumbUrl: `data:image/jpeg;base64,${f.base64}` } : {}),
+                }
+              : c,
+          ),
+        }));
+      }
+    } else if (cur.mimeType.startsWith('image/')) {
+      const sampled = await sampleImageThumb(blob);
+      if (rt.abort.signal.aborted) return;
+      patch(id, (j) => ({
+        extraClips: (j.extraClips ?? []).map((c) =>
+          c.ref === ref
+            ? {
+                ...c,
+                sizeBytes,
+                ...(sampled.width ? { width: sampled.width } : {}),
+                ...(sampled.height ? { height: sampled.height } : {}),
+                ...(sampled.thumbUrl ? { thumbUrl: sampled.thumbUrl } : {}),
+              }
+            : c,
+        ),
+      }));
+    }
+  }
+}
+
+function syncPending(rt: Runtime): void {
+  if (!rt.owned) {
+    try {
+      updatePendingMeta(rt.take.meta, rt.take.draft);
+    } catch {
+      /* sessionStorage unavailable */
+    }
+  }
+}
+
+/** Attaches additional B-roll, screen recordings, or screenshots to a preparing job (spec 48). */
+export async function addJobExtraClips(
+  id: string,
+  files: readonly File[],
+): Promise<{ added: number; skipped: number }> {
+  const rt = runtimes.get(id);
+  const j = useJobs.getState().jobs[id];
+  if (!rt || !j || j.status !== 'preparing') return { added: 0, skipped: files.length };
+  const existing = rt.take.meta.extraClips ?? [];
+  const room = Math.max(0, MAX_CONFIG_EXTRA_CLIPS - existing.length);
+  if (room === 0) return { added: 0, skipped: files.length };
+  const store = audioStoreOf();
+  const nextMeta: PendingExtraClip[] = [...existing];
+  const nextJob: JobExtraClip[] = [...(j.extraClips ?? [])];
+  const addedRefs: string[] = [];
+  let skipped = 0;
+  for (const file of files) {
+    if (addedRefs.length >= room || !isSupportedMediaBinFile(file)) {
+      skipped++;
+      continue;
+    }
+    const ref = await store.put(file);
+    const mimeType = guessMimeType(file);
+    const clipMeta: PendingExtraClip = {
+      ref,
+      name: file.name.slice(0, 120),
+      mimeType,
+      sizeBytes: file.size,
+    };
+    nextMeta.push(clipMeta);
+    nextJob.push({ ...clipMeta });
+    addedRefs.push(ref);
+  }
+  if (addedRefs.length === 0) return { added: 0, skipped };
+  rt.take = {
+    ...rt.take,
+    meta: { ...rt.take.meta, extraClips: nextMeta },
+  };
+  syncPending(rt);
+  patch(id, () => ({ extraClips: nextJob }));
+  void probeExtraClips(id, rt, addedRefs);
+  return { added: addedRefs.length, skipped };
+}
+
+/** Removes one extra clip from a preparing job and frees its local blob (spec 48). */
+export function removeJobExtraClip(id: string, ref: string): void {
+  const rt = runtimes.get(id);
+  const j = useJobs.getState().jobs[id];
+  if (!rt || !j || j.status !== 'preparing') return;
+  const nextMeta = (rt.take.meta.extraClips ?? []).filter((c) => c.ref !== ref);
+  const nextJob = (j.extraClips ?? []).filter((c) => c.ref !== ref);
+  const nextTakeMeta: PendingIntake = { ...rt.take.meta };
+  if (nextMeta.length) nextTakeMeta.extraClips = nextMeta;
+  else delete nextTakeMeta.extraClips;
+  rt.take = { ...rt.take, meta: nextTakeMeta };
+  syncPending(rt);
+  patch(id, () => ({ extraClips: nextJob.length ? nextJob : undefined }));
+  void audioStoreOf()
+    .delete(ref)
+    .catch(() => undefined);
+}
+
+/** Sets or clears the creator's role hint (`broll`, `screen-recording`, `screenshot`, `photo`) on an extra clip (spec 48). */
+export function setJobExtraClipKind(
+  id: string,
+  ref: string,
+  kindHint: MediaClipKind | undefined,
+): void {
+  const rt = runtimes.get(id);
+  const j = useJobs.getState().jobs[id];
+  if (!rt || !j || j.status !== 'preparing') return;
+  const apply = <T extends { ref: string; kindHint?: MediaClipKind }>(list: readonly T[]): T[] =>
+    list.map((c) => {
+      if (c.ref !== ref) return c;
+      if (kindHint) return { ...c, kindHint };
+      const copy = { ...c };
+      delete copy.kindHint;
+      return copy;
+    });
+  rt.take = {
+    ...rt.take,
+    meta: {
+      ...rt.take.meta,
+      ...(rt.take.meta.extraClips ? { extraClips: apply(rt.take.meta.extraClips) } : {}),
+    },
+  };
+  syncPending(rt);
+  patch(id, (cur) => ({
+    ...(cur.extraClips ? { extraClips: apply(cur.extraClips) } : {}),
+  }));
+}
+
+/**
+ * Promotes one of the attached video/audio extra clips to become the main A-roll talking head,
+ * demoting the previous primary into `extraClips` and restarting free local preparation (spec 48 R1.3).
+ */
+export async function swapJobPrimaryClip(
+  id: string,
+  ref: string,
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  const rt = runtimes.get(id);
+  const j0 = useJobs.getState().jobs[id];
+  if (!rt || !j0 || j0.status !== 'preparing' || rt.swapping) {
+    return { ok: false, message: 'Cannot change the main clip right now.' };
+  }
+  const targetMeta0 = (rt.take.meta.extraClips ?? []).find((c) => c.ref === ref);
+  if (!targetMeta0) {
+    return { ok: false, message: 'Clip not found.' };
+  }
+  if (!targetMeta0.mimeType.startsWith('video/') && !targetMeta0.mimeType.startsWith('audio/')) {
+    return { ok: false, message: 'Only a video or audio clip can be the main talking-head track.' };
+  }
+  rt.swapping = true;
+  let nextBlob: Blob | null;
+  try {
+    nextBlob = await audioStoreOf()
+      .get(ref)
+      .catch(() => null);
+  } finally {
+    rt.swapping = false;
+  }
+  if (!nextBlob) {
+    return { ok: false, message: "Couldn't read that clip from browser storage." };
+  }
+  // Re-validate after the async read in case the job was submitted, cancelled, or edited.
+  const j = useJobs.getState().jobs[id];
+  const targetJob = (j?.extraClips ?? []).find((c) => c.ref === ref);
+  const targetMeta = (rt.take.meta.extraClips ?? []).find((c) => c.ref === ref);
+  if (!j || j.status !== 'preparing' || !targetJob || !targetMeta) {
+    return { ok: false, message: 'Cannot change the main clip right now.' };
+  }
+
+  // Abort any in-flight prep for the old primary.
+  rt.abort.abort();
+  rt.abort = new AbortController();
+  rt.audio = undefined;
+  rt.probe = undefined;
+  rt.transcript = undefined;
+  rt.transcriptReady = false;
+  rt.lastProgress = undefined;
+  rt.reuse = {};
+
+  const oldRef = rt.take.meta.ref;
+  const remainingMeta = (rt.take.meta.extraClips ?? []).filter((c) => c.ref !== ref);
+  const remainingJob = (j.extraClips ?? []).filter((c) => c.ref !== ref);
+
+  // Move old primary into extraClips if it has a ref and is a supported Media Bin clip;
+  // otherwise delete the orphaned audio blob so IndexedDB never leaks.
+  const canDemoteOld =
+    Boolean(oldRef) &&
+    (j.media.mimeType.startsWith('video/') ||
+      /\.(mp4|mov|webm)$/i.test(j.media.name));
+  if (oldRef && canDemoteOld) {
+    const oldMeta: PendingExtraClip = {
+      ref: oldRef,
+      name: rt.take.meta.name.slice(0, 120),
+      mimeType: j.media.mimeType || 'video/mp4',
+      sizeBytes: j.media.sizeBytes,
+    };
+    remainingMeta.unshift(oldMeta);
+    remainingJob.unshift({
+      ...oldMeta,
+      ...(j.media.durationMs !== undefined ? { durationMs: j.media.durationMs } : {}),
+      ...(j.media.width !== undefined ? { width: j.media.width } : {}),
+      ...(j.media.height !== undefined ? { height: j.media.height } : {}),
+      ...(j.media.thumbUrl ? { thumbUrl: j.media.thumbUrl } : {}),
+    });
+  } else if (oldRef && oldRef !== ref) {
+    void audioStoreOf()
+      .delete(oldRef)
+      .catch(() => undefined);
+  }
+
+  const nextMeta: PendingIntake = {
+    ...rt.take.meta,
+    ref: targetMeta.ref,
+    name: targetMeta.name,
+    ...(remainingMeta.length ? { extraClips: remainingMeta } : {}),
+  };
+  if (!remainingMeta.length) delete nextMeta.extraClips;
+
+  rt.take = { ...rt.take, blob: nextBlob, meta: nextMeta };
+  syncPending(rt);
+
+  const nextKind = kindOf(rt.take);
+  patch(id, () => ({
+    title: titleOf(rt.take),
+    kind: nextKind,
+    media: {
+      name: targetMeta.name,
+      mimeType: targetMeta.mimeType || nextBlob.type || 'video/mp4',
+      sizeBytes: targetJob.sizeBytes ?? nextBlob.size,
+      ...(targetJob.durationMs !== undefined ? { durationMs: targetJob.durationMs } : {}),
+      ...(targetJob.width !== undefined ? { width: targetJob.width } : {}),
+      ...(targetJob.height !== undefined ? { height: targetJob.height } : {}),
+      ...(targetJob.thumbUrl ? { thumbUrl: targetJob.thumbUrl } : {}),
+    },
+    extraClips: remainingJob.length ? remainingJob : undefined,
+    transcriptText: undefined,
+    prep: { pct: 2, stage: 'reading' },
+  }));
+  void runPrep(id, rt, nextBlob);
+  return { ok: true };
 }
 
 /** Updates a preparing job's output aspect ratio (16:9, 9:16, 1:1) from the configure screen. */
@@ -368,8 +719,15 @@ async function runPrep(id: string, rt: Runtime, blob: Blob): Promise<void> {
   rt.progressListeners.add(onProgress);
   if (rt.lastProgress) onProgress(rt.lastProgress);
   try {
-    await transcriptOf(rt, base, audio.pcm16k, audio.durationMs);
-    patch(id, () => ({ prep: { pct: 100, stage: 'ready' } }));
+    const tr = await transcriptOf(rt, base, audio.pcm16k, audio.durationMs);
+    const text = tr.words
+      .map((w) => w.text)
+      .join(' ')
+      .trim();
+    patch(id, () => ({
+      prep: { pct: 100, stage: 'ready' },
+      ...(text ? { transcriptText: text } : {}),
+    }));
   } catch {
     // The job transcribes again when it runs; the take itself is fine.
     if (!rt.abort.signal.aborted) patch(id, () => ({ prep: { pct: 100, stage: 'ready' } }));

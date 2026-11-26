@@ -48,6 +48,10 @@ describe('HowItWorksPage', () => {
     expect(screen.getAllByText(/motionpop-builder/i).length).toBeGreaterThan(0);
     expect(screen.getByText(/Optional Bring Your Own Key/i)).toBeTruthy();
     expect(screen.getByText(/Zero-server BYOK safety/i)).toBeTruthy();
+    expect(screen.getByRole('link', { name: /Connect Ollama \/ LM Studio/i }).getAttribute('href')).toBe(
+      '/settings#local-llm',
+    );
+    expect(screen.getAllByText(/setup\.recommend/).length).toBeGreaterThan(0);
 
     // Interactive routing matrix filter works cleanly
     const localBtn = screen.getByRole('button', { name: /On-Device & Local/i });

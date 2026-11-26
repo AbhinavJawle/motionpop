@@ -19,7 +19,7 @@ import { projectLibrary } from '../projects/use-project-list';
 import { validateParams } from '../slots/validate-params';
 import { transcribeOnDevice } from '../transcribe/whisper-client';
 import { probeAndSampleVideo } from '../video/frames';
-import { ingestMediaClipBlob } from '../video/media-bin';
+import { indexUnindexedMediaClips, ingestMediaClipBlob } from '../video/media-bin';
 import type { PipelineDeps } from './run';
 
 /** Default style for new projects until the Styles page lands (spec 14). */
@@ -127,11 +127,20 @@ export function browserPipelineDeps(opts: { credits?: CreditsClient | null } = {
           name: clip.name,
           mimeType: clip.mimeType,
           projectId,
+          ...(clip.kindHint ? { kindHint: clip.kindHint } : {}),
           ...(!store.syncs?.() ? { existingRef: clip.ref } : {}),
         },
         store,
       );
       return probed.clip;
+    },
+    indexMediaClips: async (clips, lockedKinds) => {
+      const router = await getRouter().catch(() => null);
+      const res = await indexUnindexedMediaClips(clips, router, {
+        store: appAudioStore(),
+        ...(lockedKinds?.size ? { lockedKinds } : {}),
+      });
+      return res.clips;
     },
   };
 }

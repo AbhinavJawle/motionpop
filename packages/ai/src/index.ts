@@ -17,6 +17,7 @@ export * from './edit/edit-doc';
 export * from './tasks/note-fix';
 export * from './tasks/prompt-prefill';
 export * from './tasks/recipe-resolve';
+export * from './tasks/setup-recommend';
 export * from './tasks/pip-plan';
 export * from './tasks/pip-quick';
 export * from './tasks/custom-compose';
@@ -69,3 +70,23 @@ export {
   type KeyTestResult,
   type ListModelsResult,
 } from './providers/gemini-byok';
+export {
+  assertSafeLocalLlmTransport,
+  inferLocalLlmPreset,
+  isLoopbackBaseUrl,
+  listLocalLlmModels,
+  LOCAL_LLM_PRESETS,
+  LocalLlmApiKeySchema,
+  LocalLlmBaseUrlSchema,
+  LocalLlmModelSchema,
+  localLlmProvider,
+  LocalLlmPresetSchema,
+  normalizeLocalLlmBaseUrl,
+  redactLocalApiKey,
+  stripThinkingTags,
+  type ListLocalModelsResult,
+  type LocalLlmModelInfo,
+  type LocalLlmPreset,
+  type LocalLlmPresetInfo,
+  type LocalLlmProviderOptions,
+} from './providers/local-llm';

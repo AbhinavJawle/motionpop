@@ -13,7 +13,7 @@ export async function spendWithUi(
   req: SpendRequestInput,
   cfg: CostConfig = APP_CONFIG_DEFAULTS,
 ): Promise<SpendResult | null> {
-  if (client.isByok) return client.spend(req);
+  if (client.isZeroCostFor?.(req.action) ?? client.isByok) return client.spend(req);
   const cost = costOf(req.action, req.units ?? 1, cfg);
   if (blockIfInsufficient({ action: req.action, cost, balance: client.balance() })) return null;
   const result = await client.spend(req);

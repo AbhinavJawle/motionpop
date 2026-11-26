@@ -34,7 +34,7 @@ export const ReelComposeInputSchema = z.object({
   /** What the director/note step decided the new graphic should be. */
   brief: z.string().trim().min(3).max(1200),
   look: z.enum(['mono', 'cream']),
-  layout: z.enum(['split', 'card', 'full', 'speaker']),
+  layout: z.enum(['split', 'card', 'pip', 'full', 'speaker']),
   /** Stage aspect ratio (`16:9` = 1280×720, `1:1` = 720×720, `9:16` = 720×1280). */
   format: z.enum(['16:9', '9:16', '1:1']).optional(),
   /** True for standalone graphics-only compositions (no speaker video, no voiceover). */

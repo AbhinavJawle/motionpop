@@ -19,7 +19,9 @@ import {
   setReelCaptionStyle,
   setReelCaptions,
   setReelLook,
+  setReelSceneClip,
   setReelStyle,
+  updateReelClipScene,
 } from './reel';
 
 const plan: ReelPlan = {
@@ -194,5 +196,82 @@ describe('reel scene slot commands (resize, delete, append)', () => {
     expect(next.durationMs).toBe(9500);
     expect(next.reel?.scenes[2]).toMatchObject({ startMs: 6000, endMs: 9500, layout: 'full' });
     expect(cmd.undo(next)).toEqual(p);
+  });
+
+  it('binds, updates, clears, and undoes native Media Bin clip scenes on a reel (spec 48)', () => {
+    const base = project();
+    const withMedia: EditorProject = {
+      ...base,
+      video: {
+        src: 'idb:vid',
+        width: 1080,
+        height: 1920,
+        originalDurationMs: 6000,
+        cuts: [],
+        punchIns: [],
+        defaultOverlayAnchor: 'top-right',
+      },
+      mediaBin: [
+        {
+          id: 'clip-screen',
+          name: 'app-walkthrough.mp4',
+          src: 'idb:clip-screen',
+          kind: 'screen-recording',
+          mimeType: 'video/mp4',
+          width: 1920,
+          height: 1080,
+          durationMs: 14_000,
+          moments: [
+            {
+              startMs: 2500,
+              endMs: 6500,
+              focusX: 0.72,
+              focusY: 0.28,
+              zoom: 1.6,
+              description: 'Pricing chart click',
+            },
+          ],
+        },
+      ],
+    };
+
+    const bind = setReelSceneClip('r1', 'clip-screen');
+    const bound = bind.do(withMedia);
+    expect(bound.reel?.scenes[0]?.layout).toBe('pip');
+    expect(bound.reel?.scenes[0]?.content).toMatchObject({
+      template: 'clip',
+      clipId: 'clip-screen',
+      fit: 'screen-window',
+      clipStartMs: 2500,
+      focusX: 0.72,
+      focusY: 0.28,
+      zoom: 1.6,
+      audioMode: 'mute',
+    });
+    expect(bind.undo(bound)).toEqual(withMedia);
+
+    const upd = updateReelClipScene('r1', {
+      layout: 'full',
+      fit: 'cover',
+      zoom: 1.9,
+      audioMode: 'duck',
+      clipStartMs: 4000,
+    });
+    const updated = upd.do(bound);
+    expect(updated.reel?.scenes[0]?.layout).toBe('full');
+    expect(updated.reel?.scenes[0]?.content).toMatchObject({
+      template: 'clip',
+      fit: 'cover',
+      zoom: 1.9,
+      audioMode: 'duck',
+      clipStartMs: 4000,
+    });
+    expect(upd.undo(updated)).toEqual(bound);
+
+    const clear = setReelSceneClip('r1', null);
+    const cleared = clear.do(updated);
+    expect(cleared.reel?.scenes[0]?.layout).toBe('speaker');
+    expect(cleared.reel?.scenes[0]?.content).toEqual({ template: 'none' });
+    expect(clear.undo(cleared)).toEqual(updated);
   });
 });
