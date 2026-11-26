@@ -19,7 +19,13 @@ import {
 } from './ai-status';
 
 const reset = () =>
-  useAIStatusStore.setState({ availability: 'checking', setupProgress: null, detected: false });
+  useAIStatusStore.setState({
+    availability: 'checking',
+    setupActive: false,
+    setupProgress: null,
+    detected: false,
+    setupError: null,
+  });
 beforeEach(() => {
   reset();
   h.firebase = true;
@@ -86,26 +92,36 @@ describe('on-device status', () => {
     return create;
   }
 
-  it('set-up only starts from "downloadable", streams progress and ends available', async () => {
+  it('set-up starts from "downloadable" or passive "downloading", streams progress and ends available', async () => {
     const create = stubPromptApi('ok', [0.34, 1]);
     await setUpOnDevice();
     expect(create).not.toHaveBeenCalled();
-    useAIStatusStore.setState({ availability: 'downloadable' });
+    useAIStatusStore.setState({ availability: 'downloadable', setupActive: false });
     await setUpOnDevice();
     expect(create).toHaveBeenCalledOnce();
     expect(useAIStatusStore.getState()).toMatchObject({
       availability: 'available',
+      setupActive: false,
+      setupProgress: null,
+    });
+    // Passive Chrome 'downloading' (setupActive: false) can also be completed in one go.
+    useAIStatusStore.setState({ availability: 'downloading', setupActive: false });
+    await setUpOnDevice();
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(useAIStatusStore.getState()).toMatchObject({
+      availability: 'available',
+      setupActive: false,
       setupProgress: null,
     });
   });
 
   it('a failed set-up (Chrome aborts the download) goes back to "downloadable" with a reason', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    useAIStatusStore.setState({ availability: 'downloadable', setupError: null });
+    useAIStatusStore.setState({ availability: 'downloadable', setupActive: false, setupError: null });
     stubPromptApi(new DOMException('signal is aborted without reason', 'AbortError'));
     await setUpOnDevice();
     const st = useAIStatusStore.getState();
-    expect(st).toMatchObject({ availability: 'downloadable', setupProgress: null });
+    expect(st).toMatchObject({ availability: 'downloadable', setupActive: false, setupProgress: null });
     expect(st.setupError).toMatch(/free disk space/);
   });
 });

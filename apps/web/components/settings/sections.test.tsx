@@ -19,7 +19,7 @@ const h = vi.hoisted(() => ({
     settings: unknown;
   },
   prefer: { preferOnDevice: true, loaded: true, save: vi.fn(() => Promise.resolve(true)) },
-  status: { availability: 'available', setupProgress: null as number | null },
+  status: { availability: 'available', setupActive: false, setupProgress: null as number | null },
   setUp: vi.fn(),
   usage: { status: 'ready', scope: 'account', summary: undefined as unknown },
   ledger: { status: 'ready', rows: [] } as unknown,
@@ -64,7 +64,7 @@ beforeEach(() => {
   h.credits = { balance: 17, plan: 'free', settings: null };
   h.prefer.save.mockClear();
   h.prefer.preferOnDevice = true;
-  h.status = { availability: 'available', setupProgress: null };
+  h.status = { availability: 'available', setupActive: false, setupProgress: null };
   h.setUp.mockClear();
   h.balance = 17;
   h.ledger = { status: 'ready', rows: [] };
@@ -126,7 +126,7 @@ describe('AISection', () => {
 
   it('warns before enabling on-device AI when the model is not yet downloaded', () => {
     h.prefer.preferOnDevice = false;
-    h.status = { availability: 'downloadable', setupProgress: null };
+    h.status = { availability: 'downloadable', setupActive: false, setupProgress: null };
     render(<AISection variant="page" />);
     const toggle = screen.getByRole('switch', { name: 'Use on-device AI (Gemini Nano)' });
     fireEvent.click(toggle);
@@ -150,7 +150,7 @@ describe('AISection', () => {
   });
 
   it('offers set-up when the model can be downloaded, and shows progress while it does', () => {
-    h.status = { availability: 'downloadable', setupProgress: null };
+    h.status = { availability: 'downloadable', setupActive: false, setupProgress: null };
     const { unmount } = render(<AISection variant="page" />);
     // The download is optional and large: the button opens a warning first (founder, 2026-11-16).
     fireEvent.click(screen.getByRole('button', { name: 'Set up on-device AI' }));
@@ -162,7 +162,13 @@ describe('AISection', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Download model' }));
     expect(h.setUp).toHaveBeenCalledOnce();
     unmount();
-    h.status = { availability: 'downloading', setupProgress: 0.34 };
+    // Passive Chrome 'downloading' without setupActive still offers "Set up on-device AI" in one go.
+    h.status = { availability: 'downloading', setupActive: false, setupProgress: null };
+    const passive = render(<AISection variant="page" />);
+    expect(screen.getByRole('button', { name: 'Set up on-device AI' })).toBeTruthy();
+    passive.unmount();
+
+    h.status = { availability: 'downloading', setupActive: true, setupProgress: 0.34 };
     render(<AISection variant="page" />);
     expect(
       within(screen.getByTestId('on-device-status')).getByText('Setting up · 34 %'),
@@ -174,7 +180,7 @@ describe('AISection', () => {
   });
 
   it('links to the instructions when the browser has no on-device model', () => {
-    h.status = { availability: 'unavailable', setupProgress: null };
+    h.status = { availability: 'unavailable', setupActive: false, setupProgress: null };
     render(<AISection variant="page" />);
     const link = screen.getByRole('link', { name: 'How to turn it on' });
     expect(link.getAttribute('href')).toContain('github.com');

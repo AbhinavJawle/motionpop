@@ -15,6 +15,8 @@ export type Availability =
 
 interface AIStatusState {
   availability: Availability;
+  /** True only while a user-initiated download from Settings is actively running. */
+  setupActive: boolean;
   /** 0..1 while the model downloads, else null. */
   setupProgress: number | null;
   detected: boolean;
@@ -26,6 +28,7 @@ interface AIStatusState {
 
 export const useAIStatusStore = create<AIStatusState>(() => ({
   availability: 'checking',
+  setupActive: false,
   setupProgress: null,
   detected: false,
   online: true,
@@ -104,18 +107,20 @@ let setupAbort: AbortController | null = null;
  * to "Set up"; Chrome manages the model itself and may still finish a download it already began.
  */
 export function cancelSetUp(): void {
-  if (useAIStatusStore.getState().availability !== 'downloading') return;
+  const s = useAIStatusStore.getState();
+  if (!s.setupActive && s.availability !== 'downloading') return;
   setupAbort?.abort();
   setupAbort = null;
   useAIStatusStore.setState({
     availability: 'downloadable',
+    setupActive: false,
     setupProgress: null,
     setupError: 'Download cancelled.',
   });
 }
 
 /**
- * Downloads the on-device model. Call it from a click handler only. Never throws.
+ * Downloads the on-device model. Call it from a click handler only (Settings). Never throws.
  *
  * `LanguageModel.create()` is called before any `await`, so it runs inside the click's user
  * activation (a download needs one). We call the Prompt API directly instead of the SDK's
@@ -125,13 +130,26 @@ export function cancelSetUp(): void {
  */
 export async function setUpOnDevice(): Promise<void> {
   const s = useAIStatusStore.getState();
-  if (s.availability !== 'downloadable') return;
-  const api = (globalThis as { LanguageModel?: PromptApiCreate }).LanguageModel;
-  if (!api) {
-    useAIStatusStore.setState({ availability: 'unavailable', setupProgress: null });
+  // Allow starting from both 'downloadable' and a passive Chrome 'downloading' state when no
+  // user-initiated setup is already running, so the user can complete setup in one go in Settings.
+  if (s.setupActive || (s.availability !== 'downloadable' && s.availability !== 'downloading')) {
     return;
   }
-  useAIStatusStore.setState({ availability: 'downloading', setupProgress: 0, setupError: null });
+  const api = (globalThis as { LanguageModel?: PromptApiCreate }).LanguageModel;
+  if (!api) {
+    useAIStatusStore.setState({
+      availability: 'unavailable',
+      setupActive: false,
+      setupProgress: null,
+    });
+    return;
+  }
+  useAIStatusStore.setState({
+    availability: 'downloading',
+    setupActive: true,
+    setupProgress: 0,
+    setupError: null,
+  });
   const abort = new AbortController();
   setupAbort = abort;
   try {
@@ -146,7 +164,11 @@ export async function setUpOnDevice(): Promise<void> {
     session.destroy?.();
     if (abort.signal.aborted) return;
     setupAbort = null;
-    useAIStatusStore.setState({ availability: 'available', setupProgress: null });
+    useAIStatusStore.setState({
+      availability: 'available',
+      setupActive: false,
+      setupProgress: null,
+    });
   } catch (err) {
     // A cancel already reset the state and its message.
     if (abort.signal.aborted) return;
@@ -154,6 +176,7 @@ export async function setUpOnDevice(): Promise<void> {
     console.warn('On-device set-up failed', err);
     useAIStatusStore.setState({
       availability: 'downloadable',
+      setupActive: false,
       setupProgress: null,
       setupError:
         'Chrome stopped the download. It needs about 22 GB of free disk space and a supported GPU or 16 GB of RAM.',
@@ -163,9 +186,10 @@ export async function setUpOnDevice(): Promise<void> {
 
 export function useAIStatus(): Pick<
   AIStatusState,
-  'availability' | 'setupProgress' | 'online' | 'setupError'
+  'availability' | 'setupActive' | 'setupProgress' | 'online' | 'setupError'
 > {
   const availability = useAIStatusStore((s) => s.availability);
+  const setupActive = useAIStatusStore((s) => s.setupActive);
   const setupProgress = useAIStatusStore((s) => s.setupProgress);
   const online = useAIStatusStore((s) => s.online);
   const setupError = useAIStatusStore((s) => s.setupError);
@@ -173,5 +197,5 @@ export function useAIStatus(): Pick<
     void detectAvailability();
     return watchConnection();
   }, []);
-  return { availability, setupProgress, online, setupError };
+  return { availability, setupActive, setupProgress, online, setupError };
 }

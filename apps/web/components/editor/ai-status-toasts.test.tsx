@@ -39,7 +39,9 @@ beforeEach(() => {
   window.sessionStorage.clear();
   useAIStatusStore.setState({
     availability: 'checking',
+    setupActive: false,
     setupProgress: null,
+    setupError: null,
     detected: true, // no real detection in these tests
     online: true,
   });
@@ -47,46 +49,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('AIStatusToasts', () => {
-  it('shows the mint toast once when on-device AI is available', () => {
-    render(<AIStatusToasts />);
-    expect(h.device).not.toHaveBeenCalled();
-    set({ availability: 'available' });
-    expect(h.device).toHaveBeenCalledTimes(1);
-    expect(h.device).toHaveBeenCalledWith(
-      'On-device AI ready',
-      'Small edits run instantly on your device, free and private.',
-    );
-    // Another editor mounted in the same session says nothing.
-    cleanup();
-    useAIStatusStore.setState({ availability: 'checking' });
+  it('stays completely quiet on startup for available, unavailable, downloadable, or passive Chrome downloading', () => {
     render(<AIStatusToasts />);
     set({ availability: 'available' });
-    expect(h.device).toHaveBeenCalledTimes(1);
-  });
-
-  it('shows the violet toast when unavailable, without a setup action', () => {
-    render(<AIStatusToasts />);
     set({ availability: 'unavailable' });
-    expect(h.cloud).toHaveBeenCalledWith(
-      'Using cloud AI',
-      "Your browser doesn't support on-device AI yet. Everything still works.",
-    );
+    set({ availability: 'downloadable' });
+    // Passive Chrome 'downloading' (setupActive: false) must never pop up a progress toast.
+    set({ availability: 'downloading', setupActive: false, setupProgress: null });
+    expect(h.device).not.toHaveBeenCalled();
+    expect(h.cloud).not.toHaveBeenCalled();
+    expect(h.error).not.toHaveBeenCalled();
   });
 
-  it('never offers the download in the editor; it points to Settings instead', () => {
+  it('shows progress and ready toasts only for a user-initiated download from Settings', () => {
     render(<AIStatusToasts />);
-    set({ availability: 'downloadable' });
-    expect(h.cloud).toHaveBeenCalledWith(
-      'Using cloud AI',
-      'Edits run in the cloud. Optional on-device AI is in Settings.',
-    );
-    expect(h.cloud.mock.calls[0]).toHaveLength(2);
-  });
-
-  it('keeps a persistent progress toast while downloading, then a mint toast and no progress toast', () => {
-    render(<AIStatusToasts />);
-    set({ availability: 'downloadable' });
-    set({ availability: 'downloading', setupProgress: 0 });
+    set({ availability: 'downloadable', setupActive: false });
+    set({ availability: 'downloading', setupActive: true, setupProgress: 0 });
     set({ setupProgress: 0.34 });
     const last = h.device.mock.calls.at(-1) as [
       string,
@@ -95,30 +73,46 @@ describe('AIStatusToasts', () => {
     ];
     expect(last[0]).toBe('Setting up on-device AI · 34 %');
     expect(last[2]).toEqual({ id: 'ai-setup', duration: Infinity });
-    set({ availability: 'available', setupProgress: null });
+    set({ availability: 'available', setupActive: false, setupProgress: null });
     expect(h.dismiss).toHaveBeenCalledWith('ai-setup');
     expect(h.device.mock.calls.at(-1)?.[0]).toBe('On-device AI ready');
   });
 
-  it('a failed setup closes the progress toast and says so', () => {
+  it('closes the progress toast on failure (with error) or cancel (silently)', () => {
     render(<AIStatusToasts />);
-    set({ availability: 'downloadable' });
-    set({ availability: 'downloading', setupProgress: 0.1 });
-    set({ availability: 'downloadable', setupProgress: null });
+    set({ availability: 'downloading', setupActive: true, setupProgress: 0.1 });
+    set({
+      availability: 'downloadable',
+      setupActive: false,
+      setupProgress: null,
+      setupError: 'Chrome stopped the download.',
+    });
     expect(h.dismiss).toHaveBeenCalledWith('ai-setup');
     expect(h.error).toHaveBeenCalledWith(expect.stringContaining("Couldn't set up on-device AI"));
+
+    h.error.mockClear();
+    h.dismiss.mockClear();
+    set({ availability: 'downloading', setupActive: true, setupProgress: 0.2, setupError: null });
+    set({
+      availability: 'downloadable',
+      setupActive: false,
+      setupProgress: null,
+      setupError: 'Download cancelled.',
+    });
+    expect(h.dismiss).toHaveBeenCalledWith('ai-setup');
+    expect(h.error).not.toHaveBeenCalled();
   });
 
-  it('says nothing in local mode (no Firebase, so no cloud) or under the fake-AI flag without ?aiToasts=1', () => {
+  it('says nothing in local mode (no Firebase) or under the fake-AI flag without ?aiToasts=1', () => {
     h.firebase = false;
     render(<AIStatusToasts />);
-    set({ availability: 'unavailable' });
-    expect(h.cloud).not.toHaveBeenCalled();
+    set({ availability: 'downloading', setupActive: true, setupProgress: 0.5 });
+    expect(h.device).not.toHaveBeenCalled();
     cleanup();
     h.fake = true;
-    useAIStatusStore.setState({ availability: 'checking' });
+    useAIStatusStore.setState({ availability: 'checking', setupActive: false });
     render(<AIStatusToasts />);
-    set({ availability: 'available' });
+    set({ availability: 'downloading', setupActive: true, setupProgress: 0.5 });
     expect(h.device).not.toHaveBeenCalled();
   });
 });

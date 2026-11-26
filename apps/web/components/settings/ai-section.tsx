@@ -45,14 +45,18 @@ export function statusView(availability: Availability, progress: number | null):
 /** AI & models (R6.3): the on-device Gemini Nano switch, details, status and usage chart. */
 export function AISection({ variant }: { variant: SettingsVariant }) {
   const { preferOnDevice, loaded, save } = usePreferOnDevice();
-  const { availability, setupProgress, setupError } = useAIStatus();
+  const { availability, setupActive, setupProgress, setupError } = useAIStatus();
   const { balance } = useCredits();
   const usage = useUsageSummary(balance);
-  const status = statusView(availability, setupProgress);
+  // Treat a passive Chrome 'downloading' state (not started by the user here) as 'downloadable'
+  // so Settings lets the user explicitly download & complete setup in one go.
+  const effectiveAvailability: Availability =
+    availability === 'downloading' && !setupActive ? 'downloadable' : availability;
+  const status = statusView(effectiveAvailability, setupProgress);
   const [confirmMode, setConfirmMode] = useState<'toggle' | 'setup' | null>(null);
 
   const handleToggleChange = (next: boolean) => {
-    if (next && availability !== 'available' && availability !== 'downloading') {
+    if (next && effectiveAvailability !== 'available' && effectiveAvailability !== 'downloading') {
       setConfirmMode('toggle');
       return;
     }
@@ -63,14 +67,14 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
     if (confirmMode === 'toggle' || !preferOnDevice) {
       void save(true);
     }
-    if (availability === 'downloadable') {
+    if (effectiveAvailability === 'downloadable') {
       void setUpOnDevice();
     }
   };
 
   const confirmLabel =
     confirmMode === 'toggle'
-      ? availability === 'downloadable'
+      ? effectiveAvailability === 'downloadable'
         ? 'Enable & download model'
         : 'Enable on-device AI'
       : 'Download model';
@@ -132,22 +136,22 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 rounded-chip bg-card-2 px-3 py-2.5">
         <div className="flex min-w-0 items-center gap-2" data-testid="on-device-status">
-          <StatusDot tone={status.tone} pulse={availability === 'downloading'} />
+          <StatusDot tone={status.tone} pulse={effectiveAvailability === 'downloading'} />
           <span className="text-xs leading-4" role="status">
             {status.label}
           </span>
         </div>
-        {availability === 'downloadable' && (
+        {effectiveAvailability === 'downloadable' && (
           <Button variant="ai" size="sm" onClick={() => setConfirmMode('setup')}>
             Set up on-device AI
           </Button>
         )}
-        {availability === 'downloading' && (
+        {effectiveAvailability === 'downloading' && (
           <Button variant="ghost" size="sm" onClick={cancelSetUp}>
             Cancel
           </Button>
         )}
-        {availability === 'unavailable' && (
+        {effectiveAvailability === 'unavailable' && (
           <a
             href={ON_DEVICE_HELP_URL}
             target="_blank"
@@ -159,7 +163,7 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
         )}
       </div>
 
-      {setupError && availability === 'downloadable' && (
+      {setupError && effectiveAvailability === 'downloadable' && (
         <p className="mt-2 text-xs leading-4 text-text-2" role="alert">
           {setupError}
         </p>
