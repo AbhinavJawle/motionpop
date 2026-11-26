@@ -39,18 +39,23 @@ function view(over: Partial<Parameters<typeof NoteView>[0]> = {}) {
 }
 
 describe('NoteInput', () => {
-  it('saves on Enter with the trimmed text and cancels on Escape', () => {
+  it('saves on Enter with the trimmed text, ignores Shift+Enter, and cancels on Escape', () => {
     const onSave = vi.fn();
     const onCancel = vi.fn();
     render(
       <NoteInput n={2} placement={placement} route={DEVICE} onSave={onSave} onCancel={onCancel} />,
     );
     const input = screen.getByLabelText('What should change?');
+    expect(input.tagName).toBe('TEXTAREA');
     fireEvent.keyDown(input, { key: 'Enter' }); // empty: nothing
     expect(onSave).not.toHaveBeenCalled();
     fireEvent.change(input, { target: { value: '  make it slower ' } });
+    fireEvent.keyDown(input, { key: 'Enter', shiftKey: true }); // Shift+Enter: newline, does not submit
+    expect(onSave).not.toHaveBeenCalled();
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onSave).toHaveBeenCalledWith('make it slower');
+    fireEvent.click(screen.getByRole('button', { name: 'Apply note' }));
+    expect(onSave).toHaveBeenCalledTimes(2);
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(onCancel).toHaveBeenCalled();
   });
@@ -102,5 +107,16 @@ describe('NoteView', () => {
     cleanup();
     view({ notice: { kind: 'escalate', message: 'That needs a new graphic. Try Generate.' } });
     expect(screen.getByText('That needs a new graphic. Try Generate.')).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Try in the cloud/ })).toBeTruthy();
+    cleanup();
+    view({
+      notice: {
+        kind: 'escalate',
+        message: 'Cannot retouch the speaker video.',
+        offerCloud: false,
+      },
+    });
+    expect(screen.getByText('Cannot retouch the speaker video.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Try in the cloud/ })).toBeNull();
   });
 });

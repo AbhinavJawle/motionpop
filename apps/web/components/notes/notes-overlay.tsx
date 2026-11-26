@@ -163,7 +163,14 @@ export function NotesOverlay(p: NotesOverlayProps) {
         ),
       );
     } else if (outcome.kind === 'escalate') {
-      setNotices((cur) => ({ ...cur, [noteId]: { kind: 'escalate', message: outcome.message } }));
+      setNotices((cur) => ({
+        ...cur,
+        [noteId]: {
+          kind: 'escalate',
+          message: outcome.message,
+          offerCloud: r.kind === 'device',
+        },
+      }));
     } else if (outcome.kind === 'device-failed') {
       setNotices((cur) => ({ ...cur, [noteId]: { kind: 'device-failed' } }));
     } else if (outcome.kind === 'cloud-failed') {

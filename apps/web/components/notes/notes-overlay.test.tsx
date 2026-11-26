@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { cleanup, render, screen, act } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, act, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Route } from '@/lib/ai/route';
 import { editorStore } from '@/lib/stores/editor';
@@ -83,5 +83,38 @@ describe('NotesOverlay keyboard path (Enter with the pen on)', () => {
     expect(enterOn(screen.getByRole('button', { name: 'Draw a note' })).defaultPrevented).toBe(
       false,
     );
+  });
+});
+
+describe('NotesOverlay escalation notice', () => {
+  it('hides "Try in the cloud" when a note already ran in the cloud, and shows it after on-device escalation', async () => {
+    const note = {
+      id: 'n1',
+      tMs: 0,
+      shape: { kind: 'circle' as const, points: [0.5, 0.3, 0.2, 0.1] },
+      text: 'make it pop',
+      status: 'open' as const,
+    };
+    const { unmount } = overlay({
+      notes: [note],
+      route: CLOUD,
+      cloudRoute: CLOUD,
+      run: async () => ({ kind: 'escalate', message: 'Cloud could not change that.' }),
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Fix it' }));
+    await waitFor(() => expect(screen.getByText('Cloud could not change that.')).toBeTruthy());
+    expect(screen.queryByRole('button', { name: /Try in the cloud/ })).toBeNull();
+    unmount();
+
+    const DEVICE: Route = { kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: false };
+    overlay({
+      notes: [note],
+      route: DEVICE,
+      cloudRoute: CLOUD,
+      run: async () => ({ kind: 'escalate', message: 'Needs cloud AI.' }),
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Fix it' }));
+    await waitFor(() => expect(screen.getByText('Needs cloud AI.')).toBeTruthy());
+    expect(screen.getByRole('button', { name: /Try in the cloud/ })).toBeTruthy();
   });
 });

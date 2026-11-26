@@ -1,9 +1,9 @@
 'use client';
 
 import type { FrameNote } from '@motionpop/schemas';
-import { X } from 'lucide-react';
+import { ArrowUp, X } from 'lucide-react';
 import { motion } from 'motion/react';
-import { useState, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { Chip, CostChip } from '@/components/ui/chip';
 import { Shimmer } from '@/components/ui/shimmer';
 import { cn } from '@/lib/cn';
@@ -21,11 +21,28 @@ export function NumberDisc({ n }: { n: number }) {
   return (
     <span
       aria-hidden
-      className="flex size-[15px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(180deg,#8070DA,#554496)] text-[9px] leading-none font-medium text-[#fff]"
+      className="flex size-[16px] shrink-0 items-center justify-center rounded-full bg-[linear-gradient(180deg,#8070DA,#554496)] text-[10px] leading-none font-medium text-[#fff]"
     >
       {n}
     </span>
   );
+}
+
+/**
+ * Anchors a floating bubble to its placement while allowing it to extend cleanly past narrow
+ * portrait frames without getting clipped or fighting Framer Motion's scale transform.
+ */
+function anchorStyle(placement: BubblePlacement, minWidthPx: number, anchorBottom = false): CSSProperties {
+  const centerX = placement.box.x + placement.box.w / 2;
+  const vertical: CSSProperties = anchorBottom
+    ? { bottom: pct(Math.max(0.02, 1 - (placement.box.y + placement.box.h))) }
+    : { top: pct(placement.box.y) };
+  return {
+    left: pct(centerX),
+    transform: 'translateX(-50%)',
+    width: `min(88vw, max(${pct(placement.box.w)}, ${minWidthPx}px))`,
+    ...vertical,
+  };
 }
 
 /**
@@ -36,40 +53,45 @@ export function BubbleShell({
   placement,
   label,
   busy,
+  minWidthPx = 240,
+  anchorBottom = false,
+  zClass = 'z-30',
   children,
   className,
 }: {
   placement: BubblePlacement;
   label: string;
   busy?: boolean;
+  minWidthPx?: number;
+  anchorBottom?: boolean;
+  zClass?: string;
   children: ReactNode;
   className?: string;
 }) {
   return (
-    <motion.div
-      {...popIn}
-      role="group"
-      aria-label={label}
-      aria-busy={busy}
-      data-note-bubble
-      className={cn(
-        'pointer-events-auto absolute z-30 flex min-h-[28px] items-center gap-2 overflow-hidden rounded-[10px] bg-paper px-2 py-[5px] text-[13px] leading-[17px] text-ink shadow-glass',
-        className,
-      )}
-      style={{
-        left: pct(placement.box.x),
-        top: pct(placement.box.y),
-        width: pct(placement.box.w),
-        minHeight: pct(placement.box.h),
-      }}
+    <div
+      className={cn('pointer-events-none absolute', zClass)}
+      style={anchorStyle(placement, minWidthPx, anchorBottom)}
     >
-      {busy && <Shimmer tone="violet" />}
-      {children}
-    </motion.div>
+      <motion.div
+        {...popIn}
+        role="group"
+        aria-label={label}
+        aria-busy={busy}
+        data-note-bubble
+        className={cn(
+          'pointer-events-auto relative flex min-h-[30px] w-full items-center gap-2 overflow-hidden rounded-[12px] border border-line-strong bg-paper px-2.5 py-1.5 text-[13px] leading-[18px] text-text shadow-glass backdrop-blur-md',
+          className,
+        )}
+      >
+        {busy && <Shimmer tone="violet" />}
+        {children}
+      </motion.div>
+    </div>
   );
 }
 
-/** The draft: "What should change?", with the route chip, Enter saves and Esc cancels. */
+/** The draft: roomy multi-line composer ("What should change?"), Enter saves, Shift+Enter newline, Esc cancels. */
 export function NoteInput({
   n,
   placement,
@@ -87,48 +109,108 @@ export function NoteInput({
   onCancel: () => void;
 }) {
   const [text, setText] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const chip = chipFor(route);
   const reason = route.kind === 'disabled' ? route.reason : null;
-  const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+  const canSubmit = text.trim() !== '';
+
+  // Auto-grow height up to ~5 lines so long edits stay fully visible while typing.
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(132, Math.max(48, el.scrollHeight))}px`;
+  }, [text]);
+
+  const submit = () => {
+    const trimmed = text.trim();
+    if (trimmed !== '') onSave(trimmed);
+  };
+
+  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.nativeEvent.isComposing) return;
-    if (e.key === 'Enter') {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (text.trim() !== '') onSave(text.trim());
+      submit();
     } else if (e.key === 'Escape') {
       e.stopPropagation();
       onCancel();
     }
   };
+
   return (
-    <BubbleShell placement={placement} label={`New note ${n}`}>
-      <NumberDisc n={n} />
-      <input
-        autoFocus
-        aria-label="What should change?"
-        value={text}
-        maxLength={300}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder="What should change?"
-        className="min-w-0 flex-1 bg-transparent text-[12px] leading-4 text-text outline-none placeholder:text-placeholder"
-      />
-      {reason ? (
-        <Chip tone="neutral" className="shrink-0">
-          {reason}
-        </Chip>
-      ) : chip ? (
-        <CostChip
-          route={chip.route}
-          credits={chip.route === 'cloud' ? chip.credits : 0}
-          {...(chip.route === 'cloud' && cost ? { label: cost.label, hint: cost.hint } : {})}
+    <BubbleShell
+      placement={placement}
+      label={`New note ${n}`}
+      minWidthPx={340}
+      anchorBottom={placement.box.y > 0.68}
+      zClass="z-40"
+      className="flex-col items-stretch gap-2 border-violet/50 bg-dialog px-3 py-2.5 shadow-[0_14px_38px_rgba(0,0,0,0.65)] ring-1 ring-white/10"
+    >
+      <div className="flex items-start gap-2.5">
+        <div className="mt-0.5">
+          <NumberDisc n={n} />
+        </div>
+        <textarea
+          ref={textareaRef}
+          autoFocus
+          rows={2}
+          aria-label="What should change?"
+          value={text}
+          maxLength={300}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={onKeyDown}
+          placeholder="What should change?"
+          className="min-h-[48px] w-full min-w-0 flex-1 resize-none bg-transparent text-[14px] leading-[20px] text-text outline-none placeholder:text-text-2/70"
         />
-      ) : null}
+        <button
+          type="button"
+          aria-label="Cancel note"
+          onClick={onCancel}
+          className="-mt-0.5 -mr-1 shrink-0 rounded-md p-1 text-text-3 transition-colors hover:bg-white/5 hover:text-text"
+        >
+          <X className="size-3.5" strokeWidth={1.75} aria-hidden />
+        </button>
+      </div>
+      <div className="flex items-center justify-between gap-2 border-t border-line-soft pt-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {reason ? (
+            <Chip tone="neutral" className="shrink-0">
+              {reason}
+            </Chip>
+          ) : chip ? (
+            <CostChip
+              route={chip.route}
+              credits={chip.route === 'cloud' ? chip.credits : 0}
+              {...(chip.route === 'cloud' && cost ? { label: cost.label, hint: cost.hint } : {})}
+            />
+          ) : null}
+          <span className="hidden text-[11px] text-text-3 sm:inline">Enter to apply</span>
+        </div>
+        <button
+          type="button"
+          aria-label="Apply note"
+          disabled={!canSubmit}
+          onClick={submit}
+          className={cn(
+            'inline-flex shrink-0 items-center gap-1 rounded-md px-2.5 py-1 text-[12px] leading-none font-medium transition-colors',
+            canSubmit
+              ? 'bg-violet text-[#fff] hover:bg-violet/90'
+              : 'cursor-not-allowed bg-white/5 text-text-4',
+          )}
+        >
+          Apply
+          <ArrowUp className="size-3" strokeWidth={2} aria-hidden />
+        </button>
+      </div>
     </BubbleShell>
   );
 }
 
 export type NoteNotice =
-  { kind: 'escalate'; message: string } | { kind: 'device-failed' } | { kind: 'failed' };
+  | { kind: 'escalate'; message: string; offerCloud?: boolean }
+  | { kind: 'device-failed' }
+  | { kind: 'failed' };
 
 /** A saved note: its text, then what state it is in. */
 export function NoteView({
@@ -169,6 +251,8 @@ export function NoteView({
       placement={placement}
       label={`Note ${n}: ${note.text}`}
       busy={busy}
+      minWidthPx={notice ? 280 : 240}
+      anchorBottom={placement.box.y > 0.68}
       className="group flex-wrap"
     >
       <NumberDisc n={n} />
@@ -222,7 +306,7 @@ export function NoteView({
           {notice.kind === 'escalate' && (
             <>
               <span>{notice.message}</span>
-              {canTryCloud && (
+              {canTryCloud && notice.offerCloud !== false && (
                 <button
                   type="button"
                   onClick={onTryCloud}

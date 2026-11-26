@@ -366,7 +366,7 @@ export function PreviewPane() {
         <div
           data-preview-frame
           className={cn(
-            'relative overflow-hidden rounded-[10px] shadow-frame',
+            'relative rounded-[10px] shadow-frame',
             showAlpha ? '' : 'bg-frame',
           )}
           style={{
@@ -381,13 +381,15 @@ export function PreviewPane() {
               : {}),
           }}
         >
-          {isReel ? <ReelPreview transparent={showAlpha} /> : <PreviewPlayer />}
-          <StockOverlaysLayer />
+          <div className="absolute inset-0 z-0 overflow-hidden rounded-[10px]">
+            {isReel ? <ReelPreview transparent={showAlpha} /> : <PreviewPlayer />}
+            <StockOverlaysLayer />
+            <PreviewProgress />
+            <PreviewBadge />
+            <OfflineBanner />
+            {safeZone && <SafeZoneOverlay format={format} />}
+          </div>
           {isReel ? <ReelNotesLayer /> : <FrameNotesLayer />}
-          <PreviewProgress />
-          <PreviewBadge />
-          <OfflineBanner />
-          {safeZone && <SafeZoneOverlay format={format} />}
         </div>
       </div>
 

@@ -92,9 +92,16 @@ export function readReelTarget(
       `[data-reel-scene="${CSS.escape(sceneId)}"]`,
     );
 
-    // Parts: the most specific (smallest) first; a part counts when it meets a tenth of the
-    // circle or the circle sits mostly on it.
-    const parts: { part: ReelNotePart; size: number }[] = [];
+    // Parts: specific overlay elements (caption, tag, hook) first, then graphic vs speaker ordered
+    // by how much of the circle they actually cover (not raw element size — in `card` layout the
+    // speaker box is smaller than the graphic box and would otherwise win even on a minor edge hit).
+    const SPECIFIC = new Set<ReelNotePart>(['caption', 'tag', 'hook']);
+    const hits = new Map<ReelNotePart, { size: number; overlap: number }>();
+    const record = (part: ReelNotePart, size: number, o: number) => {
+      const prev = hits.get(part);
+      if (!prev || o > prev.overlap) hits.set(part, { size, overlap: o });
+    };
+    let speakerBox: Box | null = null;
     for (const el of stageEl.querySelectorAll<HTMLElement>('[data-reel-part]')) {
       const part = el.dataset['reelPart'] as ReelNotePart;
       if (part === 'graphic' || part === 'tag') {
@@ -103,13 +110,45 @@ export function readReelTarget(
       if (!shown(el, stageEl)) continue;
       const b = boxIn(el, stage);
       if (!b) continue;
+      if (part === 'speaker') speakerBox = b;
       const o = overlap(b, reg);
       if (o <= 0 || (o / regArea < 0.1 && o / Math.max(1e-6, area(b)) < 0.5)) continue;
-      if (!parts.some((p) => p.part === part)) parts.push({ part, size: area(b) });
+      record(part, area(b), o);
       if (part === 'caption') out.caption = clean(el.textContent).slice(0, 120);
       if (part === 'hook') out.hook = clean(el.textContent).slice(0, 80);
     }
-    out.parts = parts.sort((a, b) => a.size - b.size).map((p) => p.part);
+    // In `card` layout the graphic panel extends down to the speaker seam, past `cam`'s bottom
+    // margin. Count the visible panel area above the speaker so circles near the bottom of the
+    // graphic card still resolve to `graphic` instead of falling through to `speaker`.
+    if (sceneHost && shown(sceneHost, stageEl)) {
+      const sb = boxIn(sceneHost, stage);
+      if (sb) {
+        const panelBox: Box =
+          speakerBox && speakerBox.y0 > sb.y0 + 0.05
+            ? { x0: sb.x0, y0: sb.y0, x1: sb.x1, y1: Math.min(sb.y1, speakerBox.y0) }
+            : sb;
+        const po = overlap(panelBox, reg);
+        if (po > 0 && po / regArea >= 0.1) {
+          record('graphic', area(panelBox), po);
+        }
+      }
+    }
+    // If the circle is predominantly on the graphic panel and only grazes the speaker edge,
+    // drop `speaker` so the model doesn't misread a graphic edit as a speaker-video edit.
+    const gHit = hits.get('graphic');
+    const sHit = hits.get('speaker');
+    if (gHit && sHit && gHit.overlap / regArea >= 0.5 && sHit.overlap / regArea < 0.25) {
+      hits.delete('speaker');
+    }
+    out.parts = [...hits.entries()]
+      .sort(([pa, a], [pb, b]) => {
+        const sa = SPECIFIC.has(pa) ? 0 : 1;
+        const sb = SPECIFIC.has(pb) ? 0 : 1;
+        if (sa !== sb) return sa - sb;
+        if (sa === 0) return a.size - b.size;
+        return b.overlap - a.overlap;
+      })
+      .map(([part]) => part);
 
     // Texts of the current scene's graphic inside the circle, grouped by their parent element.
     if (sceneHost) {

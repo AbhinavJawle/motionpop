@@ -33,7 +33,7 @@ import {
 } from './director';
 import { REEL_LAYOUTS_AND_TEMPLATES } from './prompt';
 
-export const REEL_NOTE_PROMPT_VERSION = 'v2';
+export const REEL_NOTE_PROMPT_VERSION = 'v3';
 
 const LAYOUTS = ['split', 'card', 'pip', 'full', 'speaker'] as const;
 const PARTS = ['graphic', 'speaker', 'caption', 'tag', 'hook'] as const;
@@ -695,18 +695,25 @@ HOW TO ANSWER
     mistakes; never rewrite what was said.
   - brands: the official domain of any brand you name that is new to the scene.
 - action "compose": the note asks for something the template data can't give: how things move
-  ("snappier", "more dynamic", "animate the numbers"), the style or design of the graphic ("boring",
-  "better symbols", "more premium", "bigger icons", "different colours"), positions, sizes, a custom
+  ("snappier", "more dynamic", "animate the numbers"), visual punch/energy/style ("make it pop",
+  "make it stand out", "looks flat", "boring", "more vibrant", "bolder", "better symbols", "more
+  premium", "bigger icons", "different colours", "upgrade this"), positions, sizes, a custom
   diagram or visual, or anything else visual. Also EVERY change to an AI-written graphic (Graphic
   "custom") except its layout, background or tag, and except replacing it with a template the note
   names. Write "compose": a precise brief for the motion designer, 2–4 sentences: what the graphic
   shows (the exact on-screen words, kept from the current graphic unless the note changes them),
-  how it should look and move to satisfy the note, and what must stay. Add "layout" only when the
-  note asks for a bigger or different area. Never use compose for a plain text, logo or caption fix
-  on a template graphic: that's an edit.
-- action "none": only when the note is about something outside this scene's graphic (the speaker's
-  face or voice, the music, other scenes, the cut). Say why in "message" and what they can do
-  instead, in one short friendly sentence.
+  how it should look and move to satisfy the note (bold hierarchy, contrast/accent color, depth,
+  expressive icons/diagrams, and punchy choreography), and what must stay. Add "layout" only when
+  the note asks for a bigger or different area. Never use compose for a plain text, logo or caption
+  fix on a template graphic: that's an edit.
+- action "none": ONLY when the note EXPLICITLY asks to alter something outside motion graphics (e.g.
+  retouching the speaker's face/skin/clothes/lighting/camera lens, changing the speaker's voice,
+  changing background music, or editing a different scene/cut). Whenever the scene has a graphic,
+  general requests like "make it pop" or "make this better" ALWAYS refer to the graphic — use
+  "compose", NEVER "none". Even on a speaker-only scene with template "none", an energy/visual note
+  like "make it pop" should compose a punchy kinetic overlay graphic rather than refusing. When you
+  genuinely must return "none", say why in "message" and what they can do instead in one short
+  friendly sentence.
 - message: one short sentence saying what you changed or will make, in plain words ("Changed the
   title to 'Work smarter'.", "Making it a snappier graphic with clearer icons.").
 

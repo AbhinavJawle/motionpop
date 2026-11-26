@@ -45,6 +45,7 @@ import type { Route } from '@/lib/ai/route';
 import { composite, fixReelScene, setReel, setReelNoteStatus } from '@/lib/commands';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
 import { spendWithUi } from '@/lib/credits/spend-with-ui';
+import { seekPreview } from '@/lib/editor/preview-bridge';
 import { cropRect, regionOf, type Region } from '@/lib/notes/geometry';
 import { jpegBase64 } from '@/lib/notes/note-fix';
 import type { EditorStore } from '@/lib/stores/editor';
@@ -170,6 +171,7 @@ export async function runReelNoteFix(
   if (state.playing) state.setPlaying(false);
   const noteMs = scene.startMs + note.tMs;
   if (Math.abs(state.playheadMs - noteMs) > 40) state.setPlayhead(noteMs);
+  seekPreview(noteMs);
   const isNoVideoReel =
     Boolean(reel.graphicOnly) ||
     (!project.video && reel.scenes.length > 0 && reel.scenes.every((s) => s.layout === 'full'));
