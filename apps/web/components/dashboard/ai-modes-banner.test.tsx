@@ -13,6 +13,7 @@ const h = vi.hoisted(() => ({
   },
   cancel: vi.fn(),
   byok: { active: false, maskedKey: null as string | null, modelMode: 'balanced' as const },
+  preferOnDevice: true,
 }));
 
 vi.mock('@/lib/ai/ai-status', () => ({
@@ -22,21 +23,28 @@ vi.mock('@/lib/ai/ai-status', () => ({
 vi.mock('@/lib/ai/byok', () => ({
   useByok: () => h.byok,
 }));
+vi.mock('@/lib/settings/use-prefer-on-device', () => ({
+  usePreferOnDevice: () => ({ preferOnDevice: h.preferOnDevice, loaded: true, save: vi.fn() }),
+}));
 
 import { AiModesBanner } from './ai-modes-banner';
 
 beforeEach(() => {
   h.status = { availability: 'available', setupActive: false, setupProgress: null };
   h.byok = { active: false, maskedKey: null, modelMode: 'balanced' };
+  h.preferOnDevice = true;
   h.cancel.mockClear();
 });
 afterEach(cleanup);
 
 describe('AiModesBanner (Dashboard top bar)', () => {
-  it('shows Local on-device AI when ready alongside BYOK links', () => {
+  it('shows green On-Device Gemini Nano status when ready alongside BYOK links', () => {
     render(<AiModesBanner />);
-    expect(screen.getByText('Local on-device AI')).toBeTruthy();
-    expect(screen.getByText('Ready · 0 cr')).toBeTruthy();
+    const status = screen.getByTestId('gemini-nano-status');
+    expect(status.getAttribute('data-nano-state')).toBe('on');
+    expect(status.textContent).toContain('On-Device');
+    expect(status.textContent).toContain('Gemini Nano');
+    expect(screen.getByText(/Ready · 0 cr/)).toBeTruthy();
     expect(screen.getByText('Cloud AI · BYOK')).toBeTruthy();
     expect(screen.getByRole('link', { name: /Add Gemini API key/i }).getAttribute('href')).toBe(
       '/settings#byok',
@@ -46,12 +54,14 @@ describe('AiModesBanner (Dashboard top bar)', () => {
     );
   });
 
-  it('hides Gemini Nano download/setup UI on the dashboard when not yet set up or passively downloading', () => {
+  it('shows red On-Device status without passive download prompts when not yet set up or passively downloading', () => {
     h.status = { availability: 'downloadable', setupActive: false, setupProgress: null };
     h.byok = { active: true, maskedKey: 'AIza••••7890', modelMode: 'balanced' };
     const { unmount } = render(<AiModesBanner />);
 
-    expect(screen.queryByText('Local on-device AI')).toBeNull();
+    const status = screen.getByTestId('gemini-nano-status');
+    expect(status.getAttribute('data-nano-state')).toBe('off');
+    expect(status.textContent).toContain('On-Device');
     expect(screen.queryByRole('button', { name: /Set up Gemini Nano/i })).toBeNull();
     expect(screen.getByText('BYOK active · AIza••••7890')).toBeTruthy();
     expect(screen.getByRole('link', { name: 'AI settings' }).getAttribute('href')).toBe(
@@ -59,18 +69,19 @@ describe('AiModesBanner (Dashboard top bar)', () => {
     );
     unmount();
 
-    // Passive Chrome 'downloading' without setupActive must also stay hidden on the dashboard.
+    // Passive Chrome 'downloading' without setupActive must also show red 'off' with no download prompt.
     h.status = { availability: 'downloading', setupActive: false, setupProgress: null };
     render(<AiModesBanner />);
-    expect(screen.queryByText('Local on-device AI')).toBeNull();
-    expect(screen.queryByText(/Downloading/)).toBeNull();
+    expect(screen.getByTestId('gemini-nano-status').getAttribute('data-nano-state')).toBe('off');
+    expect(screen.queryByRole('button', { name: 'Cancel' })).toBeNull();
   });
 
-  it('shows downloading progress on the dashboard only when explicitly started from Settings', () => {
+  it('shows downloading progress and cancel button on the dashboard when explicitly started from Settings', () => {
     h.status = { availability: 'downloading', setupActive: true, setupProgress: 0.42 };
     render(<AiModesBanner />);
-    expect(screen.getByText('Local on-device AI')).toBeTruthy();
-    expect(screen.getByText('Downloading · 42%')).toBeTruthy();
+    const status = screen.getByTestId('gemini-nano-status');
+    expect(status.getAttribute('data-nano-state')).toBe('downloading');
+    expect(status.textContent).toContain('On-Device · 42%');
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(h.cancel).toHaveBeenCalledOnce();
   });

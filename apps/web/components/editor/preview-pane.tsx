@@ -13,6 +13,7 @@ import {
 } from '@motionpop/schemas';
 import { Grid2x2, Palette, PenLine, RefreshCw, Scan } from 'lucide-react';
 import { toast } from 'sonner';
+import { GeminiNanoStatus } from '@/components/ui/gemini-nano-status';
 import { GlassToolbar, ToolbarDivider } from '@/components/ui/glass-toolbar';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Toggle } from '@/components/ui/toggle';
@@ -27,6 +28,7 @@ import { cn } from '@/lib/cn';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useEditor } from '@/lib/stores/editor';
 import { openRailPanel } from '@/lib/editor/rail-panel';
+import { openSettingsPanel } from '@/lib/editor/settings-panel';
 import { useUploadState } from '@/lib/audio/use-upload-state';
 import { audioRefsOf } from '@/lib/projects/summary';
 import { FrameNotesLayer } from '@/components/notes/frame-notes-layer';
@@ -293,71 +295,74 @@ export function PreviewPane() {
       aria-label="Preview"
       className="relative flex min-w-0 flex-1 flex-col items-center overflow-hidden bg-stage"
     >
-      <GlassToolbar label="Preview tools" className="relative z-30 mt-4 gap-0 px-0">
-        {isReel ? (
-          <ReelTools
-            hasSpeakerVideo={hasSpeakerVideo}
-            graphicOnly={graphicOnly}
-            format={format}
-            transparentPreview={showAlpha}
-            onToggleTransparent={() => setTransparentPreview((v) => !v)}
-            onOpenStyles={() => {
-              openRailPanel('styles');
-              setRail('styles');
-            }}
-          />
-        ) : (
-          <>
-            <PenButton />
-            <ToolbarDivider />
-            <button
-              type="button"
-              onClick={() => {
+      <div className="relative z-30 mt-4 flex w-full flex-wrap items-center justify-center gap-2.5 px-4">
+        <GlassToolbar label="Preview tools" className="gap-0 px-0">
+          {isReel ? (
+            <ReelTools
+              hasSpeakerVideo={hasSpeakerVideo}
+              graphicOnly={graphicOnly}
+              format={format}
+              transparentPreview={showAlpha}
+              onToggleTransparent={() => setTransparentPreview((v) => !v)}
+              onOpenStyles={() => {
                 openRailPanel('styles');
                 setRail('styles');
               }}
-              className="flex items-center gap-2 px-3.5 text-text-2 transition-colors hover:text-text"
-              aria-label={`Style: ${styleName}. Change style`}
-            >
-              <Palette className="size-[16px]" strokeWidth={1.5} aria-hidden />
-              <span className="max-w-40 truncate">{styleName}</span>
-            </button>
-            <ToolbarDivider />
-            <div className="flex items-center gap-2 pr-3.5 pl-3.5">
-              <span className="text-[11px] leading-[14px] font-semibold text-text-2">CC</span>
-              <Dropdown
-                label="Caption style"
-                value={captions.presetId}
-                options={CAPTION_PRESETS}
-                className="text-text-2"
-                onChange={(presetId) => {
-                  if (presetId !== captions.presetId)
-                    exec(setCaptions({ presetId, enabled: true }));
+            />
+          ) : (
+            <>
+              <PenButton />
+              <ToolbarDivider />
+              <button
+                type="button"
+                onClick={() => {
+                  openRailPanel('styles');
+                  setRail('styles');
                 }}
-              />
-              <Toggle
-                checked={captions.enabled}
-                onCheckedChange={(enabled) => exec(setCaptions({ enabled }))}
-                label="Captions"
-                className="ml-1.5"
-              />
-            </div>
-            <ToolbarDivider />
-            <button
-              type="button"
-              aria-pressed={safeZone}
-              onClick={toggleSafeZone}
-              className={cn(
-                'flex items-center gap-[7px] px-3.5 transition-colors',
-                safeZone ? 'text-text' : 'text-text-2 hover:text-text',
-              )}
-            >
-              <Scan className="size-[16px]" strokeWidth={1.5} aria-hidden />
-              Safe zone
-            </button>
-          </>
-        )}
-      </GlassToolbar>
+                className="flex items-center gap-2 px-3.5 text-text-2 transition-colors hover:text-text"
+                aria-label={`Style: ${styleName}. Change style`}
+              >
+                <Palette className="size-[16px]" strokeWidth={1.5} aria-hidden />
+                <span className="max-w-40 truncate">{styleName}</span>
+              </button>
+              <ToolbarDivider />
+              <div className="flex items-center gap-2 pr-3.5 pl-3.5">
+                <span className="text-[11px] leading-[14px] font-semibold text-text-2">CC</span>
+                <Dropdown
+                  label="Caption style"
+                  value={captions.presetId}
+                  options={CAPTION_PRESETS}
+                  className="text-text-2"
+                  onChange={(presetId) => {
+                    if (presetId !== captions.presetId)
+                      exec(setCaptions({ presetId, enabled: true }));
+                  }}
+                />
+                <Toggle
+                  checked={captions.enabled}
+                  onCheckedChange={(enabled) => exec(setCaptions({ enabled }))}
+                  label="Captions"
+                  className="ml-1.5"
+                />
+              </div>
+              <ToolbarDivider />
+              <button
+                type="button"
+                aria-pressed={safeZone}
+                onClick={toggleSafeZone}
+                className={cn(
+                  'flex items-center gap-[7px] px-3.5 transition-colors',
+                  safeZone ? 'text-text' : 'text-text-2 hover:text-text',
+                )}
+              >
+                <Scan className="size-[16px]" strokeWidth={1.5} aria-hidden />
+                Safe zone
+              </button>
+            </>
+          )}
+        </GlassToolbar>
+        <GeminiNanoStatus variant="editor" onOpenSettings={() => openSettingsPanel('ai')} />
+      </div>
 
       <div
         ref={stageRef}
