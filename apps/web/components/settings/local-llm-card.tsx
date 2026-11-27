@@ -10,6 +10,7 @@ import {
 import {
   Check,
   CheckCircle2,
+  ChevronDown,
   Copy,
   Pause,
   Play,
@@ -39,9 +40,23 @@ type Feedback =
   | { kind: 'error'; message: string; corsHint?: boolean };
 
 const PRESET_LIST: LocalLlmPreset[] = ['ollama', 'lmstudio', 'custom'];
+type GuideOs = 'windows' | 'macos' | 'linux';
+const OS_LIST: { id: GuideOs; label: string }[] = [
+  { id: 'windows', label: 'Windows' },
+  { id: 'macos', label: 'macOS' },
+  { id: 'linux', label: 'Linux' },
+];
 const subscribeNoop = () => () => {};
 const getClientOrigin = () => window.location?.origin || '*';
 const getClientIsHttps = () => window.location?.protocol === 'https:';
+const getClientOs = (): GuideOs => {
+  if (typeof navigator === 'undefined') return 'windows';
+  const ua = `${navigator.userAgent ?? ''} ${navigator.platform ?? ''}`.toLowerCase();
+  if (ua.includes('win')) return 'windows';
+  if (ua.includes('mac')) return 'macos';
+  if (ua.includes('linux')) return 'linux';
+  return 'windows';
+};
 
 function CopyCommandButton({
   copied,
@@ -74,6 +89,34 @@ function CopyCommandButton({
   );
 }
 
+function CommandBlock({
+  command,
+  copied,
+  copyLabel,
+  onCopy,
+  page,
+}: {
+  command: string;
+  copied: boolean;
+  copyLabel: string;
+  onCopy: () => void;
+  page: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        'mt-1 flex items-start justify-between gap-2 rounded-md px-2 py-1.5',
+        page ? 'bg-black/8' : 'bg-black/25',
+      )}
+    >
+      <code className="min-w-0 flex-1 break-all font-mono text-[10px] leading-[15px]">
+        {command}
+      </code>
+      <CopyCommandButton copied={copied} label={copyLabel} onCopy={onCopy} />
+    </div>
+  );
+}
+
 /**
  * Local LLM server configuration (Ollama, LM Studio, or any OpenAI-compatible server) inside
  * Settings -> AI & models. Acts as a full local provider for all routed text/JSON directing &
@@ -87,12 +130,16 @@ export function LocalLlmCard({ variant }: { variant: SettingsVariant }) {
   const [apiKey, setApiKey] = useState('');
   const [clearSavedKey, setClearSavedKey] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [selectedOs, setSelectedOs] = useState<GuideOs | null>(null);
   const [models, setModels] = useState<LocalLlmModelInfo[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>({ kind: 'idle' });
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const originHint = useSyncExternalStore(subscribeNoop, getClientOrigin, () => '*');
   const isHttpsOrigin = useSyncExternalStore(subscribeNoop, getClientIsHttps, () => false);
+  const detectedOs = useSyncExternalStore(subscribeNoop, getClientOs, () => 'windows' as GuideOs);
+  const guideOs = selectedOs ?? detectedOs;
   const reqSeqRef = useRef(0);
   const page = variant === 'page';
 
@@ -283,7 +330,11 @@ export function LocalLlmCard({ variant }: { variant: SettingsVariant }) {
 
   const ollamaPullCmd = 'ollama pull qwen3:8b';
   const ollamaCorsCmd = `OLLAMA_ORIGINS="${originHint}" OLLAMA_CONTEXT_LENGTH=16384 ollama serve`;
+  const ollamaMacPermanentCmd = `launchctl setenv OLLAMA_ORIGINS "${originHint}" && launchctl setenv OLLAMA_CONTEXT_LENGTH 16384`;
   const ollamaWinCorsCmd = `$env:OLLAMA_ORIGINS="${originHint}"; $env:OLLAMA_CONTEXT_LENGTH="16384"; ollama serve`;
+  const ollamaWinPermanentCmd = `[System.Environment]::SetEnvironmentVariable("OLLAMA_ORIGINS", "${originHint}", "User"); [System.Environment]::SetEnvironmentVariable("OLLAMA_CONTEXT_LENGTH", "16384", "User")`;
+  const ollamaWinCmdPromptCmd = `set OLLAMA_ORIGINS=${originHint}&& set OLLAMA_CONTEXT_LENGTH=16384&& ollama serve`;
+  const ollamaLinuxSystemdCmd = `Environment="OLLAMA_ORIGINS=${originHint}"\nEnvironment="OLLAMA_CONTEXT_LENGTH=16384"`;
 
   const copyCommand = (id: string, cmd: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -441,79 +492,328 @@ export function LocalLlmCard({ variant }: { variant: SettingsVariant }) {
         })}
       </div>
 
-      {/* Concise how-to-connect steps tailored to selected runtime */}
+      {/* Collapsible step-by-step setup guide tailored to selected runtime */}
       <div
         data-testid="local-llm-connect-guide"
         className={cn(
-          'mt-3 rounded-lg px-3 py-2 text-[11px] leading-[16px]',
+          'mt-3 rounded-lg text-[11px] leading-[16px]',
           page
             ? 'border border-ink/25 bg-paper/80 text-ink'
             : 'border border-white/8 bg-card/70 text-text-2',
         )}
       >
-        <p className="flex items-center gap-1.5 font-semibold">
-          <Terminal className="size-3 shrink-0" strokeWidth={2} aria-hidden />
-          How to connect {LOCAL_LLM_PRESETS[preset].label}
-        </p>
-        {preset === 'ollama' && (
-          <ol className="mt-1 list-decimal space-y-1 pl-4">
-            <li>
-              Download a model once:{' '}
-              <span className="inline-flex flex-wrap items-center gap-1 align-middle">
-                <code className="rounded bg-black/10 px-1.5 py-0.5 font-mono text-[10px]">
-                  {ollamaPullCmd}
-                </code>
-                <CopyCommandButton
-                  copied={copiedId === 'pull'}
-                  label="Copy Ollama pull command"
-                  onCopy={() => copyCommand('pull', ollamaPullCmd)}
-                />
-              </span>
-            </li>
-            <li>
-              Start Ollama so your browser can reach it:{' '}
-              <span className="inline-flex flex-wrap items-center gap-1 align-middle">
-                <code className="rounded bg-black/10 px-1.5 py-0.5 font-mono text-[10px]">
-                  {ollamaCorsCmd}
-                </code>
-                <CopyCommandButton
-                  copied={copiedId === 'cors'}
-                  label="Copy Ollama CORS command"
-                  onCopy={() => copyCommand('cors', ollamaCorsCmd)}
-                />
-              </span>
-            </li>
-            <li>
-              Click <strong>Detect models</strong>, pick your model, then hit{' '}
-              <strong>Save &amp; enable</strong>.
-            </li>
-          </ol>
-        )}
-        {preset === 'lmstudio' && (
-          <ol className="mt-1 list-decimal space-y-1 pl-4">
-            <li>Download and load a chat model in LM Studio (8B+ like Qwen3 8B works best).</li>
-            <li>
-              Open <strong>Developer → Local Server</strong>, turn on <strong>Enable CORS</strong>,
-              and start the server on port <code className="font-mono">1234</code>.
-            </li>
-            <li>
-              Click <strong>Detect models</strong>, pick your model, then hit{' '}
-              <strong>Save &amp; enable</strong>.
-            </li>
-          </ol>
-        )}
-        {preset === 'custom' && (
-          <ol className="mt-1 list-decimal space-y-1 pl-4">
-            <li>
-              Start any local server that supports the standard OpenAI chat API (like{' '}
-              <code className="font-mono">llama-server</code> or vLLM) with browser access (CORS)
-              turned on.
-            </li>
-            <li>
-              Paste its address below, click <strong>Detect models</strong>, and hit{' '}
-              <strong>Save &amp; enable</strong>.
-            </li>
-          </ol>
+        <button
+          type="button"
+          onClick={() => setGuideOpen((o) => !o)}
+          aria-expanded={guideOpen}
+          aria-controls="local-llm-connect-guide-panel"
+          className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left font-semibold hover:opacity-85"
+        >
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <Terminal className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+            <span>How to connect {LOCAL_LLM_PRESETS[preset].label}</span>
+            <span className="font-normal opacity-65">· Step-by-step guide</span>
+          </span>
+          <ChevronDown
+            className={cn('size-3.5 shrink-0 transition-transform', guideOpen && 'rotate-180')}
+            strokeWidth={2}
+            aria-hidden
+          />
+        </button>
+
+        {guideOpen && (
+          <div
+            id="local-llm-connect-guide-panel"
+            className={cn(
+              'space-y-2.5 border-t px-3 py-2.5',
+              page ? 'border-ink/15' : 'border-white/8',
+            )}
+          >
+            {preset === 'ollama' && (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[10px] font-medium uppercase tracking-wide opacity-70">
+                    Choose your OS
+                  </span>
+                  <div className="flex gap-1" role="group" aria-label="Operating system">
+                    {OS_LIST.map((os) => {
+                      const active = guideOs === os.id;
+                      return (
+                        <button
+                          key={os.id}
+                          type="button"
+                          onClick={() => setSelectedOs(os.id)}
+                          aria-pressed={active}
+                          className={cn(
+                            'rounded px-2 py-0.5 text-[10px] font-medium transition-colors',
+                            active
+                              ? page
+                                ? 'border border-ink bg-ink text-paper'
+                                : 'border border-violet/60 bg-violet-sel text-violet-ink'
+                              : page
+                                ? 'border border-ink/25 bg-paper text-ink hover:bg-mist'
+                                : 'border border-white/12 bg-card text-text-2 hover:text-text',
+                          )}
+                        >
+                          {os.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <ol className="list-decimal space-y-2.5 pl-4">
+                  <li>
+                    <p>
+                      <strong>Install Ollama &amp; download a model</strong> (once): install from{' '}
+                      <a
+                        href="https://ollama.com/download"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="underline underline-offset-2 hover:opacity-80"
+                      >
+                        ollama.com
+                      </a>
+                      , then open{' '}
+                      <strong>{guideOs === 'windows' ? 'PowerShell' : 'Terminal'}</strong> and run:
+                    </p>
+                    <CommandBlock
+                      command={ollamaPullCmd}
+                      copied={copiedId === 'pull'}
+                      copyLabel="Copy Ollama pull command"
+                      onCopy={() => copyCommand('pull', ollamaPullCmd)}
+                      page={page}
+                    />
+                    <p className="mt-1 text-[10px] opacity-75">
+                      8B+ chat models (like <code className="font-mono">qwen3:8b</code> or{' '}
+                      <code className="font-mono">gemma3:12b</code>) produce the best motion
+                      graphics.
+                    </p>
+                  </li>
+
+                  {guideOs === 'windows' && (
+                    <>
+                      <li>
+                        <p>
+                          <strong>Quit the Ollama tray app first:</strong> look in your Windows
+                          system tray (bottom-right taskbar, near the clock), right-click the
+                          Ollama llama icon, and click <strong>Quit Ollama</strong>.{' '}
+                          <span className="opacity-75">
+                            (If you skip this, port 11434 will already be in use.)
+                          </span>
+                        </p>
+                      </li>
+                      <li>
+                        <p>
+                          <strong>Start Ollama with browser access (CORS)</strong> in{' '}
+                          <strong>PowerShell</strong> (keep this window open while using Motionpop):
+                        </p>
+                        <CommandBlock
+                          command={ollamaWinCorsCmd}
+                          copied={copiedId === 'win-ps'}
+                          copyLabel="Copy Windows PowerShell command"
+                          onCopy={() => copyCommand('win-ps', ollamaWinCorsCmd)}
+                          page={page}
+                        />
+                        <div className="mt-2 space-y-1.5 rounded-md border border-current/15 p-2">
+                          <p className="font-medium">
+                            Want it permanent so the Ollama tray app always works?
+                          </p>
+                          <p className="text-[10px] opacity-80">
+                            Run this once in PowerShell, then quit &amp; reopen the Ollama app from
+                            the Start menu:
+                          </p>
+                          <CommandBlock
+                            command={ollamaWinPermanentCmd}
+                            copied={copiedId === 'win-perm'}
+                            copyLabel="Copy Windows permanent setup command"
+                            onCopy={() => copyCommand('win-perm', ollamaWinPermanentCmd)}
+                            page={page}
+                          />
+                          <p className="pt-1 text-[10px] opacity-75">
+                            Using Command Prompt (<code className="font-mono">cmd.exe</code>)
+                            instead of PowerShell?
+                          </p>
+                          <CommandBlock
+                            command={ollamaWinCmdPromptCmd}
+                            copied={copiedId === 'win-cmd'}
+                            copyLabel="Copy Windows Command Prompt command"
+                            onCopy={() => copyCommand('win-cmd', ollamaWinCmdPromptCmd)}
+                            page={page}
+                          />
+                        </div>
+                      </li>
+                    </>
+                  )}
+
+                  {guideOs === 'macos' && (
+                    <>
+                      <li>
+                        <p>
+                          <strong>Quit the Ollama menu-bar app first:</strong> click the llama icon
+                          in your macOS menu bar and choose <strong>Quit Ollama</strong> so port{' '}
+                          <code className="font-mono">11434</code> is free.
+                        </p>
+                      </li>
+                      <li>
+                        <p>
+                          <strong>Start Ollama with browser access (CORS)</strong> in{' '}
+                          <strong>Terminal</strong> (keep this window open while using Motionpop):
+                        </p>
+                        <CommandBlock
+                          command={ollamaCorsCmd}
+                          copied={copiedId === 'mac-term'}
+                          copyLabel="Copy macOS Terminal command"
+                          onCopy={() => copyCommand('mac-term', ollamaCorsCmd)}
+                          page={page}
+                        />
+                        <div className="mt-2 space-y-1.5 rounded-md border border-current/15 p-2">
+                          <p className="font-medium">
+                            Or make it work with the macOS Ollama menu-bar app:
+                          </p>
+                          <p className="text-[10px] opacity-80">
+                            Run once in Terminal, then quit &amp; reopen the Ollama app from
+                            Applications:
+                          </p>
+                          <CommandBlock
+                            command={ollamaMacPermanentCmd}
+                            copied={copiedId === 'mac-perm'}
+                            copyLabel="Copy macOS launchctl command"
+                            onCopy={() => copyCommand('mac-perm', ollamaMacPermanentCmd)}
+                            page={page}
+                          />
+                        </div>
+                      </li>
+                    </>
+                  )}
+
+                  {guideOs === 'linux' && (
+                    <>
+                      <li>
+                        <p>
+                          <strong>Stop any background Ollama service</strong> if installed via
+                          systemd (<code className="font-mono">sudo systemctl stop ollama</code>),
+                          then start Ollama with browser access (CORS):
+                        </p>
+                        <CommandBlock
+                          command={ollamaCorsCmd}
+                          copied={copiedId === 'linux-term'}
+                          copyLabel="Copy Linux command"
+                          onCopy={() => copyCommand('linux-term', ollamaCorsCmd)}
+                          page={page}
+                        />
+                        <p className="mt-1.5 text-[10px] opacity-80">
+                          To keep it permanent under systemd, run{' '}
+                          <code className="font-mono">sudo systemctl edit ollama.service</code>, add
+                          these lines under <code className="font-mono">[Service]</code>, then run{' '}
+                          <code className="font-mono">
+                            sudo systemctl daemon-reload &amp;&amp; sudo systemctl restart ollama
+                          </code>
+                          :
+                        </p>
+                        <CommandBlock
+                          command={ollamaLinuxSystemdCmd}
+                          copied={copiedId === 'linux-systemd'}
+                          copyLabel="Copy Linux systemd lines"
+                          onCopy={() => copyCommand('linux-systemd', ollamaLinuxSystemdCmd)}
+                          page={page}
+                        />
+                      </li>
+                    </>
+                  )}
+
+                  <li>
+                    <p>
+                      <strong>Connect below:</strong> leave the URL as{' '}
+                      <code className="font-mono">http://localhost:11434/v1</code>, click{' '}
+                      <strong>Detect models</strong>, pick your model, and click{' '}
+                      <strong>Save &amp; enable</strong>.
+                      {isHttpsOrigin && (
+                        <>
+                          {' '}
+                          If Chrome asks to allow access to your local network (
+                          <code className="font-mono">localhost</code>), click{' '}
+                          <strong>Allow</strong>.
+                        </>
+                      )}
+                    </p>
+                  </li>
+                </ol>
+              </>
+            )}
+
+            {preset === 'lmstudio' && (
+              <ol className="list-decimal space-y-2 pl-4">
+                <li>
+                  <strong>Install LM Studio &amp; download a model:</strong> get LM Studio from{' '}
+                  <a
+                    href="https://lmstudio.ai"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline underline-offset-2 hover:opacity-80"
+                  >
+                    lmstudio.ai
+                  </a>
+                  , open the <strong>Discover</strong> (magnifying glass) tab, and download a chat
+                  model (8B+ like <strong>Qwen3 8B</strong> or <strong>Gemma 3 12B</strong> works
+                  best).
+                </li>
+                <li>
+                  <strong>Load the model into memory:</strong> click{' '}
+                  <strong>Select a model to load</strong> in the top bar and pick your model.{' '}
+                  <span className="opacity-80">
+                    (Tip: set <strong>Context Length</strong> to at least{' '}
+                    <code className="font-mono">16384</code> in the load settings so full timelines
+                    fit.)
+                  </span>
+                </li>
+                <li>
+                  <strong>Turn on CORS &amp; start the server:</strong> open the{' '}
+                  <strong>Developer</strong> (terminal icon) tab on the left →{' '}
+                  <strong>Server Settings</strong> → switch <strong>Enable CORS</strong>{' '}
+                  <strong>ON</strong> → toggle <strong>Status</strong> at the top-left to{' '}
+                  <strong>Running</strong> (default port <code className="font-mono">1234</code>).
+                </li>
+                <li>
+                  <strong>Connect below:</strong> keep the URL as{' '}
+                  <code className="font-mono">http://localhost:1234/v1</code>, click{' '}
+                  <strong>Detect models</strong>, pick your loaded model, and click{' '}
+                  <strong>Save &amp; enable</strong>.
+                  {isHttpsOrigin && (
+                    <>
+                      {' '}
+                      If Chrome asks to allow local network access to{' '}
+                      <code className="font-mono">localhost</code>, click <strong>Allow</strong>.
+                    </>
+                  )}
+                </li>
+              </ol>
+            )}
+
+            {preset === 'custom' && (
+              <ol className="list-decimal space-y-2 pl-4">
+                <li>
+                  <strong>Start an OpenAI-compatible server:</strong> run any local server (like{' '}
+                  <code className="font-mono">llama-server</code>, vLLM, or Open WebUI) that exposes{' '}
+                  <code className="font-mono">/v1/models</code> and{' '}
+                  <code className="font-mono">/v1/chat/completions</code>.
+                </li>
+                <li>
+                  <strong>Enable browser access (CORS):</strong> allow origin{' '}
+                  <code className="font-mono">{originHint}</code> in your server&apos;s CORS
+                  settings and configure at least a <code className="font-mono">16384</code> token
+                  context window when supported.
+                </li>
+                <li>
+                  <strong>Connect below:</strong> paste your server&apos;s{' '}
+                  <code className="font-mono">/v1</code> base URL (e.g.{' '}
+                  <code className="font-mono">http://localhost:8080/v1</code>), add an optional
+                  bearer token if required, then click <strong>Detect models</strong> and{' '}
+                  <strong>Save &amp; enable</strong>.
+                </li>
+              </ol>
+            )}
+          </div>
         )}
       </div>
 

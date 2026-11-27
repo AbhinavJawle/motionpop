@@ -84,7 +84,7 @@ describe('LocalLlmCard', () => {
     expect(screen.getByTestId('local-llm-status-badge').textContent).toBe('Optional · Full local');
   });
 
-  it('shows concise how-to-connect steps per preset and validates model exists before saving', async () => {
+  it('shows collapsible OS-aware step-by-step guides per preset and validates model exists before saving', async () => {
     globalThis.fetch = vi.fn<typeof fetch>().mockResolvedValueOnce(
       new Response(JSON.stringify({ data: [{ id: 'qwen3:8b' }] }), {
         status: 200,
@@ -94,9 +94,36 @@ describe('LocalLlmCard', () => {
 
     render(<LocalLlmCard variant="page" />);
 
-    expect(screen.getByTestId('local-llm-connect-guide').textContent).toContain('ollama pull qwen3:8b');
+    const guideToggle = screen.getByRole('button', { name: /How to connect Ollama/i });
+    expect(guideToggle.getAttribute('aria-expanded')).toBe('false');
+    expect(screen.getByTestId('local-llm-connect-guide').textContent).not.toContain(
+      'ollama pull qwen3:8b',
+    );
+
+    fireEvent.click(guideToggle);
+    expect(guideToggle.getAttribute('aria-expanded')).toBe('true');
+    expect(screen.getByTestId('local-llm-connect-guide').textContent).toContain(
+      'ollama pull qwen3:8b',
+    );
+
+    // Windows PowerShell instructions avoid bash-style OLLAMA_ORIGINS=... syntax
+    fireEvent.click(screen.getByRole('button', { name: 'Windows' }));
+    expect(screen.getByTestId('local-llm-connect-guide').textContent).toContain(
+      '$env:OLLAMA_ORIGINS=',
+    );
+    expect(screen.getByTestId('local-llm-connect-guide').textContent).toContain('Quit Ollama');
+
+    // macOS instructions show Terminal & launchctl commands
+    fireEvent.click(screen.getByRole('button', { name: 'macOS' }));
+    expect(screen.getByTestId('local-llm-connect-guide').textContent).toContain(
+      'launchctl setenv OLLAMA_ORIGINS',
+    );
+
     fireEvent.click(screen.getByRole('button', { name: 'LM Studio' }));
-    expect(screen.getByTestId('local-llm-connect-guide').textContent).toContain('Developer → Local Server');
+    expect(screen.getByRole('button', { name: /How to connect LM Studio/i })).toBeTruthy();
+    expect(screen.getByTestId('local-llm-connect-guide').textContent).toContain('Enable CORS');
+    expect(screen.getByTestId('local-llm-connect-guide').textContent).toContain('Developer');
+
     fireEvent.click(screen.getByRole('button', { name: 'Ollama' }));
 
     fireEvent.change(screen.getByLabelText('Local LLM model'), {
