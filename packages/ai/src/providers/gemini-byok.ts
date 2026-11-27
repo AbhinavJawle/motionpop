@@ -108,6 +108,20 @@ function extractRestError(
   return new Error(redactApiKey(raw, apiKey));
 }
 
+/** Recursively strips `$schema` meta-properties before Chrome's Prompt API `responseConstraint`. */
+function stripSchemaMeta(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripSchemaMeta);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (k === '$schema') continue;
+      out[k] = stripSchemaMeta(v);
+    }
+    return out;
+  }
+  return value;
+}
+
 /**
  * Minimal Chrome Built-in AI (`LanguageModel`) on-device provider for BYOK sessions where
  * Firebase isn't initialized (e.g., local mode) so Gemini Nano still runs first when available.
@@ -130,18 +144,33 @@ export function chromeOnDeviceProvider(): AIProvider {
       if (req.media && !isImageMedia) {
         throw new Error(`On-device Gemini Nano does not support ${req.media.mimeType} media`);
       }
-      const expectedInputs = [{ type: 'text' }, ...(isImageMedia ? [{ type: 'image' }] : [])];
+      const textInput = { type: 'text', languages: ['en'] };
+      const expectedOutputs = [textInput];
+      let useImage = isImageMedia;
+      let expectedInputs = useImage ? [textInput, { type: 'image' }] : [textInput];
       if (api.availability) {
-        const status = await api.availability({ expectedInputs });
+        let status = await api.availability({ expectedInputs, expectedOutputs });
+        if (status !== 'available' && useImage) {
+          const textStatus = await api.availability({
+            expectedInputs: [textInput],
+            expectedOutputs,
+          });
+          if (textStatus === 'available') {
+            status = 'available';
+            useImage = false;
+            expectedInputs = [textInput];
+          }
+        }
         if (status !== 'available') throw new Error(`On-device Gemini Nano is ${status}`);
       }
       const session = await api.create({
         expectedInputs,
+        expectedOutputs,
         initialPrompts: [{ role: 'system', content: req.system }],
       });
       try {
         let promptInput: unknown = req.prompt;
-        if (isImageMedia && req.media && typeof atob === 'function' && typeof Blob !== 'undefined') {
+        if (useImage && req.media && typeof atob === 'function' && typeof Blob !== 'undefined') {
           try {
             const bin = atob(req.media.base64);
             const bytes = new Uint8Array(bin.length);
@@ -166,7 +195,7 @@ export function chromeOnDeviceProvider(): AIProvider {
             ? AbortSignal.timeout(45_000)
             : undefined;
         const text = await session.prompt(promptInput, {
-          responseConstraint: req.jsonSchema,
+          responseConstraint: stripSchemaMeta(req.jsonSchema),
           ...(signal ? { signal } : {}),
         });
         return { text, ranOn: 'device' };

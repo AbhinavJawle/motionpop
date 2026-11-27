@@ -12,10 +12,13 @@ import {
   Check,
   ChevronDown,
   Cloud,
+  KeyRound,
   Plus,
+  Server,
   Sparkles,
   Zap,
 } from 'lucide-react';
+import Link from 'next/link';
 import { AnimatePresence, motion, type Transition } from 'motion/react';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 import { toast } from 'sonner';
@@ -23,6 +26,7 @@ import { btn } from '@/components/paper/kit';
 import { PipOrb, type OrbMood } from './pip-orb';
 import { LeftPanel } from '@/components/editor/left-panel';
 import { Tooltip } from '@/components/ui/tooltip';
+import { useLocalLlm } from '@/lib/ai/local-llm';
 import { useRoute } from '@/lib/ai/use-route';
 import { getRouter } from '@/lib/ai/router-client';
 import { cn } from '@/lib/cn';
@@ -115,6 +119,7 @@ function PipPanelBody() {
 
   const selectedModel = usePipModel((s) => s.model);
   const setSelectedModel = usePipModel((s) => s.setModel);
+  const { active: localLlmActive, model: localLlmModel } = useLocalLlm();
 
   const send = (text: string) =>
     void sendToPip(
@@ -259,20 +264,33 @@ function PipPanelBody() {
         busy={busy}
         model={selectedModel}
         onModelChange={setSelectedModel}
+        localModel={localLlmActive ? localLlmModel : null}
         onSend={send}
         onTyping={setTyping}
       />
       <p className="mt-2.5 flex shrink-0 items-center justify-center gap-1 text-[11px] leading-[14px]">
-        {editRoute.kind === 'device' && route.kind === 'cloud' ? (
+        {route.kind === 'cloud' && route.localLlm ? (
+          <span className="flex items-center gap-1 text-mint-ink">
+            <Server className="size-3" strokeWidth={1.75} aria-hidden />
+            Local LLM · 0 credits
+          </span>
+        ) : editRoute.kind === 'device' && route.kind === 'cloud' ? (
           <span className="flex items-center gap-1 text-mint-ink">
             <Zap className="size-3" strokeWidth={1.75} aria-hidden />
             free · on-device first
-            <span className="text-text-3">· ☁ ~{route.credits} complex</span>
+            <span className="text-text-3">
+              · {route.byok ? 'BYOK · 0 complex' : `☁ ~${route.credits} complex`}
+            </span>
           </span>
         ) : editRoute.kind === 'device' ? (
           <span className="flex items-center gap-1 text-mint-ink">
             <Zap className="size-3" strokeWidth={1.75} aria-hidden />
             free · on-device
+          </span>
+        ) : route.kind === 'cloud' && route.byok ? (
+          <span className="flex items-center gap-1 text-mint-ink">
+            <KeyRound className="size-3" strokeWidth={1.75} aria-hidden />
+            BYOK · 0 credits
           </span>
         ) : route.kind === 'cloud' ? (
           <span className="flex items-center gap-1 text-text-2">
@@ -413,12 +431,14 @@ function Composer({
   busy,
   model,
   onModelChange,
+  localModel,
   onSend,
   onTyping,
 }: {
   busy: boolean;
   model: PipModelId;
   onModelChange: (m: PipModelId) => void;
+  localModel?: string | null;
   onSend: (t: string) => void;
   onTyping: (typing: boolean) => void;
 }) {
@@ -455,23 +475,34 @@ function Composer({
         className="block min-h-[40px] w-full resize-none bg-transparent font-mono text-[13px] leading-[19px] text-ink outline-none placeholder:text-text-3"
       />
       <div className="mt-2 flex items-center gap-2.5 text-text-3">
-        <label className="relative flex h-7 min-w-0 items-center gap-1 rounded-md px-1.5 text-[11px] text-text-2 transition-colors hover:bg-mist hover:text-ink">
-          <Sparkles className="size-3 shrink-0 text-violet" strokeWidth={1.75} aria-hidden />
-          <select
-            aria-label="Pip AI model"
-            data-testid="pip-model-select"
-            value={model}
-            disabled={busy}
-            onChange={(e) => onModelChange(e.target.value as PipModelId)}
-            className="max-w-[132px] cursor-pointer truncate bg-transparent pr-1 font-mono text-[11px] font-medium text-text-2 outline-none"
+        {localModel ? (
+          <Link
+            href="/settings#local-llm"
+            title={`Using local LLM (${localModel}) — click to change in Settings`}
+            className="flex h-7 min-w-0 items-center gap-1 rounded-md bg-mint/15 px-2 text-[11px] font-medium text-mint-ink transition-colors hover:bg-mint/25"
           >
-            {PIP_MODEL_CHOICES.map((choice) => (
-              <option key={choice.id} value={choice.id} className="bg-paper text-ink">
-                {choice.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            <Server className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
+            <span className="max-w-[140px] truncate font-mono">{localModel}</span>
+          </Link>
+        ) : (
+          <label className="relative flex h-7 min-w-0 items-center gap-1 rounded-md px-1.5 text-[11px] text-text-2 transition-colors hover:bg-mist hover:text-ink">
+            <Sparkles className="size-3 shrink-0 text-violet" strokeWidth={1.75} aria-hidden />
+            <select
+              aria-label="Pip AI model"
+              data-testid="pip-model-select"
+              value={model}
+              disabled={busy}
+              onChange={(e) => onModelChange(e.target.value as PipModelId)}
+              className="max-w-[132px] cursor-pointer truncate bg-transparent pr-1 font-mono text-[11px] font-medium text-text-2 outline-none"
+            >
+              {PIP_MODEL_CHOICES.map((choice) => (
+                <option key={choice.id} value={choice.id} className="bg-paper text-ink">
+                  {choice.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button
           type="button"
           aria-label="Send"
@@ -504,8 +535,17 @@ function Message({ m, onApply }: { m: PipEntry; onApply: (id: string) => void })
         <span className="font-poster text-[19px] leading-none tracking-[0.02em] text-ink">Pip</span>
         {m.ranOn === 'device' ? (
           <span className="inline-flex items-center gap-0.5 rounded-full bg-mint/20 px-1.5 py-0.5 text-[9.5px] font-medium text-mint-ink">
-            <Zap className="size-2.5" strokeWidth={2} aria-hidden />
-            Gemini Nano · free
+            {m.model && m.model !== 'gemini-nano' ? (
+              <>
+                <Server className="size-2.5" strokeWidth={2} aria-hidden />
+                {m.model} · free
+              </>
+            ) : (
+              <>
+                <Zap className="size-2.5" strokeWidth={2} aria-hidden />
+                Gemini Nano · free
+              </>
+            )}
           </span>
         ) : (
           m.model && (

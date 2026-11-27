@@ -55,7 +55,14 @@ describe('firebaseProvider', () => {
     generateContent.mockResolvedValue({
       response: { text: () => '{"ok":true}', inferenceSource: 'on_device' },
     });
-    const res = await firebaseProvider(() => Promise.resolve(ai)).generate(REQ);
+    const res = await firebaseProvider(() => Promise.resolve(ai)).generate({
+      ...REQ,
+      jsonSchema: {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        type: 'object',
+        properties: { nested: { $schema: 'http://json-schema.org/draft-07/schema#', type: 'string' } },
+      },
+    });
     expect(res).toEqual({ text: '{"ok":true}', ranOn: 'device' });
     expect(getGenerativeModel).toHaveBeenCalledWith(ai, {
       mode: 'prefer_on_device',
@@ -65,19 +72,78 @@ describe('firebaseProvider', () => {
         generationConfig: {
           temperature: 0.2,
           responseMimeType: 'application/json',
-          responseJsonSchema: { type: 'object' },
+          responseJsonSchema: {
+            $schema: 'http://json-schema.org/draft-07/schema#',
+            type: 'object',
+            properties: {
+              nested: { $schema: 'http://json-schema.org/draft-07/schema#', type: 'string' },
+            },
+          },
         },
       },
       onDeviceParams: {
         createOptions: {
+          expectedInputs: [{ type: 'text', languages: ['en'] }],
+          expectedOutputs: [{ type: 'text', languages: ['en'] }],
           initialPrompts: [
             { role: 'system', content: [{ type: 'text', value: 'Answer with JSON.' }] },
           ],
         },
-        promptOptions: { responseConstraint: { type: 'object' } },
+        promptOptions: {
+          responseConstraint: {
+            type: 'object',
+            properties: { nested: { type: 'string' } },
+          },
+        },
       },
     });
     expect(generateContent).toHaveBeenCalledWith([{ type: 'text', text: 'hello' }]);
+  });
+
+  it('guards ONLY_ON_DEVICE against downloadable/downloading status and missing LanguageModel in browser', async () => {
+    const provider = firebaseProvider(() => Promise.resolve(ai));
+    const origLm = (globalThis as Record<string, unknown>).LanguageModel;
+    const origWin = (globalThis as Record<string, unknown>).window;
+    try {
+      // Downloadable: must reject immediately without calling SDK (prevents silent download trigger).
+      (globalThis as Record<string, unknown>).LanguageModel = {
+        availability: vi.fn(async () => 'downloadable'),
+      };
+      await expect(
+        provider.generate({ ...REQ, mode: 'ONLY_ON_DEVICE' }),
+      ).rejects.toThrow(/downloadable/i);
+      expect(getGenerativeModel).not.toHaveBeenCalled();
+
+      // Browser without LanguageModel: must reject without falling back to cloud.
+      delete (globalThis as Record<string, unknown>).LanguageModel;
+      (globalThis as Record<string, unknown>).window = {};
+      await expect(
+        provider.generate({ ...REQ, mode: 'ONLY_ON_DEVICE' }),
+      ).rejects.toThrow(/not available/i);
+      expect(getGenerativeModel).not.toHaveBeenCalled();
+
+      // Text-only Nano fallback when multimodal is unavailable for an image ONLY_ON_DEVICE call.
+      const availability = vi
+        .fn()
+        .mockResolvedValueOnce('unavailable')
+        .mockResolvedValueOnce('available');
+      (globalThis as Record<string, unknown>).LanguageModel = { availability };
+      generateContent.mockResolvedValueOnce({
+        response: { text: () => '{"ok":true}', inferenceSource: 'on_device' },
+      });
+      const res = await provider.generate({
+        ...REQ,
+        mode: 'ONLY_ON_DEVICE',
+        media: { mimeType: 'image/jpeg', base64: 'AAAA' },
+      });
+      expect(res).toEqual({ text: '{"ok":true}', ranOn: 'device' });
+      expect(generateContent).toHaveBeenLastCalledWith([{ type: 'text', text: 'hello' }]);
+    } finally {
+      if (origLm === undefined) delete (globalThis as Record<string, unknown>).LanguageModel;
+      else (globalThis as Record<string, unknown>).LanguageModel = origLm;
+      if (origWin === undefined) delete (globalThis as Record<string, unknown>).window;
+      else (globalThis as Record<string, unknown>).window = origWin;
+    }
   });
 
   it('reports cloud when the SDK says in_cloud or says nothing, and sends media inline', async () => {

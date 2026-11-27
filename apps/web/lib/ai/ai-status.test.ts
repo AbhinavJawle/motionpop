@@ -13,6 +13,7 @@ vi.mock('firebase/ai', () => ({
 import {
   detectAvailability,
   mapAvailability,
+  refreshAvailability,
   setUpOnDevice,
   useAIStatusStore,
   watchConnection,
@@ -55,13 +56,33 @@ describe('on-device status', () => {
     expect(useAIStatusStore.getState().availability).toBe('unavailable');
   });
 
-  it('reads the Prompt API with text and image inputs', async () => {
+  it('reads the Prompt API with text+image inputs and falls back to text-only Nano', async () => {
     const availability = vi.fn(() => Promise.resolve('downloadable'));
     vi.stubGlobal('LanguageModel', { availability });
     await detectAvailability();
-    expect(useAIStatusStore.getState().availability).toBe('downloadable');
+    expect(useAIStatusStore.getState()).toMatchObject({
+      availability: 'downloadable',
+      multimodal: true,
+    });
     expect(availability).toHaveBeenCalledWith({
-      expectedInputs: [{ type: 'text' }, { type: 'image' }],
+      expectedInputs: [{ type: 'text', languages: ['en'] }, { type: 'image' }],
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
+    });
+
+    // When multimodal is unavailable but text-only Nano is available, detect text-only cleanly.
+    const textOnlyAvail = vi
+      .fn()
+      .mockResolvedValueOnce('unavailable')
+      .mockResolvedValueOnce('available');
+    vi.stubGlobal('LanguageModel', { availability: textOnlyAvail });
+    await refreshAvailability();
+    expect(useAIStatusStore.getState()).toMatchObject({
+      availability: 'available',
+      multimodal: false,
+    });
+    expect(textOnlyAvail).toHaveBeenNthCalledWith(2, {
+      expectedInputs: [{ type: 'text', languages: ['en'] }],
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
     });
   });
 

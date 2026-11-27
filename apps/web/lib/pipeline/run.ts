@@ -578,7 +578,7 @@ export async function runPipeline(
         type: 'step',
         step,
         state: 'done',
-        detail: `${reel.scenes.length} ${reel.scenes.length === 1 ? 'scene' : 'scenes'}${source === 'cloud' ? '' : ' · free director'}`,
+        detail: `${reel.scenes.length} ${reel.scenes.length === 1 ? 'scene' : 'scenes'}${source === 'cloud' ? '' : source === 'device' ? ' · local AI' : ' · free director'}`,
       });
 
       step = 'plan';

@@ -510,7 +510,7 @@ export async function directReelPaid(
     params.words.length >= 4
   ) {
     const r = await raceAbort(
-      directReel(router, { ...withFrames, fallbackOnDevice: onDeviceReady }),
+      directReel(router, { ...withFrames, fallbackOnDevice: onDeviceReady || hasLocalLlm }),
       signal,
     );
     throwIfAborted(signal);

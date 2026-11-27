@@ -19,7 +19,7 @@ import {
   Terminal,
   Trash2,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   clearLocalLlmConfig,
@@ -39,6 +39,9 @@ type Feedback =
   | { kind: 'error'; message: string; corsHint?: boolean };
 
 const PRESET_LIST: LocalLlmPreset[] = ['ollama', 'lmstudio', 'custom'];
+const subscribeNoop = () => () => {};
+const getClientOrigin = () => window.location?.origin || '*';
+const getClientIsHttps = () => window.location?.protocol === 'https:';
 
 function CopyCommandButton({
   copied,
@@ -88,6 +91,8 @@ export function LocalLlmCard({ variant }: { variant: SettingsVariant }) {
   const [loadingModels, setLoadingModels] = useState(false);
   const [feedback, setFeedback] = useState<Feedback>({ kind: 'idle' });
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const originHint = useSyncExternalStore(subscribeNoop, getClientOrigin, () => '*');
+  const isHttpsOrigin = useSyncExternalStore(subscribeNoop, getClientIsHttps, () => false);
   const reqSeqRef = useRef(0);
   const page = variant === 'page';
 
@@ -276,12 +281,9 @@ export function LocalLlmCard({ variant }: { variant: SettingsVariant }) {
     });
   };
 
-  const originHint =
-    typeof window !== 'undefined' && window.location?.origin ? window.location.origin : '*';
-  const isHttpsOrigin =
-    typeof window !== 'undefined' && window.location?.protocol === 'https:';
   const ollamaPullCmd = 'ollama pull qwen3:8b';
-  const ollamaCorsCmd = `OLLAMA_ORIGINS="${originHint}" ollama serve`;
+  const ollamaCorsCmd = `OLLAMA_ORIGINS="${originHint}" OLLAMA_CONTEXT_LENGTH=16384 ollama serve`;
+  const ollamaWinCorsCmd = `$env:OLLAMA_ORIGINS="${originHint}"; $env:OLLAMA_CONTEXT_LENGTH="16384"; ollama serve`;
 
   const copyCommand = (id: string, cmd: string) => {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -702,7 +704,8 @@ export function LocalLlmCard({ variant }: { variant: SettingsVariant }) {
               <p className="font-semibold">Quick connection fix:</p>
               <ul className="mt-1 list-disc space-y-1 pl-4">
                 <li>
-                  <strong>Ollama CLI:</strong> restart with{' '}
+                  <strong>Ollama (macOS / Linux CLI):</strong> quit the Ollama app if open, then
+                  run{' '}
                   <code className="rounded bg-black/10 px-1 py-0.5 font-mono text-[10px]">
                     {ollamaCorsCmd}
                   </code>{' '}
@@ -710,7 +713,18 @@ export function LocalLlmCard({ variant }: { variant: SettingsVariant }) {
                   <code className="rounded bg-black/10 px-1 py-0.5 font-mono text-[10px]">
                     launchctl setenv OLLAMA_ORIGINS &quot;{originHint}&quot;
                   </code>{' '}
-                  and quit/reopen Ollama).
+                  and{' '}
+                  <code className="rounded bg-black/10 px-1 py-0.5 font-mono text-[10px]">
+                    launchctl setenv OLLAMA_CONTEXT_LENGTH 16384
+                  </code>
+                  , then quit &amp; reopen Ollama).
+                </li>
+                <li>
+                  <strong>Ollama (Windows PowerShell):</strong> quit Ollama from the tray, then run{' '}
+                  <code className="rounded bg-black/10 px-1 py-0.5 font-mono text-[10px]">
+                    {ollamaWinCorsCmd}
+                  </code>
+                  .
                 </li>
                 <li>
                   <strong>LM Studio:</strong> Developer → Local Server → turn on{' '}

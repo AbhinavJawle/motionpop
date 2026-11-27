@@ -1,10 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import { Check, Copy, RefreshCw } from 'lucide-react';
 import { Toggle } from '@/components/ui/toggle';
 import { Button } from '@/components/ui/button';
 import { StatusDot } from '@/components/ui/status-dot';
-import { cancelSetUp, setUpOnDevice, useAIStatus, type Availability } from '@/lib/ai/ai-status';
+import {
+  cancelSetUp,
+  refreshAvailability,
+  setUpOnDevice,
+  useAIStatus,
+  type Availability,
+} from '@/lib/ai/ai-status';
+import { useLocalLlm } from '@/lib/ai/local-llm';
 import { usePreferOnDevice } from '@/lib/settings/use-prefer-on-device';
 import { useCredits } from '@/lib/credits/use-credits';
 import { useUsageSummary } from '@/lib/usage/use-usage-summary';
@@ -14,9 +22,11 @@ import { OnDeviceDownloadModal } from './on-device-download-modal';
 import { ByokCard } from './byok-card';
 import { LocalLlmCard } from './local-llm-card';
 
-/** Where the Chrome flag instructions live (the README's "On-device AI in Chrome" section). */
+/** Where the Chrome flag instructions live (the README's "On-device AI in Desktop Chrome" section). */
 export const ON_DEVICE_HELP_URL =
-  'https://github.com/AbhinavJawle/motionpop#on-device-ai-in-chrome';
+  'https://github.com/AbhinavJawle/motionpop#on-device-ai-in-desktop-chrome';
+
+const CHROME_NANO_FLAG = 'chrome://flags/#prompt-api-for-gemini-nano-multimodal-input';
 
 export interface StatusView {
   tone: 'mint' | 'violet' | 'warn' | 'muted';
@@ -46,6 +56,7 @@ export function statusView(availability: Availability, progress: number | null):
 export function AISection({ variant }: { variant: SettingsVariant }) {
   const { preferOnDevice, loaded, save } = usePreferOnDevice();
   const { availability, setupActive, setupProgress, setupError } = useAIStatus();
+  const { active: localLlmActive, model: localLlmModel } = useLocalLlm();
   const { balance } = useCredits();
   const usage = useUsageSummary(balance);
   // Treat a passive Chrome 'downloading' state (not started by the user here) as 'downloadable'
@@ -54,6 +65,16 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
     availability === 'downloading' && !setupActive ? 'downloadable' : availability;
   const status = statusView(effectiveAvailability, setupProgress);
   const [confirmMode, setConfirmMode] = useState<'toggle' | 'setup' | null>(null);
+  const [copiedFlag, setCopiedFlag] = useState(false);
+
+  const copyFlag = () => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+      void navigator.clipboard.writeText(CHROME_NANO_FLAG).then(() => {
+        setCopiedFlag(true);
+        setTimeout(() => setCopiedFlag(false), 1800);
+      });
+    }
+  };
 
   const handleToggleChange = (next: boolean) => {
     if (next && effectiveAvailability !== 'available' && effectiveAvailability !== 'downloading') {
@@ -152,16 +173,61 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
           </Button>
         )}
         {effectiveAvailability === 'unavailable' && (
-          <a
-            href={ON_DEVICE_HELP_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 text-[11px] leading-[14px] text-violet hover:underline"
-          >
-            How to turn it on
-          </a>
+          <div className="flex shrink-0 items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => void refreshAvailability()}
+              className="inline-flex items-center gap-1 text-[11px] leading-[14px] text-text-2 hover:text-text"
+            >
+              <RefreshCw className="size-3" strokeWidth={2} aria-hidden />
+              Re-check
+            </button>
+            <a
+              href={ON_DEVICE_HELP_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="shrink-0 text-[11px] leading-[14px] text-violet hover:underline"
+            >
+              How to turn it on
+            </a>
+          </div>
         )}
       </div>
+
+      {effectiveAvailability === 'unavailable' && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-chip bg-card-2/60 px-3 py-2 text-[11px] leading-4 text-text-2">
+          <span className="min-w-0">
+            In Desktop Chrome 139+, enable{' '}
+            <code className="break-all font-mono text-[10px] text-text-1">{CHROME_NANO_FLAG}</code>{' '}
+            and relaunch Chrome.
+          </span>
+          <button
+            type="button"
+            onClick={copyFlag}
+            className="inline-flex shrink-0 items-center gap-1 rounded border border-current/25 px-1.5 py-0.5 text-[10px] font-medium hover:opacity-80"
+          >
+            {copiedFlag ? (
+              <>
+                <Check className="size-3" aria-hidden />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="size-3" aria-hidden />
+                Copy flag
+              </>
+            )}
+          </button>
+        </div>
+      )}
+
+      {localLlmActive && (
+        <p className="mt-2 text-[11px] leading-4 text-text-2">
+          Your local LLM (<code className="font-mono">{localLlmModel}</code>) is currently active
+          and handles directing, edits &amp; notes ahead of Gemini Nano. Pause it below to use
+          Gemini Nano instead.
+        </p>
+      )}
 
       {setupError && effectiveAvailability === 'downloadable' && (
         <p className="mt-2 text-xs leading-4 text-text-2" role="alert">

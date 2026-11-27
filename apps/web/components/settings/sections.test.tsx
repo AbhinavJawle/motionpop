@@ -38,6 +38,7 @@ vi.mock('@/lib/ai/ai-status', () => ({
   useAIStatus: () => h.status,
   setUpOnDevice: h.setUp,
   cancelSetUp: h.cancel,
+  refreshAvailability: vi.fn(() => Promise.resolve()),
 }));
 vi.mock('@/lib/usage/use-usage-summary', () => ({ useUsageSummary: () => h.usage }));
 vi.mock('@/lib/credits/use-ledger', () => ({ useLedger: () => h.ledger }));

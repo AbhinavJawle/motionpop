@@ -4,17 +4,26 @@ import { create } from 'zustand';
 import { useEffect } from 'react';
 import { firebaseEnabled } from '../firebase/client';
 import { fakeAiFlag } from '../credits/pick-client';
+import { isByokActive } from './byok';
 
 /**
  * On-device AI status for Settings (spec 13 R6.3), the seam spec 09's `useAIStatus` builds on.
  * Detection reads Chrome's Prompt API global (the AI Logic SDK does not expose availability);
- * set-up runs `initializeDeviceModel`, which must follow a user gesture (hybrid-ai.md).
+ * set-up runs `LanguageModel.create()`, which must follow a user gesture (hybrid-ai.md).
  */
 export type Availability =
   'checking' | 'available' | 'downloadable' | 'downloading' | 'unavailable';
 
+const EXPECTED_TEXT = { type: 'text', languages: ['en'] };
+const EXPECTED_IMAGE = { type: 'image' };
+const EXPECTED_OUTPUTS = [EXPECTED_TEXT];
+const MULTIMODAL_INPUTS = [EXPECTED_TEXT, EXPECTED_IMAGE];
+const TEXT_ONLY_INPUTS = [EXPECTED_TEXT];
+
 interface AIStatusState {
   availability: Availability;
+  /** True when Chrome supports multimodal (text + image) Nano; false for text-only Nano. */
+  multimodal: boolean;
   /** True only while a user-initiated download from Settings is actively running. */
   setupActive: boolean;
   /** 0..1 while the model downloads, else null. */
@@ -28,6 +37,7 @@ interface AIStatusState {
 
 export const useAIStatusStore = create<AIStatusState>(() => ({
   availability: 'checking',
+  multimodal: true,
   setupActive: false,
   setupProgress: null,
   detected: false,
@@ -55,7 +65,10 @@ export function watchConnection(
 }
 
 interface PromptApi {
-  availability: (opts: { expectedInputs: { type: string }[] }) => Promise<string>;
+  availability: (opts: {
+    expectedInputs: { type: string; languages?: string[] }[];
+    expectedOutputs?: { type: string; languages?: string[] }[];
+  }) => Promise<string>;
 }
 
 /** Maps the Prompt API's answer to our states. Anything unknown is `unavailable`. */
@@ -64,9 +77,7 @@ export function mapAvailability(raw: unknown): Availability {
   return 'unavailable';
 }
 
-export async function detectAvailability(): Promise<void> {
-  if (useAIStatusStore.getState().detected) return;
-  useAIStatusStore.setState({ detected: true });
+async function probeAvailability(): Promise<void> {
   if (
     fakeAiFlag({
       NODE_ENV: process.env.NODE_ENV,
@@ -75,26 +86,53 @@ export async function detectAvailability(): Promise<void> {
   ) {
     // `?device=off` plays a browser without Nano (spec 09 design, "Fake AI").
     const off = new URLSearchParams(globalThis.location?.search ?? '').get('device') === 'off';
-    useAIStatusStore.setState({ availability: off ? 'unavailable' : 'available' });
+    useAIStatusStore.setState({ availability: off ? 'unavailable' : 'available', multimodal: !off });
     return;
   }
-  // Without Firebase there is no AI Logic, so no on-device route either.
+  // Without Firebase or BYOK there is no hybrid router to run Nano through.
   const api = (globalThis as { LanguageModel?: PromptApi }).LanguageModel;
-  if (!firebaseEnabled() || !api) {
-    useAIStatusStore.setState({ availability: 'unavailable' });
+  if ((!firebaseEnabled() && !isByokActive()) || !api) {
+    useAIStatusStore.setState({ availability: 'unavailable', multimodal: false });
     return;
   }
   try {
-    const raw = await api.availability({ expectedInputs: [{ type: 'text' }, { type: 'image' }] });
-    useAIStatusStore.setState({ availability: mapAvailability(raw) });
+    const rawMulti = await api.availability({
+      expectedInputs: MULTIMODAL_INPUTS,
+      expectedOutputs: EXPECTED_OUTPUTS,
+    });
+    const multi = mapAvailability(rawMulti);
+    if (multi !== 'unavailable') {
+      useAIStatusStore.setState({ availability: multi, multimodal: true });
+      return;
+    }
+    // Standard Chrome Prompt API without the multimodal-image flag still supports all text tasks.
+    const rawText = await api.availability({
+      expectedInputs: TEXT_ONLY_INPUTS,
+      expectedOutputs: EXPECTED_OUTPUTS,
+    });
+    useAIStatusStore.setState({ availability: mapAvailability(rawText), multimodal: false });
   } catch {
-    useAIStatusStore.setState({ availability: 'unavailable' });
+    useAIStatusStore.setState({ availability: 'unavailable', multimodal: false });
   }
+}
+
+export async function detectAvailability(): Promise<void> {
+  if (useAIStatusStore.getState().detected) return;
+  useAIStatusStore.setState({ detected: true });
+  await probeAvailability();
+}
+
+/** Re-probes Chrome's Prompt API status (e.g. after toggling a Chrome flag or background download). */
+export async function refreshAvailability(): Promise<void> {
+  if (useAIStatusStore.getState().setupActive) return;
+  useAIStatusStore.setState({ detected: true, availability: 'checking', setupError: null });
+  await probeAvailability();
 }
 
 interface PromptApiCreate {
   create: (opts: {
-    expectedInputs: { type: string }[];
+    expectedInputs: { type: string; languages?: string[] }[];
+    expectedOutputs?: { type: string; languages?: string[] }[];
     monitor?: (m: EventTarget) => void;
     signal?: AbortSignal;
   }) => Promise<{ destroy?: () => void }>;
@@ -152,10 +190,12 @@ export async function setUpOnDevice(): Promise<void> {
   });
   const abort = new AbortController();
   setupAbort = abort;
+  const expectedInputs = s.multimodal ? MULTIMODAL_INPUTS : TEXT_ONLY_INPUTS;
   try {
     const session = await api.create({
       signal: abort.signal,
-      expectedInputs: [{ type: 'text' }, { type: 'image' }],
+      expectedInputs,
+      expectedOutputs: EXPECTED_OUTPUTS,
       monitor: (m) =>
         m.addEventListener('downloadprogress', (e) =>
           useAIStatusStore.setState({ setupProgress: (e as unknown as { loaded: number }).loaded }),

@@ -345,4 +345,97 @@ describe('localLlmProvider', () => {
       }),
     ).rejects.toThrow('Invalid token [redacted]');
   });
+
+  it('recovers when Ollama Qwen3 returns empty content with reasoning under json_schema and strips nested $schema', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({
+          choices: [{ message: { content: '', reasoning: 'thinking too long...' } }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          choices: [{ message: { content: '{"headline":"Recovered via json_object"}' } }],
+        }),
+      );
+
+    const provider = localLlmProvider({
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'qwen3:8b',
+      fetchImpl: fetchMock,
+    });
+
+    const out = await provider.generate({
+      mode: 'ONLY_IN_CLOUD',
+      model: 'qwen3:8b',
+      system: 'Return JSON',
+      prompt: 'Direct this',
+      jsonSchema: {
+        $schema: 'http://json-schema.org/draft-07/schema#',
+        type: 'object',
+        properties: {
+          params: {
+            $schema: 'http://json-schema.org/draft-07/schema#',
+            type: 'object',
+          },
+        },
+      },
+    });
+
+    expect(out.text).toBe('{"headline":"Recovered via json_object"}');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstBody = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body)) as Record<
+      string,
+      unknown
+    >;
+    expect(firstBody.reasoning_effort).toBe('none');
+    expect(JSON.stringify(firstBody.response_format)).not.toContain('$schema');
+    const secondBody = JSON.parse(String(fetchMock.mock.calls[1]![1]?.body)) as {
+      response_format: { type: string };
+    };
+    expect(secondBody.response_format).toEqual({ type: 'json_object' });
+  });
+
+  it('retries without reasoning_effort if a server rejects it and caches learned capabilities across calls', async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { message: 'Unknown field: reasoning_effort' } }, 400),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { message: 'model does not support images' } }, 400),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ choices: [{ message: { content: '{"headline":"First ok"}' } }] }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ choices: [{ message: { content: '{"headline":"Second ok"}' } }] }),
+      );
+
+    const provider = localLlmProvider({
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'qwen3:8b',
+      fetchImpl: fetchMock,
+    });
+
+    const req = {
+      mode: 'ONLY_IN_CLOUD' as const,
+      model: 'qwen3:8b',
+      system: 'Return JSON',
+      prompt: 'Analyze',
+      jsonSchema: { type: 'object' },
+      media: { mimeType: 'image/jpeg' as const, base64: 'AAAA' },
+    };
+    await expect(provider.generate(req)).resolves.toMatchObject({ text: '{"headline":"First ok"}' });
+    // Second call uses learned capabilities directly (no reasoning_effort, no images): 1 fetch!
+    await expect(provider.generate(req)).resolves.toMatchObject({ text: '{"headline":"Second ok"}' });
+    expect(fetchMock).toHaveBeenCalledTimes(4);
+    const fourthBody = JSON.parse(String(fetchMock.mock.calls[3]![1]?.body)) as {
+      reasoning_effort?: string;
+      messages: Array<{ content: unknown }>;
+    };
+    expect(fourthBody.reasoning_effort).toBeUndefined();
+    expect(typeof fourthBody.messages[1]?.content).toBe('string');
+  });
 });

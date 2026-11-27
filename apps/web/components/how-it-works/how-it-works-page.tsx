@@ -325,6 +325,7 @@ const MONOREPO_STITCHES = [
 
 function LiveNanoProbe() {
   const availability = useAIStatusStore((s) => s.availability);
+  const setupActive = useAIStatusStore((s) => s.setupActive);
   const progress = useAIStatusStore((s) => s.setupProgress);
   const setupError = useAIStatusStore((s) => s.setupError);
   const online = useAIStatusStore((s) => s.online);
@@ -336,15 +337,18 @@ function LiveNanoProbe() {
     return watchConnection();
   }, []);
 
+  const effectiveAvailability =
+    availability === 'downloading' && !setupActive ? 'downloadable' : availability;
+
   const badge = localLlmActive
     ? { bg: '#3ddc97', label: `Local LLM READY (${localLlmModel})` }
-    : availability === 'available'
+    : effectiveAvailability === 'available'
       ? { bg: '#3ddc97', label: 'Gemini Nano READY in this browser' }
-      : availability === 'downloadable'
+      : effectiveAvailability === 'downloadable'
         ? { bg: '#fde68a', label: 'Gemini Nano downloadable in this browser' }
-        : availability === 'downloading'
+        : effectiveAvailability === 'downloading'
           ? { bg: '#8dbceb', label: progressLabel(progress) }
-          : availability === 'checking'
+          : effectiveAvailability === 'checking'
             ? { bg: '#e5e7eb', label: 'Checking your browser AI…' }
             : { bg: '#ddd6fe', label: 'Cloud fallback active in this browser' };
 
@@ -414,13 +418,13 @@ function LiveNanoProbe() {
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        {availability === 'downloadable' && !localLlmActive && (
+        {effectiveAvailability === 'downloadable' && !localLlmActive && (
           <button type="button" onClick={() => void setUpOnDevice()} className={btn('flame', 'sm')}>
             <Download className="size-3.5" strokeWidth={2} aria-hidden />
             Set up Gemini Nano
           </button>
         )}
-        {availability === 'downloading' && (
+        {effectiveAvailability === 'downloading' && (
           <button type="button" onClick={() => cancelSetUp()} className={btn('paper', 'sm')}>
             Cancel
           </button>

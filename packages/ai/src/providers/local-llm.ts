@@ -388,6 +388,8 @@ interface OpenAiChatResponse {
   choices?: Array<{
     message?: {
       content?: string | Array<{ type?: string; text?: string }> | null;
+      reasoning?: string | null;
+      reasoning_content?: string | null;
     };
     finish_reason?: string;
   }>;
@@ -395,19 +397,30 @@ interface OpenAiChatResponse {
   message?: string;
 }
 
-/** Strips `<think>...</think>` blocks emitted by local reasoning models (e.g. Qwen3, DeepSeek-R1). */
+/** Strips `<think>...</think>` and `<thought>...</thought>` blocks emitted by local reasoning models. */
 export function stripThinkingTags(raw: string): string {
-  const cleaned = raw.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  const cleaned = raw
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+    .trim();
   return cleaned || raw.trim();
 }
 
-function sanitizeJsonSchema(schema: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(schema)) {
-    if (k === '$schema') continue;
-    out[k] = v;
+function sanitizeSchemaValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeSchemaValue);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (k === '$schema') continue;
+      out[k] = sanitizeSchemaValue(v);
+    }
+    return out;
   }
-  return out;
+  return value;
+}
+
+function sanitizeJsonSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  return sanitizeSchemaValue(schema) as Record<string, unknown>;
 }
 
 function extractChatText(data: OpenAiChatResponse | null): string {
@@ -422,9 +435,30 @@ function extractChatText(data: OpenAiChatResponse | null): string {
   return '';
 }
 
+function hasReasoningPayload(data: OpenAiChatResponse | null): boolean {
+  const msg = data?.choices?.[0]?.message;
+  return Boolean(msg?.reasoning?.trim() || msg?.reasoning_content?.trim());
+}
+
+function isLikelyReasoningModel(model: string): boolean {
+  return /(^|[-_/:])(qwen3|qwq|deepseek-r1|r1|gpt-oss|o1|o3|thinking|reason)/i.test(model);
+}
+
 function isSchemaUnsupportedError(status: number, message: string): boolean {
+  if (status === 400 || status === 422) {
+    return /response_format|json_schema|schema|grammar|unsupported|invalid.*format/i.test(message);
+  }
+  if (status === 500) {
+    return /response_format|json_schema|grammar|schema/i.test(message);
+  }
+  return false;
+}
+
+function isReasoningParamUnsupportedError(status: number, message: string): boolean {
   if (status !== 400 && status !== 422) return false;
-  return /response_format|json_schema|schema|grammar|unsupported|invalid.*format/i.test(message);
+  return /reasoning_effort|extra_forbidden|unrecognized|unknown field|additional properties/i.test(
+    message,
+  );
 }
 
 function isVisionUnsupportedError(status: number, message: string): boolean {
@@ -490,9 +524,16 @@ export function localLlmProvider(opts: LocalLlmProviderOptions): AIProvider {
   const apiKey = opts.apiKey ? LocalLlmApiKeySchema.parse(opts.apiKey) : null;
   assertSafeLocalLlmTransport(baseUrl, apiKey);
   const fetchFn = opts.fetchImpl ?? fetch;
-  const timeoutMs = opts.timeoutMs ?? 120_000;
+  const explicitTimeoutMs = opts.timeoutMs;
   const endpoint = `${baseUrl}/chat/completions`;
   const headers = buildHeaders(apiKey, true);
+
+  // Per-provider learned compatibility capabilities so we don't repeat failed fallback probes.
+  let learnedFormatMode: 'json_schema' | 'json_object' | 'none' = 'json_schema';
+  let learnedSupportsImages = true;
+  let learnedSupportsReasoningEffort: boolean | null = null;
+  const preferDisableReasoning =
+    inferLocalLlmPreset(baseUrl) === 'ollama' || isLikelyReasoningModel(model);
 
   return {
     async generate(req: ProviderRequest): Promise<ProviderResponse> {
@@ -502,13 +543,20 @@ export function localLlmProvider(opts: LocalLlmProviderOptions): AIProvider {
           req.mediaList?.some((m) => m.mimeType.startsWith('image/')),
       );
 
-      // Give local reasoning models headroom so `<think>` blocks never truncate JSON output.
+      // Give local reasoning models headroom so thinking tokens never truncate JSON output,
+      // and give heavy directing/compose tasks extra wall-clock headroom on slower laptops.
       const maxTokens = req.maxOutputTokens ? Math.max(req.maxOutputTokens, 4096) : undefined;
+      const timeoutMs =
+        explicitTimeoutMs ?? ((req.maxOutputTokens ?? 0) >= 8192 ? 180_000 : 120_000);
 
       const send = async (
         formatMode: 'json_schema' | 'json_object' | 'none',
         includeImages: boolean,
-      ): Promise<{ ok: true; text: string } | { ok: false; status: number; message: string }> => {
+        disableReasoning: boolean,
+      ): Promise<
+        | { ok: true; text: string }
+        | { ok: false; status: number; message: string; emptyResponse?: boolean }
+      > => {
         const systemText =
           formatMode === 'json_schema'
             ? `${req.system}\n\nRespond with valid JSON only (no markdown fences or commentary).`
@@ -525,6 +573,7 @@ export function localLlmProvider(opts: LocalLlmProviderOptions): AIProvider {
             { role: 'user', content: userContent },
           ],
           ...(maxTokens ? { max_tokens: maxTokens } : {}),
+          ...(disableReasoning ? { reasoning_effort: 'none' } : {}),
         };
 
         if (formatMode === 'json_schema') {
@@ -571,40 +620,64 @@ export function localLlmProvider(opts: LocalLlmProviderOptions): AIProvider {
 
         const text = extractChatText(data);
         if (!text) {
+          const hint = hasReasoningPayload(data)
+            ? ' (reasoning consumed the output — try setting OLLAMA_CONTEXT_LENGTH=16384 or a non-thinking model)'
+            : '';
           return {
             ok: false,
             status: 502,
-            message: `Local model "${model}" returned an empty response.`,
+            emptyResponse: true,
+            message: `Local model "${model}" returned an empty response${hint}.`,
           };
         }
         return { ok: true, text };
       };
 
-      let formatMode: 'json_schema' | 'json_object' | 'none' = 'json_schema';
-      let includeImages = hasImages;
-      let attempt = await send(formatMode, includeImages);
+      let formatMode: 'json_schema' | 'json_object' | 'none' = learnedFormatMode;
+      let includeImages = hasImages && learnedSupportsImages;
+      let disableReasoning = preferDisableReasoning && learnedSupportsReasoningEffort !== false;
+      let attempt = await send(formatMode, includeImages, disableReasoning);
 
-      // Progressive compatibility fallbacks (images -> json_object -> none, up to 3 steps).
-      for (let i = 0; i < 3 && !attempt.ok; i++) {
+      // Progressive compatibility fallbacks (reasoning_effort -> images -> json_object -> none,
+      // including empty-content conflicts between reasoning models like Qwen3 and json_schema).
+      for (let i = 0; i < 4 && !attempt.ok; i++) {
+        if (
+          disableReasoning &&
+          isReasoningParamUnsupportedError(attempt.status, attempt.message)
+        ) {
+          disableReasoning = false;
+          learnedSupportsReasoningEffort = false;
+          attempt = await send(formatMode, includeImages, disableReasoning);
+          continue;
+        }
         if (includeImages && isVisionUnsupportedError(attempt.status, attempt.message)) {
           includeImages = false;
-          attempt = await send(formatMode, includeImages);
+          attempt = await send(formatMode, includeImages, disableReasoning);
+          continue;
+        }
+        if (
+          attempt.emptyResponse &&
+          !disableReasoning &&
+          learnedSupportsReasoningEffort !== false
+        ) {
+          disableReasoning = true;
+          attempt = await send(formatMode, includeImages, disableReasoning);
           continue;
         }
         if (
           formatMode === 'json_schema' &&
-          isSchemaUnsupportedError(attempt.status, attempt.message)
+          (attempt.emptyResponse || isSchemaUnsupportedError(attempt.status, attempt.message))
         ) {
           formatMode = 'json_object';
-          attempt = await send(formatMode, includeImages);
+          attempt = await send(formatMode, includeImages, disableReasoning);
           continue;
         }
         if (
           formatMode === 'json_object' &&
-          isSchemaUnsupportedError(attempt.status, attempt.message)
+          (attempt.emptyResponse || isSchemaUnsupportedError(attempt.status, attempt.message))
         ) {
           formatMode = 'none';
-          attempt = await send(formatMode, includeImages);
+          attempt = await send(formatMode, includeImages, disableReasoning);
           continue;
         }
         break;
@@ -618,6 +691,10 @@ export function localLlmProvider(opts: LocalLlmProviderOptions): AIProvider {
         }
         throw new Error(attempt.message);
       }
+
+      if (hasImages && !includeImages) learnedSupportsImages = false;
+      learnedFormatMode = formatMode;
+      if (disableReasoning) learnedSupportsReasoningEffort = true;
 
       return { text: attempt.text, ranOn: 'device', model };
     },

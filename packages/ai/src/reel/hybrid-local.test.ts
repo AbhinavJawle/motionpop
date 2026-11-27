@@ -395,11 +395,13 @@ describe('chromeOnDeviceProvider multimodal support', () => {
 
     expect(res.ranOn).toBe('device');
     expect(availabilitySpy).toHaveBeenCalledWith({
-      expectedInputs: [{ type: 'text' }, { type: 'image' }],
+      expectedInputs: [{ type: 'text', languages: ['en'] }, { type: 'image' }],
+      expectedOutputs: [{ type: 'text', languages: ['en'] }],
     });
     expect(createSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        expectedInputs: [{ type: 'text' }, { type: 'image' }],
+        expectedInputs: [{ type: 'text', languages: ['en'] }, { type: 'image' }],
+        expectedOutputs: [{ type: 'text', languages: ['en'] }],
       }),
     );
     const firstArg = (promptSpy.mock.calls[0] as unknown[] | undefined)?.[0] as Array<{
@@ -409,6 +411,42 @@ describe('chromeOnDeviceProvider multimodal support', () => {
     expect(Array.isArray(firstArg)).toBe(true);
     expect(firstArg[0]!.content[1]!.type).toBe('image');
     expect(firstArg[0]!.content[1]!.value).toBeInstanceOf(Blob);
+    expect(destroySpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('falls back to text-only Nano when multimodal image input is unavailable', async () => {
+    const promptSpy = vi.fn(async () => '{"action":"edit","message":"ok"}');
+    const destroySpy = vi.fn();
+    const createSpy = vi.fn(async () => ({ prompt: promptSpy, destroy: destroySpy }));
+    const availabilitySpy = vi
+      .fn()
+      .mockResolvedValueOnce('unavailable')
+      .mockResolvedValueOnce('available');
+    (globalThis as Record<string, unknown>).LanguageModel = {
+      availability: availabilitySpy,
+      create: createSpy,
+    };
+
+    const provider = chromeOnDeviceProvider();
+    const res = await provider.generate({
+      mode: 'ONLY_ON_DEVICE',
+      model: 'gemini-nano',
+      system: 'sys',
+      prompt: 'Fix typo',
+      jsonSchema: { $schema: 'http://json-schema.org/draft-07/schema#', type: 'object' },
+      media: { mimeType: 'image/jpeg', base64: btoa('fake-jpeg-bytes') },
+    });
+
+    expect(res.ranOn).toBe('device');
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expectedInputs: [{ type: 'text', languages: ['en'] }],
+      }),
+    );
+    expect(promptSpy).toHaveBeenCalledWith(
+      'Fix typo',
+      expect.objectContaining({ responseConstraint: { type: 'object' } }),
+    );
     expect(destroySpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -194,14 +194,14 @@ export async function sendToPip(deps: SendDeps, text: string, scope: PipScope): 
         allowCloud: false,
         ...(selectedModel ? { model: selectedModel } : {}),
       });
-      const plan = enforcePlan(res.output, project, 'cloud');
+      const plan = enforcePlan(res.output, project, res.ranOn);
       push({
         role: 'pip',
         text: plan.reply,
         scope,
         plan,
         planState: 'proposed',
-        ranOn: 'cloud',
+        ranOn: res.ranOn,
         model: res.model,
         credits: res.costCredits,
       });
