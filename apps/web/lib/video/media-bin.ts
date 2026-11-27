@@ -104,7 +104,7 @@ export async function ingestMediaClipBlob(
     meta.existingRef ??
     (await store.put(
       blob,
-      meta.projectId ? { projectId: meta.projectId, kind: 'voice' } : undefined,
+      meta.projectId ? { projectId: meta.projectId, kind: 'clip' } : undefined,
     ));
 
   let width = 1920;

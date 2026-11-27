@@ -1,7 +1,19 @@
 import { isSafeId } from '@motionpop/schemas';
 import { z } from 'zod';
 import { done, openDb, req, STORES } from '../storage/idb';
-import { CANONICAL_TYPE, MAX_VOICE_BYTES, hash16, voiceExtFor } from './audio-path';
+import {
+  CANONICAL_CLIP_TYPE,
+  CANONICAL_TYPE,
+  CANONICAL_VIDEO_TYPE,
+  MAX_CLIP_IMAGE_BYTES,
+  MAX_VIDEO_BYTES,
+  MAX_VOICE_BYTES,
+  clipExtFor,
+  hash16,
+  isImageClipExt,
+  videoExtFor,
+  voiceExtFor,
+} from './audio-path';
 import { isIdbAudioRef, type AudioPlace, type AudioStore, type KeyedBlobs } from './audio-store';
 
 // Audio that follows the account (spec 11 R1.3, design §2.4). A `put` with a place stores the
@@ -141,28 +153,22 @@ export class HybridAudioStore implements AudioStore {
 
   /**
    * Returns as soon as the bytes are in IndexedDB; the upload runs behind it. Without an
-   * account, a place, or an uploadable type and size, the audio stays a local `idb:` ref.
+   * account, a place, or an uploadable type and size, the media stays a local `idb:` ref.
    */
   async put(blob: Blob, place?: AudioPlace): Promise<string> {
     const uid = this.d.uid();
-    const ext = voiceExtFor(blob.type);
-    if (
-      !place ||
-      !uid ||
-      !ext ||
-      !isSafeId(uid) ||
-      !isSafeId(place.projectId) ||
-      blob.size <= 0 ||
-      blob.size > MAX_VOICE_BYTES
-    ) {
+    if (!place || !uid || !isSafeId(uid) || !isSafeId(place.projectId) || blob.size <= 0) {
       return this.d.local.put(blob);
     }
+    const target = resolveUploadTarget(blob, place);
+    if (!target) return this.d.local.put(blob);
     const bytes = await blob.arrayBuffer();
-    const path = `users/${uid}/audio/${place.projectId}/${place.kind}-${await hash16(bytes)}.${ext}`;
+    const path = `users/${uid}/${target.folder}/${place.projectId}/${target.prefix}-${await hash16(bytes)}.${target.ext}`;
     const ref = STORAGE_AUDIO_PREFIX + path;
-    const contentType = CANONICAL_TYPE[ext];
-    await this.d.local.putKey(ref, new Blob([bytes], { type: contentType }));
-    if (!(await this.d.queue.get(ref))) await this.d.queue.put({ ref, contentType, attempts: 0 });
+    await this.d.local.putKey(ref, new Blob([bytes], { type: target.contentType }));
+    if (!(await this.d.queue.get(ref))) {
+      await this.d.queue.put({ ref, contentType: target.contentType, attempts: 0 });
+    }
     this.markPending(ref);
     this.kick(ref);
     return ref;
@@ -310,4 +316,50 @@ export class HybridAudioStore implements AudioStore {
     this.status = { pending: new Set(this.pendingRefs), failing };
     for (const l of this.listeners) l();
   }
+}
+
+interface UploadTarget {
+  folder: 'audio' | 'video';
+  prefix: 'voice' | 'music' | 'source' | 'clip';
+  ext: string;
+  contentType: string;
+}
+
+/** Resolves the Storage bucket folder, filename prefix, canonical MIME type, and size cap for `put`. */
+function resolveUploadTarget(blob: Blob, place: AudioPlace): UploadTarget | null {
+  const name =
+    'name' in blob && typeof (blob as { name?: unknown }).name === 'string'
+      ? (blob as { name: string }).name
+      : undefined;
+
+  if (place.kind === 'source') {
+    const ext = videoExtFor(blob.type, name);
+    if (!ext || blob.size > MAX_VIDEO_BYTES) return null;
+    return { folder: 'video', prefix: 'source', ext, contentType: CANONICAL_VIDEO_TYPE[ext] };
+  }
+
+  if (place.kind === 'clip') {
+    const ext = clipExtFor(blob.type, name);
+    if (!ext) return null;
+    const maxBytes = isImageClipExt(ext) ? MAX_CLIP_IMAGE_BYTES : MAX_VIDEO_BYTES;
+    if (blob.size > maxBytes) return null;
+    return { folder: 'video', prefix: 'clip', ext, contentType: CANONICAL_CLIP_TYPE[ext] };
+  }
+
+  const audioExt = voiceExtFor(blob.type);
+  if (audioExt) {
+    if (blob.size > MAX_VOICE_BYTES) return null;
+    return { folder: 'audio', prefix: place.kind, ext: audioExt, contentType: CANONICAL_TYPE[audioExt] };
+  }
+
+  // Defensive fallback: if a caller passes `kind: 'voice'` with a source video blob, file it
+  // under `video/.../source-{hash}.{ext}` so it still syncs cleanly under `storage.rules`.
+  if (place.kind === 'voice') {
+    const vidExt = videoExtFor(blob.type, name);
+    if (vidExt && blob.size <= MAX_VIDEO_BYTES) {
+      return { folder: 'video', prefix: 'source', ext: vidExt, contentType: CANONICAL_VIDEO_TYPE[vidExt] };
+    }
+  }
+
+  return null;
 }

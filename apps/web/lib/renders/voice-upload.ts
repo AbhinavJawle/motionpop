@@ -11,7 +11,17 @@ import {
   voicePathFor,
   type EditorProject,
 } from '@motionpop/schemas';
-import { CANONICAL_TYPE, MAX_VOICE_BYTES, hash16, voiceExtFor } from '../audio/audio-path';
+import {
+  CANONICAL_CLIP_TYPE,
+  CANONICAL_TYPE,
+  CANONICAL_VIDEO_TYPE,
+  MAX_VIDEO_BYTES,
+  MAX_VOICE_BYTES,
+  clipExtFor,
+  hash16,
+  videoExtFor,
+  voiceExtFor,
+} from '../audio/audio-path';
 import { appAudioStore } from '../audio/app-audio-store';
 import { isIdbAudioRef, type AudioStore } from '../audio/audio-store';
 import { firebaseRemoteAudio } from '../audio/firebase-remote-audio';
@@ -121,19 +131,6 @@ export async function uploadVoice(
   }
 }
 
-// Same cap as intake (INTAKE_LIMITS.maxVideoBytes) so a clip that processes can always export.
-const MAX_VIDEO_BYTES = 500 * 1024 * 1024;
-const VIDEO_EXT: Readonly<Record<string, 'mp4' | 'mov' | 'webm'>> = {
-  'video/mp4': 'mp4',
-  'video/quicktime': 'mov',
-  'video/webm': 'webm',
-};
-const VIDEO_MIME: Readonly<Record<'mp4' | 'mov' | 'webm', string>> = {
-  mp4: 'video/mp4',
-  mov: 'video/quicktime',
-  webm: 'video/webm',
-};
-
 /** Resolves `project.video.src` into a Blob for export (returns null on voiceover-only projects). */
 export async function resolveVideoBlob(
   project: EditorProject,
@@ -161,31 +158,14 @@ export async function uploadVideo(
 ): Promise<string | null> {
   if (!isSafeId(uid) || !isSafeId(projectId)) return null;
   if (blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) return null;
-  const ext = VIDEO_EXT[blob.type.split(';')[0]?.trim().toLowerCase() ?? ''] ?? 'mp4';
+  const ext = videoExtFor(blob.type) ?? 'mp4';
   const path = `users/${uid}/video/${projectId}/source-${await hash16(await blob.arrayBuffer())}.${ext}`;
   if (!videoPathFor(uid, projectId).test(path)) return null;
   const storage = await remote();
   if (await storage.exists(path).catch(() => false)) return path;
-  await storage.upload(path, blob, VIDEO_MIME[ext]);
+  await storage.upload(path, blob, CANONICAL_VIDEO_TYPE[ext]);
   return path;
 }
-
-const CLIP_EXT: Readonly<Record<string, 'mp4' | 'mov' | 'webm' | 'png' | 'jpg' | 'webp'>> = {
-  'video/mp4': 'mp4',
-  'video/quicktime': 'mov',
-  'video/webm': 'webm',
-  'image/png': 'png',
-  'image/jpeg': 'jpg',
-  'image/webp': 'webp',
-};
-const CLIP_MIME: Readonly<Record<'mp4' | 'mov' | 'webm' | 'png' | 'jpg' | 'webp', string>> = {
-  mp4: 'video/mp4',
-  mov: 'video/quicktime',
-  webm: 'video/webm',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  webp: 'image/webp',
-};
 
 /** Uploads every Media Bin clip referenced by `project.video.stages` for cloud MP4 export (spec 21 R5). */
 export async function uploadReferencedMediaClips(
@@ -207,12 +187,13 @@ export async function uploadReferencedMediaClips(
     if (!usedIds.has(clip.id)) continue;
     const blob = await store.get(clip.src).catch(() => null);
     if (!blob || blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) continue;
-    const base = (blob.type || clip.mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
-    const ext = CLIP_EXT[base] ?? (clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
+    const ext =
+      clipExtFor(blob.type || clip.mimeType, clip.name) ??
+      (clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
     const path = `users/${uid}/video/${project.id}/clip-${await hash16(await blob.arrayBuffer())}.${ext}`;
     if (!re.test(path)) continue;
     if (!(await storage.exists(path).catch(() => false))) {
-      await storage.upload(path, blob, CLIP_MIME[ext]);
+      await storage.upload(path, blob, CANONICAL_CLIP_TYPE[ext]);
     }
     out[clip.id] = path;
   }
@@ -235,8 +216,9 @@ export async function resolveReferencedMediaClipBlobs(
     if (!usedIds.has(clip.id)) continue;
     const blob = await resolveStoredMediaBlob(clip.src, store);
     if (!blob || blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) continue;
-    const base = (blob.type || clip.mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
-    const ext = CLIP_EXT[base] ?? (clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
+    const ext =
+      clipExtFor(blob.type || clip.mimeType, clip.name) ??
+      (clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
     out[clip.id] = { blob, ext };
   }
   return out;
@@ -281,14 +263,13 @@ export async function uploadStockOverlays(
     }
     const blob = await resolveStoredMediaBlob(clip.src, store);
     if (!blob || blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) continue;
-    const base = (blob.type || clip.mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
     const ext =
-      CLIP_EXT[base] ??
+      clipExtFor(blob.type || clip.mimeType) ??
       (clip.kind === 'photo' || clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
     const path = `users/${uid}/video/${project.id}/stock-ov-${await hash16(await blob.arrayBuffer())}.${ext}`;
     if (!re.test(path)) continue;
     if (!(await storage.exists(path).catch(() => false))) {
-      await storage.upload(path, blob, CLIP_MIME[ext]);
+      await storage.upload(path, blob, CANONICAL_CLIP_TYPE[ext]);
     }
     uploadedBySrc.set(clip.src, path);
     out[clip.id] = path;
@@ -347,9 +328,8 @@ export async function resolveStockOverlayBlobs(
     }
     const blob = await resolveStoredMediaBlob(clip.src, store);
     if (!blob || blob.size <= 0 || blob.size > MAX_VIDEO_BYTES) continue;
-    const base = (blob.type || clip.mimeType).split(';')[0]?.trim().toLowerCase() ?? '';
     const ext =
-      CLIP_EXT[base] ??
+      clipExtFor(blob.type || clip.mimeType) ??
       (clip.kind === 'photo' || clip.mimeType.startsWith('image/') ? 'jpg' : 'mp4');
     const entry = { blob, ext };
     cache.set(clip.src, entry);

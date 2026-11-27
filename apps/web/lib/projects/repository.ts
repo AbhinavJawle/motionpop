@@ -149,21 +149,28 @@ export abstract class StoredProjectRepository implements ProjectLibrary {
     const source = r.project;
     const copied = new Map<string, string>();
     const copyId = this.newId();
+    const videoRef = source.video?.src;
     const voiceRefs = new Set(
       [source.voiceover.src, source.voiceover.originalSrc].filter((r): r is string => Boolean(r)),
     );
     const musicRef = source.reel?.music?.src;
+    const mediaBinRefs = new Set((source.mediaBin ?? []).map((c) => c.src));
     try {
       for (const ref of audioRefsOf(source)) {
         const blob = await this.audio.get(ref);
         // Fixture voices (`synth:…`) are not stored blobs; the copy points at the same recipe.
-        // Voice and reel music are filed under the copy's id in Storage (R1.9); video, mediaBin,
-        // and stock clips stay as local blobs so they don't hit audio-only Storage rules.
-        const place = voiceRefs.has(ref)
-          ? ({ projectId: copyId, kind: 'voice' } as const)
-          : ref === musicRef
-            ? ({ projectId: copyId, kind: 'music' } as const)
-            : undefined;
+        // Source videos, Media Bin clips, voice and reel music are filed under the copy's id in
+        // Storage (R1.9) matching `storage.rules`; stock clips stay local until export.
+        const place =
+          ref === videoRef
+            ? ({ projectId: copyId, kind: 'source' } as const)
+            : voiceRefs.has(ref)
+              ? ({ projectId: copyId, kind: 'voice' } as const)
+              : ref === musicRef
+                ? ({ projectId: copyId, kind: 'music' } as const)
+                : mediaBinRefs.has(ref)
+                  ? ({ projectId: copyId, kind: 'clip' } as const)
+                  : undefined;
         copied.set(ref, blob ? await this.audio.put(blob, place) : ref);
       }
       const remap = (ref: string): string => copied.get(ref) ?? ref;

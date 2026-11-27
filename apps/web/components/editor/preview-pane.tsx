@@ -402,16 +402,16 @@ export function PreviewPane() {
 /** Save status (spec 32 R1.2): quiet text beside the project title. */
 export function SaveIndicator({ onInk = false }: { onInk?: boolean } = {}) {
   const status = useEditor((s) => s.saveStatus);
-  const voiceover = useEditor((s) => s.project?.voiceover);
-  const uploads = useUploadState(voiceover ? audioRefsOf({ voiceover }) : undefined);
+  const project = useEditor((s) => s.project);
+  const uploads = useUploadState(project ? audioRefsOf(project) : undefined);
   const generating = useEditor((s) => s.generating !== null);
-  // Audio still uploading to the account counts as unsaved (spec 11 design §10).
+  // Audio and video still uploading to the account count as unsaved (spec 11 design §10).
   const text = generating
     ? 'Generating motion…'
     : status === 'error'
       ? 'Couldn’t save · retrying on next change'
       : uploads === 'failing'
-        ? 'Couldn’t upload audio · retrying'
+        ? 'Couldn’t upload media · retrying'
         : status === 'saving' || uploads === 'uploading'
           ? 'Saving…'
           : 'All changes saved';

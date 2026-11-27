@@ -1049,9 +1049,10 @@ export async function runPipeline(
       checkAbort();
       const written: string[] = [...preparedMedia.written];
       try {
-        const place = { projectId: id, kind: 'voice' } as const;
+        const voicePlace = { projectId: id, kind: 'voice' } as const;
+        const sourcePlace = { projectId: id, kind: 'source' } as const;
         const reuse = input.storedRef && !deps.audioStore.syncs?.() ? input.storedRef : null;
-        const originalSrc = reuse ?? (await deps.audioStore.put(input.file, place));
+        const originalSrc = reuse ?? (await deps.audioStore.put(input.file, sourcePlace));
         if (!reuse) written.push(originalSrc);
         // The voice is always its own WAV (the editor's clock and the export's voice upload),
         // even without cuts: the original is a video file.
@@ -1059,7 +1060,7 @@ export async function runPipeline(
           new Blob([deps.encodeWav(reelPcm ?? audio.pcm24k, OUTPUT_SAMPLE_RATE)], {
             type: 'audio/wav',
           }),
-          place,
+          voicePlace,
         );
         written.push(src);
         const now = deps.now();
@@ -1580,14 +1581,17 @@ export async function runPipeline(
     try {
       // Every ref is filed under the project (design §2.4). A stored take is reused as it is in
       // local mode; signed in, it is put again under the project so it uploads to the account.
-      const place = { projectId: id, kind: 'voice' } as const;
+      const voicePlace = { projectId: id, kind: 'voice' } as const;
+      const originalPlace = isVideoInput
+        ? ({ projectId: id, kind: 'source' } as const)
+        : voicePlace;
       const reuse = input.storedRef && !deps.audioStore.syncs?.() ? input.storedRef : null;
-      const originalSrc = reuse ?? (await deps.audioStore.put(input.file, place));
+      const originalSrc = reuse ?? (await deps.audioStore.put(input.file, originalPlace));
       if (!reuse) written.push(originalSrc);
       const src = cleanedPcm
         ? await deps.audioStore.put(
             new Blob([deps.encodeWav(cleanedPcm, OUTPUT_SAMPLE_RATE)], { type: 'audio/wav' }),
-            place,
+            voicePlace,
           )
         : originalSrc;
       if (src !== originalSrc) written.push(src);

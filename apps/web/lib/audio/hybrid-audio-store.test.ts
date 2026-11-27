@@ -1,9 +1,9 @@
 // @vitest-environment happy-dom
-import { voicePathFor } from '@motionpop/schemas';
+import { mediaClipPathFor, videoPathFor, voicePathFor } from '@motionpop/schemas';
 import { fixtureProject } from '@motionpop/motion/testing/project-fixture';
 import { IDBFactory } from 'fake-indexeddb';
 import { describe, expect, it } from 'vitest';
-import { resolveVoiceBlob, uploadVoice } from '../renders/voice-upload';
+import { resolveVoiceBlob, uploadVideo, uploadVoice } from '../renders/voice-upload';
 import { IdbAudioStore, isIdbAudioRef } from './audio-store';
 import {
   AudioElsewhereError,
@@ -191,5 +191,47 @@ describe('HybridAudioStore', () => {
     const path = await uploadVoice('uid1', 'p-1', blob, () => Promise.resolve(remote));
     expect(path).toBe(storagePathOf(ref));
     expect(remote.uploads).toBe(1);
+  });
+
+  it('syncs source videos under users/{uid}/video/{projectId}/source-… and downloads on another device', async () => {
+    const remote = new FakeRemote();
+    const mp4 = new Blob([new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112])], {
+      type: 'video/mp4',
+    });
+    const laptopA = make(new IDBFactory(), remote);
+    const ref = await laptopA.put(mp4, { projectId: 'p-vid', kind: 'source' });
+    expect(isStorageAudioRef(ref)).toBe(true);
+    expect(videoPathFor('uid1', 'p-vid').test(storagePathOf(ref))).toBe(true);
+    await laptopA.drained();
+    expect(remote.uploads).toBe(1);
+
+    // Another device with an empty IndexedDB downloads and caches the video from Storage.
+    const laptopB = make(new IDBFactory(), remote);
+    expect((await laptopB.get(ref))?.size).toBe(8);
+    expect((await laptopB.get(ref))?.size).toBe(8);
+    expect(remote.downloads).toBe(1);
+
+    // Export reuses the already-uploaded object at the identical content-hashed path.
+    const exportPath = await uploadVideo('uid1', 'p-vid', mp4, () => Promise.resolve(remote));
+    expect(exportPath).toBe(storagePathOf(ref));
+    expect(remote.uploads).toBe(1);
+  });
+
+  it('infers video extension from File.name when MIME type is empty and syncs Media Bin clips', async () => {
+    const remote = new FakeRemote();
+    const store = make(new IDBFactory(), remote);
+    const movFile = new File([new Uint8Array([1, 2, 3, 4])], 'talking-head.MOV', { type: '' });
+    const sourceRef = await store.put(movFile, { projectId: 'p-mov', kind: 'source' });
+    expect(isStorageAudioRef(sourceRef)).toBe(true);
+    expect(videoPathFor('uid1', 'p-mov').test(storagePathOf(sourceRef))).toBe(true);
+    expect(storagePathOf(sourceRef).endsWith('.mov')).toBe(true);
+
+    const imgClip = new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' });
+    const clipRef = await store.put(imgClip, { projectId: 'p-mov', kind: 'clip' });
+    expect(isStorageAudioRef(clipRef)).toBe(true);
+    expect(mediaClipPathFor('uid1', 'p-mov').test(storagePathOf(clipRef))).toBe(true);
+
+    await store.drained();
+    expect(remote.uploads).toBe(2);
   });
 });

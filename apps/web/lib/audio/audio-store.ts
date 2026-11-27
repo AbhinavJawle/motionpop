@@ -1,10 +1,10 @@
 import { z } from 'zod';
 import { done, openDb, req, STORES } from '../storage/idb';
 
-/** Where in the account a project's audio goes (spec 11 design §2.4). */
+/** Where in the account a project's audio or video media goes (spec 11 design §2.4). */
 export interface AudioPlace {
   projectId: string;
-  kind: 'voice' | 'music';
+  kind: 'voice' | 'music' | 'source' | 'clip';
 }
 
 /**

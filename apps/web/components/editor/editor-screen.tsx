@@ -15,7 +15,12 @@ import { loadVoice, type LoadedVoice } from '@/lib/editor/voice';
 import { useSoundBed } from '@/lib/sound/use-sound-bed';
 import { useStockAudio } from '@/lib/sound/use-stock-audio';
 import { useVoiceState } from '@/lib/editor/voice-state';
-import { AudioElsewhereError } from '@/lib/audio/hybrid-audio-store';
+import {
+  AudioElsewhereError,
+  isStorageAudioRef,
+} from '@/lib/audio/hybrid-audio-store';
+import { isIdbAudioRef } from '@/lib/audio/audio-store';
+import { currentUid } from '@/lib/auth/auth-store';
 import { projectLibrary } from '@/lib/projects/use-project-list';
 import { openProject } from '@/lib/projects/open';
 import type { ProjectLibrary } from '@/lib/projects/repository';
@@ -137,6 +142,44 @@ export function EditorScreen({
       void handle.stop();
     };
   }, [phase.kind, repo]);
+
+  // Promote legacy local-only `idb:` source videos to Firebase Storage when the signed-in owner
+  // opens the project on the browser that still holds the video bytes, so other devices get it too.
+  useEffect(() => {
+    if (phase.kind !== 'ready') return;
+    const store = appAudioStore();
+    if (!store.syncs()) return;
+    const project = editorStore.getState().project;
+    const oldSrc = project?.video?.src;
+    if (!project || !oldSrc || !isIdbAudioRef(oldSrc)) return;
+    const uid = currentUid();
+    if (!uid || (project.ownerId && project.ownerId !== uid)) return;
+    let cancelled = false;
+    void store
+      .get(oldSrc)
+      .then(async (blob) => {
+        if (cancelled || !blob) return;
+        const syncedRef = await store.put(blob, { projectId: project.id, kind: 'source' });
+        if (cancelled || !isStorageAudioRef(syncedRef)) return;
+        const cur = editorStore.getState().project;
+        if (!cur || cur.id !== project.id || cur.video?.src !== oldSrc) return;
+        editorStore.setState({
+          project: {
+            ...cur,
+            video: { ...cur.video, src: syncedRef },
+            voiceover:
+              cur.voiceover.originalSrc === oldSrc
+                ? { ...cur.voiceover, originalSrc: syncedRef }
+                : cur.voiceover,
+            updatedAt: Date.now(),
+          },
+        });
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [phase.kind, projectId]);
 
   // Voice: synthesized or decoded, then peaks in a worker. Re-created per project or when a
   // manual/AI video cut re-splices `voiceover.src` (spec 45: keeps playback & waveform locked).
