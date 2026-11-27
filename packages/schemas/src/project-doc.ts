@@ -102,6 +102,7 @@ export type ProjectDoc = z.infer<typeof ProjectDocSchema>;
 /** What the dashboard lists per project (IndexedDB and Firestore alike). */
 export const ProjectSummarySchema = ProjectSummaryFieldsSchema.extend({
   id: z.string().min(1),
+  ownerId: z.string().min(1).optional(),
   title: z.string(),
   format: FormatSchema,
   styleId: z.string().min(1),

@@ -26,6 +26,7 @@ export function summarise(p: EditorProject): ProjectSummary {
     : ordered.slice(0, SLOT_STATES_MAX).map((s) => (s.status === 'ready' ? 'ready' : 'pending'));
   return {
     id: p.id,
+    ...(p.ownerId ? { ownerId: p.ownerId } : {}),
     title: p.title,
     format: p.format,
     styleId: p.styleId,

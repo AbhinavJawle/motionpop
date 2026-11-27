@@ -68,6 +68,9 @@ export class SyncedLibrary implements ProjectLibrary {
     const local = await this.d.local.load(id);
     const uid = this.d.uid();
     if (!uid) return local;
+    // Local project explicitly owned by another account: never hit Firestore for it (avoids
+    // permission-denied noise when switching accounts on the same browser).
+    if (local.ok && !ownedBy(local.project, uid)) return local;
     let head: unknown;
     try {
       head = await this.d.cloud.readHead(id);
@@ -78,11 +81,21 @@ export class SyncedLibrary implements ProjectLibrary {
     const remoteUpdated = updatedAtOf(head);
     if (remoteUpdated === null) {
       // Not in the cloud yet: upload what we have (a project made before sign-in or offline).
-      if (local.ok && ownedBy(local.project, uid)) this.push(local.project, uid);
+      if (local.ok && ownedBy(local.project, uid)) {
+        const stamped = local.project.ownerId ? local.project : { ...local.project, ownerId: uid };
+        if (!local.project.ownerId) await this.d.local.save(stamped).catch(() => undefined);
+        this.push(stamped, uid);
+        return { ok: true, project: stamped };
+      }
       return local;
     }
     if (local.ok && local.project.updatedAt >= remoteUpdated) {
-      if (local.project.updatedAt > remoteUpdated) this.push(local.project, uid);
+      if (local.project.updatedAt > remoteUpdated && ownedBy(local.project, uid)) {
+        const stamped = local.project.ownerId ? local.project : { ...local.project, ownerId: uid };
+        if (!local.project.ownerId) await this.d.local.save(stamped).catch(() => undefined);
+        this.push(stamped, uid);
+        return { ok: true, project: stamped };
+      }
       return local;
     }
     try {
@@ -103,9 +116,10 @@ export class SyncedLibrary implements ProjectLibrary {
   }
 
   async save(project: EditorProject): Promise<void> {
-    await this.d.local.save(project);
     const uid = this.d.uid();
-    if (uid && ownedBy(project, uid)) this.push(project, uid);
+    const stamped = uid && !project.ownerId ? { ...project, ownerId: uid } : project;
+    await this.d.local.save(stamped);
+    if (uid && ownedBy(stamped, uid)) this.push(stamped, uid);
   }
 
   restoreBackup(id: string): Promise<LoadResult> {
@@ -117,6 +131,9 @@ export class SyncedLibrary implements ProjectLibrary {
     const local = await this.d.local.list();
     const uid = this.d.uid();
     if (!uid) return local;
+    // Keep local drafts (no ownerId) and projects owned by this account; hide another account's
+    // local copies so they never trigger cross-account permission errors on open.
+    const ownedLocal = local.projects.filter((s) => !s.ownerId || s.ownerId === uid);
     let remote: ProjectSummary[] = [];
     try {
       remote = (await this.d.cloud.listOwned(uid))
@@ -124,10 +141,10 @@ export class SyncedLibrary implements ProjectLibrary {
         .filter((s): s is ProjectSummary => s !== null);
     } catch (err) {
       this.warn('Cloud project list failed; showing this browser only', err);
-      return local;
+      return { projects: ownedLocal, damaged: local.damaged };
     }
     const byId = new Map<string, ProjectSummary>();
-    for (const s of [...local.projects, ...remote]) {
+    for (const s of [...ownedLocal, ...remote]) {
       const had = byId.get(s.id);
       if (!had || s.updatedAt > had.updatedAt) byId.set(s.id, s);
     }
@@ -139,7 +156,8 @@ export class SyncedLibrary implements ProjectLibrary {
 
   async delete(id: string): Promise<void> {
     const uid = this.d.uid();
-    if (uid) {
+    const local = await this.d.local.load(id);
+    if (uid && (!local.ok || ownedBy(local.project, uid))) {
       await this.queues.get(id)?.catch(() => undefined);
       await this.d.cloud.remove(id);
       this.known.delete(id);
@@ -153,7 +171,11 @@ export class SyncedLibrary implements ProjectLibrary {
     const copyId = await this.d.local.duplicate(id, newTitle);
     const copy = await this.d.local.load(copyId);
     const uid = this.d.uid();
-    if (uid && copy.ok) this.push(copy.project, uid);
+    if (uid && copy.ok) {
+      const ownedCopy = copy.project.ownerId === uid ? copy.project : { ...copy.project, ownerId: uid };
+      if (ownedCopy !== copy.project) await this.d.local.save(ownedCopy);
+      this.push(ownedCopy, uid);
+    }
     return copyId;
   }
 
@@ -171,7 +193,7 @@ export class SyncedLibrary implements ProjectLibrary {
     await this.d.local.rename(id, title);
     const r = await this.d.local.load(id);
     const uid = this.d.uid();
-    if (uid && r.ok) this.push(r.project, uid);
+    if (uid && r.ok && ownedBy(r.project, uid)) this.push(r.project, uid);
   }
 
   /** Queues a push of `project` behind any running push of the same id. */

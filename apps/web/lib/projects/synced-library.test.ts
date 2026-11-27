@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { demoProject } from './fixture';
 import {
   canonical,
@@ -157,5 +157,52 @@ describe('SyncedLibrary', () => {
     await sync.delete('demo');
     expect(c.docs.size).toBe(0);
     expect((await local.load('demo')).ok).toBe(false);
+  });
+
+  it('skips cloud reads, list entries, renames, and deletes for local projects owned by another uid', async () => {
+    const c = memoryCloud();
+    const local = new MemoryProjectRepository();
+    const readHead = vi.fn(c.store.readHead);
+    const readSet = vi.fn(c.store.readSet);
+    const remove = vi.fn(c.store.remove);
+    const warn = vi.fn();
+    const guardedCloud: CloudStore = { ...c.store, readHead, readSet, remove };
+
+    // Account u1 creates a project on this browser; save stamps ownerId: 'u1' locally too.
+    const u1 = new SyncedLibrary({ local, cloud: guardedCloud, uid: () => 'u1', warn });
+    await u1.save({ ...demoProject(1000), id: 'p-u1' });
+    await u1.idle();
+    const storedU1 = await local.load('p-u1');
+    expect(storedU1.ok && storedU1.project.ownerId).toBe('u1');
+
+    // Also add an unowned local draft (created while signed out).
+    await local.save({ ...demoProject(1200), id: 'p-draft' });
+
+    readHead.mockClear();
+    readSet.mockClear();
+    remove.mockClear();
+    warn.mockClear();
+
+    // Account u2 signs in on the same browser.
+    const u2 = new SyncedLibrary({ local, cloud: guardedCloud, uid: () => 'u2', warn });
+
+    // Dashboard listing hides u1's project, keeping only u2's projects + unowned local drafts.
+    const listing = await u2.list();
+    expect(listing.projects.map((p) => p.id)).toEqual(['p-draft']);
+
+    // Direct load of u1's local project returns the local copy without hitting Firestore.
+    const loaded = await u2.load('p-u1');
+    expect(loaded.ok && loaded.project.id).toBe('p-u1');
+    expect(readHead).not.toHaveBeenCalled();
+    expect(readSet).not.toHaveBeenCalled();
+    expect(warn).not.toHaveBeenCalled();
+
+    // Renaming or deleting u1's local copy never calls Firestore/delete route as u2.
+    await u2.rename('p-u1', 'Local rename');
+    await u2.idle();
+    expect(c.docs.get('projects/p-u1')).toMatchObject({ ownerId: 'u1' });
+    await u2.delete('p-u1');
+    expect(remove).not.toHaveBeenCalled();
+    expect(c.docs.has('projects/p-u1')).toBe(true);
   });
 });

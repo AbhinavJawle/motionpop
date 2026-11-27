@@ -174,9 +174,8 @@ export function summaryFromDoc(id: string, raw: unknown): ProjectSummary | null 
   const d = CloudProjectDocSchema.safeParse(raw);
   if (!d.success) return null;
   const { ownerId, bodyJson, schemaVersion, ...summary } = d.data;
-  void ownerId;
   void schemaVersion;
-  if (summary.preview) return { id, ...summary };
+  if (summary.preview) return { id, ownerId, ...summary };
   // Existing Firestore docs saved before spec 41 carry `video`/`reel`/`edit` inside `bodyJson`.
   const body = parseJson(bodyJson);
   const { preview, reelSceneCount } = buildProjectPreviewFromBody(
@@ -187,6 +186,7 @@ export function summaryFromDoc(id: string, raw: unknown): ProjectSummary | null 
   if (reelSceneCount && reelSceneCount > 0 && summary.slotCount === 0) {
     return {
       id,
+      ownerId,
       ...summary,
       status: 'ready',
       slotCount: reelSceneCount,
@@ -198,5 +198,5 @@ export function summaryFromDoc(id: string, raw: unknown): ProjectSummary | null 
       preview,
     };
   }
-  return { id, ...summary, preview };
+  return { id, ownerId, ...summary, preview };
 }
