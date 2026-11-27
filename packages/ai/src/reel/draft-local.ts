@@ -109,6 +109,7 @@ export function draftToReelPlan(
   words: readonly ReelWord[],
   durationMs: number,
   look: ReelLook,
+  by = 'gemini-nano',
 ): ReelPlan {
   const safeDuration = Math.max(1200, Math.round(Number.isFinite(durationMs) ? durationMs : 4000));
   const n = Math.max(1, words.length);
@@ -222,7 +223,7 @@ export function draftToReelPlan(
     captions: true,
     ...(hook ? { hook } : {}),
     scenes: tiled,
-    by: 'gemini-nano',
+    by,
   });
 }
 
@@ -242,7 +243,13 @@ export async function draftReelOnDevice(
       mode: 'ONLY_ON_DEVICE',
       allowCloud: false,
     });
-    return draftToReelPlan(res.output, params.words, params.durationMs, params.look);
+    return draftToReelPlan(
+      res.output,
+      params.words,
+      params.durationMs,
+      params.look,
+      res.model || 'gemini-nano',
+    );
   } catch {
     return null;
   }

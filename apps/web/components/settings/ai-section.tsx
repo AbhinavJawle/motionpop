@@ -223,9 +223,10 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
 
       {localLlmActive && (
         <p className="mt-2 text-[11px] leading-4 text-text-2">
-          Your local LLM (<code className="font-mono">{localLlmModel}</code>) is currently active
-          and handles directing, edits &amp; notes ahead of Gemini Nano. Pause it below to use
-          Gemini Nano instead.
+          Your local LLM (<code className="font-mono">{localLlmModel}</code>) is active for heavy
+          directing, edits &amp; custom motion graphics at 0 credits. When Gemini Nano is ready,
+          fast on-device tasks use Nano automatically — and you can choose between both whenever you
+          draw a note.
         </p>
       )}
 

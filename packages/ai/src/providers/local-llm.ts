@@ -423,6 +423,29 @@ function sanitizeJsonSchema(schema: Record<string, unknown>): Record<string, unk
   return sanitizeSchemaValue(schema) as Record<string, unknown>;
 }
 
+const MAX_INLINE_SCHEMA_CHARS = 3000;
+
+/**
+ * Formats a schema hint for `json_object` / `none` fallback modes without blowing past local
+ * models' default 4K context windows (21-branch `anyOf` schemas are ~12 KB raw JSON).
+ */
+function formatSchemaHint(cleanSchema: Record<string, unknown>): string {
+  const full = JSON.stringify(cleanSchema);
+  if (full.length <= MAX_INLINE_SCHEMA_CHARS) return full;
+  const props =
+    cleanSchema.properties && typeof cleanSchema.properties === 'object'
+      ? Object.keys(cleanSchema.properties as Record<string, unknown>)
+      : [];
+  const required = Array.isArray(cleanSchema.required)
+    ? cleanSchema.required.filter((x): x is string => typeof x === 'string')
+    : [];
+  return JSON.stringify({
+    type: 'object',
+    ...(required.length ? { required } : {}),
+    ...(props.length ? { topLevelKeys: props } : {}),
+  });
+}
+
 function extractChatText(data: OpenAiChatResponse | null): string {
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content === 'string') return stripThinkingTags(content);
@@ -507,15 +530,22 @@ export interface LocalLlmProviderOptions {
   model: string;
   /** Optional Bearer token for custom local/LAN OpenAI-compatible servers. */
   apiKey?: string | null;
+  /**
+   * Optional Chrome Gemini Nano on-device provider. When supplied, `ONLY_ON_DEVICE` and
+   * `PREFER_ON_DEVICE` requests try Gemini Nano first (instant, 0 credits, offline) and fall back
+   * cleanly to the local LLM server if Nano is unavailable or rejects the request.
+   */
+  onDevice?: AIProvider;
   fetchImpl?: typeof fetch;
-  /** Request timeout in milliseconds (default 120_000 for local inference). */
+  /** Request timeout in milliseconds (default 150_000 standard / 300_000 heavy tasks). */
   timeoutMs?: number;
 }
 
 /**
  * Full local `AIProvider` for Ollama, LM Studio, and OpenAI-compatible servers.
- * Handles every `InferenceMode` locally (0 Motionpop credits) with automatic fallback when:
- * - A server rejects `response_format: json_schema` → retries with `json_object` + schema hint.
+ * Handles every `InferenceMode` locally (0 Motionpop credits) with optional Chrome Gemini Nano
+ * hybrid delegation for lightweight `*_ON_DEVICE` tasks, plus automatic fallback when:
+ * - A server rejects `response_format: json_schema` → retries with `json_object` + compact hint.
  * - A text-only local model rejects attached video/frame images → retries text-only cleanly.
  */
 export function localLlmProvider(opts: LocalLlmProviderOptions): AIProvider {
@@ -537,6 +567,20 @@ export function localLlmProvider(opts: LocalLlmProviderOptions): AIProvider {
 
   return {
     async generate(req: ProviderRequest): Promise<ProviderResponse> {
+      // Hybrid local mode: when Chrome Gemini Nano is also available, let it handle fast
+      // on-device tasks first, seamlessly falling back to the local LLM server on any error.
+      if (
+        opts.onDevice &&
+        (req.mode === 'ONLY_ON_DEVICE' || req.mode === 'PREFER_ON_DEVICE')
+      ) {
+        try {
+          const nano = await opts.onDevice.generate({ ...req, mode: 'ONLY_ON_DEVICE' });
+          if (nano.text.trim().length > 0) return nano;
+        } catch {
+          // Nano unavailable or unable to handle this prompt/schema: fall through to local LLM.
+        }
+      }
+
       const cleanSchema = sanitizeJsonSchema(req.jsonSchema);
       const hasImages = Boolean(
         req.media?.mimeType.startsWith('image/') ||
@@ -547,7 +591,7 @@ export function localLlmProvider(opts: LocalLlmProviderOptions): AIProvider {
       // and give heavy directing/compose tasks extra wall-clock headroom on slower laptops.
       const maxTokens = req.maxOutputTokens ? Math.max(req.maxOutputTokens, 4096) : undefined;
       const timeoutMs =
-        explicitTimeoutMs ?? ((req.maxOutputTokens ?? 0) >= 8192 ? 180_000 : 120_000);
+        explicitTimeoutMs ?? ((req.maxOutputTokens ?? 0) >= 8192 ? 300_000 : 150_000);
 
       const send = async (
         formatMode: 'json_schema' | 'json_object' | 'none',
@@ -560,7 +604,7 @@ export function localLlmProvider(opts: LocalLlmProviderOptions): AIProvider {
         const systemText =
           formatMode === 'json_schema'
             ? `${req.system}\n\nRespond with valid JSON only (no markdown fences or commentary).`
-            : `${req.system}\n\nRespond with valid JSON only (no markdown fences or commentary) matching this JSON Schema:\n${JSON.stringify(cleanSchema)}`;
+            : `${req.system}\n\nRespond with valid JSON only (no markdown fences or commentary) matching this JSON shape:\n${formatSchemaHint(cleanSchema)}`;
 
         const userContent = buildUserContent(req, includeImages);
 

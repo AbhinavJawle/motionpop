@@ -438,4 +438,101 @@ describe('localLlmProvider', () => {
     expect(fourthBody.reasoning_effort).toBeUndefined();
     expect(typeof fourthBody.messages[1]?.content).toBe('string');
   });
+
+  it('delegates ONLY_ON_DEVICE / PREFER_ON_DEVICE to onDevice (Gemini Nano) first and falls back to local LLM on failure', async () => {
+    const onDevice = {
+      generate: vi
+        .fn()
+        .mockResolvedValueOnce({ text: '{"headline":"From Nano"}', ranOn: 'device' as const })
+        .mockRejectedValueOnce(new Error('Nano unavailable')),
+    };
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () =>
+      jsonResponse({
+        choices: [{ message: { content: '{"headline":"From Ollama"}' } }],
+      }),
+    );
+
+    const provider = localLlmProvider({
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'qwen3:8b',
+      onDevice,
+      fetchImpl: fetchMock,
+    });
+
+    // 1. ONLY_ON_DEVICE succeeds on Nano without touching Ollama.
+    const r1 = await provider.generate({
+      mode: 'ONLY_ON_DEVICE',
+      model: 'qwen3:8b',
+      system: 'Sys',
+      prompt: 'Quick edit',
+      jsonSchema: { type: 'object', properties: { headline: { type: 'string' } } },
+    });
+    expect(r1).toEqual({ text: '{"headline":"From Nano"}', ranOn: 'device' });
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    // 2. PREFER_ON_DEVICE falls back to Ollama when Nano rejects.
+    const r2 = await provider.generate({
+      mode: 'PREFER_ON_DEVICE',
+      model: 'qwen3:8b',
+      system: 'Sys',
+      prompt: 'Quick edit 2',
+      jsonSchema: { type: 'object', properties: { headline: { type: 'string' } } },
+    });
+    expect(r2).toEqual({ text: '{"headline":"From Ollama"}', ranOn: 'device', model: 'qwen3:8b' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    // 3. ONLY_IN_CLOUD goes straight to Ollama without calling Nano.
+    const r3 = await provider.generate({
+      mode: 'ONLY_IN_CLOUD',
+      model: 'qwen3:8b',
+      system: 'Sys',
+      prompt: 'Direct reel',
+      jsonSchema: { type: 'object', properties: { headline: { type: 'string' } } },
+    });
+    expect(r3).toEqual({ text: '{"headline":"From Ollama"}', ranOn: 'device', model: 'qwen3:8b' });
+    expect(onDevice.generate).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('compacts oversized schemas when falling back to json_object so local 4K context windows do not overflow', async () => {
+    const hugeSchema = {
+      type: 'object',
+      required: ['story', 'scenes'],
+      properties: {
+        story: { type: 'string', description: 'x'.repeat(2000) },
+        scenes: { type: 'array', description: 'y'.repeat(2500) },
+      },
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        jsonResponse({ error: { message: 'unsupported response_format json_schema' } }, 400),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          choices: [{ message: { content: '{"story":"ok","scenes":[]}' } }],
+        }),
+      );
+
+    const provider = localLlmProvider({
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'qwen3:8b',
+      fetchImpl: fetchMock,
+    });
+
+    await provider.generate({
+      mode: 'ONLY_IN_CLOUD',
+      model: 'qwen3:8b',
+      system: 'Return JSON',
+      prompt: 'Go',
+      jsonSchema: hugeSchema,
+    });
+
+    const secondBody = JSON.parse(String(fetchMock.mock.calls[1]![1]?.body)) as {
+      messages: Array<{ content: string }>;
+    };
+    const sysContent = secondBody.messages[0]!.content;
+    expect(sysContent.length).toBeLessThan(1000);
+    expect(sysContent).toContain('"required":["story","scenes"]');
+  });
 });

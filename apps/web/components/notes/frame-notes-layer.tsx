@@ -20,7 +20,15 @@ export function FrameNotesLayer() {
   const slots = useEditor((s) => s.project?.slots);
   const format = useEditor((s) => s.project?.format ?? '16:9');
   const playheadMs = useEditor((s) => s.playheadMs);
-  const { route, cloudRoute, run } = useNoteFix();
+  const {
+    route,
+    cloudRoute,
+    nanoRoute,
+    localLlmRoute,
+    bothLocalConnected,
+    localModel,
+    run,
+  } = useNoteFix();
   const working = useAIActivity((s) => (s.busy?.kind === 'note' ? s.busy.slotId : null));
   const slot = useMemo(() => (slots ? slotAt(slots, playheadMs) : null), [slots, playheadMs]);
   const frame = FORMATS[format];
@@ -46,6 +54,10 @@ export function FrameNotesLayer() {
       aspect={frame.width / frame.height}
       route={route}
       cloudRoute={cloudRoute}
+      nanoRoute={nanoRoute}
+      localLlmRoute={localLlmRoute}
+      bothLocalConnected={bothLocalConnected}
+      localModel={localModel}
       noteTime={(ms) => noteTimeFor(slot, ms)}
       add={(note) => {
         if (!editorStore.getState().exec(addNote(slot.id, note))) return false;

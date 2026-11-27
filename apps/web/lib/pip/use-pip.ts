@@ -207,7 +207,11 @@ export async function sendToPip(deps: SendDeps, text: string, scope: PipScope): 
       });
     } catch {
       await deps.credits.refund(spent.txId).catch(() => {});
-      fromCode('(The cloud didn’t answer, so I used my quick planner. Credits returned.)');
+      fromCode(
+        deps.route.kind === 'cloud' && deps.route.localLlm
+          ? '(Your local AI didn’t answer, so I used my quick planner.)'
+          : '(The cloud didn’t answer, so I used my quick planner. Credits returned.)',
+      );
     }
   } finally {
     usePip.setState({ busy: false });

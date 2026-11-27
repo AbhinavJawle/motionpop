@@ -755,3 +755,106 @@ describe('runReelNoteFix: 16:9 graphics-only and no-video reels', () => {
     expect(t.scene().content).toMatchObject({ template: 'headline', kicker: 'BIG', title: 'NEWS' });
   });
 });
+
+describe('runReelNoteFix: Local LLM resilience & explicit provider targets', () => {
+  const LOCAL_LLM: Route = {
+    kind: 'cloud',
+    mode: 'ONLY_IN_CLOUD',
+    allowCloud: false,
+    credits: 0,
+    insufficient: false,
+    localLlm: true,
+  };
+  const FORCE_CLOUD: Route = {
+    kind: 'cloud',
+    mode: 'ONLY_IN_CLOUD',
+    allowCloud: false,
+    credits: 1,
+    insufficient: false,
+    forceCloudProvider: true,
+  };
+
+  it('recovers via compact reel.note.local on the same local LLM when heavy reel.note fails', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const targets: string[] = [];
+    const t = setup(
+      (id: string) => {
+        if (id === 'reel.note') throw new Error('json_schema overflow');
+        return {
+          action: 'edit',
+          message: 'Tightened title locally',
+          field: 'title',
+          to: 'AI does the work',
+        };
+      },
+      {
+        getRouterFor: async (target) => {
+          targets.push(target);
+          return stubRouter((id: string) => {
+            if (id === 'reel.note') throw new Error('json_schema overflow');
+            return {
+              action: 'edit',
+              message: 'Tightened title locally',
+              field: 'title',
+              to: 'AI does the work',
+            };
+          });
+        },
+      },
+    );
+
+    const r = await runReelNoteFix(t.deps, 'r1', 'n1', LOCAL_LLM);
+    expect(targets).toEqual(['local-llm']);
+    expect(r).toMatchObject({ kind: 'applied', ranOn: 'device', message: 'Tightened title locally' });
+    expect((t.scene().content as { title: string }).title).toBe('AI does the work');
+  });
+
+  it('returns cloud-failed with localLlm: true and reason when both heavy and compact local LLM paths fail', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const t = setup(() => {
+      throw new Error('Ollama timed out');
+    });
+    const r = await runReelNoteFix(t.deps, 'r1', 'n1', LOCAL_LLM);
+    expect(r).toMatchObject({
+      kind: 'cloud-failed',
+      localLlm: true,
+      reason: 'Ollama timed out',
+    });
+  });
+
+  it('uses getRouterFor("cloud") and cloudCredits when forceCloudProvider is set', async () => {
+    const cloudCredits = new LocalCredits(25);
+    const targets: string[] = [];
+    const t = setup(titleAnswer, {
+      cloudCredits,
+      getRouterFor: async (target) => {
+        targets.push(target);
+        return stubRouter(titleAnswer);
+      },
+    });
+    const r = await runReelNoteFix(t.deps, 'r1', 'n1', FORCE_CLOUD);
+    expect(r).toMatchObject({ kind: 'applied', ranOn: 'cloud' });
+    expect(targets).toEqual(['cloud']);
+    expect(cloudCredits.balance()).toBe(24);
+    expect(t.credits.balance()).toBe(50);
+  });
+
+  it('autoEscalate from Nano switches router target from "nano" to cloudRoute target ("local-llm" or "cloud")', async () => {
+    const targets: string[] = [];
+    const t = setup(titleAnswer, {
+      cloudRoute: LOCAL_LLM,
+      autoEscalate: true,
+      getRouterFor: async (target) => {
+        targets.push(target);
+        return stubRouter((id: string) =>
+          id === 'reel.note.local'
+            ? { action: 'escalate', message: 'Needs full template rewrite' }
+            : titleAnswer,
+        );
+      },
+    });
+    const r = await runReelNoteFix(t.deps, 'r1', 'n1', DEVICE);
+    expect(targets).toEqual(['nano', 'local-llm']);
+    expect(r).toMatchObject({ kind: 'applied', ranOn: 'device', message: 'Changed the title.' });
+  });
+});

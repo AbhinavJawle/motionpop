@@ -117,4 +117,61 @@ describe('NotesOverlay escalation notice', () => {
     await waitFor(() => expect(screen.getByText('Needs cloud AI.')).toBeTruthy());
     expect(screen.getByRole('button', { name: /Try in the cloud/ })).toBeTruthy();
   });
+
+  it('offers Gemini Nano and Cloud fallbacks when a Local LLM note fails, and hides Cloud when offline', async () => {
+    const note = {
+      id: 'n1',
+      tMs: 0,
+      shape: { kind: 'circle' as const, points: [0.5, 0.3, 0.2, 0.1] },
+      text: 'make this better',
+      status: 'open' as const,
+    };
+    const LOCAL_LLM: Route = {
+      kind: 'cloud',
+      mode: 'ONLY_IN_CLOUD',
+      allowCloud: false,
+      credits: 0,
+      insufficient: false,
+      localLlm: true,
+    };
+    const DEVICE: Route = { kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: false };
+    const run = vi.fn(async (_id: string, r: Route) =>
+      r.kind === 'cloud' && r.localLlm
+        ? ({ kind: 'cloud-failed', localLlm: true, reason: 'Timed out' } as const)
+        : ({ kind: 'applied', message: 'Done' } as const),
+    );
+    const { unmount } = overlay({
+      notes: [note],
+      route: LOCAL_LLM,
+      cloudRoute: CLOUD,
+      nanoRoute: DEVICE,
+      localLlmRoute: LOCAL_LLM,
+      bothLocalConnected: true,
+      localModel: 'qwen3.5:9b',
+      run,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Fix it' }));
+    await waitFor(() => expect(screen.getByText('Local AI failed: Timed out')).toBeTruthy());
+    expect(screen.getByRole('button', { name: /Try Gemini Nano/ })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /Try in the cloud/ })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /Try Gemini Nano/ }));
+    await waitFor(() => expect(run).toHaveBeenLastCalledWith('n1', DEVICE));
+    unmount();
+
+    // Offline: cloudRoute is disabled → "Try in the cloud" is hidden while Nano fallback stays available.
+    overlay({
+      notes: [note],
+      route: LOCAL_LLM,
+      cloudRoute: { kind: 'disabled', reason: 'Needs connection' },
+      nanoRoute: DEVICE,
+      localLlmRoute: LOCAL_LLM,
+      bothLocalConnected: true,
+      localModel: 'qwen3.5:9b',
+      run,
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Fix it' }));
+    await waitFor(() => expect(screen.getByText('Local AI failed: Timed out')).toBeTruthy());
+    expect(screen.getByRole('button', { name: /Try Gemini Nano/ })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Try in the cloud/ })).toBeNull();
+  });
 });

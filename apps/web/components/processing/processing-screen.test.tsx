@@ -123,6 +123,24 @@ describe('ProcessingScreen: a job in the store', () => {
     expect(h.cancel).toHaveBeenCalledWith('j-1');
   });
 
+  it('shows the local AI model badge instead of "cloud, free" when steps run on a local LLM', () => {
+    setJob(
+      mkJob('j-local', 'running', {
+        processing: reduceProcessing(initialProcessing(), {
+          type: 'step',
+          step: 'suggest',
+          state: 'active',
+          detail: 'Writing the story',
+          route: 'local-llm',
+          routeLabel: 'qwen3.5:9b',
+        }),
+      }),
+    );
+    render(<ProcessingScreen id="j-local" />);
+    expect(screen.getByText('qwen3.5:9b · local')).toBeTruthy();
+    expect(screen.queryByText('cloud, free')).toBeNull();
+  });
+
   it('a voice job keeps the voice headline and strip label', () => {
     setJob(mkJob('j-1', 'running', { kind: 'voiceover' }));
     render(<ProcessingScreen id="j-1" />);

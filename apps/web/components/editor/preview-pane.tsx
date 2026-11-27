@@ -11,13 +11,15 @@ import {
   type CaptionsSetting,
   type Format,
 } from '@motionpop/schemas';
-import { Grid2x2, Palette, PenLine, RefreshCw, Scan } from 'lucide-react';
+import { Grid2x2, Palette, PenLine, RefreshCw, Scan, Server, Zap } from 'lucide-react';
 import { toast } from 'sonner';
 import { GeminiNanoStatus } from '@/components/ui/gemini-nano-status';
 import { GlassToolbar, ToolbarDivider } from '@/components/ui/glass-toolbar';
 import { StatusDot } from '@/components/ui/status-dot';
 import { Toggle } from '@/components/ui/toggle';
 import { Dropdown, type DropdownOption } from '@/components/ui/dropdown';
+import { useAIStatus } from '@/lib/ai/ai-status';
+import { useLocalLlm } from '@/lib/ai/local-llm';
 import { setCaptions, setFormat, setReelCaptions } from '@/lib/commands';
 import { regenerateReel } from '@/lib/reel/regenerate';
 import { useCreditsClient } from '@/lib/credits/use-credits-client';
@@ -25,7 +27,7 @@ import { Tooltip } from '@/components/ui/tooltip';
 import { slotAt } from '@/lib/notes/active-slot';
 import { styleFor } from '@/lib/composition/project-to-compile';
 import { cn } from '@/lib/cn';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useEditor } from '@/lib/stores/editor';
 import { openRailPanel } from '@/lib/editor/rail-panel';
 import { openSettingsPanel } from '@/lib/editor/settings-panel';
@@ -45,12 +47,41 @@ const ASPECT: Record<Format, string> = { '16:9': '16 / 9', '9:16': '9 / 16', '1:
 
 /**
  * The pen (spec 09 R8.1): turns draw mode on and pauses playback; off with no slot under the
- * playhead ("Notes go on a graphic. Move the playhead onto one.").
+ * playhead ("Notes go on a graphic. Move the playhead onto one."). When BOTH Chrome Gemini Nano
+ * and a Local AI server (Ollama / LM Studio) are connected, clicking the pen lets the creator
+ * pick which local engine will fix the note right then and there, then enters draw mode normally.
  */
-function PenButton({ reel = false }: { reel?: boolean }) {
+export function PenButton({ reel = false }: { reel?: boolean }) {
   const on = useEditor((s) => s.drawMode);
   const setDrawMode = useEditor((s) => s.setDrawMode);
   const setPlaying = useEditor((s) => s.setPlaying);
+  const noteEngine = useEditor((s) => s.noteEngine);
+  const setNoteEngine = useEditor((s) => s.setNoteEngine);
+  const { availability } = useAIStatus();
+  const { active: localLlmActive, model: localLlmModel } = useLocalLlm();
+  const bothLocal = localLlmActive && availability === 'available';
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Close the engine picker on outside click or Escape.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) {
+        setPickerOpen(false);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPickerOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [pickerOpen]);
+
   // A reel always has a scene under the playhead (scenes tile it, spec 29).
   const hasSlot = useEditor((s) =>
     s.project
@@ -59,29 +90,112 @@ function PenButton({ reel = false }: { reel?: boolean }) {
         : slotAt(s.project.slots, s.playheadMs) !== null
       : false,
   );
+
+  const chooseEngine = (engine: 'nano' | 'local-llm') => {
+    setNoteEngine(engine);
+    setPickerOpen(false);
+    setPlaying(false);
+    setDrawMode(true);
+  };
+
   const button = (
-    <button
-      type="button"
-      aria-label="Draw a note"
-      aria-pressed={on}
-      aria-disabled={!hasSlot}
-      title={reel ? 'Draw a note: circle anything and say what to change' : undefined}
-      onClick={() => {
-        if (!hasSlot) return;
-        if (!on) setPlaying(false);
-        setDrawMode(!on);
-      }}
-      className={cn(
-        'px-3.5 transition-colors',
-        !hasSlot
-          ? 'cursor-not-allowed text-text-4'
-          : on
-            ? 'text-violet'
-            : 'text-text-2 hover:text-text',
+    <div ref={wrapRef} className="relative flex h-full items-center">
+      <button
+        type="button"
+        aria-label="Draw a note"
+        aria-pressed={on}
+        aria-haspopup={bothLocal && !on ? 'menu' : undefined}
+        aria-expanded={bothLocal && !on ? pickerOpen : undefined}
+        aria-disabled={!hasSlot}
+        title={reel ? 'Draw a note: circle anything and say what to change' : undefined}
+        onClick={() => {
+          if (!hasSlot) return;
+          if (on) {
+            setPickerOpen(false);
+            setDrawMode(false);
+            return;
+          }
+          if (bothLocal) {
+            setPickerOpen((open) => !open);
+            return;
+          }
+          setPlaying(false);
+          setDrawMode(true);
+        }}
+        className={cn(
+          'flex h-full items-center px-3.5 transition-colors',
+          !hasSlot
+            ? 'cursor-not-allowed text-text-4'
+            : on || pickerOpen
+              ? 'text-violet'
+              : 'text-text-2 hover:text-text',
+        )}
+      >
+        <PenLine className="size-[18px]" strokeWidth={1.5} />
+      </button>
+      {pickerOpen && bothLocal && !on && (
+        <div
+          role="menu"
+          aria-label="Choose AI for this note"
+          data-testid="note-engine-picker"
+          className="absolute top-full left-0 z-50 mt-2 w-[272px] rounded-xl border border-line-strong bg-dialog p-1.5 shadow-[0_14px_38px_rgba(0,0,0,0.65)] ring-1 ring-white/10 backdrop-blur-md"
+        >
+          <p className="px-2.5 pt-1 pb-1.5 text-[10px] font-semibold tracking-[0.06em] text-text-3 uppercase">
+            Fix note with
+          </p>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="note-engine-nano"
+            onClick={() => chooseEngine('nano')}
+            className={cn(
+              'flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-white/8',
+              noteEngine === 'nano' && 'bg-mint/10 ring-1 ring-mint/25',
+            )}
+          >
+            <Zap
+              className="mt-0.5 size-4 shrink-0 fill-bolt text-bolt"
+              strokeWidth={1.5}
+              aria-hidden
+            />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center justify-between gap-2 text-[12px] leading-4 font-semibold text-text">
+                <span>Gemini Nano</span>
+                <span className="rounded bg-mint-tint px-1.5 py-0.5 font-mono text-[9.5px] font-medium text-mint-ink">
+                  Instant · free
+                </span>
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-[15px] text-text-2">
+                Fast text, color, caption &amp; layout tweaks on-device
+              </span>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            data-testid="note-engine-local-llm"
+            onClick={() => chooseEngine('local-llm')}
+            className={cn(
+              'mt-1 flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-white/8',
+              noteEngine === 'local-llm' && 'bg-mint/10 ring-1 ring-mint/25',
+            )}
+          >
+            <Server className="mt-0.5 size-4 shrink-0 text-mint-ink" strokeWidth={1.75} aria-hidden />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center justify-between gap-2 text-[12px] leading-4 font-semibold text-text">
+                <span className="truncate">{localLlmModel || 'Local AI'}</span>
+                <span className="shrink-0 rounded bg-mint-tint px-1.5 py-0.5 font-mono text-[9.5px] font-medium text-mint-ink">
+                  Local · 0
+                </span>
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-[15px] text-text-2">
+                Template swaps &amp; custom motion graphics via local server
+              </span>
+            </span>
+          </button>
+        </div>
       )}
-    >
-      <PenLine className="size-[18px]" strokeWidth={1.5} />
-    </button>
+    </div>
   );
   return hasSlot ? (
     button
@@ -153,6 +267,7 @@ function ReelTools({
   const exec = useEditor((s) => s.exec);
   const [busy, setBusy] = useState(false);
   const { client: credits } = useCreditsClient();
+  const { active: localLlmActive, model: localLlmModel } = useLocalLlm();
   const reelStyleName = resolveReelStyleName(editStyleId, look, theme);
   return (
     <>
@@ -216,7 +331,11 @@ function ReelTools({
       )}
       <ToolbarDivider />
       <Tooltip
-        content={`Direct again · ☁ ${costOf('reel', 1, APP_CONFIG_DEFAULTS)} credits + ${costOf('image', 1, APP_CONFIG_DEFAULTS)} per new picture`}
+        content={
+          localLlmActive
+            ? `Direct again · Local AI (${localLlmModel ?? 'local'}) · 0 credits`
+            : `Direct again · ☁ ${costOf('reel', 1, APP_CONFIG_DEFAULTS)} credits + ${costOf('image', 1, APP_CONFIG_DEFAULTS)} per new picture`
+        }
         side="bottom"
       >
         <button
@@ -226,7 +345,13 @@ function ReelTools({
             setBusy(true);
             regenerateReel({ credits })
               .then((source) =>
-                toast(source === 'cloud' ? 'New direction ready' : 'New direction (free director)'),
+                toast(
+                  source === 'cloud'
+                    ? 'New direction ready'
+                    : source === 'device'
+                      ? 'New direction ready (local AI)'
+                      : 'New direction (free director)',
+                ),
               )
               .catch(() => toast.error("Couldn't direct again. Try again."))
               .finally(() => setBusy(false));

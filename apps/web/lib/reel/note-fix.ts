@@ -42,6 +42,7 @@ import {
   type ReelScene,
 } from '@motionpop/schemas';
 import type { Route } from '@/lib/ai/route';
+import type { RouterTarget } from '@/lib/ai/router-client';
 import { composite, fixReelScene, setReel, setReelNoteStatus } from '@/lib/commands';
 import { newSpendKey, type CreditsClient } from '@/lib/credits/client';
 import { spendWithUi } from '@/lib/credits/spend-with-ui';
@@ -72,7 +73,7 @@ export type ReelNoteOutcome =
     }
   | { kind: 'escalate'; message: string }
   | { kind: 'device-failed' }
-  | { kind: 'cloud-failed' }
+  | { kind: 'cloud-failed'; localLlm?: boolean; reason?: string }
   | { kind: 'changed' }
   | { kind: 'blocked'; reason: string }
   | { kind: 'no-credits' };
@@ -80,7 +81,11 @@ export type ReelNoteOutcome =
 export interface ReelNoteFixDeps {
   store: EditorStore;
   credits: CreditsClient | null;
+  /** Underlying real cloud credits client (BYOK/ServerCredits) used when bypassing Local LLM. */
+  cloudCredits?: CreditsClient | null;
   getRouter: () => Promise<Router | null>;
+  /** Optional target-specific router resolver (`nano` | `local-llm` | `cloud`). */
+  getRouterFor?: (target: RouterTarget) => Promise<Router | null>;
   /** What the preview shows under the note's region and a JPEG of the crop, when it can. */
   look: (
     region: Region,
@@ -205,14 +210,30 @@ export async function runReelNoteFix(
     );
   };
 
+  const resolveRouter = (r: Route): Promise<Router | null> => {
+    if (!deps.getRouterFor) return deps.getRouter();
+    if (r.kind === 'device') return deps.getRouterFor('nano');
+    if (r.kind === 'cloud' && r.forceCloudProvider) return deps.getRouterFor('cloud');
+    if (r.kind === 'cloud' && r.localLlm) return deps.getRouterFor('local-llm');
+    return deps.getRouter();
+  };
+
   // Hybrid AI fast path: try multimodal on-device Gemini Nano first (0 credits, works offline).
   // Direct frame notes never silently charge credits (D-035): when Nano escalates or fails, the
-  // bubble surfaces the reason + one-click "Try in the cloud". Callers with pre-approved credit
+  // bubble surfaces the reason + one-click escalation. Callers with pre-approved credit
   // spend (Pip's `editScene` plan step) pass `autoEscalate: true` to seamlessly continue to cloud.
+  let activeRoute: Route = route;
   if (route.kind === 'device') {
+    const escalationTarget = deps.cloudRoute;
     const canAutoEscalate =
-      Boolean(deps.autoEscalate) && deps.cloudRoute?.kind === 'cloud' && Boolean(deps.credits);
-    const router = await deps.getRouter().catch(() => null);
+      Boolean(deps.autoEscalate) &&
+      escalationTarget?.kind === 'cloud' &&
+      Boolean(
+        escalationTarget.forceCloudProvider && deps.cloudCredits !== undefined
+          ? deps.cloudCredits
+          : deps.credits,
+      );
+    const router = await resolveRouter(route).catch(() => null);
     if (!router) {
       if (!canAutoEscalate) return { kind: 'device-failed' };
     } else {
@@ -254,7 +275,8 @@ export async function runReelNoteFix(
         }
         escalateMessage =
           applied.message || 'Needs cloud AI for a full graphic rewrite or custom animation.';
-      } catch {
+      } catch (err) {
+        console.warn('[reel.note.local] on-device fix failed:', err);
         threw = true;
       }
       if (!canAutoEscalate) {
@@ -267,12 +289,20 @@ export async function runReelNoteFix(
         };
       }
     }
+    if (escalationTarget) activeRoute = escalationTarget;
   }
 
-  if (!deps.credits) return { kind: 'blocked', reason: 'Sign in to use cloud AI' };
+  const isLocalLlmRoute = activeRoute.kind === 'cloud' && Boolean(activeRoute.localLlm);
+  const effectiveCredits =
+    activeRoute.kind === 'cloud' &&
+    activeRoute.forceCloudProvider &&
+    deps.cloudCredits !== undefined
+      ? deps.cloudCredits
+      : deps.credits;
+  if (!effectiveCredits) return { kind: 'blocked', reason: 'Sign in to use cloud AI' };
 
   const spent = await spendWithUi(
-    deps.credits,
+    effectiveCredits,
     { action: 'edit', key: (deps.newKey ?? newSpendKey)(), refId: sceneId },
     deps.config ?? APP_CONFIG_DEFAULTS,
   );
@@ -283,11 +313,74 @@ export async function runReelNoteFix(
       : { kind: 'blocked', reason: 'Couldn’t reserve the credit' };
   }
   const txId = spent.txId;
-  const credits = deps.credits;
+  const credits = effectiveCredits;
   const refund = async () => {
     await credits.refund(txId).catch(() => undefined);
   };
-  const failed = (): ReelNoteOutcome => ({ kind: 'cloud-failed' });
+  const failed = (reason?: string): ReelNoteOutcome =>
+    isLocalLlmRoute
+      ? { kind: 'cloud-failed', localLlm: true, ...(reason ? { reason } : {}) }
+      : { kind: 'cloud-failed' };
+
+  /**
+   * Resilience pass for Local LLM: if the heavy 21-template `reel.note` or `reel.compose` task
+   * fails on a smaller/slower Ollama model (schema/timeout/sandbox), try the compact flat-schema
+   * `reel.note.local` task on the same local model before giving up so offline fixes still land.
+   */
+  const tryCompactLocalFallback = async (
+    router: Router,
+    primaryError: unknown,
+  ): Promise<ReelNoteOutcome> => {
+    const primaryReason =
+      primaryError instanceof Error ? primaryError.message.slice(0, 140) : undefined;
+    try {
+      const localInput = reelNoteLocalInput(ctx, {
+        noteText: text,
+        caption: seen.target.caption,
+        hook: showsHook ? reel.hook : undefined,
+        image,
+      });
+      const localRes = await runReelNoteLocal(router, localInput);
+      if (stale()) return { kind: 'changed' };
+      const applied = applyReelNoteLocal(ctx, localRes.output, {
+        hook: showsHook ? reel.hook : undefined,
+      });
+      if (applied.changed && !applied.escalate) {
+        const nextScene = isNoVideoReel ? enforceNoVideoScene(applied.scene, scene) : applied.scene;
+        const ok = deps.store.getState().exec(
+          composite('Fix note', [
+            fixReelScene(sceneId, {
+              scene: nextScene,
+              ...(applied.hook !== undefined ? { hook: applied.hook } : {}),
+              ...(applied.captions.length ? { captions: applied.captions } : {}),
+            }),
+            setReelNoteStatus(sceneId, noteId, 'fixed'),
+          ]),
+        );
+        if (ok) {
+          charged = true;
+          return {
+            kind: 'applied',
+            ms: localRes.latencyMs,
+            ranOn: 'device',
+            message: applied.message,
+            pictures: 0,
+          };
+        }
+      }
+      if (applied.escalate) {
+        return {
+          kind: 'escalate',
+          message:
+            applied.message ||
+            'Your local model couldn’t build a full rewrite for this note. Try Cloud or rephrase.',
+        };
+      }
+    } catch (fallbackErr) {
+      console.warn('[reel.note] Local LLM compact fallback also failed:', fallbackErr);
+    }
+    return failed(primaryReason);
+  };
 
   // Every path below refunds by hand before it returns; this catches what throws in between
   // (a scene the context can't describe, an unexpected note shape) so the credit never sticks.
@@ -295,10 +388,10 @@ export async function runReelNoteFix(
   // The new graphic's own spend, once it exists: refunded with the note's if anything throws.
   const composedSpend: { refund?: () => Promise<void> } = {};
   const fixAfterSpend = async (): Promise<ReelNoteOutcome> => {
-    const router = await deps.getRouter().catch(() => null);
+    const router = await resolveRouter(activeRoute).catch(() => null);
     if (!router) {
       await refund();
-      return failed();
+      return failed('Local LLM server is not reachable');
     }
 
     const directorBrief = briefFromEdit(project.edit) ?? undefined;
@@ -320,7 +413,8 @@ export async function runReelNoteFix(
         ...(isNoVideoReel ? { format: stageFormat, noVideo: true } : {}),
         ...(directorBrief?.skillInstructions || isNoVideoReel ? { styleDirection } : {}),
       });
-    } catch {
+    } catch (err) {
+      console.warn('[reel.note] failed to build input:', err);
       await refund();
       return failed();
     }
@@ -328,7 +422,13 @@ export async function runReelNoteFix(
     let res;
     try {
       res = await runReelNote(router, input);
-    } catch {
+    } catch (err) {
+      console.warn('[reel.note] model call failed:', err);
+      if (isLocalLlmRoute) {
+        const recovered = await tryCompactLocalFallback(router, err);
+        if (recovered.kind !== 'applied') await refund();
+        return recovered;
+      }
       await refund();
       return failed();
     }
@@ -342,7 +442,13 @@ export async function runReelNoteFix(
     let result;
     try {
       result = applyReelNote(ctx, res.output, { hook: showsHook ? reel.hook : undefined });
-    } catch {
+    } catch (err) {
+      console.warn('[reel.note] failed to apply answer:', err);
+      if (isLocalLlmRoute) {
+        const recovered = await tryCompactLocalFallback(router, err);
+        if (recovered.kind !== 'applied') await refund();
+        return recovered;
+      }
       await refund();
       return failed();
     }
@@ -358,22 +464,34 @@ export async function runReelNoteFix(
         await refund();
         return { kind: 'blocked', reason: TOO_MANY };
       }
-      const composed = await composeScene(deps, {
-        ctx,
-        router,
-        note: text,
-        brief: result.compose.brief,
-        layout: isNoVideoReel ? 'full' : result.compose.layout,
-        format: stageFormat,
-        noVideo: isNoVideoReel,
-        captions: reel.captions,
-        directorBrief,
-        styleDirection,
-        graphicOnly: Boolean(reel.graphicOnly),
-        image,
-        sceneId,
-      });
+      const composed = await composeScene(
+        { ...deps, credits: effectiveCredits },
+        {
+          ctx,
+          router,
+          note: text,
+          brief: result.compose.brief,
+          layout: isNoVideoReel ? 'full' : result.compose.layout,
+          format: stageFormat,
+          noVideo: isNoVideoReel,
+          captions: reel.captions,
+          directorBrief,
+          styleDirection,
+          graphicOnly: Boolean(reel.graphicOnly),
+          image,
+          sceneId,
+          isLocalLlm: isLocalLlmRoute,
+        },
+      );
       if (composed.kind !== 'ok') {
+        if (isLocalLlmRoute && composed.outcome.kind === 'cloud-failed') {
+          const recovered = await tryCompactLocalFallback(
+            router,
+            new Error(composed.outcome.reason || 'Custom motion graphic failed sandbox checks'),
+          );
+          if (recovered.kind !== 'applied') await refund();
+          return recovered;
+        }
         await refund();
         return composed.outcome;
       }
@@ -415,7 +533,7 @@ export async function runReelNoteFix(
       return {
         kind: 'applied',
         ms: res.latencyMs + composed.ms,
-        ranOn: 'cloud',
+        ranOn: isLocalLlmRoute ? 'device' : 'cloud',
         message: composed.message || result.message,
         pictures: wanted.length,
         composed: true,
@@ -451,23 +569,23 @@ export async function runReelNoteFix(
     if (wanted.length && deps.fetchMedia) {
       void fetchPictures(deps, sceneId, nextScene).then((n) => deps.onPictures?.(n));
     }
-    const ranOn = 'cloud' as const;
     return {
       kind: 'applied',
       ms: res.latencyMs,
-      ranOn,
+      ranOn: isLocalLlmRoute ? 'device' : 'cloud',
       message: result.message,
       pictures: wanted.length,
     };
   };
   try {
     return await fixAfterSpend();
-  } catch {
+  } catch (err) {
+    console.warn('[reel.note] unexpected failure:', err);
     if (!charged) {
       await composedSpend.refund?.();
       await refund();
     }
-    return failed();
+    return failed(err instanceof Error ? err.message.slice(0, 140) : undefined);
   }
 }
 
@@ -550,14 +668,20 @@ async function composeScene(
     graphicOnly?: boolean | undefined;
     image: string | undefined;
     sceneId: string;
+    isLocalLlm?: boolean;
   },
 ): Promise<Composed> {
-  const failed: Composed = { kind: 'fail', outcome: { kind: 'cloud-failed' } };
+  const failed = (reason?: string): Composed => ({
+    kind: 'fail',
+    outcome: p.isLocalLlm
+      ? { kind: 'cloud-failed', localLlm: true, ...(reason ? { reason } : {}) }
+      : { kind: 'cloud-failed' },
+  });
   const { scene, look, words } = p.ctx;
   if (!deps.credits)
     return { kind: 'fail', outcome: { kind: 'blocked', reason: 'Sign in to use cloud AI' } };
   const assets = await (deps.customAssets?.() ?? Promise.resolve(null)).catch(() => null);
-  if (!assets) return failed;
+  if (!assets) return failed('Custom graphic runtime unavailable');
 
   // The pictures the code may show: a custom scene's own list, or the template's fetched ones.
   const pictures: ReelMedia[] =
@@ -587,7 +711,7 @@ async function composeScene(
     words,
     pictures: {},
   });
-  if (!probe) return failed;
+  if (!probe) return failed('Could not measure scene stage');
 
   const spent = await spendWithUi(
     deps.credits,
@@ -720,15 +844,16 @@ async function composeScene(
       // Layout notes that survive the repair don't block; a graphic that fails to build does.
       if (got.problems?.broken) {
         await refund();
-        return failed;
+        return failed('Generated custom scene failed sandbox verification');
       }
     }
     return { kind: 'ok', scene: got.next, message: got.out.message, ms, refund };
   };
   try {
     return await composeAfterSpend();
-  } catch {
+  } catch (err) {
+    console.warn('[reel.compose] failed:', err);
     await refund();
-    return failed;
+    return failed(err instanceof Error ? err.message.slice(0, 140) : undefined);
   }
 }

@@ -10,6 +10,7 @@ import {
 } from '../reel/media';
 import { composeGraphicScenes, composeReelHeroScenes } from '../reel/compose-graphic';
 import { requestPlanAllowance } from '../ai/plan-allowance';
+import { getLocalLlmConfig } from '../ai/local-llm';
 import { getRouter } from '../ai/router-client';
 import { appAudioStore } from '../audio/app-audio-store';
 import { decodeForPipeline } from '../audio/decode';
@@ -59,6 +60,11 @@ export function browserPipelineDeps(opts: { credits?: CreditsClient | null } = {
     now: () => Date.now(),
     newId: newProjectId,
     styleId: DEFAULT_STYLE_ID,
+    aiRoute: () => {
+      const local = getLocalLlmConfig();
+      if (local) return { route: 'local-llm', label: local.model };
+      return { route: 'cloud' };
+    },
     // Deterministic for now: AI detection (`detectSlots` through the router) waits for an
     // on-device availability check, so processing never spends cloud credits unasked (R2.3).
     detect: (words, spans) => Promise.resolve(detectLocal(words, spans)),

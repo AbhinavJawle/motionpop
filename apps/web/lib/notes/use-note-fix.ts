@@ -2,14 +2,16 @@
 
 import { FORMATS } from '@motionpop/schemas';
 import { toast } from 'sonner';
+import { useAIStatus } from '@/lib/ai/ai-status';
+import { useLocalLlm } from '@/lib/ai/local-llm';
 import type { Route } from '@/lib/ai/route';
-import { getRouter } from '@/lib/ai/router-client';
+import { getRouter, getRouterFor } from '@/lib/ai/router-client';
 import { useRoute } from '@/lib/ai/use-route';
 import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import { useAppConfig } from '@/lib/renders/hooks';
 import type { QuickEditOutcome } from '@/lib/slots/quick-edit';
 import { beginActivity, endActivity, useAIActivity } from '@/lib/stores/ai-activity';
-import { editorStore } from '@/lib/stores/editor';
+import { editorStore, useEditor } from '@/lib/stores/editor';
 import { captureRegion, playerSource } from './capture';
 import type { Region } from './geometry';
 import { runNoteFix, type NoteFixDeps } from './note-fix';
@@ -82,16 +84,40 @@ export async function runNoteFixWithUi(
 
 /** The routes and the runner a note bubble needs. */
 export function useNoteFix() {
-  const route = useRoute('note.fix');
+  const { availability } = useAIStatus();
+  const { active: localLlmActive, model: localModel } = useLocalLlm();
+  const noteEngine = useEditor((s) => s.noteEngine);
+  const bothLocalConnected = localLlmActive && availability === 'available';
+  const preferProvider =
+    bothLocalConnected && noteEngine !== 'auto' ? noteEngine : undefined;
+  const route = useRoute('note.fix', preferProvider ? { preferProvider } : {});
+  const nanoRoute = useRoute('note.fix', { preferProvider: 'nano' });
+  const localLlmRoute = useRoute('note.fix', { preferProvider: 'local-llm' });
   const cloudRoute = useRoute('note.fix', { forceCloud: true });
-  const { client: credits } = useCreditsClient();
+  const { client: credits, cloudClient } = useCreditsClient();
   const config = useAppConfig();
   const run = (slotId: string, noteId: string, r: Route = route) =>
     runNoteFixWithUi(
-      { store: editorStore, credits, getRouter, config, doc: document },
+      {
+        store: editorStore,
+        credits,
+        cloudCredits: cloudClient,
+        getRouter,
+        getRouterFor,
+        config,
+        doc: document,
+      },
       slotId,
       noteId,
       r,
     );
-  return { route, cloudRoute, run };
+  return {
+    route,
+    cloudRoute,
+    nanoRoute,
+    localLlmRoute,
+    bothLocalConnected,
+    localModel,
+    run,
+  };
 }

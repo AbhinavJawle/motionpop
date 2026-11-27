@@ -1,11 +1,23 @@
 import type { Slot, Word } from '@motionpop/schemas';
-import { PIPELINE_STEPS, type PipelineEvent, type PipelineStep, type StepState } from './events';
+import {
+  PIPELINE_STEPS,
+  type PipelineEvent,
+  type PipelineStep,
+  type StepRoute,
+  type StepState,
+} from './events';
 
 /** What the Processing screen shows, folded from pipeline events (spec 05 R5). Pure. */
 export interface ProcessingState {
   steps: Record<
     PipelineStep,
-    { state: StepState; detail?: string; title?: string; route?: 'device' | 'cloud' }
+    {
+      state: StepState;
+      detail?: string;
+      title?: string;
+      route?: StepRoute;
+      routeLabel?: string;
+    }
   >;
   words: Word[];
   /** Stable key per word: its index in the first (original) word list, so re-timed words glide. */
@@ -66,6 +78,7 @@ export function reduceProcessing(s: ProcessingState, e: PipelineEvent): Processi
               ? { title: e.title ?? s.steps[e.step].title }
               : {}),
             ...(e.route ? { route: e.route } : {}),
+            ...(e.routeLabel ? { routeLabel: e.routeLabel } : {}),
           },
         },
         announcement,

@@ -147,7 +147,8 @@ export async function regenerateReel(
     styleHint,
   }).catch(() => ({ plan: r.plan, assets: [] }));
   let composedPlan = media.plan;
-  if (r.source === 'cloud' && !opts.free) {
+  const isFullLocal = r.source === 'device' && !r.draft;
+  if ((r.source === 'cloud' || isFullLocal) && !opts.free) {
     const heroStyleDirection = styleCraftDirection({
       styleId: project.edit?.styleId ?? project.styleId,
       ...(project.edit?.customStyle ? { customStyle: project.edit.customStyle } : {}),
@@ -163,7 +164,7 @@ export async function regenerateReel(
         ...(brief ? { brief } : {}),
         styleDirection: heroStyleDirection,
         styleId: project.edit?.styleId ?? project.styleId,
-        maxScenes: noVideo ? 4 : 3,
+        maxScenes: isFullLocal ? 2 : noVideo ? 4 : 3,
       },
       { getRouter: () => getRouter().catch(() => null) },
     ).catch(() => media.plan);

@@ -1,7 +1,7 @@
 'use client';
 
 import type { FrameNote } from '@motionpop/schemas';
-import { ArrowUp, X } from 'lucide-react';
+import { ArrowUp, Server, X, Zap } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 import { Chip, CostChip } from '@/components/ui/chip';
@@ -97,6 +97,7 @@ export function NoteInput({
   placement,
   route,
   cost,
+  enginePicker,
   onSave,
   onCancel,
 }: {
@@ -105,6 +106,12 @@ export function NoteInput({
   route: Route;
   /** A cost range for the cloud chip (reel notes may write a new graphic, spec 30). */
   cost?: { label: string; hint: string };
+  /** Shown when both Gemini Nano and Local AI (Ollama/LM Studio) are connected so user can flip mid-note. */
+  enginePicker?: {
+    active: 'nano' | 'local-llm';
+    localModel: string;
+    onChange: (next: 'nano' | 'local-llm') => void;
+  };
   onSave: (text: string) => void;
   onCancel: () => void;
 }) {
@@ -174,7 +181,43 @@ export function NoteInput({
       </div>
       <div className="flex items-center justify-between gap-2 border-t border-line-soft pt-2">
         <div className="flex min-w-0 items-center gap-2">
-          {reason ? (
+          {enginePicker ? (
+            <div
+              role="group"
+              aria-label="Note AI engine"
+              className="inline-flex min-w-0 items-center rounded-md border border-line-strong bg-white/5 p-0.5 text-[10px]"
+            >
+              <button
+                type="button"
+                aria-pressed={enginePicker.active === 'nano'}
+                onClick={() => enginePicker.onChange('nano')}
+                className={cn(
+                  'inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium transition-colors',
+                  enginePicker.active === 'nano'
+                    ? 'bg-mint-tint text-mint-ink'
+                    : 'text-text-3 hover:text-text',
+                )}
+              >
+                <Zap className="size-2.5 fill-current" strokeWidth={0} aria-hidden />
+                Nano
+              </button>
+              <button
+                type="button"
+                aria-pressed={enginePicker.active === 'local-llm'}
+                onClick={() => enginePicker.onChange('local-llm')}
+                title={enginePicker.localModel}
+                className={cn(
+                  'inline-flex max-w-[116px] items-center gap-1 truncate rounded px-1.5 py-0.5 font-mono font-medium transition-colors',
+                  enginePicker.active === 'local-llm'
+                    ? 'bg-mint-tint text-mint-ink'
+                    : 'text-text-3 hover:text-text',
+                )}
+              >
+                <Server className="size-2.5 shrink-0" strokeWidth={1.75} aria-hidden />
+                <span className="truncate">{enginePicker.localModel}</span>
+              </button>
+            </div>
+          ) : reason ? (
             <Chip tone="neutral" className="shrink-0">
               {reason}
             </Chip>
@@ -182,7 +225,11 @@ export function NoteInput({
             <CostChip
               route={chip.route}
               credits={chip.route === 'cloud' ? chip.credits : 0}
-              {...(chip.route === 'cloud' && cost ? { label: cost.label, hint: cost.hint } : {})}
+              {...(chip.route === 'cloud' && chip.byok ? { byok: true } : {})}
+              {...(chip.route === 'cloud' && chip.localLlm ? { localLlm: true } : {})}
+              {...(chip.route === 'cloud' && !chip.localLlm && !chip.byok && cost
+                ? { label: cost.label, hint: cost.hint }
+                : {})}
             />
           ) : null}
           <span className="hidden text-[11px] text-text-3 sm:inline">Enter to apply</span>
@@ -208,9 +255,14 @@ export function NoteInput({
 }
 
 export type NoteNotice =
-  | { kind: 'escalate'; message: string; offerCloud?: boolean }
-  | { kind: 'device-failed' }
-  | { kind: 'failed' };
+  | {
+      kind: 'escalate';
+      message: string;
+      offerCloud?: boolean;
+      offerAltLocal?: 'nano' | 'local-llm';
+    }
+  | { kind: 'device-failed'; offerAltLocal?: 'local-llm' }
+  | { kind: 'failed'; message?: string; offerCloud?: boolean; offerAltLocal?: 'nano' };
 
 /** A saved note: its text, then what state it is in. */
 export function NoteView({
@@ -223,10 +275,12 @@ export function NoteView({
   notice,
   canTryCloud = true,
   cloudLabel = '1',
+  localModel,
   onDelete,
   onReopen,
   onFixAgain,
   onTryCloud,
+  onTryAltLocal,
 }: {
   note: FrameNote;
   n: number;
@@ -241,10 +295,13 @@ export function NoteView({
   canTryCloud?: boolean;
   /** Credit label shown on the cloud escalation action (e.g. "1" or "1–6"). */
   cloudLabel?: string;
+  /** Active local LLM model name, for one-click fallback buttons when both local engines are connected. */
+  localModel?: string | null;
   onDelete: () => void;
   onReopen: () => void;
   onFixAgain: () => void;
   onTryCloud: () => void;
+  onTryAltLocal?: (target: 'nano' | 'local-llm') => void;
 }) {
   return (
     <BubbleShell
@@ -306,6 +363,17 @@ export function NoteView({
           {notice.kind === 'escalate' && (
             <>
               <span>{notice.message}</span>
+              {notice.offerAltLocal && onTryAltLocal && (
+                <button
+                  type="button"
+                  onClick={() => onTryAltLocal(notice.offerAltLocal!)}
+                  className="shrink-0 text-mint-ink hover:underline"
+                >
+                  {notice.offerAltLocal === 'nano'
+                    ? 'Try Gemini Nano · free'
+                    : `Try ${localModel || 'Local AI'} · 0`}
+                </button>
+              )}
               {canTryCloud && notice.offerCloud !== false && (
                 <button
                   type="button"
@@ -320,6 +388,15 @@ export function NoteView({
           {notice.kind === 'device-failed' && (
             <>
               <span>Couldn’t do that on your device.</span>
+              {notice.offerAltLocal === 'local-llm' && onTryAltLocal && (
+                <button
+                  type="button"
+                  onClick={() => onTryAltLocal('local-llm')}
+                  className="shrink-0 text-mint-ink hover:underline"
+                >
+                  Try {localModel || 'Local AI'} · 0
+                </button>
+              )}
               {canTryCloud && (
                 <button
                   type="button"
@@ -331,7 +408,29 @@ export function NoteView({
               )}
             </>
           )}
-          {notice.kind === 'failed' && <span>Couldn’t fix that note.</span>}
+          {notice.kind === 'failed' && (
+            <>
+              <span>{notice.message ?? 'Couldn’t fix that note.'}</span>
+              {notice.offerAltLocal === 'nano' && onTryAltLocal && (
+                <button
+                  type="button"
+                  onClick={() => onTryAltLocal('nano')}
+                  className="shrink-0 text-mint-ink hover:underline"
+                >
+                  Try Gemini Nano · free
+                </button>
+              )}
+              {notice.offerCloud && canTryCloud && (
+                <button
+                  type="button"
+                  onClick={onTryCloud}
+                  className="shrink-0 text-violet-ink hover:underline"
+                >
+                  Try in the cloud ☁ {cloudLabel}
+                </button>
+              )}
+            </>
+          )}
         </span>
       )}
     </BubbleShell>

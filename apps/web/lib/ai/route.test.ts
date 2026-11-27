@@ -492,4 +492,38 @@ describe('chooseRoute: Local LLM (Ollama / LM Studio)', () => {
       route({ task: 'prompt.prefill', availability: 'unavailable', online: false, localLlm: true }),
     ).toMatchObject({ kind: 'device' });
   });
+
+  it('honors explicit preferProvider (nano vs local-llm) and forceCloud bypasses localLlm cleanly', () => {
+    // Both connected, offline: explicit Nano picks device, explicit Local LLM picks localLlm.
+    expect(
+      route({
+        task: 'note.fix',
+        availability: 'available',
+        online: false,
+        localLlm: true,
+        preferProvider: 'nano',
+      }),
+    ).toEqual({ kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: false, provider: 'nano' });
+    expect(
+      route({
+        task: 'note.fix',
+        availability: 'available',
+        online: false,
+        localLlm: true,
+        preferProvider: 'local-llm',
+      }),
+    ).toMatchObject({ kind: 'cloud', credits: 0, localLlm: true });
+
+    // forceCloud bypasses localLlm: online → real cloud route with forceCloudProvider, offline → Needs connection.
+    expect(
+      route({ task: 'note.fix', online: true, localLlm: true, forceCloud: true }),
+    ).toMatchObject({
+      kind: 'cloud',
+      credits: 1,
+      forceCloudProvider: true,
+    });
+    expect(
+      route({ task: 'note.fix', online: false, localLlm: true, forceCloud: true }),
+    ).toEqual({ kind: 'disabled', reason: 'Needs connection' });
+  });
 });

@@ -2,14 +2,16 @@
 
 import { costOf } from '@motionpop/schemas';
 import { toast } from 'sonner';
+import { useAIStatus } from '@/lib/ai/ai-status';
+import { useLocalLlm } from '@/lib/ai/local-llm';
 import type { Route } from '@/lib/ai/route';
-import { getRouter } from '@/lib/ai/router-client';
+import { getRouter, getRouterFor } from '@/lib/ai/router-client';
 import { useRoute } from '@/lib/ai/use-route';
 import { useCreditsClient } from '@/lib/credits/use-credits-client';
 import type { Region } from '@/lib/notes/geometry';
 import { useAppConfig } from '@/lib/renders/hooks';
 import { beginActivity, endActivity, useAIActivity } from '@/lib/stores/ai-activity';
-import { editorStore } from '@/lib/stores/editor';
+import { editorStore, useEditor } from '@/lib/stores/editor';
 import { customPictures, loadReelCustomAssets } from './custom-assets';
 import { resolveReelMedia } from './media';
 import { runReelNoteFix, type ReelNoteFixDeps, type ReelNoteOutcome } from './note-fix';
@@ -93,7 +95,13 @@ export async function runReelNoteFixWithUi(
   switch (outcome.kind) {
     case 'cloud-failed':
       // The retry lives on the note ("Fix again"), which also shows the result when it lands.
-      toast('Couldn’t fix that note. Try “Fix again” on it.');
+      toast(
+        outcome.localLlm
+          ? outcome.reason
+            ? `Local AI couldn’t fix that note: ${outcome.reason}`
+            : 'Local AI couldn’t fix that note. Try Gemini Nano or Cloud.'
+          : 'Couldn’t fix that note. Try “Fix again” on it.',
+      );
       break;
     case 'changed':
       toast('The scene changed while Pip worked. Try again.');
@@ -113,23 +121,33 @@ export async function runReelNoteFixWithUi(
  * complex template swaps or custom motion graphics to cloud Gemini (`cloudRoute`).
  */
 export function useReelNoteFix() {
-  const route = useRoute('note.fix');
+  const { availability } = useAIStatus();
+  const { active: localLlmActive, model: localModel } = useLocalLlm();
+  const noteEngine = useEditor((s) => s.noteEngine);
+  const bothLocalConnected = localLlmActive && availability === 'available';
+  const preferProvider =
+    bothLocalConnected && noteEngine !== 'auto' ? noteEngine : undefined;
+  const route = useRoute('note.fix', preferProvider ? { preferProvider } : {});
+  const nanoRoute = useRoute('note.fix', { preferProvider: 'nano' });
+  const localLlmRoute = useRoute('note.fix', { preferProvider: 'local-llm' });
   const cloudRoute = useRoute('note.fix', { forceCloud: true });
-  const { client: credits } = useCreditsClient();
+  const { client: credits, cloudClient } = useCreditsClient();
   const config = useAppConfig();
   const run = (
     sceneId: string,
     noteId: string,
     r: Route = route,
-    opts?: { autoEscalate?: boolean },
+    opts?: { autoEscalate?: boolean; escalationRoute?: Route },
   ) =>
     runReelNoteFixWithUi(
       {
         store: editorStore,
         credits,
+        cloudCredits: cloudClient,
         getRouter,
+        getRouterFor,
         config,
-        cloudRoute,
+        cloudRoute: opts?.escalationRoute ?? (localLlmActive ? localLlmRoute : cloudRoute),
         ...(opts?.autoEscalate ? { autoEscalate: true } : {}),
         fetchMedia: (plan, look) => {
           const p = editorStore.getState().project;
@@ -153,5 +171,14 @@ export function useReelNoteFix() {
     label: `${note}–${note + custom + image}`,
     hint: `${note} credit for the note, ${custom} more if Pip writes a new graphic, ${image} for a new illustration`,
   };
-  return { route, cloudRoute, cost, run };
+  return {
+    route,
+    cloudRoute,
+    nanoRoute,
+    localLlmRoute,
+    bothLocalConnected,
+    localModel,
+    cost,
+    run,
+  };
 }

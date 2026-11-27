@@ -73,6 +73,8 @@ export interface EditorState {
   generating: Generating | null;
   /** The pen is on: the preview takes strokes for a frame note (spec 09 R8.1). */
   drawMode: boolean;
+  /** Chosen local engine for frame notes when both Gemini Nano & Local LLM are connected. */
+  noteEngine: 'auto' | 'nano' | 'local-llm';
 
   load(project: EditorProject): void;
   /** Runs a command. Returns false (and records `rejection`) if the command was rejected. */
@@ -93,6 +95,7 @@ export interface EditorState {
   setAutoFilling(slotId: string | null): void;
   setGenerating(generating: Generating | null): void;
   setDrawMode(on: boolean): void;
+  setNoteEngine(engine: 'auto' | 'nano' | 'local-llm'): void;
 }
 
 export type EditorStore = StoreApi<EditorState>;
@@ -140,6 +143,7 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         autoFilling: null,
         generating: null,
         drawMode: false,
+        noteEngine: 'auto',
 
         load: (project) =>
           set((s) => {
@@ -242,6 +246,10 @@ export function createEditorStore(now: () => number = Date.now): EditorStore {
         setDrawMode: (on) =>
           set((s) => {
             s.drawMode = on;
+          }),
+        setNoteEngine: (engine) =>
+          set((s) => {
+            s.noteEngine = engine;
           }),
       };
     }),

@@ -9,6 +9,7 @@ import {
 import type { AppConfig, Slot } from '@motionpop/schemas';
 import { APP_CONFIG_DEFAULTS, FORMATS } from '@motionpop/schemas';
 import type { Route } from '@/lib/ai/route';
+import type { RouterTarget } from '@/lib/ai/router-client';
 import { applyVersion, composite, setNoteStatus } from '@/lib/commands';
 import { sameSlot } from '@/lib/commands/auto-fill';
 import { styleFor } from '@/lib/composition/project-to-compile';
@@ -32,7 +33,11 @@ import { cropRect, regionOf, type Region } from './geometry';
 export interface NoteFixDeps {
   store: EditorStore;
   credits: CreditsClient | null;
+  /** Real cloud credits client used when bypassing Local LLM ("Try in the cloud"). */
+  cloudCredits?: CreditsClient | null;
   getRouter: () => Promise<Router | null>;
+  /** Optional target-specific router resolver (`nano` | `local-llm` | `cloud`). */
+  getRouterFor?: (target: RouterTarget) => Promise<Router | null>;
   /**
    * What the preview shows inside a crop: the texts of the elements there and a JPEG (data URL)
    * when frame capture works. Returns nothing it can't get; the note then goes without.
@@ -75,11 +80,15 @@ export async function runNoteFix(
   const scene = sceneFor(slot.componentId);
   const gateFor = scene ? sceneGate(scene, project, slot, deps.doc) : null;
 
+  const effectiveCredits =
+    route.kind === 'cloud' && route.forceCloudProvider && deps.cloudCredits !== undefined
+      ? deps.cloudCredits
+      : deps.credits;
   let txId: string | null = null;
   if (route.kind === 'cloud') {
-    if (!deps.credits) return { kind: 'blocked', reason: 'Sign in to use cloud AI' };
+    if (!effectiveCredits) return { kind: 'blocked', reason: 'Sign in to use cloud AI' };
     const spent = await spendWithUi(
-      deps.credits,
+      effectiveCredits,
       { action: 'edit', key: (deps.newKey ?? newSpendKey)(), refId: slot.id },
       deps.config ?? APP_CONFIG_DEFAULTS,
     );
@@ -92,12 +101,20 @@ export async function runNoteFix(
     txId = spent.txId;
   }
   const refund = async () => {
-    if (txId && deps.credits) await deps.credits.refund(txId);
+    if (txId && effectiveCredits) await effectiveCredits.refund(txId);
   };
   const failed = (): QuickEditOutcome =>
     route.kind === 'cloud' ? { kind: 'cloud-failed' } : { kind: 'device-failed' };
 
-  const router = await deps.getRouter().catch(() => null);
+  const resolveRouter = (): Promise<Router | null> => {
+    if (!deps.getRouterFor) return deps.getRouter();
+    if (route.kind === 'device') return deps.getRouterFor('nano');
+    if (route.kind === 'cloud' && route.forceCloudProvider) return deps.getRouterFor('cloud');
+    if (route.kind === 'cloud' && route.localLlm) return deps.getRouterFor('local-llm');
+    return deps.getRouter();
+  };
+
+  const router = await resolveRouter().catch(() => null);
   if (!router) {
     await refund();
     return failed();
@@ -126,7 +143,8 @@ export async function runNoteFix(
       },
       { mode: route.mode, allowCloud: false },
     );
-  } catch {
+  } catch (err) {
+    console.warn('[note.fix] model call failed:', err);
     await refund();
     return failed();
   }

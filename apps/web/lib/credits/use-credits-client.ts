@@ -62,9 +62,15 @@ function serverCreditsFor(user: AuthUser): ServerCredits {
 
 export interface UseCreditsClient {
   client: CreditsClient | null;
+  /** Underlying real cloud credits client (BYOK or ServerCredits), bypassing LocalLlmCredits. */
+  cloudClient?: CreditsClient | null;
   cloudAvailable: boolean;
+  /** True when real cloud AI (Firebase or BYOK) is available, independent of Local LLM. */
+  realCloudAvailable?: boolean;
   /** Why cloud actions are disabled (tooltip copy), or null. */
   cloudBlockedReason: string | null;
+  /** Blocked reason for real cloud AI when bypassing Local LLM. */
+  realCloudBlockedReason?: string | null;
   /** True when cloud Gemini calls are routed through the user's browser-local API key (0 credits). */
   byok?: boolean;
   /** True when routed text/JSON AI tasks run through a browser-local Ollama/LM Studio server (0 credits). */
@@ -104,18 +110,25 @@ export function useCreditsClient(): UseCreditsClient {
     const base = byokActive ? byokCreditsFor(client) : client;
     return {
       client: localLlmCreditsFor(base),
+      cloudClient: base,
       cloudAvailable: true,
+      realCloudAvailable: byokActive || pick.cloudAvailable,
       cloudBlockedReason: null,
+      realCloudBlockedReason: byokActive ? null : pick.cloudBlockedReason,
       byok: byokActive,
       localLlm: true,
       hasAccountCredits: byokActive || client !== null,
     };
   }
   if (byokActive && !fakeAi) {
+    const wrapped = byokCreditsFor(client);
     return {
-      client: byokCreditsFor(client),
+      client: wrapped,
+      cloudClient: wrapped,
       cloudAvailable: true,
+      realCloudAvailable: true,
       cloudBlockedReason: null,
+      realCloudBlockedReason: null,
       byok: true,
       localLlm: false,
       hasAccountCredits: true,
@@ -123,8 +136,11 @@ export function useCreditsClient(): UseCreditsClient {
   }
   return {
     client,
+    cloudClient: client,
     cloudAvailable: pick.cloudAvailable,
+    realCloudAvailable: pick.cloudAvailable,
     cloudBlockedReason: pick.cloudBlockedReason,
+    realCloudBlockedReason: pick.cloudBlockedReason,
     byok: false,
     localLlm: false,
     hasAccountCredits: client !== null,

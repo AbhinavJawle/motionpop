@@ -252,6 +252,7 @@ export function ProcessingScreen({ id }: { id: string }) {
                       state={s.state}
                       detail={s.detail}
                       {...(s.route ? { route: s.route } : {})}
+                      {...(s.routeLabel ? { routeLabel: s.routeLabel } : {})}
                     />
                   );
                 })}

@@ -48,8 +48,10 @@ export interface RouteInput {
   balance: number | null;
   /** `costOf('edit' | 'generate')`. */
   cloudCost: number;
-  /** The user clicked "Try in the cloud". */
+  /** The user clicked "Try in the cloud" (bypasses both Gemini Nano and Local LLM). */
   forceCloud?: boolean;
+  /** Explicit local engine choice (e.g. from the Draw-a-Note picker when both Nano & Local LLM are ready). */
+  preferProvider?: 'nano' | 'local-llm';
   /** True when a browser-local Gemini BYOK key is active (0 Motionpop credits). */
   byok?: boolean;
   /** True when a local LLM server (Ollama / LM Studio) is active as full local provider (0 credits, works offline). */
@@ -57,7 +59,7 @@ export interface RouteInput {
 }
 
 export type Route =
-  | { kind: 'device'; mode: 'ONLY_ON_DEVICE'; allowCloud: false }
+  | { kind: 'device'; mode: 'ONLY_ON_DEVICE'; allowCloud: false; provider?: 'nano' }
   | {
       kind: 'cloud';
       mode: 'ONLY_IN_CLOUD';
@@ -66,6 +68,8 @@ export type Route =
       insufficient: boolean;
       byok?: true;
       localLlm?: true;
+      /** True when the user explicitly escalated past Local LLM to real Cloud Gemini. */
+      forceCloudProvider?: true;
     }
   /** Deterministic code (the prefill template, the scene's safe defaults). */
   | { kind: 'local' }
@@ -75,7 +79,7 @@ const DEVICE: Route = { kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: fals
 const disabled = (reason: BlockedReason): Route => ({ kind: 'disabled', reason });
 
 function cloudRoute(i: RouteInput): Route {
-  if (i.localLlm) {
+  if (i.localLlm && !i.forceCloud) {
     return {
       kind: 'cloud',
       mode: 'ONLY_IN_CLOUD',
@@ -94,6 +98,7 @@ function cloudRoute(i: RouteInput): Route {
       credits: 0,
       insufficient: false,
       byok: true,
+      ...(i.localLlm && i.forceCloud ? { forceCloudProvider: true as const } : {}),
     };
   }
   if (!i.cloudAvailable) return disabled(i.cloudBlockedReason ?? 'Sign in to use cloud AI');
@@ -104,6 +109,7 @@ function cloudRoute(i: RouteInput): Route {
     allowCloud: false,
     credits: i.cloudCost,
     insufficient: i.balance !== null && i.balance < i.cloudCost,
+    ...(i.localLlm && i.forceCloud ? { forceCloudProvider: true as const } : {}),
   };
 }
 
@@ -112,7 +118,8 @@ function cloudRoute(i: RouteInput): Route {
  * ☁ 1 rather than a mint chip that could turn into a charge):
  * 1. `prompt.prefill` and `autofill`: the device when available (or local LLM), else deterministic code. Never cloud.
  * 2. `generate`: always the cloud/local-LLM route (offline, no cloud, paused, else cloud).
- * 3. `edit.patch` and `note.fix`: when local LLM is active, routes directly to it (0 credits, offline ok);
+ * 3. `edit.patch` and `note.fix`: respects explicit `preferProvider` ('nano' or 'local-llm') when set;
+ *    when local LLM is active (and not `forceCloud`), routes to it (0 credits, offline ok);
  *    otherwise the device when it is available and (the user prefers it, or the cloud can't be used)
  *    and the user did not ask for the cloud; otherwise the cloud route.
  * 4. Remote Config overrides: a cloud mode acts like `preferOnDevice: false`; `ONLY_ON_DEVICE`
@@ -123,7 +130,24 @@ export function chooseRoute(i: RouteInput): Route {
   if (i.task === 'prompt.prefill' || i.task === 'autofill') {
     return deviceReady || i.localLlm ? DEVICE : { kind: 'local' };
   }
-  if (i.localLlm) {
+  if (i.task === 'note.fix' || i.task === 'edit.patch') {
+    if (i.preferProvider === 'nano' && !i.forceCloud) {
+      return deviceReady
+        ? { kind: 'device', mode: 'ONLY_ON_DEVICE', allowCloud: false, provider: 'nano' }
+        : disabled('Needs on-device AI');
+    }
+    if (i.preferProvider === 'local-llm' && !i.forceCloud && i.localLlm) {
+      return {
+        kind: 'cloud',
+        mode: 'ONLY_IN_CLOUD',
+        allowCloud: false,
+        credits: 0,
+        insufficient: false,
+        localLlm: true,
+      };
+    }
+  }
+  if (i.localLlm && !i.forceCloud) {
     return cloudRoute(i);
   }
   // Pip plans reason over the whole timeline: the cloud (hybrid-ai.md, PREFER_IN_CLOUD).

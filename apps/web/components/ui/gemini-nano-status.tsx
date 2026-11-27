@@ -96,24 +96,24 @@ export function resolveNanoLamp(input: {
 
 const LAMP_DOT: Record<NanoLampState, { core: string; halo: string; glow: string }> = {
   on: {
-    core: 'bg-[#22c55e]',
-    halo: 'bg-[#3ddc97]',
-    glow: 'shadow-[0_0_8px_rgba(34,197,94,0.85)]',
+    core: 'bg-mint',
+    halo: 'bg-mint',
+    glow: 'shadow-[0_0_8px_rgb(34_197_94/0.85)]',
   },
   off: {
-    core: 'bg-[#ef4444]',
-    halo: 'bg-[#ff5a5f]',
-    glow: 'shadow-[0_0_7px_rgba(239,68,68,0.75)]',
+    core: 'bg-error',
+    halo: 'bg-error',
+    glow: 'shadow-[0_0_7px_rgb(239_68_68/0.75)]',
   },
   downloading: {
-    core: 'bg-[#38bdf8]',
-    halo: 'bg-[#8dbceb]',
-    glow: 'shadow-[0_0_8px_rgba(56,189,248,0.8)]',
+    core: 'bg-sound',
+    halo: 'bg-pip',
+    glow: 'shadow-[0_0_8px_rgb(56_189_248/0.8)]',
   },
   checking: {
-    core: 'bg-[#f59e0b]',
-    halo: 'bg-[#ffc24b]',
-    glow: 'shadow-[0_0_7px_rgba(245,158,11,0.7)]',
+    core: 'bg-warn',
+    halo: 'bg-warn',
+    glow: 'shadow-[0_0_7px_rgb(245_158_11/0.7)]',
   },
 };
 
@@ -138,7 +138,7 @@ function TallyLight({ state }: { state: NanoLampState }) {
       )}
       <span
         className={cn(
-          'relative size-2.5 rounded-full border border-[#000000]/15',
+          'relative size-2.5 rounded-full border border-ink/15',
           style.core,
           style.glow,
         )}
@@ -151,8 +151,8 @@ function TallyLight({ state }: { state: NanoLampState }) {
  * Always-visible Gemini Nano on-device status indicator (studio tally-light pill).
  * Green light when Gemini Nano is active on-device; red light when unavailable/off.
  *
- * Uses explicit hex colours on the paper dashboard rather than `text-white`/`bg-white` because
- * `[data-paper]` inverts `--color-white` to `#000000` in `globals.css`.
+ * Uses paper/ink semantic tokens (`bg-paper`, `bg-mint-tint`, `text-ink`) rather than
+ * `text-white`/`bg-white` because `[data-paper]` inverts `--color-white` to `#000000`.
  */
 export function GeminiNanoStatus({
   variant,
@@ -172,20 +172,20 @@ export function GeminiNanoStatus({
   if (variant === 'dashboard') {
     const sublabelColor =
       lamp.state === 'on'
-        ? 'text-[#0b6e47]'
+        ? 'text-mint-ink'
         : lamp.state === 'downloading'
-          ? 'text-[#0369a1]'
+          ? 'text-violet-ink'
           : lamp.state === 'checking'
-            ? 'text-[#a16207]'
-            : 'text-[#c81e1e]';
+            ? 'text-warn'
+            : 'text-error';
     const surfaceBg =
       lamp.state === 'on'
-        ? 'bg-[#ecfdf5]'
+        ? 'bg-mint-tint'
         : lamp.state === 'downloading'
-          ? 'bg-[#f0f9ff]'
+          ? 'bg-mist'
           : lamp.state === 'checking'
-            ? 'bg-[#fffbeb]'
-            : 'bg-[#ffffff]';
+            ? 'bg-ember-tint'
+            : 'bg-paper';
     return (
       <Link
         href="/settings#ai"
@@ -196,16 +196,16 @@ export function GeminiNanoStatus({
         data-testid="gemini-nano-status"
         data-nano-state={lamp.state}
         className={cn(
-          'inline-flex h-7 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-[#000000] px-2.5 text-[#111116] shadow-[2px_2px_0_#000000] transition-transform hover:-translate-y-px',
+          'inline-flex h-7 shrink-0 items-center gap-2 rounded-full border-[1.5px] border-ink px-2.5 text-ink shadow-[2px_2px_0_var(--color-hard)] transition-transform hover:-translate-y-px',
           surfaceBg,
           className,
         )}
       >
         <TallyLight state={lamp.state} />
-        <span className="text-[12px] leading-none font-bold tracking-[0.01em] whitespace-nowrap text-[#111116]">
+        <span className="text-[12px] leading-none font-bold tracking-[0.01em] whitespace-nowrap text-ink">
           {lamp.label}
         </span>
-        <span aria-hidden className="h-3 w-px bg-[#000000]/20" />
+        <span aria-hidden className="h-3 w-px bg-ink/20" />
         <span
           className={cn(
             'font-mono text-[10px] leading-none font-semibold tracking-wide whitespace-nowrap uppercase',
@@ -220,12 +220,12 @@ export function GeminiNanoStatus({
 
   const editorBorder =
     lamp.state === 'on'
-      ? 'border-[#22c55e]/60 hover:border-[#22c55e]/90'
+      ? 'border-mint/60 hover:border-mint/90'
       : lamp.state === 'downloading'
-        ? 'border-[#38bdf8]/60 hover:border-[#38bdf8]/90'
+        ? 'border-sound/60 hover:border-sound/90'
         : lamp.state === 'checking'
           ? 'border-line-strong'
-          : 'border-[#ef4444]/60 hover:border-[#ef4444]/90';
+          : 'border-error/60 hover:border-error/90';
 
   return (
     <Tooltip content={lamp.tooltip} side="bottom">

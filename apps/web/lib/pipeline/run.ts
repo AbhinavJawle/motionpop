@@ -89,6 +89,7 @@ import {
   transcriptSummary,
   type PipelineEvent,
   type PipelineStep,
+  type StepRoute,
 } from './events';
 
 /**
@@ -97,7 +98,13 @@ import {
  */
 export interface PipelineReuse {
   /** The directed reel (cloud only: the free plan costs nothing to make again). */
-  reel?: { plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string };
+  reel?: {
+    plan: ReelPlan;
+    source: 'cloud' | 'device' | 'auto';
+    draft?: boolean;
+    model?: string;
+    error?: string;
+  };
   /** The pictures, with the plan they were found for (used only when the plan still asks for them). */
   media?: { plan: ReelPlan; assets: ImageAsset[] };
   /** The generated soundtrack (its `music.src`). */
@@ -166,6 +173,8 @@ export interface PipelineDeps {
   now(): number;
   newId(): string;
   styleId: string;
+  /** Reports which AI provider handles routed directing/editing steps (e.g. Ollama vs Cloud). */
+  aiRoute?: () => { route: StepRoute; label?: string };
   /** Slot detection (spec 06): the deterministic detector, or AI through the router. */
   detect(words: Word[], spans: TaggedSpan[]): Promise<SlotSuggestion[]>;
   /** Component param validation for the post-pass (fills defaults, lists `needsInput`). */
@@ -206,7 +215,13 @@ export interface PipelineDeps {
     mediaBin?: readonly ReelDirectMediaClip[];
     /** Fires when the job is cancelled: a charge made by this call is handed back (R6.9). */
     signal?: AbortSignal;
-  }): Promise<{ plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string }>;
+  }): Promise<{
+    plan: ReelPlan;
+    source: 'cloud' | 'device' | 'auto';
+    draft?: boolean;
+    model?: string;
+    error?: string;
+  }>;
   /** Prompt-driven motion graphics director (`reel.graphic`) for standalone graphics. */
   directGraphic?(params: {
     prompt: string;
@@ -479,6 +494,31 @@ export async function runPipeline(
   const rejectFile = (message: string): never => {
     throw new PipelineError('intake', message);
   };
+  const aiStepBadge = (): { route: StepRoute; routeLabel?: string } => {
+    const info = deps.aiRoute?.();
+    if (!info) return { route: 'cloud' };
+    return info.label ? { route: info.route, routeLabel: info.label } : { route: info.route };
+  };
+  const directedBadge = (
+    source: 'cloud' | 'device' | 'auto',
+    opts?: { draft?: boolean; model?: string },
+  ): { route?: StepRoute; routeLabel?: string } => {
+    if (source === 'cloud') return { route: 'cloud' };
+    if (source === 'device') {
+      if (opts?.draft) {
+        const isNano = !opts.model || opts.model === 'gemini-nano';
+        return isNano
+          ? { route: 'device', routeLabel: 'on-device' }
+          : { route: 'local-llm', routeLabel: opts.model };
+      }
+      const badge = aiStepBadge();
+      return {
+        route: badge.route === 'cloud' ? 'local-llm' : badge.route,
+        ...(opts?.model || badge.routeLabel ? { routeLabel: opts?.model ?? badge.routeLabel } : {}),
+      };
+    }
+    return {};
+  };
 
   try {
     // The project id comes first, so every write of this run can be filed under it (design §2.4).
@@ -548,7 +588,7 @@ export async function runPipeline(
         step,
         state: 'active',
         detail: 'Storyboarding scenes & visual assets',
-        ...(deps.directGraphic ? { route: 'cloud' as const } : {}),
+        ...(deps.directGraphic ? aiStepBadge() : {}),
       });
       const directed = deps.directGraphic
         ? await deps
@@ -579,6 +619,7 @@ export async function runPipeline(
         step,
         state: 'done',
         detail: `${reel.scenes.length} ${reel.scenes.length === 1 ? 'scene' : 'scenes'}${source === 'cloud' ? '' : source === 'device' ? ' · local AI' : ' · free director'}`,
+        ...directedBadge(source, { model: reel.by }),
       });
 
       step = 'plan';
@@ -669,7 +710,7 @@ export async function runPipeline(
           step,
           state: 'active',
           detail: 'Designing custom motion scenes',
-          route: 'cloud',
+          ...aiStepBadge(),
         });
         reel = await deps
           .composeGraphicScenes({
@@ -687,7 +728,7 @@ export async function runPipeline(
                 step: 'plan',
                 state: 'active',
                 detail: label,
-                route: 'cloud',
+                ...aiStepBadge(),
               }),
             ...(signal ? { signal } : {}),
           })
@@ -837,7 +878,7 @@ export async function runPipeline(
         step,
         state: 'active',
         detail: 'Looking for repeated takes',
-        ...(cleanupOn && deps.reviewEdit ? { route: 'cloud' as const } : {}),
+        ...(cleanupOn && deps.reviewEdit ? aiStepBadge() : {}),
       });
       let reviewed = false;
       if (cleanupOn && deps.reviewEdit) {
@@ -892,6 +933,7 @@ export async function runPipeline(
         detail: !cleanupOn
           ? 'Cleanup is off'
           : retakeSummary(auto!.stats, reviewed, audio.durationMs, reelMs),
+        ...(reviewed ? aiStepBadge() : {}),
       });
 
       step = 'suggest';
@@ -900,7 +942,7 @@ export async function runPipeline(
         step,
         state: 'active',
         detail: input.extraClips?.length ? 'Analyzing clips & writing the story' : 'Writing the story',
-        ...(deps.directReel ? { route: 'cloud' as const } : {}),
+        ...(deps.directReel ? aiStepBadge() : {}),
       });
       const preparedMedia = await extraMediaPromise;
       checkAbort();
@@ -947,11 +989,13 @@ export async function runPipeline(
       let reel =
         directed?.plan ?? withChoices(autoReelPlan(words, reelMs, look), words, reelMs, choices);
       const source = directed?.source ?? 'auto';
+      const isFullLocalDirected = source === 'device' && !directed?.draft;
       onEvent({
         type: 'step',
         step,
         state: 'done',
-        detail: `${reel.scenes.length} scenes${source === 'cloud' ? '' : ' · free director'}`,
+        detail: `${reel.scenes.length} scenes${source === 'cloud' ? '' : isFullLocalDirected ? ' · local AI' : source === 'device' ? ' · compact draft' : ' · free director'}`,
+        ...directedBadge(source, { draft: directed?.draft, model: directed?.model ?? reel.by }),
       });
       step = 'plan';
       onEvent({ type: 'step', step, state: 'active', detail: 'Getting the visuals ready' });
@@ -989,8 +1033,8 @@ export async function runPipeline(
           reelAssets = media.assets;
         }
       }
-      // Selective bespoke Film Kit hero-scene upgrade for talking-head video reels (when cloud directed).
-      if (deps.composeReelHeroScenes && source === 'cloud') {
+      // Selective bespoke Film Kit hero-scene upgrade for talking-head video reels (cloud or full local LLM).
+      if (deps.composeReelHeroScenes && (source === 'cloud' || isFullLocalDirected)) {
         const videoBrief = edit ? (briefFromEdit(edit) ?? undefined) : undefined;
         const videoStyleDirection = styleCraftDirection({
           ...(edit?.styleId ? { styleId: edit.styleId } : { styleId }),
@@ -1002,7 +1046,7 @@ export async function runPipeline(
           step,
           state: 'active',
           detail: 'Crafting bespoke hero scenes',
-          route: 'cloud',
+          ...aiStepBadge(),
         });
         reel = await deps
           .composeReelHeroScenes({
@@ -1014,14 +1058,14 @@ export async function runPipeline(
             ...(videoBrief ? { brief: videoBrief } : {}),
             styleDirection: videoStyleDirection,
             styleId: edit?.styleId ?? styleId,
-            maxScenes: 3,
+            maxScenes: isFullLocalDirected ? 2 : 3,
             onProgress: (_done, _total, label) =>
               onEvent({
                 type: 'step',
                 step: 'plan',
                 state: 'active',
                 detail: label,
-                route: 'cloud',
+                ...aiStepBadge(),
               }),
             ...(signal ? { signal } : {}),
           })
@@ -1157,12 +1201,16 @@ export async function runPipeline(
 
     let videoPlan: EnforcedVideoPlan | null = null;
     if (isVideoInput && deps.directVideo) {
+      const badge = aiStepBadge();
       onEvent({
         type: 'step',
         step,
         state: 'active',
-        detail: 'Analyzing video & cuts with Gemini 4 Neon…',
-        route: 'cloud',
+        detail:
+          badge.route === 'local-llm'
+            ? `Analyzing video & cuts${badge.routeLabel ? ` with ${badge.routeLabel}` : ''}…`
+            : 'Analyzing video & cuts with Gemini 4 Neon…',
+        ...badge,
       });
       videoPlan = await deps
         .directVideo({
@@ -1233,7 +1281,7 @@ export async function runPipeline(
         step,
         state: 'active',
         detail: input.extraClips?.length ? 'Analyzing clips & writing the story' : 'Writing the story',
-        route: 'cloud',
+        ...aiStepBadge(),
       });
       const preparedMedia = await extraMediaPromise;
       checkAbort();
@@ -1307,11 +1355,13 @@ export async function runPipeline(
         }),
       };
       const source = directed?.source ?? 'auto';
+      const isFullLocalDirected = source === 'device' && !directed?.draft;
       onEvent({
         type: 'step',
         step,
         state: 'done',
-        detail: `${reel.scenes.length} scenes${source === 'cloud' ? '' : ' · free director'}`,
+        detail: `${reel.scenes.length} scenes${source === 'cloud' ? '' : isFullLocalDirected ? ' · local AI' : source === 'device' ? ' · compact draft' : ' · free director'}`,
+        ...directedBadge(source, { draft: directed?.draft, model: directed?.model ?? reel.by }),
       });
 
       step = 'plan';
@@ -1348,8 +1398,8 @@ export async function runPipeline(
           reelAssets = media.assets;
         }
       }
-      // Selective bespoke Film Kit hero-scene upgrade for voiceover / script reels (when cloud directed).
-      if (deps.composeReelHeroScenes && source === 'cloud') {
+      // Selective bespoke Film Kit hero-scene upgrade for voiceover / script reels (cloud or full local LLM).
+      if (deps.composeReelHeroScenes && (source === 'cloud' || isFullLocalDirected)) {
         const voBrief = edit ? (briefFromEdit(edit) ?? undefined) : undefined;
         const voStyleDirection = styleCraftDirection({
           ...(edit?.styleId ? { styleId: edit.styleId } : { styleId }),
@@ -1361,7 +1411,7 @@ export async function runPipeline(
           step,
           state: 'active',
           detail: 'Crafting bespoke hero scenes',
-          route: 'cloud',
+          ...aiStepBadge(),
         });
         reel = await deps
           .composeReelHeroScenes({
@@ -1373,14 +1423,14 @@ export async function runPipeline(
             ...(voBrief ? { brief: voBrief } : {}),
             styleDirection: voStyleDirection,
             styleId: edit?.styleId ?? styleId,
-            maxScenes: 4,
+            maxScenes: isFullLocalDirected ? 2 : 4,
             onProgress: (_done, _total, label) =>
               onEvent({
                 type: 'step',
                 step: 'plan',
                 state: 'active',
                 detail: label,
-                route: 'cloud',
+                ...aiStepBadge(),
               }),
             ...(signal ? { signal } : {}),
           })

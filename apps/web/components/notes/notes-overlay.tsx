@@ -31,7 +31,7 @@ export type NoteRunOutcome =
   | { kind: 'applied'; message?: string }
   | { kind: 'escalate'; message: string }
   | { kind: 'device-failed' }
-  | { kind: 'cloud-failed' }
+  | { kind: 'cloud-failed'; localLlm?: boolean; reason?: string }
   | { kind: 'changed' | 'blocked' | 'no-credits' };
 
 export interface NotesOverlayProps {
@@ -42,6 +42,11 @@ export interface NotesOverlayProps {
   aspect: number;
   route: Route;
   cloudRoute: Route;
+  /** Optional explicit routes when both Gemini Nano and Local AI (Ollama/LM Studio) are connected. */
+  nanoRoute?: Route;
+  localLlmRoute?: Route;
+  bothLocalConnected?: boolean;
+  localModel?: string | null;
   /** A cost range for the draft's chip, when a note may cost more than its route. */
   cost?: { label: string; hint: string };
   /** The note's time from the playhead (relative to the target's start). */
@@ -67,6 +72,8 @@ export function NotesOverlay(p: NotesOverlayProps) {
   const playing = useEditor((s) => s.playing);
   const drawMode = useEditor((s) => s.drawMode);
   const setDrawMode = useEditor((s) => s.setDrawMode);
+  const noteEngine = useEditor((s) => s.noteEngine);
+  const setNoteEngine = useEditor((s) => s.setNoteEngine);
   const overlay = useRef<HTMLDivElement | null>(null);
   const [stroke, setStroke] = useState<Pt[] | null>(null);
   const [pending, setPending] = useState<(FittedStroke & { targetId: string }) | null>(null);
@@ -163,18 +170,48 @@ export function NotesOverlay(p: NotesOverlayProps) {
         ),
       );
     } else if (outcome.kind === 'escalate') {
+      const ranOnLocalLlm = r.kind === 'cloud' && Boolean(r.localLlm);
+      const offerAltLocal =
+        r.kind === 'device' && p.localLlmRoute?.kind === 'cloud'
+          ? ('local-llm' as const)
+          : ranOnLocalLlm && p.nanoRoute?.kind === 'device'
+            ? ('nano' as const)
+            : undefined;
       setNotices((cur) => ({
         ...cur,
         [noteId]: {
           kind: 'escalate',
           message: outcome.message,
-          offerCloud: r.kind === 'device',
+          offerCloud: r.kind === 'device' || ranOnLocalLlm,
+          ...(offerAltLocal ? { offerAltLocal } : {}),
         },
       }));
     } else if (outcome.kind === 'device-failed') {
-      setNotices((cur) => ({ ...cur, [noteId]: { kind: 'device-failed' } }));
+      const offerAltLocal =
+        p.localLlmRoute?.kind === 'cloud' ? ('local-llm' as const) : undefined;
+      setNotices((cur) => ({
+        ...cur,
+        [noteId]: { kind: 'device-failed', ...(offerAltLocal ? { offerAltLocal } : {}) },
+      }));
     } else if (outcome.kind === 'cloud-failed') {
-      setNotices((cur) => ({ ...cur, [noteId]: { kind: 'failed' } }));
+      const ranOnLocalLlm = Boolean(outcome.localLlm) || (r.kind === 'cloud' && Boolean(r.localLlm));
+      const offerAltLocal =
+        ranOnLocalLlm && p.nanoRoute?.kind === 'device' ? ('nano' as const) : undefined;
+      setNotices((cur) => ({
+        ...cur,
+        [noteId]: {
+          kind: 'failed',
+          ...(ranOnLocalLlm
+            ? {
+                message: outcome.reason
+                  ? `Local AI failed: ${outcome.reason}`
+                  : 'Local AI couldn’t fix that note.',
+                offerCloud: true,
+              }
+            : {}),
+          ...(offerAltLocal ? { offerAltLocal } : {}),
+        },
+      }));
     }
   };
 
@@ -244,8 +281,11 @@ export function NotesOverlay(p: NotesOverlayProps) {
             notice={notices[n.id] ?? null}
             canTryCloud={p.cloudRoute.kind === 'cloud'}
             cloudLabel={
-              p.cost?.label ?? (p.cloudRoute.kind === 'cloud' ? String(p.cloudRoute.credits) : '1')
+              p.cloudRoute.kind === 'cloud' && p.cloudRoute.byok
+                ? 'BYOK · 0'
+                : (p.cost?.label ?? (p.cloudRoute.kind === 'cloud' ? String(p.cloudRoute.credits) : '1'))
             }
+            {...(p.localModel ? { localModel: p.localModel } : {})}
             onDelete={() => p.remove(n.id)}
             onReopen={() => {
               p.reopen(n.id);
@@ -253,6 +293,10 @@ export function NotesOverlay(p: NotesOverlayProps) {
             }}
             onFixAgain={() => void fix(n.id)}
             onTryCloud={() => void fix(n.id, p.cloudRoute)}
+            onTryAltLocal={(target) => {
+              const next = target === 'nano' ? p.nanoRoute : p.localLlmRoute;
+              if (next) void fix(n.id, next);
+            }}
           />
         ))}
         {draft && draftPlacement && (
@@ -262,6 +306,15 @@ export function NotesOverlay(p: NotesOverlayProps) {
             placement={draftPlacement}
             route={p.route}
             {...(p.cost ? { cost: p.cost } : {})}
+            {...(p.bothLocalConnected && p.localModel
+              ? {
+                  enginePicker: {
+                    active: noteEngine === 'nano' ? 'nano' : 'local-llm',
+                    localModel: p.localModel,
+                    onChange: (next) => setNoteEngine(next),
+                  },
+                }
+              : {})}
             onSave={save}
             onCancel={() => setDraft(null)}
           />

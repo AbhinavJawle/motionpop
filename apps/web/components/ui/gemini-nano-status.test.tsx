@@ -105,7 +105,7 @@ describe('GeminiNanoStatus', () => {
     expect(pill.getAttribute('data-nano-state')).toBe('on');
     expect(pill.getAttribute('href')).toBe('/settings#ai');
     expect(pill.className).not.toContain('text-white');
-    expect(pill.className).toContain('bg-[#ecfdf5]');
+    expect(pill.className).toContain('bg-mint-tint');
     expect(pill.textContent).toContain('On-Device');
     expect(pill.textContent).toContain('Gemini Nano');
   });

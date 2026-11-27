@@ -47,7 +47,16 @@ export function ReelNotesLayer() {
   );
   const stage = stageSizeForFormat(format);
   const playheadMs = useEditor((s) => s.playheadMs);
-  const { route, cloudRoute, cost, run } = useReelNoteFix();
+  const {
+    route,
+    cloudRoute,
+    nanoRoute,
+    localLlmRoute,
+    bothLocalConnected,
+    localModel,
+    cost,
+    run,
+  } = useReelNoteFix();
   const working = useAIActivity((s) => (s.busy?.kind === 'note' ? s.busy.slotId : null));
   const scene = useMemo(
     () => (scenes ? reelSceneAt(scenes, playheadMs) : null),
@@ -63,6 +72,10 @@ export function ReelNotesLayer() {
       aspect={stage.w / stage.h}
       route={route}
       cloudRoute={cloudRoute}
+      nanoRoute={nanoRoute}
+      localLlmRoute={localLlmRoute}
+      bothLocalConnected={bothLocalConnected}
+      localModel={localModel}
       cost={cost}
       noteTime={(ms) => Math.max(0, Math.min(scene.endMs - scene.startMs, ms - scene.startMs))}
       add={(note) => editorStore.getState().exec(addReelNote(scene.id, note))}

@@ -21,6 +21,7 @@ export function routeInputFrom(s: {
   cloudBlockedReason: string | null;
   balance: number | null;
   forceCloud?: boolean;
+  preferProvider?: 'nano' | 'local-llm';
   byok?: boolean;
   localLlm?: boolean;
 }): RouteInput {
@@ -42,6 +43,7 @@ export function routeInputFrom(s: {
     balance: s.balance,
     cloudCost: cloudCostFor(s.task, s.config),
     ...(s.forceCloud ? { forceCloud: true } : {}),
+    ...(s.preferProvider ? { preferProvider: s.preferProvider } : {}),
     ...(s.byok ? { byok: true } : {}),
     ...(s.localLlm ? { localLlm: true } : {}),
   };
@@ -51,12 +53,28 @@ export function routeInputFrom(s: {
  * The route of a task from live state, including the Settings toggle: turning "Prefer on-device
  * AI" off moves quick edits to `☁ 1` at once and leaves auto-fill on the device (spec 13 R6.5).
  */
-export function useRoute(task: RoutedTask, opts: { forceCloud?: boolean } = {}): Route {
+export function useRoute(
+  task: RoutedTask,
+  opts: { forceCloud?: boolean; preferProvider?: 'nano' | 'local-llm' } = {},
+): Route {
   const { availability, online } = useAIStatus();
   const { preferOnDevice } = usePreferOnDevice();
-  const { cloudAvailable, cloudBlockedReason, byok, localLlm } = useCreditsClient();
+  const {
+    cloudAvailable,
+    realCloudAvailable,
+    cloudBlockedReason,
+    realCloudBlockedReason,
+    byok,
+    localLlm,
+  } = useCreditsClient();
   const balance = useCreditsBalance();
   const config = useAppConfig();
+  const effectiveCloudAvailable = opts.forceCloud
+    ? (realCloudAvailable ?? cloudAvailable)
+    : cloudAvailable;
+  const effectiveBlockedReason = opts.forceCloud
+    ? (realCloudBlockedReason ?? cloudBlockedReason)
+    : cloudBlockedReason;
   return chooseRoute(
     routeInputFrom({
       task,
@@ -64,10 +82,11 @@ export function useRoute(task: RoutedTask, opts: { forceCloud?: boolean } = {}):
       online,
       preferOnDevice,
       config,
-      cloudAvailable,
-      cloudBlockedReason,
+      cloudAvailable: effectiveCloudAvailable,
+      cloudBlockedReason: effectiveBlockedReason,
       balance,
       ...(opts.forceCloud ? { forceCloud: true } : {}),
+      ...(opts.preferProvider ? { preferProvider: opts.preferProvider } : {}),
       ...(byok ? { byok: true } : {}),
       ...(localLlm ? { localLlm: true } : {}),
     }),

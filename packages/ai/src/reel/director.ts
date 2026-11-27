@@ -1014,7 +1014,14 @@ export async function directReel(
     /** Indexed creator-uploaded Media Bin clips to weave into matching beats (spec 48). */
     mediaBin?: readonly ReelDirectMediaClip[];
   },
-): Promise<{ plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string }> {
+): Promise<{
+  plan: ReelPlan;
+  source: 'cloud' | 'device' | 'auto';
+  /** True when the compact 4-template `reel.draft` fallback ran instead of full `reel.direct`. */
+  draft?: boolean;
+  model?: string;
+  error?: string;
+}> {
   const { look, words, durationMs, choices, noVideo } = params;
   const mediaBin = params.mediaBin?.length ? [...params.mediaBin].slice(0, 24) : undefined;
   const mediaBinIds = mediaBin?.map((c) => c.id);
@@ -1065,7 +1072,7 @@ export async function directReel(
   if (!router || words.length < 4) return { plan: auto(), source: 'auto' };
   if (params.preferOnDevice) {
     const draft = await draftReelOnDevice(router, { look, words, durationMs });
-    if (draft) return { plan: enforce(draft), source: 'device' };
+    if (draft) return { plan: enforce(draft), source: 'device', draft: true, model: draft.by };
     return { plan: auto(), source: 'auto' };
   }
   try {
@@ -1097,13 +1104,15 @@ export async function directReel(
           },
         ),
       ),
-      source: 'cloud',
+      source: res.ranOn,
+      model: res.model,
     };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     if (params.fallbackOnDevice) {
       const draft = await draftReelOnDevice(router, { look, words, durationMs });
-      if (draft) return { plan: enforce(draft), source: 'device', error };
+      if (draft)
+        return { plan: enforce(draft), source: 'device', draft: true, model: draft.by, error };
     }
     return {
       plan: auto(),

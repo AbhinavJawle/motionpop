@@ -96,6 +96,7 @@ function PipPanelBody() {
     scopeSlot && selected ? { kind: 'slot', slotId: selected.id } : { kind: 'video' };
   const route = useRoute('pip.plan');
   const editRoute = useRoute('edit.patch');
+  const nanoQuickRoute = useRoute('edit.patch', { preferProvider: 'nano' });
   const generateRoute = useRoute('generate');
   const { client: credits } = useCreditsClient();
   const config = useAppConfig();
@@ -128,7 +129,7 @@ function PipPanelBody() {
         credits,
         getRouter,
         route,
-        deviceRoute: editRoute,
+        deviceRoute: nanoQuickRoute.kind === 'device' ? nanoQuickRoute : editRoute,
         config,
         model: selectedModel,
       },

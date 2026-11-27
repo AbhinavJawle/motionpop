@@ -1,10 +1,10 @@
 'use client';
 
 import { motion } from 'motion/react';
-import { Cloud, Zap } from 'lucide-react';
+import { Cloud, Server, Zap } from 'lucide-react';
 import { Shimmer } from '@/components/ui/shimmer';
 import { cn } from '@/lib/cn';
-import type { StepState } from '@/lib/pipeline/events';
+import type { StepRoute, StepState } from '@/lib/pipeline/events';
 import { popIn } from '@/lib/motion/presets';
 
 /**
@@ -17,13 +17,16 @@ export function StepCard({
   state,
   detail,
   route,
+  routeLabel,
 }: {
   index: number;
   title: string;
   state: StepState;
   detail?: string;
   /** An AI step's route (hybrid-ai.md: users always see where an action runs). */
-  route?: 'device' | 'cloud';
+  route?: StepRoute;
+  /** Optional model/provider label (e.g. Ollama model name). */
+  routeLabel?: string;
 }) {
   return (
     <motion.li
@@ -70,13 +73,30 @@ export function StepCard({
           </motion.span>
         )}
         {route && state !== 'skipped' && state !== 'pending' && (
-          <span className="inline-flex h-6 items-center gap-1 rounded-md border-2 border-ink px-1.5 text-[11px]">
-            {route === 'device' ? (
-              <Zap className="size-3" strokeWidth={2} aria-hidden />
-            ) : (
-              <Cloud className="size-3" strokeWidth={2} aria-hidden />
+          <span
+            className={cn(
+              'inline-flex h-6 max-w-[200px] items-center gap-1 truncate rounded-md border-2 border-ink px-1.5 text-[11px]',
+              route === 'local-llm' && 'bg-[#e9fbf2]',
+              route === 'device' && 'bg-[#ecfdf5]',
             )}
-            {route === 'device' ? 'on-device' : 'cloud, free'}
+            title={routeLabel}
+          >
+            {route === 'device' ? (
+              <Zap className="size-3 shrink-0" strokeWidth={2} aria-hidden />
+            ) : route === 'local-llm' ? (
+              <Server className="size-3 shrink-0" strokeWidth={2} aria-hidden />
+            ) : (
+              <Cloud className="size-3 shrink-0" strokeWidth={2} aria-hidden />
+            )}
+            <span className="truncate">
+              {route === 'device'
+                ? (routeLabel ?? 'on-device')
+                : route === 'local-llm'
+                  ? routeLabel
+                    ? `${routeLabel} · local`
+                    : 'local AI · free'
+                  : (routeLabel ?? 'cloud, free')}
+            </span>
           </span>
         )}
         {state === 'skipped' && (

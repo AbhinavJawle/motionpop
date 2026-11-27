@@ -269,6 +269,8 @@ export async function resolveReelMedia(
   }
 
   async function resolveAll(): Promise<{ plan: ReelPlan; assets: ImageAsset[] }> {
+    const isOffline =
+      typeof navigator !== 'undefined' && navigator.onLine === false && !deps.fetchFn;
     for (const [key, m] of unique) {
       throwIfAborted(signal);
       done++;
@@ -285,6 +287,7 @@ export async function resolveReelMedia(
         ids[key] = known.id;
         continue;
       }
+      if (isOffline) continue;
       let got: Fetched | null = null;
       try {
         if (m.kind === 'logo') got = await fetchLogo(f, m.query, signal);
@@ -473,7 +476,13 @@ export async function directReelPaid(
    * the price back and throws an `AbortError` instead of returning a plan (spec 39 R6.9).
    */
   signal?: AbortSignal,
-): Promise<{ plan: ReelPlan; source: 'cloud' | 'device' | 'auto'; error?: string }> {
+): Promise<{
+  plan: ReelPlan;
+  source: 'cloud' | 'device' | 'auto';
+  draft?: boolean;
+  model?: string;
+  error?: string;
+}> {
   throwIfAborted(signal);
   const cfg = { ...APP_CONFIG_DEFAULTS, ...deps.config };
   // The choices apply to the free plan too; the brief is only text for the cloud director.
@@ -514,6 +523,12 @@ export async function directReelPaid(
       signal,
     );
     throwIfAborted(signal);
+    if (r.error && (r.draft || r.source === 'auto')) {
+      console.warn(
+        `${hasLocalLlm ? 'Local LLM' : 'BYOK'} reel.direct fell back to ${r.draft ? 'compact draft' : 'free director'}:`,
+        r.error,
+      );
+    }
     return r;
   }
   if (deps.free || !deps.credits || cfg.killSwitch || params.words.length < 4)
@@ -669,9 +684,13 @@ export async function reviewReelCuts(
   if (!allowed || phrases.length < 2) return null;
   const router = await getRouter().catch(() => null);
   // A hung call must not hold the "Removing retakes" step: after this long the rules stand.
+  // Local LLMs on laptops run slower (~6-15 tok/s) than cloud Gemini, so give them more headroom
+  // to finish cleanly instead of timing out mid-request and jamming Ollama's single inference slot.
   let timer: ReturnType<typeof setTimeout> | undefined;
+  const effectiveTimeoutMs =
+    deps.timeoutMs ?? (hasLocalLlm ? LOCAL_LLM_REVIEW_TIMEOUT_MS : REVIEW_TIMEOUT_MS);
   const timeout = new Promise<null>((resolve) => {
-    timer = setTimeout(() => resolve(null), deps.timeoutMs ?? REVIEW_TIMEOUT_MS);
+    timer = setTimeout(() => resolve(null), effectiveTimeoutMs);
   });
   try {
     return await Promise.race([reviewReelEdit(router, phrases), timeout]);
@@ -682,6 +701,8 @@ export async function reviewReelCuts(
 
 /** The longest the automatic edit waits for the cloud editor's check (spec 28 review). */
 export const REVIEW_TIMEOUT_MS = 25_000;
+/** Longer review window for local Ollama / LM Studio inference on consumer laptops. */
+export const LOCAL_LLM_REVIEW_TIMEOUT_MS = 90_000;
 
 /**
  * The reel's soundtrack (spec 27 R3.2): asks our server to generate music from the director's
@@ -703,6 +724,7 @@ export async function resolveReelMusic(
 ): Promise<ReelPlan> {
   const brief = plan.music?.brief;
   if (!brief || plan.music?.src) return plan;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false && !deps.fetchFn) return plan;
   throwIfAborted(signal);
   try {
     const auth = await getAuthClient();

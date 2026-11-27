@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { firebaseEnabled } from '../firebase/client';
 import { fakeAiFlag } from '../credits/pick-client';
 import { isByokActive } from './byok';
+import { isLocalLlmActive } from './local-llm';
 
 /**
  * On-device AI status for Settings (spec 13 R6.3), the seam spec 09's `useAIStatus` builds on.
@@ -89,9 +90,9 @@ async function probeAvailability(): Promise<void> {
     useAIStatusStore.setState({ availability: off ? 'unavailable' : 'available', multimodal: !off });
     return;
   }
-  // Without Firebase or BYOK there is no hybrid router to run Nano through.
+  // Without Firebase, BYOK, or Local LLM there is no router to run Nano through.
   const api = (globalThis as { LanguageModel?: PromptApi }).LanguageModel;
-  if ((!firebaseEnabled() && !isByokActive()) || !api) {
+  if ((!firebaseEnabled() && !isByokActive() && !isLocalLlmActive()) || !api) {
     useAIStatusStore.setState({ availability: 'unavailable', multimodal: false });
     return;
   }
