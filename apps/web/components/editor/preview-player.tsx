@@ -13,6 +13,7 @@ import {
 } from '@motionpop/schemas';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
+import { isIdbAudioRef } from '@/lib/audio/audio-store';
 import { loadCompositionAssets } from '@/lib/composition/assets';
 import {
   previewCompileInput,
@@ -27,6 +28,7 @@ import {
 } from '@/lib/editor/preview-bridge';
 import { lookFor } from '@/lib/motion/registry';
 import { editorStore, useEditor } from '@/lib/stores/editor';
+import { MissingVideoOverlay, type MissingVideoReason } from './missing-video-overlay';
 
 type PlayerEl = HTMLElement & { seek(seconds: number): void; ready?: boolean };
 
@@ -53,7 +55,12 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
   const playheadMs = useEditor((s) => s.playheadMs);
   const playing = useEditor((s) => s.playing);
   const [assetsError, setAssetsError] = useState<string | null>(null);
-  const [loadedVideo, setLoadedVideo] = useState<{ src: string; url: string } | null>(null);
+  const [loadedVideo, setLoadedVideo] = useState<
+    | { src: string; status: 'ready'; url: string }
+    | { src: string; status: 'missing'; reason: MissingVideoReason }
+    | null
+  >(null);
+  const [videoRetrySeq, setVideoRetrySeq] = useState(0);
   const [loadedClips, setLoadedClips] = useState<{ key: string; urls: Record<string, string> }>({
     key: '',
     urls: {},
@@ -61,7 +68,8 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
   const activeClipUrlRef = useRef<string>('');
 
   const videoSrc = project?.video?.src ?? null;
-  const videoUrl = videoSrc && loadedVideo?.src === videoSrc ? loadedVideo.url : null;
+  const videoLoad = videoSrc && loadedVideo?.src === videoSrc ? loadedVideo : null;
+  const videoUrl = videoLoad?.status === 'ready' ? videoLoad.url : null;
   const lookBg = project ? lookFor(project.styleId).colors.bg : 'transparent';
   const mediaBinKey = useMemo(
     () => (project?.mediaBin ?? []).map((c) => `${c.id}:${c.src}`).join('|'),
@@ -80,18 +88,32 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
     void appAudioStore()
       .get(videoSrc)
       .then((blob) => {
-        if (cancelled || !blob) return;
+        if (cancelled) return;
+        if (!blob) {
+          setLoadedVideo({
+            src: videoSrc,
+            status: 'missing',
+            reason: isIdbAudioRef(videoSrc) ? 'local-only' : 'unavailable',
+          });
+          return;
+        }
         url = URL.createObjectURL(blob);
-        setLoadedVideo({ src: videoSrc, url });
+        setLoadedVideo({ src: videoSrc, status: 'ready', url });
       })
       .catch(() => {
-        if (!cancelled) setLoadedVideo(null);
+        if (!cancelled) {
+          setLoadedVideo({
+            src: videoSrc,
+            status: 'missing',
+            reason: isIdbAudioRef(videoSrc) ? 'local-only' : 'unavailable',
+          });
+        }
       });
     return () => {
       cancelled = true;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [videoSrc]);
+  }, [videoSrc, videoRetrySeq]);
 
   // Load all Media Bin clip blobs into managed object URLs for instant 60fps switching.
   useEffect(() => {
@@ -439,6 +461,15 @@ export function PreviewPlayer({ onError }: { onError?: (message: string) => void
           colorScheme: 'dark',
         }}
       />
+      {Boolean(videoSrc) && videoLoad?.status === 'missing' && (
+        <MissingVideoOverlay
+          reason={videoLoad.reason}
+          onRetry={() => {
+            setLoadedVideo(null);
+            setVideoRetrySeq((n) => n + 1);
+          }}
+        />
+      )}
       {assetsError && (
         <p className="absolute inset-x-6 bottom-6 z-10 rounded-chip bg-glass px-3 py-2 text-[11px] text-text-2 shadow-glass">
           Preview unavailable: {assetsError}

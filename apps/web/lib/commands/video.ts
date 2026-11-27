@@ -20,6 +20,43 @@ function requireVideo(p: EditorProject): VideoTrack {
   return p.video;
 }
 
+/**
+ * Replaces `project.video.src` (e.g. when re-attaching a missing local video on another browser or
+ * device), updating `voiceover.originalSrc` as well when it pointed to the same source ref.
+ */
+export function replaceVideoSource(nextSrc: string): Command {
+  let prevVideoSrc: string | undefined;
+  let prevOriginalSrc: string | undefined;
+  return {
+    label: 'Re-attach source video',
+    do(p) {
+      const vid = requireVideo(p);
+      const trimmed = nextSrc.trim();
+      if (!trimmed) throw new CommandRejected('Video source cannot be empty');
+      prevVideoSrc = vid.src;
+      prevOriginalSrc = p.voiceover.originalSrc;
+      return produce(p, (d) => {
+        if (!d.video) return;
+        const old = d.video.src;
+        d.video.src = trimmed;
+        if (d.voiceover.originalSrc === old) {
+          d.voiceover.originalSrc = trimmed;
+        }
+      });
+    },
+    undo(p) {
+      if (prevVideoSrc === undefined) return p;
+      const restoreVideo = prevVideoSrc;
+      const restoreOriginal = prevOriginalSrc;
+      return produce(p, (d) => {
+        if (d.video) d.video.src = restoreVideo;
+        if (restoreOriginal === undefined) delete d.voiceover.originalSrc;
+        else d.voiceover.originalSrc = restoreOriginal;
+      });
+    },
+  };
+}
+
 /** Switch a single slot between transparent `overlay` and full-screen `cutaway` (spec 18 R5.4). */
 export function setSlotPlacement(
   slotId: string,

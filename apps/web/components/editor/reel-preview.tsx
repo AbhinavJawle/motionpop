@@ -36,8 +36,10 @@ import { previewReelBed } from '@/lib/sound/reel-bed';
 import { customPictures, loadReelCustomAssets } from '@/lib/reel/custom-assets';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { appAudioStore } from '@/lib/audio/app-audio-store';
+import { isIdbAudioRef } from '@/lib/audio/audio-store';
 import { subscribePreviewSeek } from '@/lib/editor/preview-bridge';
 import { editorStore, useEditor } from '@/lib/stores/editor';
+import { MissingVideoOverlay, type MissingVideoReason } from './missing-video-overlay';
 
 const VIDEO_DRIFT_SEC = 0.12;
 let fontsLink: Promise<void> | null = null;
@@ -393,12 +395,18 @@ export function ReelPreview({ transparent = false }: { transparent?: boolean } =
   // The sound tracks under the voice (effects bed, music), all following the editor clock.
   const tracksRef = useRef<HTMLAudioElement[]>([]);
   const [scale, setScale] = useState(0.3);
-  const [loaded, setLoaded] = useState<{ src: string; url: string } | null>(null);
+  const [loaded, setLoaded] = useState<
+    | { src: string; status: 'ready'; url: string }
+    | { src: string; status: 'missing'; reason: MissingVideoReason }
+    | null
+  >(null);
+  const [retrySeq, setRetrySeq] = useState(0);
   const handleRef = useRef<ReelHandle | null>(null);
   const videoElRef = useRef<HTMLVideoElement | null>(null);
 
   const src = video?.src ?? null;
-  const url = src && loaded?.src === src ? loaded.url : null;
+  const videoLoad = src && loaded?.src === src ? loaded : null;
+  const url = videoLoad?.status === 'ready' ? videoLoad.url : null;
   const segments = useMemo(
     () => (video ? keptSourceSegments(video.originalDurationMs, video.cuts) : []),
     [video],
@@ -412,16 +420,32 @@ export function ReelPreview({ transparent = false }: { transparent?: boolean } =
     void appAudioStore()
       .get(src)
       .then((blob) => {
-        if (cancelled || !blob) return;
+        if (cancelled) return;
+        if (!blob) {
+          setLoaded({
+            src,
+            status: 'missing',
+            reason: isIdbAudioRef(src) ? 'local-only' : 'unavailable',
+          });
+          return;
+        }
         made = URL.createObjectURL(blob);
-        setLoaded({ src, url: made });
+        setLoaded({ src, status: 'ready', url: made });
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) {
+          setLoaded({
+            src,
+            status: 'missing',
+            reason: isIdbAudioRef(src) ? 'local-only' : 'unavailable',
+          });
+        }
+      });
     return () => {
       cancelled = true;
       if (made) URL.revokeObjectURL(made);
     };
-  }, [src]);
+  }, [src, retrySeq]);
 
   // Fit the stage into the frame at the active aspect ratio.
   useEffect(() => {
@@ -577,7 +601,16 @@ export function ReelPreview({ transparent = false }: { transparent?: boolean } =
           transformOrigin: '0 0',
         }}
       />
-      {Boolean(video) && !url && (
+      {Boolean(video) && videoLoad?.status === 'missing' && (
+        <MissingVideoOverlay
+          reason={videoLoad.reason}
+          onRetry={() => {
+            setLoaded(null);
+            setRetrySeq((n) => n + 1);
+          }}
+        />
+      )}
+      {Boolean(video) && !url && videoLoad?.status !== 'missing' && (
         <div className="absolute inset-0 grid place-items-center text-[11px] text-text-3">
           Loading video…
         </div>

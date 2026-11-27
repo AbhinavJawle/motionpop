@@ -40,6 +40,7 @@ export {
   removeVideoCut,
   removeVideoPunchIn,
   removeVideoSplit,
+  replaceVideoSource,
   setAllSlotsPlacement,
   setAllSlotsVideoStage,
   setAllVideoCutsEnabled,
