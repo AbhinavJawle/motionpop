@@ -163,44 +163,71 @@ export function chromeOnDeviceProvider(): AIProvider {
         }
         if (status !== 'available') throw new Error(`On-device Gemini Nano is ${status}`);
       }
-      const session = await api.create({
-        expectedInputs,
-        expectedOutputs,
-        initialPrompts: [{ role: 'system', content: req.system }],
-      });
-      try {
-        let promptInput: unknown = req.prompt;
-        if (useImage && req.media && typeof atob === 'function' && typeof Blob !== 'undefined') {
-          try {
-            const bin = atob(req.media.base64);
-            const bytes = new Uint8Array(bin.length);
-            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-            const blob = new Blob([bytes], { type: req.media.mimeType });
-            promptInput = [
-              {
-                role: 'user',
-                content: [
-                  { type: 'text', value: req.prompt },
-                  { type: 'image', value: blob },
-                ],
-              },
-            ];
-          } catch {
-            // Invalid base64: fall back to text-only prompt cleanly.
-            promptInput = req.prompt;
-          }
+      const createSession = async (inputs: Array<{ type: string; languages?: string[] }>) => {
+        const baseOpts = {
+          expectedInputs: inputs,
+          expectedOutputs,
+          initialPrompts: [{ role: 'system', content: req.system }],
+        };
+        try {
+          return await api.create!({ ...baseOpts, temperature: 0.2, topK: 3 });
+        } catch {
+          // Some Chrome builds reject explicit temperature/topK options; fall back to defaults.
+          return await api.create!(baseOpts);
         }
-        const signal =
-          typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
-            ? AbortSignal.timeout(45_000)
-            : undefined;
-        const text = await session.prompt(promptInput, {
-          responseConstraint: stripSchemaMeta(req.jsonSchema),
-          ...(signal ? { signal } : {}),
-        });
+      };
+
+      const runPrompt = async (
+        inputs: Array<{ type: string; languages?: string[] }>,
+        withImage: boolean,
+      ): Promise<string> => {
+        const session = await createSession(inputs);
+        try {
+          let promptInput: unknown = req.prompt;
+          if (withImage && req.media && typeof atob === 'function' && typeof Blob !== 'undefined') {
+            try {
+              const bin = atob(req.media.base64);
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              const blob = new Blob([bytes], { type: req.media.mimeType });
+              promptInput = [
+                {
+                  role: 'user',
+                  content: [
+                    { type: 'text', value: req.prompt },
+                    { type: 'image', value: blob },
+                  ],
+                },
+              ];
+            } catch {
+              // Invalid base64: fall back to text-only prompt cleanly.
+              promptInput = req.prompt;
+            }
+          }
+          const signal =
+            typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+              ? AbortSignal.timeout(45_000)
+              : undefined;
+          return await session.prompt(promptInput, {
+            responseConstraint: stripSchemaMeta(req.jsonSchema),
+            ...(signal ? { signal } : {}),
+          });
+        } finally {
+          session.destroy?.();
+        }
+      };
+
+      try {
+        const text = await runPrompt(expectedInputs, useImage);
         return { text, ranOn: 'device' };
-      } finally {
-        session.destroy?.();
+      } catch (err) {
+        // Multimodal image tokens can trip QuotaExceededError / NotSupportedError on smaller
+        // Gemini Nano builds: retry once as text-only so the local edit still succeeds cleanly.
+        if (useImage) {
+          const text = await runPrompt([textInput], false);
+          return { text, ranOn: 'device' };
+        }
+        throw err;
       }
     },
   };

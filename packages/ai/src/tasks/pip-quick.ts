@@ -10,7 +10,7 @@ import { z } from 'zod';
 import type { Router, TaskDef } from '../router';
 import type { PipPlanInput } from './pip-plan';
 
-export const PIP_QUICK_PROMPT_VERSION = 'v2';
+export const PIP_QUICK_PROMPT_VERSION = 'v3';
 
 export const PipQuickInputSchema = z.object({
   message: z.string().trim().min(1).max(600),
@@ -37,6 +37,9 @@ const QuickStepSchema = z.object({
     'toggleCuts',
     'clearScene',
     'updateSlot',
+    'removeSlot',
+    'setPlacement',
+    'setVideoStage',
   ]),
   label: z.string().max(90),
   choice: z.string().max(120).optional(),
@@ -53,20 +56,28 @@ export type PipQuickOutput = z.infer<typeof PipQuickOutputSchema>;
 
 export const PIP_QUICK_SYSTEM_V1 = `You are Pip's fast on-device planner (Gemini Nano). Reply with ONLY JSON.
 
-Handle simple, direct edits locally with escalate=false:
+ALWAYS handle direct edits locally with escalate=false (you may combine up to 4 steps):
 - Reel look: action="setReelLook", choice="mono" | "cream" (only when Reel=yes).
 - Captions (reel or video): action="setCaptions", choice="on" | "off" | "pop" | "clean" | "boxed".
-- Reel accent colour/gradient: action="setReelTheme", choice="soft" | "bold" | "plain", instruction="#RRGGBB" or "#RRGGBB #RRGGBB" (only when Reel=yes).
+- Reel accent colour/gradient: action="setReelTheme", choice="soft" | "bold" | "plain", instruction="#RRGGBB" or "#RRGGBB #RRGGBB" or color name like "purple" / "coral" (only when Reel=yes).
 - Sound effects: action="setSound", choice="on" | "off" | "louder" | "quieter" | "clear".
 - Background music: action="setMusic", choice="none" | "calm-pad" | "steady-pulse".
 - Look/style (non-reel): action="setStyle", choice="editorial-cream" | "studio-light" | "creator-dark" | "keynote-clean" | "editorial-explainer" | "field-notes" | "newsprint" | "paper-collage".
 - Aspect ratio: action="setFormat", choice="16:9" | "9:16" | "1:1".
 - Auto-cuts on/off: action="toggleCuts", choice="enable" | "disable".
 - Remove graphic from one reel scene: action="clearScene", slot="r1".
+- Remove one voiceover slot: action="removeSlot", slot="s1".
 - Quick tweak to one voiceover slot (s1, s2 — NEVER reel scenes r1): action="updateSlot", slot="s1", instruction="...".
+- Move a video slot placement: action="setPlacement", slot="s1", choice="fullscreen" | "overlay" | "top-right" | "bottom-left".
+- Video stage layout: action="setVideoStage", choice="auto" | "full" | "split".
 
-Return escalate=true with steps=[] for ANYTHING complex:
-- Editing or redesigning reel scene visuals, rewriting scripts/hooks/titles, adding scenes or slots, generating custom graphics or AI music briefs, or cutting timestamp ranges.
+Examples:
+- "turn off captions and switch to cream" -> {"escalate":false,"reply":"Hiding captions and switching to Cream.","steps":[{"action":"setCaptions","label":"Turn captions off","choice":"off"},{"action":"setReelLook","label":"Switch to Cream look","choice":"cream"}]}
+- "make the accent coral" -> {"escalate":false,"reply":"Setting a warm coral accent.","steps":[{"action":"setReelTheme","label":"Coral accent","choice":"soft","instruction":"#FF6A3D"}]}
+- "remove the graphic on scene 2" -> {"escalate":false,"reply":"Clearing scene 2.","steps":[{"action":"clearScene","label":"Clear scene 2","slot":"r2"}]}
+
+ONLY return escalate=true with steps=[] for:
+- Editing/redesigning reel scene visuals, rewriting scripts/hooks/titles, adding new scenes or slots, generating custom animations or AI music briefs, or cutting timestamp ranges.
 
 Keep reply short and friendly (under 14 words).`;
 
@@ -104,6 +115,9 @@ export const pipQuickJsonSchema = (): Record<string, unknown> => ({
               'toggleCuts',
               'clearScene',
               'updateSlot',
+              'removeSlot',
+              'setPlacement',
+              'setVideoStage',
             ],
           },
           label: { type: 'string', maxLength: 90 },
@@ -155,11 +169,54 @@ export function pipQuickInputFrom(input: PipPlanInput): PipQuickInput {
 
 const HEX_RE = /#[0-9a-fA-F]{6}\b/g;
 
+const NAMED_THEME_HEX: Record<string, string> = {
+  coral: '#FF6A3D',
+  ember: '#FF6A3D',
+  orange: '#F97316',
+  amber: '#F59E0B',
+  gold: '#EAB308',
+  yellow: '#EAB308',
+  lime: '#84CC16',
+  green: '#22C55E',
+  emerald: '#10B981',
+  mint: '#3DDC97',
+  teal: '#14B8A6',
+  cyan: '#06B6D4',
+  sky: '#38BDF8',
+  blue: '#3B82F6',
+  indigo: '#6366F1',
+  violet: '#8B7CFF',
+  purple: '#9333EA',
+  fuchsia: '#D946EF',
+  magenta: '#EC4899',
+  pink: '#EC4899',
+  rose: '#F43F5E',
+  red: '#EF4444',
+  crimson: '#DC2626',
+  slate: '#475569',
+  charcoal: '#1F2937',
+  black: '#111116',
+};
+
+function extractThemeHexes(text: string): string[] {
+  const direct = text.match(HEX_RE) ?? [];
+  if (direct.length > 0) return direct.slice(0, 2).map((h) => h.toUpperCase());
+  const found: string[] = [];
+  for (const word of text.toLowerCase().split(/[^a-z]+/)) {
+    const hex = NAMED_THEME_HEX[word];
+    if (hex && !found.includes(hex)) {
+      found.push(hex);
+      if (found.length >= 2) break;
+    }
+  }
+  return found;
+}
+
 /**
  * Converts a `PipQuickOutput` into the standard `PipModelOutput` consumed by `enforcePlan`.
- * Defensively normalizes `setReelTheme` (whether Nano puts hex colours in `instruction` or
- * `choice`) and prevents `updateSlot` from targeting reel scenes (`r1`) where `enforcePlan` would
- * silently remap it to a paid `editScene`.
+ * Defensively normalizes `setReelTheme` (whether Nano puts hex colours or colour names in
+ * `instruction` or `choice`) and prevents `updateSlot` from targeting reel scenes (`r1`) where
+ * `enforcePlan` would silently remap it to a paid `editScene`.
  */
 export function pipQuickToModelOutput(out: PipQuickOutput): PipModelOutput | null {
   if (out.escalate || out.steps.length === 0) return null;
@@ -172,11 +229,8 @@ export function pipQuickToModelOutput(out: PipQuickOutput): PipModelOutput | nul
 
     if (s.action === 'setReelTheme') {
       // `enforcePlan` reads hex colours from `instruction` and background ('plain'|'bold'|'soft')
-      // from `choice`. Accept hexes from either field so Nano never gets dropped for swapping them.
-      const hexes = [
-        ...(rawInstruction.match(HEX_RE) ?? []),
-        ...(rawChoice.match(HEX_RE) ?? []),
-      ].slice(0, 2);
+      // from `choice`. Accept hexes or natural colour names from either field.
+      const hexes = extractThemeHexes(`${rawInstruction} ${rawChoice}`);
       if (hexes.length === 0) continue;
       const bg = /\bbold\b/i.test(rawChoice)
         ? 'bold'
@@ -188,16 +242,17 @@ export function pipQuickToModelOutput(out: PipQuickOutput): PipModelOutput | nul
         slot: 'none',
         choice: bg,
         atWord: -1,
-        instruction: hexes.map((h) => h.toUpperCase()).join(' '),
+        instruction: hexes.join(' '),
         label,
       });
       continue;
     }
 
-    if (s.action === 'updateSlot') {
+    if (s.action === 'updateSlot' || s.action === 'removeSlot' || s.action === 'setPlacement') {
       // Never allow an on-device quick step to aim `updateSlot` at a reel scene (`r1`), which
       // `enforcePlan` would remap to a cloud-billed `editScene`.
-      if (!/^s\d+$/i.test(rawSlot) || !rawInstruction) continue;
+      if (!/^s\d+$/i.test(rawSlot)) continue;
+      if (s.action === 'updateSlot' && !rawInstruction) continue;
     }
 
     steps.push({

@@ -178,7 +178,7 @@ describe('structured-output string caps (spec 39 AI QA)', () => {
       ],
       // reel.note.local
       [at(SCHEMAS['reel.note.local']!, 'message'), ReelNoteLocalOutputSchema.shape.message, 140],
-      [at(SCHEMAS['reel.note.local']!, 'to'), ReelNoteLocalOutputSchema.shape.to, 80],
+      [at(SCHEMAS['reel.note.local']!, 'to'), ReelNoteLocalOutputSchema.shape.to, 160],
       [at(SCHEMAS['reel.note.local']!, 'from'), ReelNoteLocalOutputSchema.shape.from, 80],
       // pip.quick
       [at(SCHEMAS['pip.quick']!, 'reply'), PipQuickOutputSchema.shape.reply, 180],
@@ -207,7 +207,7 @@ describe('structured-output string caps (spec 39 AI QA)', () => {
       [
         at(SCHEMAS['reel.draft']!, 'beats', '[]', 'title'),
         ReelDraftOutputSchema.shape.beats.element.shape.title,
-        48,
+        60,
       ],
       [
         at(SCHEMAS['reel.draft']!, 'beats', '[]', 'kicker'),
@@ -218,6 +218,11 @@ describe('structured-output string caps (spec 39 AI QA)', () => {
         at(SCHEMAS['reel.draft']!, 'beats', '[]', 'suffix'),
         ReelDraftOutputSchema.shape.beats.element.shape.suffix,
         8,
+      ],
+      [
+        at(SCHEMAS['reel.draft']!, 'beats', '[]', 'items'),
+        ReelDraftOutputSchema.shape.beats.element.shape.items,
+        120,
       ],
     ];
     for (const [json, zod, expected] of cases) {

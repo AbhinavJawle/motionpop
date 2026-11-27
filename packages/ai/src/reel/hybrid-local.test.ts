@@ -15,6 +15,7 @@ import {
   applyReelNoteLocal,
   reelNoteLocalInput,
   reelNoteLocalTask,
+  tryDeterministicReelNote,
   type ReelNoteLocalOutput,
 } from './note-local';
 import { pipQuickTask, pipQuickToModelOutput, type PipQuickOutput } from '../tasks/pip-quick';
@@ -184,6 +185,284 @@ describe('hybrid on-device reel & pip tasks (Gemini Nano)', () => {
     expect(res.scene.layout).toBe('speaker');
   });
 
+  it('reel.note.local removes graphics (including custom), tags, kickers, and hooks cleanly', () => {
+    const counterCtx = reelNoteContext(SAMPLE_SCENES[0]!, WORDS, 'mono');
+    const removed = applyReelNoteLocal(counterCtx, {
+      action: 'edit',
+      field: 'remove',
+      to: 'graphic',
+      message: 'Removed the graphic',
+    });
+    expect(removed.changed).toBe(true);
+    expect(removed.escalate).toBe(false);
+    expect(removed.scene.layout).toBe('speaker');
+    expect(removed.scene.content).toEqual({ template: 'none' });
+    expect(removed.scene.tag).toBeUndefined();
+
+    // Switching layout to speaker also removes the graphic cleanly.
+    const speaker = applyReelNoteLocal(counterCtx, {
+      action: 'edit',
+      layout: 'speaker',
+      message: 'Just speaker',
+    });
+    expect(speaker.changed).toBe(true);
+    expect(speaker.scene.layout).toBe('speaker');
+    expect(speaker.scene.content).toEqual({ template: 'none' });
+
+    // Removing a custom graphic works too.
+    const customCtx = reelNoteContext(SAMPLE_SCENES[4]!, WORDS, 'mono');
+    const removedCustom = applyReelNoteLocal(customCtx, {
+      action: 'edit',
+      field: 'remove',
+      message: 'Removed custom graphic',
+    });
+    expect(removedCustom.changed).toBe(true);
+    expect(removedCustom.scene.content).toEqual({ template: 'none' });
+
+    // Removing corner tag via to="" or field="remove", to="tag".
+    const removedTag = applyReelNoteLocal(counterCtx, {
+      action: 'edit',
+      field: 'tag',
+      to: '',
+      message: 'Removed tag',
+    });
+    expect(removedTag.changed).toBe(true);
+    expect(removedTag.scene.tag).toBeUndefined();
+
+    // Removing hook via to="" returns hook: null.
+    const removedHook = applyReelNoteLocal(
+      counterCtx,
+      { action: 'edit', field: 'hook', to: '', message: 'Removed hook' },
+      { hook: 'Six tools' },
+    );
+    expect(removedHook.changed).toBe(true);
+    expect(removedHook.hook).toBeNull();
+
+    // Deterministic safety net catches "remove this" even when Nano escalates.
+    const det = tryDeterministicReelNote(counterCtx, 'remove this');
+    expect(det?.changed).toBe(true);
+    expect(det?.scene.layout).toBe('speaker');
+    expect(det?.scene.content).toEqual({ template: 'none' });
+
+    // Circled tag + "remove this" removes just the tag.
+    const detTag = tryDeterministicReelNote(counterCtx, 'remove this', { parts: ['tag'] });
+    expect(detTag?.changed).toBe(true);
+    expect(detTag?.scene.tag).toBeUndefined();
+    expect(detTag?.scene.content.template).toBe('counter');
+
+    // Complex prompts do NOT trigger deterministic fallback.
+    expect(tryDeterministicReelNote(counterCtx, 'draw a 3D rocket chart')).toBeNull();
+  });
+
+  it('reel.note.local supports wide on-device capabilities: add/remove items, icons, style toggles, logo title, clip zoom, and text/data swaps', () => {
+    const listScene: ReelScene = {
+      id: 's-list',
+      startMs: 0,
+      endMs: 4000,
+      layout: 'split',
+      bg: 'light',
+      content: {
+        template: 'list',
+        title: 'Why local',
+        items: [
+          { at: 200, icon: 'check', text: 'Instant' },
+          { at: 900, icon: 'check', text: 'Private' },
+        ],
+      },
+    };
+    const listCtx = reelNoteContext(listScene, WORDS, 'mono');
+
+    // Add item + remove item (and respect min=2 guard).
+    const added = applyReelNoteLocal(listCtx, {
+      action: 'edit',
+      field: 'add_item',
+      to: 'Works offline',
+      message: 'Added bullet',
+    });
+    expect(added.changed).toBe(true);
+    expect(added.scene.content.template === 'list' && added.scene.content.items.length).toBe(3);
+
+    const addedCtx = reelNoteContext(added.scene, WORDS, 'mono');
+    const removedItem = applyReelNoteLocal(addedCtx, {
+      action: 'edit',
+      field: 'remove_item',
+      from: 'private',
+      message: 'Removed Private',
+    });
+    expect(removedItem.changed).toBe(true);
+    expect(
+      removedItem.scene.content.template === 'list' &&
+        removedItem.scene.content.items.map((x) => x.text),
+    ).toEqual(['Instant', 'Works offline']);
+
+    // Cannot drop a 2-item list below schema minimum (2) -> cleanly escalates.
+    const minGuard = applyReelNoteLocal(listCtx, {
+      action: 'edit',
+      field: 'remove_item',
+      from: 'last',
+      message: 'Tried removing below min',
+    });
+    expect(minGuard.changed).toBe(false);
+    expect(minGuard.escalate).toBe(true);
+
+    // Icon alias ("fire" -> "flame").
+    const iconed = applyReelNoteLocal(listCtx, {
+      action: 'edit',
+      field: 'icon',
+      to: 'fire',
+      message: 'Changed icon',
+    });
+    expect(iconed.changed).toBe(true);
+    expect(iconed.scene.content.template === 'list' && iconed.scene.content.items[0]!.icon).toBe(
+      'flame',
+    );
+
+    // Chart bars/line toggle + point value update.
+    const chartScene: ReelScene = {
+      id: 's-chart',
+      startMs: 0,
+      endMs: 4000,
+      layout: 'split',
+      bg: 'light',
+      content: {
+        template: 'chart',
+        kind: 'line',
+        title: 'Growth',
+        unit: '%',
+        points: [
+          { label: 'Q1', value: 20 },
+          { label: 'Q2', value: 50 },
+        ],
+      },
+    };
+    const chartCtx = reelNoteContext(chartScene, WORDS, 'mono');
+    const bars = applyReelNoteLocal(chartCtx, {
+      action: 'edit',
+      field: 'style',
+      to: 'bars',
+      message: 'Bar chart',
+    });
+    expect(bars.changed).toBe(true);
+    expect(bars.scene.content.template === 'chart' && bars.scene.content.kind).toBe('bars');
+
+    const ptEdit = applyReelNoteLocal(chartCtx, {
+      action: 'edit',
+      field: 'value',
+      from: 'Q2',
+      to: '85',
+      message: 'Updated Q2',
+    });
+    expect(ptEdit.changed).toBe(true);
+    expect(ptEdit.scene.content.template === 'chart' && ptEdit.scene.content.points[1]!.value).toBe(
+      85,
+    );
+
+    // Compare swap sides + winner toggle.
+    const cmpScene: ReelScene = {
+      id: 's-cmp',
+      startMs: 0,
+      endMs: 4000,
+      layout: 'split',
+      bg: 'light',
+      content: { template: 'compare', left: 'Old', right: 'New', winner: 'right', rows: [] },
+    };
+    const swappedSides = applyReelNoteLocal(reelNoteContext(cmpScene, WORDS, 'mono'), {
+      action: 'edit',
+      field: 'style',
+      to: 'swap',
+      message: 'Swapped sides',
+    });
+    expect(swappedSides.changed).toBe(true);
+    expect(swappedSides.scene.content).toMatchObject({ left: 'New', right: 'Old', winner: 'left' });
+
+    // Logo name edit via field="title".
+    const logoScene: ReelScene = {
+      id: 's-logo',
+      startMs: 0,
+      endMs: 4000,
+      layout: 'split',
+      bg: 'light',
+      content: {
+        template: 'logo',
+        media: { kind: 'logo', query: 'Acme' },
+        name: 'Acme',
+      },
+    };
+    const logoEdited = applyReelNoteLocal(reelNoteContext(logoScene, WORDS, 'mono'), {
+      action: 'edit',
+      field: 'title',
+      to: 'Motionpop',
+      message: 'Renamed logo',
+    });
+    expect(logoEdited.changed).toBe(true);
+    expect(logoEdited.scene.content.template === 'logo' && logoEdited.scene.content.name).toBe(
+      'Motionpop',
+    );
+
+    // Clip fit, audioMode, and zoom edits.
+    const clipScene: ReelScene = {
+      id: 's-clip',
+      startMs: 0,
+      endMs: 4000,
+      layout: 'full',
+      content: {
+        template: 'clip',
+        clipId: 'c1',
+        clipStartMs: 0,
+        fit: 'cover',
+        focusX: 0.5,
+        focusY: 0.5,
+        zoom: 1,
+        audioMode: 'mute',
+      },
+    };
+    const clipCtx = reelNoteContext(clipScene, WORDS, 'mono');
+    const zoomed = applyReelNoteLocal(clipCtx, {
+      action: 'edit',
+      field: 'value',
+      to: '1.8x',
+      message: 'Zoomed in',
+    });
+    expect(zoomed.changed).toBe(true);
+    expect(zoomed.scene.content.template === 'clip' && zoomed.scene.content.zoom).toBe(1.8);
+
+    // Swap counter -> punchline (preserves visible text when `to` omitted) & counter -> list.
+    const counterCtx = reelNoteContext(SAMPLE_SCENES[0]!, WORDS, 'mono');
+    const toPunch = applyReelNoteLocal(counterCtx, {
+      action: 'edit',
+      field: 'swap',
+      template: 'punch',
+      message: 'Switched to punchline',
+    });
+    expect(toPunch.changed).toBe(true);
+    expect(toPunch.scene.layout).toBe('speaker');
+    expect(toPunch.scene.content.template).toBe('punch');
+
+    const toList = applyReelNoteLocal(counterCtx, {
+      action: 'edit',
+      field: 'swap',
+      template: 'list',
+      to: 'Key wins | Fast; Free; Offline',
+      message: 'Switched to list',
+    });
+    expect(toList.changed).toBe(true);
+    expect(toList.scene.content).toMatchObject({
+      template: 'list',
+      title: 'Key wins',
+    });
+
+    // Refuses to invent fake numbers when swapping to chart without numeric points.
+    const badChart = applyReelNoteLocal(counterCtx, {
+      action: 'edit',
+      field: 'swap',
+      template: 'chart',
+      to: 'Revenue growth',
+      message: 'Tried chart with no data',
+    });
+    expect(badChart.changed).toBe(false);
+    expect(badChart.escalate).toBe(true);
+  });
+
   it('pip.quick maps simple commands, normalizes setReelTheme hexes from choice or instruction, and blocks updateSlot on reel scenes', () => {
     const ok = pipQuickToModelOutput({
       escalate: false,
@@ -204,6 +483,23 @@ describe('hybrid on-device reel & pip tasks (Gemini Nano)', () => {
       choice: 'bold',
       instruction: '#FF5A36',
     });
+    // Named theme colours ("purple emerald") resolve to valid hexes automatically.
+    const namedTheme = pipQuickToModelOutput({
+      escalate: false,
+      reply: 'Applied purple and emerald theme.',
+      steps: [
+        { action: 'setReelTheme', label: 'Purple emerald', choice: 'bold', instruction: 'purple emerald' },
+        { action: 'removeSlot', label: 'Remove slot 1', slot: 's1' },
+      ],
+    });
+    expect(namedTheme?.steps).toHaveLength(2);
+    expect(namedTheme?.steps[0]).toMatchObject({
+      action: 'setReelTheme',
+      choice: 'bold',
+      instruction: '#9333EA #10B981',
+    });
+    expect(namedTheme?.steps[1]).toMatchObject({ action: 'removeSlot', slot: 's1' });
+
     expect(
       pipQuickToModelOutput({ escalate: true, reply: 'Needs cloud', steps: [] }),
     ).toBeNull();
@@ -222,12 +518,16 @@ describe('hybrid on-device reel & pip tasks (Gemini Nano)', () => {
       hook: '92% Retention',
       beats: [
         { fromWord: 0, template: 'counter', title: 'Retention lift', value: 92, suffix: '%' },
-        { fromWord: 8, template: 'headline', title: 'Motion Graphics', kicker: 'AUTO' },
+        { fromWord: 4, template: 'list', title: 'Why it works', items: 'Fast; Free; Local' },
+        { fromWord: 8, template: 'compare', title: 'Cloud vs Local', items: 'Zero lag; Private' },
         { fromWord: 12, template: 'cta', title: 'MOTIONPOP', kicker: 'Try' },
       ],
     };
-    const plan = draftToReelPlan(draft, WORDS, DURATION_MS, 'mono');
-    expect(plan.scenes).toHaveLength(3);
+    const plan = draftToReelPlan(draft, WORDS, DURATION_MS, 'cream');
+    expect(plan.scenes).toHaveLength(4);
+    expect(plan.scenes[0]!.layout).toBe('card');
+    expect(plan.scenes[1]!.content.template).toBe('list');
+    expect(plan.scenes[2]!.content.template).toBe('compare');
     expect(plan.by).toBe('gemini-nano');
 
     const router = stubRouter((id) => {
@@ -241,7 +541,7 @@ describe('hybrid on-device reel & pip tasks (Gemini Nano)', () => {
       preferOnDevice: true,
     });
     expect(r.source).toBe('device');
-    expect(r.plan.scenes).toHaveLength(3);
+    expect(r.plan.scenes).toHaveLength(4);
 
     const fallback = await directReel(router, {
       look: 'mono',
@@ -290,6 +590,7 @@ describe('hybrid on-device reel & pip tasks (Gemini Nano)', () => {
       message: fc.string({ maxLength: 140 }),
       field: fc.option(
         fc.constantFrom(
+          'remove' as const,
           'title' as const,
           'kicker' as const,
           'sub' as const,
@@ -300,16 +601,39 @@ describe('hybrid on-device reel & pip tasks (Gemini Nano)', () => {
           'value' as const,
           'replace' as const,
           'caption' as const,
+          'add_item' as const,
+          'remove_item' as const,
+          'icon' as const,
+          'style' as const,
+          'swap' as const,
         ),
         { nil: undefined },
       ),
-      to: fc.option(fc.string({ maxLength: 80 }), { nil: undefined }),
+      to: fc.option(fc.string({ maxLength: 160 }), { nil: undefined }),
       from: fc.option(fc.string({ maxLength: 80 }), { nil: undefined }),
       bg: fc.option(fc.constantFrom('light' as const, 'cream' as const, 'dark' as const), {
         nil: undefined,
       }),
       layout: fc.option(
-        fc.constantFrom('split' as const, 'card' as const, 'full' as const, 'speaker' as const),
+        fc.constantFrom('split' as const, 'card' as const, 'pip' as const, 'full' as const, 'speaker' as const),
+        { nil: undefined },
+      ),
+      template: fc.option(
+        fc.constantFrom(
+          'headline' as const,
+          'counter' as const,
+          'punch' as const,
+          'cta' as const,
+          'list' as const,
+          'checklist' as const,
+          'compare' as const,
+          'statement' as const,
+          'quote' as const,
+          'progress' as const,
+          'terminal' as const,
+          'chart' as const,
+          'flow' as const,
+        ),
         { nil: undefined },
       ),
     });
@@ -448,5 +772,35 @@ describe('chromeOnDeviceProvider multimodal support', () => {
       expect.objectContaining({ responseConstraint: { type: 'object' } }),
     );
     expect(destroySpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries text-only when multimodal prompt throws (e.g. QuotaExceededError)', async () => {
+    const promptSpy = vi
+      .fn()
+      .mockRejectedValueOnce(new Error('QuotaExceededError: image too large'))
+      .mockResolvedValueOnce('{"action":"edit","field":"remove","message":"Removed"}');
+    const destroySpy = vi.fn();
+    const createSpy = vi.fn(async () => ({ prompt: promptSpy, destroy: destroySpy }));
+    const availabilitySpy = vi.fn(async () => 'available');
+    (globalThis as Record<string, unknown>).LanguageModel = {
+      availability: availabilitySpy,
+      create: createSpy,
+    };
+
+    const provider = chromeOnDeviceProvider();
+    const res = await provider.generate({
+      mode: 'ONLY_ON_DEVICE',
+      model: 'gemini-nano',
+      system: 'sys',
+      prompt: 'remove this',
+      jsonSchema: { type: 'object' },
+      media: { mimeType: 'image/jpeg', base64: btoa('fake-jpeg-bytes') },
+    });
+
+    expect(res.ranOn).toBe('device');
+    expect(res.text).toContain('"remove"');
+    expect(promptSpy).toHaveBeenCalledTimes(2);
+    expect(promptSpy.mock.calls[1]![0]).toBe('remove this');
+    expect(destroySpy).toHaveBeenCalledTimes(2);
   });
 });

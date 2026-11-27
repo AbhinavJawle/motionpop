@@ -80,50 +80,63 @@ export function firebaseProvider(getAI: () => Promise<AI>): AIProvider {
         }
       }
 
-      const expectedInputs = includeImages ? [EXPECTED_TEXT, EXPECTED_IMAGE] : [EXPECTED_TEXT];
       const onDeviceSchema = stripSchemaMeta(req.jsonSchema) as Record<string, unknown>;
-
       const ai = await getAI();
-      const model = getGenerativeModel(ai, {
-        // Our schema uses the constant names; the SDK's values are lowercase strings.
-        mode: InferenceMode[req.mode],
-        inCloudParams: {
-          model: req.model,
-          systemInstruction: req.system,
-          generationConfig: {
-            temperature: 0.2,
-            responseMimeType: 'application/json',
-            responseJsonSchema: req.jsonSchema,
-            ...(req.thinking ? { thinkingConfig: { thinkingLevel: req.thinking } } : {}),
-            // The SDK's GenerationConfig field (`@firebase/ai` 3.1.0, requests.d.ts). Cloud only.
-            ...(req.maxOutputTokens ? { maxOutputTokens: req.maxOutputTokens } : {}),
+
+      const execute = async (withImages: boolean) => {
+        const expectedInputs = withImages ? [EXPECTED_TEXT, EXPECTED_IMAGE] : [EXPECTED_TEXT];
+        const model = getGenerativeModel(ai, {
+          // Our schema uses the constant names; the SDK's values are lowercase strings.
+          mode: InferenceMode[req.mode],
+          inCloudParams: {
+            model: req.model,
+            systemInstruction: req.system,
+            generationConfig: {
+              temperature: 0.2,
+              responseMimeType: 'application/json',
+              responseJsonSchema: req.jsonSchema,
+              ...(req.thinking ? { thinkingConfig: { thinkingLevel: req.thinking } } : {}),
+              // The SDK's GenerationConfig field (`@firebase/ai` 3.1.0, requests.d.ts). Cloud only.
+              ...(req.maxOutputTokens ? { maxOutputTokens: req.maxOutputTokens } : {}),
+            },
           },
-        },
-        onDeviceParams: {
-          createOptions: {
-            expectedInputs,
-            expectedOutputs: EXPECTED_OUTPUTS,
-            initialPrompts: [{ role: 'system', content: [{ type: 'text', value: req.system }] }],
+          onDeviceParams: {
+            createOptions: {
+              expectedInputs,
+              expectedOutputs: EXPECTED_OUTPUTS,
+              initialPrompts: [{ role: 'system', content: [{ type: 'text', value: req.system }] }],
+            },
+            promptOptions: { responseConstraint: onDeviceSchema },
           },
-          promptOptions: { responseConstraint: onDeviceSchema },
-        },
-      });
-      const parts: Part[] = [{ type: 'text', text: req.prompt }];
-      if (req.media && (includeImages || !req.media.mimeType.startsWith('image/')))
-        parts.push({
-          type: 'inlineData',
-          inlineData: { mimeType: req.media.mimeType, data: req.media.base64 },
         });
-      if (req.mediaList?.length) {
-        for (const item of req.mediaList) {
-          if (!includeImages && item.mimeType.startsWith('image/')) continue;
+        const parts: Part[] = [{ type: 'text', text: req.prompt }];
+        if (req.media && (withImages || !req.media.mimeType.startsWith('image/')))
           parts.push({
             type: 'inlineData',
-            inlineData: { mimeType: item.mimeType, data: item.base64 },
+            inlineData: { mimeType: req.media.mimeType, data: req.media.base64 },
           });
+        if (req.mediaList?.length) {
+          for (const item of req.mediaList) {
+            if (!withImages && item.mimeType.startsWith('image/')) continue;
+            parts.push({
+              type: 'inlineData',
+              inlineData: { mimeType: item.mimeType, data: item.base64 },
+            });
+          }
+        }
+        return model.generateContent(parts);
+      };
+
+      let result;
+      try {
+        result = await execute(includeImages);
+      } catch (err) {
+        if (req.mode === 'ONLY_ON_DEVICE' && includeImages) {
+          result = await execute(false);
+        } else {
+          throw err;
         }
       }
-      const result = await model.generateContent(parts);
       let text: string;
       try {
         text = result.response.text();

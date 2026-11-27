@@ -17,7 +17,7 @@ import { z } from 'zod';
 import type { Router, TaskDef } from '../router';
 import { cut } from './text';
 
-export const REEL_DRAFT_PROMPT_VERSION = 'v1';
+export const REEL_DRAFT_PROMPT_VERSION = 'v2';
 
 export const ReelDraftInputSchema = z.object({
   look: z.enum(['mono', 'cream']),
@@ -29,11 +29,13 @@ export type ReelDraftInput = z.infer<typeof ReelDraftInputSchema>;
 
 const DraftBeatSchema = z.object({
   fromWord: z.number().int().nonnegative(),
-  template: z.enum(['headline', 'counter', 'punch', 'cta']),
-  title: z.string().max(48),
+  template: z.enum(['headline', 'counter', 'punch', 'cta', 'list', 'compare', 'statement', 'quote']),
+  title: z.string().max(60),
   kicker: z.string().max(28).optional(),
   value: z.number().finite().optional(),
   suffix: z.string().max(8).optional(),
+  /** Optional semicolon-separated points for `list` / `compare` / `statement` (e.g. "Fast; Free; Local"). */
+  items: z.string().max(120).optional(),
 });
 
 export const ReelDraftOutputSchema = z.object({
@@ -42,16 +44,21 @@ export const ReelDraftOutputSchema = z.object({
 });
 export type ReelDraftOutput = z.infer<typeof ReelDraftOutputSchema>;
 
-export const REEL_DRAFT_SYSTEM_V1 = `You direct a fast on-device draft of a vertical talking-head reel from its indexed transcript.
+export const REEL_DRAFT_SYSTEM_V1 = `You direct a crisp on-device draft of a vertical talking-head reel from its indexed transcript.
 Reply with ONLY JSON matching the schema.
 
-Pick 3 to 8 visual beats covering word 0 to the end of the transcript (roughly one beat every 3–5 seconds):
-- "headline": bold split-screen title card (title: 2–5 punchy words, optional kicker: 1–3 words).
+Pick 3 to 8 varied visual beats covering word 0 to the end of the transcript (roughly one beat every 3–5 seconds):
+- "headline": bold title card (title: 2–5 punchy words, optional kicker: 1–3 words).
 - "counter": big animated stat (ONLY when the speaker says a real number; set value to the number, optional suffix like "%" or "x", title to a 2–4 word label).
+- "list": bullet list when the speaker lists 2–4 points (title: short heading, items: "Point 1; Point 2; Point 3").
+- "compare": A vs B contrast (title: "Old vs New", optional items: "Fast; Simple").
+- "statement": bold typographic callout (title: "Line 1; Line 2", set kicker="NO" for a crossed-out "without X" beat).
+- "quote": pull-quote or sharp thesis (title: short memorable quote).
 - "punch": bold kinetic words over the speaker (title: 2–4 words, optional kicker: 1–2 words).
 - "cta": closing call-to-action at the end (title: 1–2 word keyword, optional kicker: verb like "Try" or "Follow").
 
 Rules:
+- Vary templates for rhythm — never repeat the same template 3 times in a row.
 - Never invent numbers not spoken in the transcript.
 - Beats must be in ascending fromWord order, starting at 0.
 - Keep titles short and punchy.`;
@@ -72,11 +79,15 @@ export const reelDraftJsonSchema = (): Record<string, unknown> => ({
         type: 'object',
         properties: {
           fromWord: { type: 'integer' },
-          template: { type: 'string', enum: ['headline', 'counter', 'punch', 'cta'] },
-          title: { type: 'string', maxLength: 48 },
+          template: {
+            type: 'string',
+            enum: ['headline', 'counter', 'punch', 'cta', 'list', 'compare', 'statement', 'quote'],
+          },
+          title: { type: 'string', maxLength: 60 },
           kicker: { type: 'string', maxLength: 28 },
           value: { type: 'number' },
           suffix: { type: 'string', maxLength: 8 },
+          items: { type: 'string', maxLength: 120 },
         },
         required: ['fromWord', 'template', 'title'],
       },
@@ -143,8 +154,18 @@ export function draftToReelPlan(
         ? Math.min(safeDuration, Math.max(startMs + 600, words[nextWord]?.startMs ?? safeDuration))
         : safeDuration;
     const id = `rd-${idx + 1}`;
+    const graphicLayout = look === 'cream' ? ('card' as const) : ('split' as const);
     const bg = look === 'cream' ? ('cream' as const) : ('light' as const);
-    const tag = cut(b.kicker, 24)?.toUpperCase();
+    const tag = look === 'mono' ? cut(b.kicker, 24)?.toUpperCase() : undefined;
+    const span = Math.max(400, endMs - startMs);
+    const cueAt = (i: number, total: number) =>
+      Math.round(startMs + Math.min(span - 150, 180 + i * Math.min(600, span / Math.max(2, total + 1))));
+    const splitItems = (raw: string | undefined, maxLen: number, maxCount: number): string[] =>
+      (raw ?? '')
+        .split(/[;•\n|]/)
+        .map((s) => fit(s, maxLen))
+        .filter((s) => s.length > 0)
+        .slice(0, maxCount);
 
     if (
       b.template === 'counter' &&
@@ -157,7 +178,7 @@ export function draftToReelPlan(
         id,
         startMs,
         endMs,
-        layout: 'split',
+        layout: graphicLayout,
         bg,
         ...(tag ? { tag } : {}),
         content: {
@@ -170,6 +191,89 @@ export function draftToReelPlan(
           ...(kicker ? { kicker } : {}),
         },
       };
+    }
+    if (b.template === 'list') {
+      const pts = splitItems(b.items, 28, 5);
+      if (pts.length >= 2) {
+        const kicker = cut(b.kicker, 40);
+        return {
+          id,
+          startMs,
+          endMs,
+          layout: graphicLayout,
+          bg,
+          ...(tag ? { tag } : {}),
+          content: {
+            template: 'list',
+            ...(kicker ? { kicker } : {}),
+            title: fit(b.title, 40, 'Key points'),
+            items: pts.map((text, i) => ({ at: cueAt(i, pts.length), icon: 'check', text })),
+          },
+        };
+      }
+    }
+    if (b.template === 'compare') {
+      const sides = b.title.split(/\s+(?:vs\.?|versus)\s+|\s*\/\s*|\s*\|\s*/i).map((s) => s.trim());
+      const left = fit(sides[0], 14);
+      const right = fit(sides[1], 14);
+      if (left && right) {
+        const rows = splitItems(b.items, 18, 3).map((text, i, arr) => ({
+          at: cueAt(i, arr.length),
+          text,
+        }));
+        return {
+          id,
+          startMs,
+          endMs,
+          layout: graphicLayout,
+          bg,
+          ...(tag ? { tag } : {}),
+          content: {
+            template: 'compare',
+            left,
+            right,
+            winner: 'right',
+            rows,
+          },
+        };
+      }
+    }
+    if (b.template === 'statement') {
+      const lines = splitItems(b.items || b.title, 22, 4);
+      if (lines.length >= 1) {
+        const strike = /^(no|without|stop|never)$/i.test(b.kicker?.trim() ?? '');
+        return {
+          id,
+          startMs,
+          endMs,
+          layout: graphicLayout,
+          bg: idx % 3 === 1 ? 'dark' : bg,
+          ...(tag ? { tag } : {}),
+          content: {
+            template: 'statement',
+            strike,
+            lines: lines.map((text, i) => ({ at: cueAt(i, lines.length), text })),
+          },
+        };
+      }
+    }
+    if (b.template === 'quote') {
+      const lines = splitItems(b.items || b.title, 60, 4);
+      if (lines.length >= 1) {
+        return {
+          id,
+          startMs,
+          endMs,
+          layout: graphicLayout,
+          bg,
+          ...(tag ? { tag } : {}),
+          content: {
+            template: 'quote',
+            lines: lines.map((text, i) => ({ at: cueAt(i, lines.length), text })),
+            highlight: [],
+          },
+        };
+      }
     }
     if (b.template === 'punch') {
       const top = cut(b.kicker, 28);
@@ -203,7 +307,7 @@ export function draftToReelPlan(
       id,
       startMs,
       endMs,
-      layout: 'split',
+      layout: graphicLayout,
       bg,
       ...(tag ? { tag } : {}),
       content: {

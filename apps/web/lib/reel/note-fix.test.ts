@@ -857,4 +857,27 @@ describe('runReelNoteFix: Local LLM resilience & explicit provider targets', () 
     expect(targets).toEqual(['nano', 'local-llm']);
     expect(r).toMatchObject({ kind: 'applied', ranOn: 'device', message: 'Changed the title.' });
   });
+
+  it('on-device Nano removes the graphic on "remove this" at 0 credits even if Nano conservatively escalates', async () => {
+    const t = setup((id: string) =>
+      id === 'reel.note.local'
+        ? { action: 'escalate', message: 'Complex design needed' }
+        : titleAnswer,
+    );
+    t.store.getState().exec(
+      addReelNote('r1', {
+        id: 'n-rm',
+        tMs: 1200,
+        shape: { kind: 'circle', points: [0.5, 0.2, 0.3, 0.06] },
+        text: 'remove this',
+        status: 'open',
+      }),
+    );
+    const r = await runReelNoteFix(t.deps, 'r1', 'n-rm', DEVICE);
+    expect(r).toMatchObject({ kind: 'applied', ranOn: 'device', message: 'Removed the graphic' });
+    expect(t.credits.balance()).toBe(50);
+    const scene = t.store.getState().project?.reel?.scenes[0];
+    expect(scene?.layout).toBe('speaker');
+    expect(scene?.content).toEqual({ template: 'none' });
+  });
 });

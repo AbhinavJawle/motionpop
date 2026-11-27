@@ -10,6 +10,7 @@ import {
   runReelNote,
   runReelNoteLocal,
   styleCraftDirection,
+  tryDeterministicReelNote,
   type ReelComposeInput,
   type ReelComposeOutput,
   type ReelDirectBrief,
@@ -218,6 +219,33 @@ export async function runReelNoteFix(
     return deps.getRouter();
   };
 
+  const applyLocalResult = (
+    applied: ReturnType<typeof applyReelNoteLocal>,
+    latencyMs: number,
+  ): ReelNoteOutcome | null => {
+    if (!applied.changed || applied.escalate) return null;
+    if (isNoVideoReel && applied.scene.content.template === 'none') return null;
+    const nextScene = isNoVideoReel ? enforceNoVideoScene(applied.scene, scene) : applied.scene;
+    const ok = deps.store.getState().exec(
+      composite('Fix note', [
+        fixReelScene(sceneId, {
+          scene: nextScene,
+          ...(applied.hook !== undefined ? { hook: applied.hook } : {}),
+          ...(applied.captions.length ? { captions: applied.captions } : {}),
+        }),
+        setReelNoteStatus(sceneId, noteId, 'fixed'),
+      ]),
+    );
+    if (!ok) return null;
+    return {
+      kind: 'applied',
+      ms: latencyMs,
+      ranOn: 'device',
+      message: applied.message,
+      pictures: 0,
+    };
+  };
+
   // Hybrid AI fast path: try multimodal on-device Gemini Nano first (0 credits, works offline).
   // Direct frame notes never silently charge credits (D-035): when Nano escalates or fails, the
   // bubble surfaces the reason + one-click escalation. Callers with pre-approved credit
@@ -233,8 +261,17 @@ export async function runReelNoteFix(
           ? deps.cloudCredits
           : deps.credits,
       );
+    const tryDeterministic = (): ReelNoteOutcome | null => {
+      const det = tryDeterministicReelNote(ctx, text, {
+        hook: showsHook ? reel.hook : undefined,
+        parts: seen.target.parts,
+      });
+      return det ? applyLocalResult(det, 0) : null;
+    };
     const router = await resolveRouter(route).catch(() => null);
     if (!router) {
+      const detOutcome = tryDeterministic();
+      if (detOutcome) return detOutcome;
       if (!canAutoEscalate) return { kind: 'device-failed' };
     } else {
       let escalateMessage: string | null = null;
@@ -242,6 +279,7 @@ export async function runReelNoteFix(
       try {
         const localInput = reelNoteLocalInput(ctx, {
           noteText: text,
+          parts: seen.target.parts,
           caption: seen.target.caption,
           hook: showsHook ? reel.hook : undefined,
           image,
@@ -251,32 +289,16 @@ export async function runReelNoteFix(
         const applied = applyReelNoteLocal(ctx, localRes.output, {
           hook: showsHook ? reel.hook : undefined,
         });
-        if (applied.changed && !applied.escalate) {
-          const nextScene = isNoVideoReel ? enforceNoVideoScene(applied.scene, scene) : applied.scene;
-          const ok = deps.store.getState().exec(
-            composite('Fix note', [
-              fixReelScene(sceneId, {
-                scene: nextScene,
-                ...(applied.hook !== undefined ? { hook: applied.hook } : {}),
-                ...(applied.captions.length ? { captions: applied.captions } : {}),
-              }),
-              setReelNoteStatus(sceneId, noteId, 'fixed'),
-            ]),
-          );
-          if (ok) {
-            return {
-              kind: 'applied',
-              ms: localRes.latencyMs,
-              ranOn: 'device',
-              message: applied.message,
-              pictures: 0,
-            };
-          }
-        }
+        const directOutcome = applyLocalResult(applied, localRes.latencyMs);
+        if (directOutcome) return directOutcome;
+        const detOutcome = tryDeterministic();
+        if (detOutcome) return detOutcome;
         escalateMessage =
           applied.message || 'Needs cloud AI for a full graphic rewrite or custom animation.';
       } catch (err) {
         console.warn('[reel.note.local] on-device fix failed:', err);
+        const detOutcome = tryDeterministic();
+        if (detOutcome) return detOutcome;
         threw = true;
       }
       if (!canAutoEscalate) {
@@ -336,6 +358,7 @@ export async function runReelNoteFix(
     try {
       const localInput = reelNoteLocalInput(ctx, {
         noteText: text,
+        parts: seen.target.parts,
         caption: seen.target.caption,
         hook: showsHook ? reel.hook : undefined,
         image,
@@ -345,28 +368,19 @@ export async function runReelNoteFix(
       const applied = applyReelNoteLocal(ctx, localRes.output, {
         hook: showsHook ? reel.hook : undefined,
       });
-      if (applied.changed && !applied.escalate) {
-        const nextScene = isNoVideoReel ? enforceNoVideoScene(applied.scene, scene) : applied.scene;
-        const ok = deps.store.getState().exec(
-          composite('Fix note', [
-            fixReelScene(sceneId, {
-              scene: nextScene,
-              ...(applied.hook !== undefined ? { hook: applied.hook } : {}),
-              ...(applied.captions.length ? { captions: applied.captions } : {}),
-            }),
-            setReelNoteStatus(sceneId, noteId, 'fixed'),
-          ]),
-        );
-        if (ok) {
-          charged = true;
-          return {
-            kind: 'applied',
-            ms: localRes.latencyMs,
-            ranOn: 'device',
-            message: applied.message,
-            pictures: 0,
-          };
-        }
+      const directOutcome = applyLocalResult(applied, localRes.latencyMs);
+      if (directOutcome) {
+        charged = true;
+        return directOutcome;
+      }
+      const det = tryDeterministicReelNote(ctx, text, {
+        hook: showsHook ? reel.hook : undefined,
+        parts: seen.target.parts,
+      });
+      const detOutcome = det ? applyLocalResult(det, localRes.latencyMs) : null;
+      if (detOutcome) {
+        charged = true;
+        return detOutcome;
       }
       if (applied.escalate) {
         return {
@@ -378,6 +392,15 @@ export async function runReelNoteFix(
       }
     } catch (fallbackErr) {
       console.warn('[reel.note] Local LLM compact fallback also failed:', fallbackErr);
+      const det = tryDeterministicReelNote(ctx, text, {
+        hook: showsHook ? reel.hook : undefined,
+        parts: seen.target.parts,
+      });
+      const detOutcome = det ? applyLocalResult(det, 0) : null;
+      if (detOutcome) {
+        charged = true;
+        return detOutcome;
+      }
     }
     return failed(primaryReason);
   };
