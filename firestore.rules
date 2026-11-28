@@ -32,7 +32,8 @@ service cloud.firestore {
     }
 
     function projectOwner(pid) {
-      return get(/databases/$(database)/documents/projects/$(pid)).data.ownerId;
+      let path = /databases/$(database)/documents/projects/$(pid);
+      return exists(path) ? get(path).data.ownerId : null;
     }
 
     // Profile: created by the bootstrap route, never deleted by clients.
@@ -45,7 +46,11 @@ service cloud.firestore {
           .hasOnly(['displayName', 'photoURL', 'settings'])
         && request.resource.data.displayName is string
         && request.resource.data.displayName.size() <= 80
-        && (!('photoURL' in request.resource.data) || request.resource.data.photoURL is string)
+        && (!('photoURL' in request.resource.data)
+          || (request.resource.data.photoURL is string
+            && request.resource.data.photoURL.size() <= 500
+            && (request.resource.data.photoURL.size() == 0
+              || request.resource.data.photoURL.matches('^https://.*'))))
         && validSettings(request.resource.data.settings);
 
       // Server-written only.

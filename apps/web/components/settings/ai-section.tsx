@@ -133,7 +133,7 @@ export function AISection({ variant }: { variant: SettingsVariant }) {
             <span aria-hidden className="mt-[6px] size-1 shrink-0 rounded-full bg-text-3" />
             <span>
               <strong className="font-medium text-text-1">Desktop Chrome only:</strong> Uses
-              Chrome&apos;s built-in Gemini Nano (Chrome 138+). Other browsers automatically fall
+              Chrome&apos;s built-in Gemini Nano (Chrome 139+). Other browsers automatically fall
               back to cloud Gemini.
             </span>
           </li>

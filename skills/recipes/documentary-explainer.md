@@ -8,7 +8,7 @@ default_look: cream
 styles: [vox-collage, risograph-zine, kurzgesagt-cosmos]
 ---
 ## Intent
-Vox, Johnny Harris & Kurzgesagt-caliber visual journalism: tactile paper collage, keyed cutouts, halftone textures, maps, and evidence-led storytelling.
+Editorial documentary & flat-vector visual journalism: tactile paper collage, keyed cutouts, halftone textures, maps, and evidence-led storytelling.
 
 ## Pacing
 Scenes run 2.0–4.4 seconds.

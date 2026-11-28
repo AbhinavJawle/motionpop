@@ -346,7 +346,7 @@ function SingleGraphic({
             if (e.key === 'Escape') setOpen(false);
           }}
           aria-label="Describe the motion graphic"
-          placeholder="Vox-style paper collage explainer on how the White House is structured"
+          placeholder="Editorial paper-collage explainer on how global shipping lanes work"
           maxLength={SINGLE_MAX_CHARS}
           className="h-9 flex-1 bg-transparent text-[14px] outline-none placeholder:text-black/45"
         />
@@ -382,7 +382,7 @@ function SingleGraphic({
       <p className={cn('text-[11px] leading-[14px]', tooLong ? 'text-error' : 'text-black/55')}>
         {tooLong
           ? `Keep the prompt under ${SINGLE_MAX_CHARS} characters.`
-          : 'Next: choose your style (Paper Collage / Vox, Editorial, Newsprint, Dark Tech, or custom SKILL.md) and AI cutouts. Export MP4 or transparent WebM.'}
+          : 'Next: choose your style (Paper Collage, Editorial, Newsprint, Dark Tech, or custom SKILL.md) and AI cutouts. Export MP4 or transparent WebM.'}
       </p>
     </motion.form>
   );

@@ -139,7 +139,7 @@ export const directPlan: TaskDef<DirectPlanInput, DirectorPlan> = {
             }
           : { type: 'array', maxItems: 0, items: { type: 'object' } },
         images: { type: 'array', items: slot, maxItems: input.imagesMax },
-        reasons: { type: 'array', items: { type: 'string' }, maxItems: n },
+        reasons: { type: 'array', items: { type: 'string', maxLength: 200 }, maxItems: n },
       },
       required: ['arc', 'peak', 'scenes', 'motifs', 'images'],
     };

@@ -1017,7 +1017,7 @@ export async function directReel(
 ): Promise<{
   plan: ReelPlan;
   source: 'cloud' | 'device' | 'auto';
-  /** True when the compact 4-template `reel.draft` fallback ran instead of full `reel.direct`. */
+  /** True when the compact 8-template `reel.draft` fallback ran instead of full `reel.direct`. */
   draft?: boolean;
   model?: string;
   error?: string;

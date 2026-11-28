@@ -1,9 +1,10 @@
 /**
  * `reel.draft` — lightweight on-device Gemini Nano reel director (`ONLY_ON_DEVICE`, 0 credits,
- * works offline). Uses a flat 4-template schema (`headline`, `counter`, `punch`, `cta`) sized for
- * Chrome Gemini Nano's 9,216-token budget so free/offline reels get real AI-authored headlines,
- * extracted stats, and punchlines instead of keyword rules alone, while cloud `reel.direct`
- * (Gemini 4 Neon, 21 templates + 6 keyframes) remains the flagship default when online.
+ * works offline). Uses a flat 8-template schema (`headline`, `counter`, `punch`, `cta`, `list`,
+ * `compare`, `statement`, `quote`) sized for Chrome Gemini Nano's 9,216-token budget so
+ * free/offline reels get real AI-authored headlines, extracted stats, and punchlines instead of
+ * keyword rules alone, while cloud `reel.direct` (Gemini 4 Neon, 21 templates + 6 keyframes)
+ * remains the flagship default when online.
  */
 import {
   ReelPlanSchema,

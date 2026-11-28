@@ -38,6 +38,13 @@ vi.mock('@/components/start/start-hero', () => ({
   ),
 }));
 vi.mock('@/lib/ai/router-client', () => ({ getRouter: () => Promise.resolve(null) }));
+vi.mock('@/lib/skills/community-skills', async () => {
+  const { COMMUNITY_SKILLS, getCommunitySkillById } = await import('@motionpop/ai');
+  return {
+    useCommunitySkills: () => ({ skills: COMMUNITY_SKILLS, loaded: true }),
+    getAnySkillById: (id: string | undefined) => getCommunitySkillById(id),
+  };
+});
 vi.mock('@/lib/credits/use-credits-client', () => ({
   useCreditsClient: () => ({ client: h.signedIn ? {} : null }),
   useCreditsBalance: () => h.balance,
@@ -370,7 +377,7 @@ describe('ConfigureScreen', () => {
       render(<ConfigureScreen />);
       const banner = await screen.findByTestId('auto-pick-banner');
       expect(banner.textContent).toMatch(/Auto-picked from your transcript:/);
-      expect(banner.textContent).toMatch(/Bloomberg Data Story/);
+      expect(banner.textContent).toMatch(/Financial Data Story/);
 
       fireEvent.click(screen.getByRole('button', { name: 'Create' }));
       const edit = lastEdit();

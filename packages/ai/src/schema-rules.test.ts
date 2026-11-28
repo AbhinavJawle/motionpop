@@ -17,6 +17,7 @@ import { editPatchTask } from './tasks/edit-patch';
 import { noteFixTask } from './tasks/note-fix';
 import { pipQuickTask } from './tasks/pip-quick';
 import { promptPrefill } from './tasks/prompt-prefill';
+import { recipeResolveTask } from './tasks/recipe-resolve';
 import { setupRecommendTask } from './tasks/setup-recommend';
 import { reelDraftLocalTask } from './reel/draft-local';
 import { reelNoteLocalTask } from './reel/note-local';
@@ -331,6 +332,16 @@ const CASES: Case[] = [
         kind: 'video' as const,
       }),
   },
+  {
+    id: 'recipe.resolve',
+    run: () =>
+      measure(recipeResolveTask, {
+        recipeId: 'custom',
+        recipeText: 'Punchy documentary explainer with tactile paper cutouts',
+        styleText: 'Warm cream paper with terracotta accent',
+        kind: 'video',
+      }),
+  },
 ];
 
 /** Real violations today: task id → rule → why. Claude Code fixes these when scenes are wired in. */
@@ -376,6 +387,7 @@ describe('task schema rules (ai-tasks.md)', () => {
         'note.fix',
         'pip.quick',
         'prompt.prefill',
+        'recipe.resolve',
         'reel.draft',
         'reel.note.local',
         'setup.recommend',
@@ -401,6 +413,7 @@ describe('task schema rules (ai-tasks.md)', () => {
       'note.fix',
       'reel.note.local',
       'pip.quick',
+      'recipe.resolve',
       'reel.draft',
       'setup.recommend',
     ]);

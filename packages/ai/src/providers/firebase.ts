@@ -49,9 +49,11 @@ export function firebaseProvider(getAI: () => Promise<AI>): AIProvider {
           req.mediaList?.some((item) => item.mimeType.startsWith('image/')),
       );
       let includeImages = hasImageMedia;
+      let effectiveMode = req.mode;
 
-      if (req.mode === 'ONLY_ON_DEVICE') {
-        if (req.media && !req.media.mimeType.startsWith('image/')) {
+      if (req.mode === 'ONLY_ON_DEVICE' || req.mode === 'PREFER_ON_DEVICE') {
+        const isOnlyOnDevice = req.mode === 'ONLY_ON_DEVICE';
+        if (isOnlyOnDevice && req.media && !req.media.mimeType.startsWith('image/')) {
           throw new Error(`On-device Gemini Nano does not support ${req.media.mimeType} media`);
         }
         const lm = (globalThis as unknown as ChromeLanguageModelGlobal).LanguageModel;
@@ -61,7 +63,7 @@ export function firebaseProvider(getAI: () => Promise<AI>): AIProvider {
             expectedInputs: wantedInputs,
             expectedOutputs: EXPECTED_OUTPUTS,
           });
-          if (status !== 'available' && hasImageMedia) {
+          if (status !== 'available' && hasImageMedia && isOnlyOnDevice) {
             const textStatus = await lm.availability({
               expectedInputs: [EXPECTED_TEXT],
               expectedOutputs: EXPECTED_OUTPUTS,
@@ -72,11 +74,19 @@ export function firebaseProvider(getAI: () => Promise<AI>): AIProvider {
             }
           }
           if (status !== 'available') {
-            throw new Error(`On-device Gemini Nano is ${status}`);
+            if (isOnlyOnDevice) {
+              throw new Error(`On-device Gemini Nano is ${status}`);
+            }
+            // Guard `PREFER_ON_DEVICE` against `@firebase/ai` 3.1.0 calling `LanguageModel.create`
+            // without a user gesture when Nano is `downloadable`/`downloading` or unavailable.
+            effectiveMode = 'ONLY_IN_CLOUD';
           }
         } else if (typeof window !== 'undefined') {
-          // Guard against `@firebase/ai` 3.1.0 falling back to cloud when `chromeAdapter` is absent.
-          throw new Error('On-device Gemini Nano is not available in this browser');
+          if (isOnlyOnDevice) {
+            // Guard against `@firebase/ai` 3.1.0 falling back to cloud when `chromeAdapter` is absent.
+            throw new Error('On-device Gemini Nano is not available in this browser');
+          }
+          effectiveMode = 'ONLY_IN_CLOUD';
         }
       }
 
@@ -87,7 +97,7 @@ export function firebaseProvider(getAI: () => Promise<AI>): AIProvider {
         const expectedInputs = withImages ? [EXPECTED_TEXT, EXPECTED_IMAGE] : [EXPECTED_TEXT];
         const model = getGenerativeModel(ai, {
           // Our schema uses the constant names; the SDK's values are lowercase strings.
-          mode: InferenceMode[req.mode],
+          mode: InferenceMode[effectiveMode],
           inCloudParams: {
             model: req.model,
             systemInstruction: req.system,

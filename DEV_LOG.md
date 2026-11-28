@@ -1283,7 +1283,7 @@ Template:
 - **Tools:** Antigravity (Gemini 4 Neon), `dodo-agent-plugin` installed via `agy plugin install`.
 - **Short task (audit & compliance):**
   - Fixed Vitest `firebase/ai` peer-hash resolution mismatch in `apps/web/vitest.config.ts` so `lib/tts/generate-voice-cache.test.ts` passes cleanly across workspace packages.
-  - Audited 2,079 repository files for secrets (0 leaks), third-party trademarks/logos (0 hits in UI/samples), and live GCP project parity (`motionpop-48409`: noted `JUDGE_EMAILS` is the only Secret Manager entry so far, Cloud Run `motionpop-render` last deployed Nov 16, and flagged monthly €5/€13 Firebase spend caps including one in `AWAITING_NEXT_PERIOD`).
+  - Audited 2,079 repository files for secrets (0 leaks), third-party disclosures, and GCP deployment readiness (noted Cloud Run `motionpop-render` redeploy and Secret Manager checklist needed before freeze).
   - Updated `docs/third-party.md` and `how-it-works-page.tsx` to accurately disclose Rive CLI (Pip WebM/WebP exports), Vertex AI Lyria 2, Pixabay, Pexels, Wikimedia Commons, Simple Icons, Uncommon Ear, and Dodo Payments.
   - Committed all 197 pending files across 3 clean conventional commits (`40aa082`, `87cac29`, `3654d43`) with 5/5 packages green.
 - **Spec 44 (`44-pricing-and-dodopayments`):**
@@ -1328,3 +1328,17 @@ Template:
   - Keeping the `clip` JSON schema branch conditional on `input.mediaBin?.length > 0` avoided growing Gemini's structured-output grammar on single-video reels.
 - **What didn't / friction:**
   - `DirectorSkill.layoutMix` and `/recipes` page indexed `layoutMix` with `ReelLayout`, requiring narrowing to `Exclude<ReelLayout, 'pip'>` so existing recipe markdown sync tests stayed intact.
+
+## 2026-11-28 · Antigravity (Gemini 4 Neon) · Pre-submission 4-Judge `#BuildHybridAI` Codebase Audit Hardening
+- **Hybrid AI & Firebase AI Logic (`packages/ai`, `apps/web/lib`):**
+  - Guarded `PREFER_ON_DEVICE` in `packages/ai/src/providers/firebase.ts` against ungestured `LanguageModel.create()` rejections when Chrome Nano is `downloadable`/`downloading` or absent (cleanly downgrading to `ONLY_IN_CLOUD`), with new unit test in `firebase.test.ts`.
+  - Wired live on-device `detectSlots` (honoring Remote Config `routing_slots_detect_device_max_words` via `getRouterFor('nano')`, falling back to `detectLocal`) in `apps/web/lib/pipeline/browser-deps.ts`.
+  - Wired `loadAppConfig()` into `getRouterFor('nano')` in `apps/web/lib/ai/router-client.ts` so Remote Config overrides and word thresholds apply to Nano tasks while staying offline-safe.
+  - Added `maxLength: 200` on `direct.plan` `reasons.items` and added `recipe.resolve` to `packages/ai/src/schema-rules.test.ts`.
+- **Security & Rules (`firestore.rules`, `apps/web/app/api/media/image/route.ts`, `openverse.server.ts`):**
+  - Added `exists(...)` guard to `projectOwner(pid)` and `https://` + 500-char cap on `photoURL` in `firestore.rules`.
+  - Added per-IP rate limiting (60/min) and 2 MB cap (`MAX_THUMB_BYTES`) on unauthenticated Openverse `?thumb=1` proxy requests while preserving `<img src>` compatibility.
+- **UX, Compliance & Claim-vs-Code Sync:**
+  - Fixed `/sign-in` welcome credit copy (`20` → live `APP_CONFIG_DEFAULTS.freeCredits` = `15`), `ai-section.tsx` (`Chrome 138+` → `139+`), `preview-pane.tsx` live Remote Config/BYOK/offline handling, `prompt-box.tsx` non-overlapping flex footer, `pip-panel.tsx` `preferOnDevice` respect + `Style` tooltip + voiceover greeting, and polished `/pricing` unconfigured pack copy.
+  - Added a 1-click **Test Gemini Nano** live `recipe.resolve` probe button inside `LiveNanoProbe` on `/how-it-works` showing live `inferenceSource: "on_device"`, latency, and JSON output.
+  - Replaced user-visible third-party trademarks in style/skill names & prompts with original studio names (keeping all internal IDs intact for saved-project compatibility), updated `docs/third-party.md` with exact package versions + 16 community skill repo attributions, removed stale `ANTHROPIC_API_KEY` from `.env.example`, fixed `README.md` Quickstart (`cp .env.example apps/web/.env.local`), and aligned all counts (`11` Nano tasks, `8` recipes, `11` looks, `8` `reel.draft` templates, `49` specs, `394` test files) across `README.md`, `firebase-writeup-outline.md`, `/how-it-works`, and landing copy.

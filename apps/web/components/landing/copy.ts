@@ -49,7 +49,7 @@ export const FRAME_NOTES = {
 
 export const REELS = {
   title: 'Real reels. Immaculate motion.',
-  body: 'Every cut below is compiled by Motionpop’s deterministic engine—real talking-head footage paired with frame-accurate charts, workflows, checklists and kinetic typography. Pick from 5 editing recipes, 8 looks, or import a Markdown SKILL.md straight from GitHub.',
+  body: 'Every cut below is compiled by Motionpop’s deterministic engine—real talking-head footage paired with frame-accurate charts, workflows, checklists and kinetic typography. Pick from 8 editing recipes, 11 studio looks, or import a Markdown SKILL.md straight from GitHub.',
   items: [
     {
       id: 'reel-split',
@@ -188,7 +188,7 @@ export const STITCHED = {
     },
     {
       name: 'Deterministic Motion Core',
-      job: 'Pure seek(t) HTML/SVG components, 8 looks, 21 reel templates and procedural SFX',
+      job: 'Pure seek(t) HTML/SVG components, 11 studio looks, 21 reel templates and procedural SFX',
     },
     {
       name: 'HyperFrames + Cloud Run',
@@ -196,7 +196,7 @@ export const STITCHED = {
     },
     {
       name: 'Kiro Spec-Driven Build',
-      job: '44 EARS specs, steering rules, hooks and property-tested boundaries live in /.kiro',
+      job: '49 EARS specs, steering rules, hooks and property-tested boundaries live in /.kiro',
     },
   ],
   bubble: 'It’s alive!',
@@ -209,7 +209,7 @@ export const PRICING = {
   plan: 'Free plan',
   planNote: `${cfg.freeCredits} credits on sign-up`,
   perks: [
-    'Raw video auto-cut, 21 reel templates & 8 looks',
+    'Raw video auto-cut, 21 reel templates & 11 studio looks',
     'Unlimited on-device Gemini Nano edits & SKILL.md imports',
     'Free 1080p MP4 & transparent WebM overlay exports',
   ],
@@ -260,7 +260,7 @@ export const FAQ = {
     },
     {
       q: 'What do I export, and is it really open source?',
-      a: 'Export 720p or 1080p MP4s in 9:16, 16:9 or 1:1—or transparent WebM overlays to drop into another editor—plus shareable links. The full codebase and 45 Kiro specs are open source under Apache-2.0.',
+      a: 'Export 720p or 1080p MP4s in 9:16, 16:9 or 1:1—or transparent WebM overlays to drop into another editor—plus shareable links. The full codebase and 49 Kiro specs are open source under Apache-2.0.',
     },
   ],
 } as const;

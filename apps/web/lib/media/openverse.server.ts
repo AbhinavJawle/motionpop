@@ -92,6 +92,7 @@ async function searchUpstream(q: string): Promise<MediaHit[]> {
 }
 
 const MAX_BYTES = 10 * 1024 * 1024;
+const MAX_THUMB_BYTES = 2 * 1024 * 1024;
 const MAX_REDIRECTS = 3;
 const SAFE_IMAGE_MIMES = new Set([
   'image/jpeg',
@@ -159,12 +160,13 @@ export async function fetchOpenverseImage(
     await res.body?.cancel().catch(() => undefined);
     throw new Error('not a safe raster image');
   }
+  const maxBytes = thumb ? MAX_THUMB_BYTES : MAX_BYTES;
   const len = Number(res.headers.get('content-length') ?? 0);
-  if (len > MAX_BYTES) {
+  if (len > maxBytes) {
     await res.body?.cancel().catch(() => undefined);
     throw new Error('too large');
   }
-  const bytes = await readResponseBytesWithLimit(res, MAX_BYTES);
+  const bytes = await readResponseBytesWithLimit(res, maxBytes);
   if (!bytes) throw new Error('too large');
   return { bytes: bytes.slice().buffer, type, attribution: attributionOf(r).slice(0, 240) };
 }

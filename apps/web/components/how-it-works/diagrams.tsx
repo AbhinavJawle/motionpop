@@ -344,7 +344,7 @@ export function FrankensteinStackDiagram() {
         </text>
 
         <Node x={30} y={66} w={180} h={46} label="Paper Editor & Pip" sub="Next.js 16 · Zustand 200-undo" dot="#ff6a3d" />
-        <Node x={226} y={66} w={184} h={46} fill="#ecfdf5" label="Chrome Gemini Nano" sub="10 tasks · JPEG + JSON" dot="#10b981" />
+        <Node x={226} y={66} w={184} h={46} fill="#ecfdf5" label="Chrome Gemini Nano" sub="11 tasks · JPEG + JSON" dot="#10b981" />
         <Node x={30} y={126} w={180} h={52} fill="#ecfdf5" label="Whisper + Auto-Cut DSP" sub="WebGPU · LCS retakes · prosody" dot="#10b981" />
         <Node x={226} y={126} w={184} h={52} fill="#eff6ff" label="HyperFrames Sandbox" sub="seek(tMs) · 21+9 templates" dot="#3b82f6" />
         <Node x={30} y={194} w={380} h={56} fill="#fffbeb" label="IndexedDB + Web Audio SFX + Ollama / LM Studio + BYOK" sub="Local media · 14-take SFX · localhost:11434/1234 · localStorage key" />
@@ -362,7 +362,7 @@ export function FrankensteinStackDiagram() {
         <Node x={662} y={68} w={146} h={42} fill="#f3e8ff" label="Flash-Lite + TTS" sub="3.5-lite · 3.8-tts" dot="#8b5cf6" />
         <Node x={822} y={68} w={146} h={42} fill="#f3e8ff" label="Nano Banana 2.1" sub="1K art · #00FF00 key" dot="#8b5cf6" />
         <Node x={502} y={120} w={222} h={40} fill="#ede9fe" label="Vertex AI · lyria-002" sub="/api/reel/music · looped WAV" dot="#7c3aed" />
-        <Node x={738} y={120} w={230} h={40} fill="#ffffff" label="4-Stage QA &amp; Optional Claude" sub="lintCustom · DOM · vision-critic" />
+        <Node x={738} y={120} w={230} h={40} fill="#ffffff" label="4-Stage Code &amp; Vision QA" sub="lintCustom · DOM · vision-critic" />
 
         {/* BOTTOM-LEFT GROUP: 7-Product Firebase Backbone */}
         <rect x={16} y={298} width={484} height={154} rx={14} fill="#fffdf5" stroke="#18181b" strokeWidth={1.6} />
@@ -377,7 +377,7 @@ export function FrankensteinStackDiagram() {
         <Node x={188} y={348} w={152} h={42} fill="#fef3c7" label="Cloud Firestore" sub="ledger · skills DB · logs" dot="#f59e0b" />
         <Node x={352} y={348} w={134} h={42} fill="#fef3c7" label="Remote Config" sub="routes · kill_switch" dot="#f59e0b" />
         <Node x={30} y={400} w={218} h={40} fill="#ffffff" label="Cloud Storage + App Hosting" sub="A-roll · B-roll · WAV · MP4 · /share" />
-        <Node x={260} y={400} w={226} h={40} fill="#ffffff" label="Modular SKILL.md Engine" sub="5 recipes · 8 slots · GitHub sync" />
+        <Node x={260} y={400} w={226} h={40} fill="#ffffff" label="Modular SKILL.md Engine" sub="8 recipes · 16 skills · GitHub sync" />
 
         {/* BOTTOM-RIGHT GROUP: Cloud Run Parity Renderer & 6-Source Open Media */}
         <rect x={534} y={214} width={450} height={238} rx={14} fill="#f8fbff" stroke="#18181b" strokeWidth={1.6} />
@@ -602,7 +602,7 @@ export function PipelineFlowDiagram() {
           • Free/Offline: reel.draft (Nano)
         </text>
         <text x={402} y={228} fill="#18181b" fontSize={10} fontWeight={600} fontFamily={FONT_MONO}>
-          • Voiceover/Film: 9 scenes + 8 looks
+          • Voiceover/Film: 9 scenes + 11 looks
         </text>
 
         <Msg x1={X[2]} x2={X[3]} y={266} label="Typed Project JSON + media/music briefs" markerId="seq2" />

@@ -19,7 +19,11 @@ export async function GET() {
       source = 'firestore';
       for (const doc of snap.docs) {
         const parsed = UserSkillSchema.safeParse({ id: doc.id, ...doc.data(), community: true });
-        if (parsed.success) byId.set(parsed.data.id, parsed.data);
+        if (!parsed.success) continue;
+        const bundled = byId.get(parsed.data.id);
+        if (!bundled || parsed.data.updatedAt > bundled.updatedAt) {
+          byId.set(parsed.data.id, parsed.data);
+        }
       }
     }
   } catch {

@@ -46,7 +46,7 @@ const LOOK_STYLE_NAMES: Readonly<Record<string, string>> = {
   'field-notes': 'Field Notes',
   'keynote-clean': 'Keynote Clean',
   'kinetic-lime': 'Kinetic Lime',
-  'apple-keynote': 'Apple Keynote',
+  'apple-keynote': 'Keynote Glass',
   'risograph-zine': 'Risograph Zine',
   'blueprint-schematic': 'Blueprint Schematic',
 };

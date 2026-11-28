@@ -36,6 +36,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={`dark ${GeistSans.variable} ${GeistMono.variable} ${display.variable} ${hand.variable}`}
     >
       <body>

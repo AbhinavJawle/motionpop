@@ -65,6 +65,17 @@ function currentRouterKind() {
   );
 }
 
+async function resolveOnDeviceProvider(): Promise<AIProvider> {
+  if (!firebaseEnabled()) return chromeOnDeviceProvider();
+  try {
+    const { firebaseProvider } = await import('@motionpop/ai/firebase');
+    return firebaseProvider(getAILogic);
+  } catch {
+    // Cold-offline chunk-load fallback so Chrome Gemini Nano still runs offline.
+    return chromeOnDeviceProvider();
+  }
+}
+
 async function buildCloudRouter(): Promise<Router | null> {
   const kind = currentRouterKind();
   if (kind === 'fake') {
@@ -75,16 +86,12 @@ async function buildCloudRouter(): Promise<Router | null> {
   }
   const byokKey = getByokKey();
   if (byokKey) {
-    let onDevice: AIProvider = chromeOnDeviceProvider();
-    let config = APP_CONFIG_DEFAULTS;
-    if (firebaseEnabled()) {
-      const [loaded, { firebaseProvider }] = await Promise.all([
-        loadAppConfig().catch(() => ({ config: APP_CONFIG_DEFAULTS })),
-        import('@motionpop/ai/firebase'),
-      ]);
-      config = loaded.config;
-      onDevice = firebaseProvider(getAILogic);
-    }
+    const [loaded, onDevice] = await Promise.all([
+      firebaseEnabled()
+        ? loadAppConfig().catch(() => ({ config: APP_CONFIG_DEFAULTS }))
+        : Promise.resolve({ config: APP_CONFIG_DEFAULTS }),
+      resolveOnDeviceProvider(),
+    ]);
     return createRouter({
       provider: geminiByokProvider({
         apiKey: byokKey,
@@ -92,18 +99,18 @@ async function buildCloudRouter(): Promise<Router | null> {
         modelMode: getByokModelMode(),
         customModel: getByokModel(),
       }),
-      config: () => config,
+      config: () => loaded.config,
       onUsage: (e) => emitAIUsage({ ...e, credits: 0 }),
       cache: idbRouterCache(),
     });
   }
   if (kind === 'none') return null;
-  const [{ config }, { firebaseProvider }] = await Promise.all([
-    loadAppConfig(),
-    import('@motionpop/ai/firebase'),
+  const [{ config }, provider] = await Promise.all([
+    loadAppConfig().catch(() => ({ config: APP_CONFIG_DEFAULTS })),
+    resolveOnDeviceProvider(),
   ]);
   return createRouter({
-    provider: firebaseProvider(getAILogic),
+    provider,
     config: () => config,
     onUsage: emitAIUsage,
     cache: idbRouterCache(),
@@ -122,12 +129,13 @@ export function getRouter(): Promise<Router | null> {
 
     const localCfg = getLocalLlmConfig();
     if (localCfg) {
+      const onDevice = await resolveOnDeviceProvider();
       return createRouter({
         provider: localLlmProvider({
           baseUrl: localCfg.baseUrl,
           model: localCfg.model,
           apiKey: localCfg.apiKey,
-          onDevice: chromeOnDeviceProvider(),
+          onDevice,
         }),
         config: () => ({
           ...APP_CONFIG_DEFAULTS,
@@ -152,7 +160,8 @@ export function getRouter(): Promise<Router | null> {
 /**
  * Returns a router pinned to a specific provider target:
  * - `'default'`: normal hybrid router (`getRouter()`).
- * - `'nano'`: strictly Chrome's on-device Gemini Nano (`chromeOnDeviceProvider()`, offline-safe).
+ * - `'nano'`: strictly Chrome's on-device Gemini Nano via Firebase AI Logic (`firebaseProvider`),
+ *   falling back to `chromeOnDeviceProvider()` when Firebase is disabled or chunks cannot load offline.
  * - `'local-llm'`: strictly the user's configured Ollama / LM Studio server (no Nano intercept).
  * - `'cloud'`: bypasses Local LLM and routes directly to Cloud Gemini (BYOK or Firebase AI Logic).
  */
@@ -162,14 +171,23 @@ export function getRouterFor(target: RouterTarget): Promise<Router | null> {
   if (kind === 'fake') return getRouter();
 
   if (target === 'nano') {
-    nanoRouterPromise ??= Promise.resolve(
-      createRouter({
-        provider: chromeOnDeviceProvider(),
-        config: () => ({ ...APP_CONFIG_DEFAULTS, killSwitch: false }),
+    nanoRouterPromise ??= (async () => {
+      const [loaded, provider] = await Promise.all([
+        firebaseEnabled()
+          ? loadAppConfig().catch(() => ({ config: APP_CONFIG_DEFAULTS }))
+          : Promise.resolve({ config: APP_CONFIG_DEFAULTS }),
+        resolveOnDeviceProvider(),
+      ]);
+      return createRouter({
+        provider,
+        config: () => ({ ...loaded.config, killSwitch: false }),
         onUsage: (e) => emitAIUsage({ ...e, credits: 0, ranOn: 'device' }),
         cache: idbRouterCache(),
-      }),
-    );
+      });
+    })().catch((err: unknown) => {
+      nanoRouterPromise = null;
+      throw err;
+    });
     return nanoRouterPromise;
   }
 

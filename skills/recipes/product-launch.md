@@ -8,7 +8,7 @@ default_look: mono
 styles: [apple-keynote, liquid-glass, launch-dark]
 ---
 ## Intent
-Launch-grade SaaS & hardware product reveals: frosted glass UI, live typed prompts, real proof cards, and crisp Apple-style spring motion.
+Launch-grade SaaS & hardware product reveals: frosted glass UI, live typed prompts, real proof cards, and crisp hardware-precision spring motion.
 
 ## Pacing
 Scenes run 1.6–3.8 seconds.

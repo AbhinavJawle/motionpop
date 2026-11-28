@@ -159,7 +159,7 @@ const TOPIC_RULES: readonly TopicRule[] = [
     lookId: 'apple-keynote',
     hookStyle: 'visual',
     musicMood: 'minimal-tech',
-    reason: 'Product & hardware launch feel — Apple Keynote styling highlights the reveal.',
+    reason: 'Product & hardware launch feel — Keynote Glass styling highlights the reveal.',
     strong: ['apple', 'keynote', 'macos', 'macbook', 'iphone', 'ipad', 'vision pro', 'introducing', 'announcing'],
     weak: ['hardware', 'device', 'flagship', 'unboxing', 'chip', 'display', 'battery', 'camera', 'launch'],
   },
@@ -219,7 +219,7 @@ const TOPIC_RULES: readonly TopicRule[] = [
     lookId: 'paper-collage',
     hookStyle: 'headline',
     musicMood: 'lofi',
-    reason: 'Investigative & documentary explainer — Vox paper collage brings context to life.',
+    reason: 'Investigative & documentary explainer — Editorial Paper Collage brings context to life.',
     strong: [
       'vox',
       'geopolitics',
@@ -264,7 +264,7 @@ const TOPIC_RULES: readonly TopicRule[] = [
     lookId: 'blueprint-schematic',
     hookStyle: 'headline',
     musicMood: 'minimal-tech',
-    reason: 'Math & algorithmic intuition — 3Blue1Brown visual diagrams clarify the proof.',
+    reason: 'Math & algorithmic intuition — Visual Math diagrams clarify the proof.',
     strong: [
       'linear algebra',
       'calculus',

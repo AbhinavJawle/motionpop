@@ -64,56 +64,56 @@ export function PromptBox({ slot }: { slot: Slot }) {
         onBlur={save}
         maxLength={500}
         rows={3}
-        className="block h-[86px] w-full resize-none bg-transparent px-3 pt-2.5 pb-10 text-[13px] leading-[19px] text-text outline-none placeholder:text-text-4"
+        className="block h-[76px] w-full resize-none bg-transparent px-3 pt-2.5 pb-1 text-[13px] leading-[19px] text-text outline-none placeholder:text-text-4"
         placeholder={
           prefilling ? 'Pip is writing a prompt…' : 'Describe the graphic you want here…'
         }
       />
-      {/* Tier 2 (spec 15, not designed): the same brief, written as a new graphic by the cloud. */}
-      <Tooltip
-        content={
-          custom.disabledReason ??
-          (custom.filmBeat
-            ? 'Pip rebuilds this beat from the film’s storyboard, with your prompt as its picture'
-            : 'Nothing in the library fits? Pip writes a custom graphic')
-        }
-        side="top"
-        className="absolute bottom-2 left-2"
-      >
-        <span>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={custom.disabledReason !== null || gen.busy || draft.trim().length < 3}
-            onMouseDown={keepFocus}
-            onClick={makeCustom}
-            className="h-7 gap-1.5 px-2 text-[11px] text-text-2 hover:text-text"
-          >
-            <span>{custom.filmBeat ? 'Rebuild beat' : 'Custom'}</span>
-            <CostChip route="cloud" credits={custom.cost} />
-          </Button>
-        </span>
-      </Tooltip>
-      <Tooltip
-        content={gen.disabledReason ?? 'Generate with cloud AI'}
-        shortcut={gen.disabledReason ? undefined : '⌘G'}
-        side="top"
-        className="absolute right-2 bottom-2"
-      >
-        <span>
-          <Button
-            variant="ai"
-            size="sm"
-            disabled={gen.disabledReason !== null || gen.busy}
-            onMouseDown={keepFocus}
-            onClick={generate}
-            className="h-7 gap-2 pr-1.5 pl-3 text-[12px] font-semibold text-[#fff]"
-          >
-            <span>✦ Generate</span>
-            <CostChip route="cloud" credits={cost} className="ml-auto" />
-          </Button>
-        </span>
-      </Tooltip>
+      <div className="flex flex-wrap items-center justify-between gap-1.5 px-2 pt-1 pb-2">
+        {/* Tier 2 (spec 15, not designed): the same brief, written as a new graphic by the cloud. */}
+        <Tooltip
+          content={
+            custom.disabledReason ??
+            (custom.filmBeat
+              ? 'Pip rebuilds this beat from the film’s storyboard, with your prompt as its picture'
+              : 'Nothing in the library fits? Pip writes a custom graphic')
+          }
+          side="top"
+        >
+          <span>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={custom.disabledReason !== null || gen.busy || draft.trim().length < 3}
+              onMouseDown={keepFocus}
+              onClick={makeCustom}
+              className="h-7 gap-1.5 px-2 text-[11px] text-text-2 hover:text-text"
+            >
+              <span>{custom.filmBeat ? 'Rebuild beat' : 'Custom'}</span>
+              <CostChip route="cloud" credits={custom.cost} />
+            </Button>
+          </span>
+        </Tooltip>
+        <Tooltip
+          content={gen.disabledReason ?? 'Generate with cloud AI'}
+          shortcut={gen.disabledReason ? undefined : '⌘G'}
+          side="top"
+        >
+          <span>
+            <Button
+              variant="ai"
+              size="sm"
+              disabled={gen.disabledReason !== null || gen.busy}
+              onMouseDown={keepFocus}
+              onClick={generate}
+              className="h-7 gap-2 pr-1.5 pl-3 text-[12px] font-semibold text-[#fff]"
+            >
+              <span>✦ Generate</span>
+              <CostChip route="cloud" credits={cost} className="ml-auto" />
+            </Button>
+          </span>
+        </Tooltip>
+      </div>
     </div>
   );
 }

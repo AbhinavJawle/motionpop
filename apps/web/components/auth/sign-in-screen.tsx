@@ -1,5 +1,6 @@
 'use client';
 
+import { APP_CONFIG_DEFAULTS } from '@motionpop/schemas';
 import { AnimatePresence, motion } from 'motion/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useId, useState, type FormEvent } from 'react';
@@ -25,7 +26,7 @@ const COPY: Record<Mode, { title: string; sub: string; submit: string; busy: str
   },
   create: {
     title: 'Welcome to Motionpop',
-    sub: 'Make an account. Your first 20 credits are on Pip.',
+    sub: `Make an account. Your first ${APP_CONFIG_DEFAULTS.freeCredits} credits are on Pip.`,
     submit: 'Create account',
     busy: 'Creating your account…',
   },

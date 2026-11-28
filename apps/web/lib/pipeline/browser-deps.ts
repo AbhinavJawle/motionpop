@@ -1,5 +1,7 @@
-import { detectLocal, directVideo, planVideo } from '@motionpop/ai';
+import { detectLocal, detectSlots, directVideo, planVideo } from '@motionpop/ai';
+import { APP_CONFIG_DEFAULTS } from '@motionpop/schemas';
 import type { CreditsClient } from '../credits/client';
+import { loadAppConfig } from '../firebase/remote-config';
 import {
   directGraphicPaid,
   directReelPaid,
@@ -9,9 +11,10 @@ import {
   reviewReelCuts,
 } from '../reel/media';
 import { composeGraphicScenes, composeReelHeroScenes } from '../reel/compose-graphic';
+import { useAIStatusStore } from '../ai/ai-status';
 import { requestPlanAllowance } from '../ai/plan-allowance';
 import { getLocalLlmConfig } from '../ai/local-llm';
-import { getRouter } from '../ai/router-client';
+import { getRouter, getRouterFor } from '../ai/router-client';
 import { appAudioStore } from '../audio/app-audio-store';
 import { decodeForPipeline } from '../audio/decode';
 import { renderCleaned } from '../audio/render-cleaned';
@@ -65,9 +68,25 @@ export function browserPipelineDeps(opts: { credits?: CreditsClient | null } = {
       if (local) return { route: 'local-llm', label: local.model };
       return { route: 'cloud' };
     },
-    // Deterministic for now: AI detection (`detectSlots` through the router) waits for an
-    // on-device availability check, so processing never spends cloud credits unasked (R2.3).
-    detect: (words, spans) => Promise.resolve(detectLocal(words, spans)),
+    // On-device Gemini Nano detection first when ready (free, offline, honors Remote Config
+    // `routing_slots_detect_device_max_words`), falling back cleanly to deterministic `detectLocal`
+    // so processing never spends cloud credits unasked (D-035, spec 07 R2.3).
+    detect: async (words, spans) => {
+      if (useAIStatusStore.getState().availability === 'available') {
+        const [router, loaded] = await Promise.all([
+          getRouterFor('nano').catch(() => null),
+          loadAppConfig().catch(() => ({ config: APP_CONFIG_DEFAULTS })),
+        ]);
+        if (router) {
+          const res = await detectSlots(router, words, spans, {
+            deviceReady: true,
+            deviceMaxWords: loaded.config.routingSlotsDetectDeviceMaxWords,
+          }).catch(() => null);
+          if (res && res.slots.length > 0) return res.slots;
+        }
+      }
+      return detectLocal(words, spans);
+    },
     validateParams,
     // Device first (free, unlimited), then one of the day's free cloud plans when the server
     // allows it, else the built-in rules (spec 07 R6.1). Processing never spends credits.

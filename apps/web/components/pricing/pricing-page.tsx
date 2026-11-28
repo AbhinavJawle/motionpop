@@ -460,7 +460,7 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
                     ) : packsLoading ? (
                       'Checking checkout…'
                     ) : !available ? (
-                      'Checkout setup pending'
+                      'Coming soon'
                     ) : auth.status === 'signed-out' ? (
                       <>Sign in to buy {pack.credits} credits</>
                     ) : (
@@ -477,9 +477,9 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
 
           {packsInfo && !packsInfo.configured && (
             <p className="mt-4 rounded-xl border-2 border-ink/40 bg-white/80 px-4 py-3 text-[12px] text-black/75">
-              Dodo Payments product IDs are not configured in this environment yet. You can still
-              use your <strong>{cfg.freeCredits} free welcome credits</strong>, unlimited on-device
-              Chrome Gemini Nano edits, or your own Gemini API key in{' '}
+              Paid credit packs are launching soon. Right now you can create with your{' '}
+              <strong>{cfg.freeCredits} free welcome credits</strong>, unlimited on-device Chrome
+              Gemini Nano edits, or your own Gemini API key in{' '}
               <Link href="/settings#byok" className="font-semibold underline">
                 Settings → AI &amp; models
               </Link>
@@ -502,7 +502,7 @@ export function PricingPage({ onRedirect }: PricingPageProps = {}) {
             <p className="mt-3 text-[13px] leading-[1.6] text-black/80">
               Every account starts with <strong>{cfg.freeCredits} cloud credits</strong>—enough to
               direct talking-head reels and test cloud graphics—plus{' '}
-              <strong>unlimited free on-device Chrome Gemini Nano edits</strong> (10 tasks, works
+              <strong>unlimited free on-device Chrome Gemini Nano edits</strong> (11 tasks, works
               offline), local WebGPU Whisper transcription, auto-cuts, and free 1080p MP4 / alpha
               WebM exports.
             </p>

@@ -1,9 +1,9 @@
 {
   "id": "apple-keynote",
-  "name": "Apple Keynote",
+  "name": "Keynote Glass",
   "tagline": "Glass depth, hardware precision & crisp springs.",
   "tags": ["Product", "Premium"],
-  "description": "Inspired by Apple launch films: obsidian & glass surfaces, vibrant gradient backdrops, precision spring curves, and focused single-line product captions.",
+  "description": "Inspired by modern hardware launch films: obsidian & glass surfaces, vibrant gradient backdrops, precision spring curves, and focused single-line product captions.",
   "colors": {
     "bg": "#0A0E17",
     "ink": "#F8FAFC",
@@ -75,7 +75,7 @@
   },
   "juice": ["camera-push", "accent-sweep", "parallax-shift"],
   "image": {
-    "recipe": "Sleek Apple-grade industrial studio product render of {subject}, subtle specular rim light, crisp silhouette isolated on pure white background, no text, no watermark",
+    "recipe": "Sleek industrial-design studio product render of {subject}, subtle specular rim light, crisp silhouette isolated on pure white background, no text, no watermark",
     "treatment": ["key", "shadow-soft"]
   },
   "sound": {

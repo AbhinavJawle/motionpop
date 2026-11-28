@@ -7,12 +7,12 @@ import { UserSkillSchema, type UserSkill } from '@motionpop/schemas';
  * repository attribution and open-source preview thumbnails.
  */
 
-const SEED_TS = 1764000000000;
+const SEED_TS = 1795850000000;
 
 const RAW_COMMUNITY_SKILLS: readonly UserSkill[] = [
   {
     id: 'vox-paper-collage',
-    name: 'Vox Paper Collage',
+    name: 'Editorial Paper Collage',
     blurb:
       'Torn paper posters, halftone dots, masking tape, photographic cutouts & stepped documentary rhythm.',
     target: 'both',
@@ -32,10 +32,10 @@ const RAW_COMMUNITY_SKILLS: readonly UserSkill[] = [
     createdAt: SEED_TS,
     updatedAt: SEED_TS,
     markdown: `---
-name: Vox Paper Collage
+name: Editorial Paper Collage
 repo: charlie947/motion-graphics-skills
 ---
-# Vox Paper Collage Director
+# Editorial Paper Collage Director
 
 ## Visual Grammar & Materials
 - Build every scene as a tactile layered editorial collage poster inside \`.mp-backdrop\`: warm paper stock (#F1E6D0 / #DFCDB7), torn paper cards with soft contact shadows, graph-paper patches (22px grid), halftone stipple clusters, and angled masking tape strips.
@@ -53,9 +53,9 @@ repo: charlie947/motion-graphics-skills
   },
   {
     id: 'apple-launch-film',
-    name: 'Apple Keynote Launch',
+    name: 'Keynote Glass Launch',
     blurb:
-      'Thin macOS menu bar, springing black notch widgets, vivid gradient wallpapers & focused captions.',
+      'Thin translucent menu bar, springing top-notch widgets, vivid gradient wallpapers & focused captions.',
     target: 'both',
     baseRecipeId: 'product-launch',
     look: 'mono',
@@ -73,13 +73,13 @@ repo: charlie947/motion-graphics-skills
     createdAt: SEED_TS,
     updatedAt: SEED_TS,
     markdown: `---
-name: Apple Keynote Launch
+name: Keynote Glass Launch
 repo: charlie947/motion-graphics-skills
 ---
-# Apple-Style Keynote Launch Film
+# Keynote Glass Launch Film
 
 ## Visual Grammar & Staging
-- Treat the frame like a pristine Apple hardware/macOS keynote screen: thin translucent menu bar (≤5 short items), black top-center notch that smoothly springs open into refined frosted widgets, and rich full-screen multi-stop gradient wallpapers inside \`.mp-backdrop\`.
+- Treat the frame like a pristine hardware keynote screen: thin translucent menu bar (≤5 short items), black top-center notch that smoothly springs open into refined frosted widgets, and rich full-screen multi-stop gradient wallpapers inside \`.mp-backdrop\`.
 - Pair each product widget with ONE short centred caption underneath, tinting the final 1–2 words in a luminous lighter shade of the wallpaper accent.
 - Typography: ultra-clean grotesk sans (\`var(--display)\`), tight tracking (-0.03em), generous breathing room, and tabular monospace figures for real specs.
 
@@ -210,7 +210,7 @@ repo: bangtutorial/bang-motion
   },
   {
     id: 'financial-data-story',
-    name: 'Bloomberg Data Story',
+    name: 'Financial Data Story',
     blurb:
       'Question-first charts, zero-baseline bars, dim-the-rest focus & tabular financial precision.',
     target: 'both',
@@ -230,7 +230,7 @@ repo: bangtutorial/bang-motion
     createdAt: SEED_TS,
     updatedAt: SEED_TS,
     markdown: `---
-name: Bloomberg Data Story
+name: Financial Data Story
 repo: alchaincyf/huashu-motion
 ---
 # Financial & Editorial Data Storytelling
@@ -247,7 +247,7 @@ repo: alchaincyf/huashu-motion
   },
   {
     id: 'kurzgesagt-flat-world',
-    name: 'Kurzgesagt Flat Vector',
+    name: 'Cosmos Flat Vector',
     blurb:
       'Jewel-tone cosmic palettes, layered geometric vector worlds & awe-inspiring scale reveals.',
     target: 'both',
@@ -266,10 +266,10 @@ repo: alchaincyf/huashu-motion
     createdAt: SEED_TS,
     updatedAt: SEED_TS,
     markdown: `---
-name: Kurzgesagt Flat Vector
+name: Cosmos Flat Vector
 repo: alchaincyf/huashu-art-motion
 ---
-# Kurzgesagt Science & Flat-Vector Explainer
+# Cosmos Science & Flat-Vector Explainer
 
 ## Visual World & Color
 - Rich, saturated jewel-tone flat-vector storytelling set on deep cosmic midnight indigo (#0D132B) or warm sunlit sky gradients inside \`.mp-backdrop\`.
@@ -282,7 +282,7 @@ repo: alchaincyf/huashu-art-motion
   },
   {
     id: '3b1b-visual-math',
-    name: '3Blue1Brown Mechanism',
+    name: 'Visual Math Mechanism',
     blurb:
       'Deep chalkboard slate, glowing vector curves, continuous geometric morphs & 1-beat clarity.',
     target: 'both',
@@ -301,10 +301,10 @@ repo: alchaincyf/huashu-art-motion
     createdAt: SEED_TS,
     updatedAt: SEED_TS,
     markdown: `---
-name: 3Blue1Brown Mechanism
+name: Visual Math Mechanism
 repo: alchaincyf/huashu-art-motion
 ---
-# 3Blue1Brown Visual Mechanism
+# Visual Math & Algorithmic Mechanism
 
 ## Visual Grammar
 - Deep matte slate/navy board (#0C1322) with delicate coordinate axes, glowing cyan (#38BDF8), amber gold (#FBBF24), and soft coral (#FB7185) vector strokes, and ultra-legible white mathematical/system annotations.

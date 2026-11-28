@@ -19,10 +19,12 @@ import { StatusDot } from '@/components/ui/status-dot';
 import { Toggle } from '@/components/ui/toggle';
 import { Dropdown, type DropdownOption } from '@/components/ui/dropdown';
 import { useAIStatus } from '@/lib/ai/ai-status';
+import { useByok } from '@/lib/ai/byok';
 import { useLocalLlm } from '@/lib/ai/local-llm';
 import { setCaptions, setFormat, setReelCaptions } from '@/lib/commands';
 import { regenerateReel } from '@/lib/reel/regenerate';
 import { useCreditsClient } from '@/lib/credits/use-credits-client';
+import { useAppConfig } from '@/lib/renders/hooks';
 import { Tooltip } from '@/components/ui/tooltip';
 import { slotAt } from '@/lib/notes/active-slot';
 import { styleFor } from '@/lib/composition/project-to-compile';
@@ -268,6 +270,11 @@ function ReelTools({
   const [busy, setBusy] = useState(false);
   const { client: credits } = useCreditsClient();
   const { active: localLlmActive, model: localLlmModel } = useLocalLlm();
+  const { active: byokActive } = useByok();
+  const { online } = useAIStatus();
+  const appConfig = useAppConfig();
+  const cfg = { ...APP_CONFIG_DEFAULTS, ...appConfig };
+  const offlineBlocked = !online && !localLlmActive;
   const reelStyleName = resolveReelStyleName(editStyleId, look, theme);
   return (
     <>
@@ -332,15 +339,19 @@ function ReelTools({
       <ToolbarDivider />
       <Tooltip
         content={
-          localLlmActive
-            ? `Direct again · Local AI (${localLlmModel ?? 'local'}) · 0 credits`
-            : `Direct again · ☁ ${costOf('reel', 1, APP_CONFIG_DEFAULTS)} credits + ${costOf('image', 1, APP_CONFIG_DEFAULTS)} per new picture`
+          offlineBlocked
+            ? 'Direct again · Needs connection (or enable Local AI)'
+            : localLlmActive
+              ? `Direct again · Local AI (${localLlmModel ?? 'local'}) · 0 credits`
+              : byokActive
+                ? 'Direct again · BYOK · 0 Motionpop credits'
+                : `Direct again · ☁ ${costOf('reel', 1, cfg)} credits + ${costOf('image', 1, cfg)} per new picture`
         }
         side="bottom"
       >
         <button
           type="button"
-          disabled={busy}
+          disabled={busy || offlineBlocked}
           onClick={() => {
             setBusy(true);
             regenerateReel({ credits })

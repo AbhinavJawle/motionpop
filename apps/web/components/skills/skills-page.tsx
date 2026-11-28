@@ -49,9 +49,9 @@ const ENERGY_BADGE: Readonly<Record<SlotSkillDetail['energy'], { label: string; 
 const SHOT_COLORS = ['#8dbceb', '#ff8a5c', '#fde68a', '#a7f3d0', '#ddd6fe'] as const;
 
 /**
- * `/skills` (spec 40 R4): full registry view of every skill Motionpop ships today — 5 Reel
- * Director Skills (`skills/recipes/*.md`) and 8 Motion-Graphic Slot Skills (`skills/*.md`) —
- * plus honest documentation of where skills live and how to add more.
+ * `/skills` (spec 40 R4): full registry view of every skill Motionpop ships today — 8 Reel
+ * Director Skills (`skills/recipes/*.md`), 8 Motion-Graphic Slot Skills (`skills/*.md`),
+ * 16 curated open-source skills, and Firestore-synced custom `SKILL.md` imports.
  */
 export function SkillsPage() {
   const router = useRouter();

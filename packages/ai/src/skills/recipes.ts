@@ -368,7 +368,7 @@ export const RECIPES: readonly DirectorSkill[] = [
   {
     id: 'product-launch',
     name: 'Product Launch',
-    blurb: 'Apple-grade glass UI, live prompts & launch-day reveals.',
+    blurb: 'Hardware-grade glass UI, live prompts & launch-day reveals.',
     sceneMs: { min: 1600, max: 3800 },
     layoutMix: { split: 0.4, full: 0.35, speaker: 0.15, card: 0.1 },
     preferredTemplates: [
@@ -417,7 +417,7 @@ export const RECIPES: readonly DirectorSkill[] = [
     styles: [
       {
         id: 'apple-keynote',
-        name: 'Apple Keynote',
+        name: 'Keynote Glass',
         look: 'mono',
         theme: { accent: '#38BDF8', accent2: '#818CF8', background: 'bold' },
         captionStyle: 'clean',
@@ -444,7 +444,7 @@ export const RECIPES: readonly DirectorSkill[] = [
   {
     id: 'documentary-explainer',
     name: 'Documentary Explainer',
-    blurb: 'Vox paper collage, cutouts, riso print & visual journalism.',
+    blurb: 'Editorial paper collage, cutouts, riso print & visual journalism.',
     sceneMs: { min: 2000, max: 4400 },
     layoutMix: { full: 0.45, split: 0.3, card: 0.15, speaker: 0.1 },
     preferredTemplates: [
@@ -493,7 +493,7 @@ export const RECIPES: readonly DirectorSkill[] = [
     styles: [
       {
         id: 'vox-collage',
-        name: 'Vox Collage',
+        name: 'Editorial Collage',
         look: 'cream',
         theme: { accent: '#D96648', accent2: '#5E7F6A', background: 'soft' },
         captionStyle: 'editorial',
@@ -509,7 +509,7 @@ export const RECIPES: readonly DirectorSkill[] = [
       },
       {
         id: 'kurzgesagt-cosmos',
-        name: 'Kurzgesagt Cosmos',
+        name: 'Cosmos Flat Vector',
         look: 'mono',
         theme: { accent: '#22D3EE', accent2: '#F59E0B', background: 'bold' },
         captionStyle: 'pop',

@@ -52,6 +52,7 @@ import { makeReelMusic } from '@/lib/reel/pip-music';
 import { regenerateReel } from '@/lib/reel/regenerate';
 import { useReelNoteFix } from '@/lib/reel/use-reel-note-fix';
 import { useAppConfig } from '@/lib/renders/hooks';
+import { usePreferOnDevice } from '@/lib/settings/use-prefer-on-device';
 import { editorStore, useEditor } from '@/lib/stores/editor';
 
 /**
@@ -94,6 +95,7 @@ function PipPanelBody() {
   const [typing, setTyping] = useState(false);
   const scope: PipScope =
     scopeSlot && selected ? { kind: 'slot', slotId: selected.id } : { kind: 'video' };
+  const { preferOnDevice } = usePreferOnDevice();
   const route = useRoute('pip.plan');
   const editRoute = useRoute('edit.patch');
   const nanoQuickRoute = useRoute('edit.patch', { preferProvider: 'nano' });
@@ -129,7 +131,7 @@ function PipPanelBody() {
         credits,
         getRouter,
         route,
-        deviceRoute: nanoQuickRoute.kind === 'device' ? nanoQuickRoute : editRoute,
+        deviceRoute: preferOnDevice && nanoQuickRoute.kind === 'device' ? nanoQuickRoute : editRoute,
         config,
         model: selectedModel,
       },
@@ -199,13 +201,26 @@ function PipPanelBody() {
           <ChevronDown className="size-3.5 text-text-3" strokeWidth={2} aria-hidden />
         </button>
         <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            className="h-8 rounded-lg px-2.5 text-[12px] leading-4 text-text-2 transition-colors hover:bg-mist hover:text-ink"
-            onClick={() => send('Make the whole video use one consistent look')}
+          <Tooltip
+            content={
+              route.kind === 'cloud' && (route.localLlm || route.byok)
+                ? 'Unify style across the video (0 credits)'
+                : preferOnDevice && editRoute.kind === 'device' && route.kind === 'cloud'
+                  ? `Unify style · free on-device first · ☁ ~${route.credits} if multi-step`
+                  : route.kind === 'cloud'
+                    ? `Unify style across the video (☁ ~${route.credits} credits)`
+                    : 'Unify style across the video (free)'
+            }
+            side="bottom"
           >
-            Style
-          </button>
+            <button
+              type="button"
+              className="h-8 rounded-lg px-2.5 text-[12px] leading-4 text-text-2 transition-colors hover:bg-mist hover:text-ink"
+              onClick={() => send('Make the whole video use one consistent look')}
+            >
+              Style
+            </button>
+          </Tooltip>
           <Tooltip content="New conversation" side="bottom">
             <button
               type="button"
@@ -317,8 +332,9 @@ function projectSummary(
   const scenes = p.reel?.scenes.filter((s) => s.content.template !== 'none').length;
   const n = scenes ?? p.slots.length;
   const noun = scenes !== undefined ? 'scene' : 'graphic';
-  if (n === 0) return `I can see your ${clock} video. No ${noun}s on it yet.`;
-  return `I can see your ${clock} video and its ${n === 1 ? `one ${noun}` : `${n} ${noun}s`}.`;
+  const mediaWord = p.video ? 'video' : 'voiceover';
+  if (n === 0) return `I can see your ${clock} ${mediaWord}. No ${noun}s on it yet.`;
+  return `I can see your ${clock} ${mediaWord} and its ${n === 1 ? `one ${noun}` : `${n} ${noun}s`}.`;
 }
 
 /**

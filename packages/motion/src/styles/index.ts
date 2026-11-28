@@ -78,7 +78,7 @@ export const keynoteClean: Look = parseLook(keynoteCleanJson);
 /** Kinetic Lime: obsidian + electric lime + cobalt beat-locked kinetic typography look. */
 export const kineticLime: Look = parseLook(kineticLimeJson);
 
-/** Apple Keynote: deep slate glass surfaces, crisp hardware precision & vibrant cyan accents. */
+/** Keynote Glass: deep slate glass surfaces, crisp hardware precision & vibrant cyan accents. */
 export const appleKeynote: Look = parseLook(appleKeynoteJson);
 
 /** Risograph Zine: 2-ink coral & cobalt overprint halftone editorial look with 12 fps motion. */

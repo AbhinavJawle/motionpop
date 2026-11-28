@@ -1,6 +1,6 @@
 'use client';
 
-import { builtInSkills, SCENES, SKILLS } from '@motionpop/ai';
+import { builtInSkills, recipeResolveTask, SCENES, SKILLS } from '@motionpop/ai';
 import { APP_CONFIG_DEFAULTS, costOf, exportCost, ReelTemplateSchema } from '@motionpop/schemas';
 import {
   ArrowRight,
@@ -38,6 +38,7 @@ import {
 import { progressLabel } from '@/lib/ai/availability';
 import { useByok } from '@/lib/ai/byok';
 import { useLocalLlm } from '@/lib/ai/local-llm';
+import { getRouterFor } from '@/lib/ai/router-client';
 import { cn } from '@/lib/cn';
 import {
   FrankensteinStackDiagram,
@@ -93,7 +94,7 @@ const ROUTING_ROWS: readonly RoutingRow[] = [
   },
   {
     task: 'reel.draft',
-    job: 'Directs a complete talking-head reel completely free and offline using 4 core visual templates',
+    job: 'Directs a complete talking-head reel completely free and offline using 8 core visual templates',
     mode: 'ONLY_ON_DEVICE',
     model: 'Chrome Gemini Nano (Firebase AI Logic)',
     cost: 'Free · on-device',
@@ -103,7 +104,7 @@ const ROUTING_ROWS: readonly RoutingRow[] = [
     task: 'recipe.resolve',
     job: 'Turns plain English like "dark tech news vibe" into a matching recipe, color theme, and caption style',
     mode: 'ONLY_ON_DEVICE',
-    model: 'Chrome Gemini Nano',
+    model: 'Chrome Gemini Nano (Firebase AI Logic)',
     cost: 'Free · on-device',
     guardrail: 'Strict output check + fast keyword match backup',
   },
@@ -116,18 +117,26 @@ const ROUTING_ROWS: readonly RoutingRow[] = [
     guardrail: 'Validates every patch and auto-repairs once if anything looks off',
   },
   {
-    task: 'component.fill (auto) / slots.detect',
-    job: 'Finds the key moments in what you said and fills graphics automatically',
-    mode: 'PREFER_ON_DEVICE',
-    model: `Gemini Nano → ${cfg.modelFast} (or Ollama / LM Studio)`,
+    task: 'component.fill (auto)',
+    job: 'Background auto-fill of detected motion-graphic slots with structured scene params',
+    mode: 'ONLY_ON_DEVICE',
+    model: 'Chrome Gemini Nano (Firebase AI Logic)',
     cost: 'Free · on-device',
-    guardrail: 'Measures text so nothing clips or overlaps before placing on the timeline',
+    guardrail: 'Measures text so nothing clips or overlaps; deterministic defaults backup',
+  },
+  {
+    task: 'slots.detect',
+    job: 'Finds key spoken moments in transcripts (chunked ≤ 400 words on-device via Remote Config)',
+    mode: 'PREFER_ON_DEVICE',
+    model: `Gemini Nano (≤400w chunks) → ${cfg.modelStrong}`,
+    cost: 'Free · on-device',
+    guardrail: 'Instant local deterministic detector fallback when Nano is unavailable',
   },
   {
     task: 'direct.plan / prompt.prefill',
     job: 'Plans your video pacing arc and drafts starting prompts for each graphic slot',
-    mode: 'PREFER_ON_DEVICE',
-    model: `Gemini Nano → ${cfg.modelFast} (or Ollama / LM Studio)`,
+    mode: 'ONLY_ON_DEVICE',
+    model: 'Chrome Gemini Nano (Firebase AI Logic)',
     cost: 'Free · on-device',
     guardrail: 'Always falls back cleanly to built-in pacing rules',
   },
@@ -159,7 +168,7 @@ const ROUTING_ROWS: readonly RoutingRow[] = [
     task: 'component.fill (Generate)',
     job: 'Upgraded graphic generation guided by your chosen Markdown skill playbook',
     mode: 'ONLY_IN_CLOUD',
-    model: `${cfg.modelStrong} (or 0 cr with Ollama / BYOK)`,
+    model: `${cfg.modelFast} (or 0 cr with Ollama / BYOK)`,
     cost: `${costOf('generate', 1, cfg)} cr`,
     guardrail: 'Layout check + up to 2 automatic repair rounds',
   },
@@ -241,7 +250,7 @@ const FRANKENSTEIN_ORGANS = [
     tag: 'DUAL ENGINES',
     bg: '#8dbceb',
     title: 'Talking-Head Reels & Custom Graphics',
-    body: '21 animated reel templates for vertical talking-head videos plus 9 responsive motion-graphic scenes and 12 studio looks — working seamlessly in 9:16, 16:9, and 1:1.',
+    body: '21 animated reel templates for vertical talking-head videos plus 9 responsive motion-graphic scenes and 11 studio looks — working seamlessly in 9:16, 16:9, and 1:1.',
   },
   {
     num: '06',
@@ -297,7 +306,7 @@ const FRANKENSTEIN_ORGANS = [
 const FIREBASE_SEVEN = [
   ['Firebase AI Logic', 'Powers our default hybrid setup — trying Chrome Gemini Nano on your device first and seamlessly reaching cloud Gemini when needed'],
   ['App Check', 'Protects our AI calls, database, storage, and API routes with reCAPTCHA Enterprise and short-lived tokens so bots stay out'],
-  ['Authentication', 'Google Sign-In and Email Link with verified server checks on every credit spend, music track, and video export'],
+  ['Authentication', 'Google Sign-In and Email/Password with verified server checks on every credit spend, music track, and video export'],
   ['Cloud Firestore', 'Stores your projects, 200-step undo history, shared and personal director skills, usage stats, and server-verified credit balance'],
   ['Cloud Storage', 'Safely holds your uploaded clips, cleaned voice tracks, B-roll, generated soundtracks, finished exports, and share links'],
   ['Remote Config', 'Lets us tune model routing, credit prices, and emergency pauses live without redeploying the app'],
@@ -306,21 +315,21 @@ const FIREBASE_SEVEN = [
 
 const KIRO_SURFACES = [
   ['142 Kiro CLI runs', 'Every run is logged honestly in KIRO_LOG.md by our automated hook — real spec-driven engineering from day one'],
-  ['44 EARS Specs & 21 Steering Docs', 'Clear requirements, designs, and task checklists in .kiro/specs/ backed by guardrails in .kiro/steering/ for motion, hybrid AI, and security'],
+  ['49 EARS Specs & 21 Steering Docs', 'Clear requirements, designs, and task checklists in .kiro/specs/ backed by guardrails in .kiro/steering/ for motion, hybrid AI, and security'],
   ['3 Custom Scoped Agents', 'Dedicated motionpop-builder, motion-qa, and spec-reviewer agents (.kiro/agents/) with tight file and command permissions'],
   ['3 Automated Hooks', 'Loads context at session start, checks lint/types on edited files automatically, and logs finished work to KIRO_LOG.md'],
   ['3 Live MCP Servers', 'Connected to context7 (live docs), chrome-devtools (visual frame checks), and firebase-tools (.kiro/settings/mcp.json)'],
-  ['Automated Quality Guards', '245+ test files including 350 randomized Gemini Nano fuzz tests, strict schema guards, and credit-safety checks'],
+  ['Automated Quality Guards', '394 test files including 350 randomized Gemini Nano fuzz tests, strict schema guards, and credit-safety checks'],
   ['Antigravity + 8 Firebase Skills', 'Built with Antigravity plus 8 official Firebase Agent Skills and HyperFrames skills checked directly into the repo'],
 ] as const;
 
 const MONOREPO_STITCHES = [
   ['apps/web', 'Next.js 16 · React 19 · Tailwind 4', 'The editor, Pip chat, local Whisper worker, auto-cutter, local Ollama/LM Studio & BYOK settings, and signed APIs'],
   ['packages/ai', 'Firebase AI Logic · Ollama/LM Studio · Zod', 'One clean AI router for 20+ tasks (11 Nano-ready), automatic repair loops, local OpenAI-compatible provider, Lyria 2 music, and BYOK'],
-  ['packages/motion', 'Pure TypeScript · HyperFrames · Web Audio', 'Frame-accurate animation core (zero GSAP), 21 reel templates, 9 scenes, studio looks, built-in SFX synth, and layout checker'],
+  ['packages/motion', 'Pure TypeScript · HyperFrames · Web Audio', 'Frame-accurate animation core (zero GSAP), 21 reel templates, 9 scenes, 11 studio looks, built-in SFX synth, and layout checker'],
   ['packages/schemas', 'Zod 4 · Strict TypeScript', 'Shared data contracts for projects, reels, director skills, timings in milliseconds, and credit pricing'],
   ['services/render', 'Cloud Run · HyperFrames · FFmpeg', '30 fps headless browser capture + video/audio mixing into 1080p MP4, transparent WebM, and thumbnails'],
-  ['skills/ & .kiro/', 'Kiro · Antigravity · Firebase Agent Skills', 'Open-source Markdown playbooks, 8 Firebase Agent Skills, 44 specs, 21 steering docs, 3 custom agents, and hooks'],
+  ['skills/ & .kiro/', 'Kiro · Antigravity · Firebase Agent Skills', 'Open-source Markdown playbooks, 8 Firebase Agent Skills, 49 specs, 21 steering docs, 3 custom agents, and hooks'],
 ] as const;
 
 function LiveNanoProbe() {
@@ -331,11 +340,46 @@ function LiveNanoProbe() {
   const online = useAIStatusStore((s) => s.online);
   const { active: byokActive } = useByok();
   const { active: localLlmActive, model: localLlmModel } = useLocalLlm();
+  const [probeBusy, setProbeBusy] = useState(false);
+  const [probeOut, setProbeOut] = useState<{
+    ranOn: string;
+    latencyMs: number;
+    json: string;
+  } | null>(null);
+  const [probeErr, setProbeErr] = useState<string | null>(null);
 
   useEffect(() => {
     void detectAvailability();
     return watchConnection();
   }, []);
+
+  async function runLiveNanoTest() {
+    setProbeBusy(true);
+    setProbeErr(null);
+    try {
+      const router = await getRouterFor('nano');
+      if (!router) throw new Error('On-device router unavailable in this build');
+      const res = await router.run(
+        recipeResolveTask,
+        {
+          recipeId: 'custom',
+          recipeText: 'Fast-paced editorial explainer with bold numbers and crisp cuts',
+          styleText: 'Warm paper background with terracotta accents',
+          kind: 'video',
+        },
+        { allowCloud: false, mode: 'ONLY_ON_DEVICE' },
+      );
+      setProbeOut({
+        ranOn: res.ranOn,
+        latencyMs: res.latencyMs,
+        json: JSON.stringify(res.output, null, 2),
+      });
+    } catch (err) {
+      setProbeErr(err instanceof Error ? err.message : 'On-device test failed');
+    } finally {
+      setProbeBusy(false);
+    }
+  }
 
   const effectiveAvailability =
     availability === 'downloading' && !setupActive ? 'downloadable' : availability;
@@ -418,6 +462,27 @@ function LiveNanoProbe() {
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={probeBusy || effectiveAvailability !== 'available'}
+          title={
+            effectiveAvailability === 'available'
+              ? 'Run a live on-device recipe.resolve call via Firebase AI Logic (0 credits)'
+              : 'Open in Desktop Chrome 139+ with Gemini Nano enabled to run the live on-device test'
+          }
+          onClick={() => void runLiveNanoTest()}
+          className={cn(
+            btn(effectiveAvailability === 'available' ? 'flame' : 'paper', 'sm'),
+            'disabled:cursor-not-allowed disabled:opacity-55',
+          )}
+        >
+          <Zap className="size-3.5" strokeWidth={2} aria-hidden />
+          {probeBusy
+            ? 'Running Nano…'
+            : effectiveAvailability === 'available'
+              ? 'Test Gemini Nano'
+              : 'Test Nano (Chrome 139+)'}
+        </button>
         {effectiveAvailability === 'downloadable' && !localLlmActive && (
           <button type="button" onClick={() => void setUpOnDevice()} className={btn('flame', 'sm')}>
             <Download className="size-3.5" strokeWidth={2} aria-hidden />
@@ -442,6 +507,32 @@ function LiveNanoProbe() {
           <ArrowRight className="size-3.5" strokeWidth={2} aria-hidden />
         </Link>
       </div>
+      {(probeOut || probeErr) && (
+        <div className="w-full border-t border-ink/20 pt-3">
+          {probeErr ? (
+            <p className="text-[11.5px] font-medium text-flame">{probeErr}</p>
+          ) : (
+            probeOut && (
+              <div>
+                <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+                  <span className="rounded border border-ink bg-[#3ddc97] px-2 py-0.5">
+                    inferenceSource: {probeOut.ranOn === 'device' ? 'on_device' : probeOut.ranOn}
+                  </span>
+                  <span className="rounded border border-ink bg-paper px-2 py-0.5 tabular-nums">
+                    {probeOut.latencyMs} ms · 0 credits
+                  </span>
+                  <span className="text-black/60">
+                    Live <code>recipe.resolve</code> output via Firebase AI Logic
+                  </span>
+                </div>
+                <pre className="mt-2 max-h-40 overflow-auto rounded-lg border border-ink/25 bg-black p-2.5 font-mono text-[11px] leading-[1.45] text-[#a7f3d0]">
+                  {probeOut.json}
+                </pre>
+              </div>
+            )
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -455,7 +546,9 @@ export function HowItWorksPage() {
   const [routeFilter, setRouteFilter] = useState<'all' | 'local' | 'cloud'>('all');
   const recipeCount = builtInSkills.recipes().length;
   const reelStyleCount = builtInSkills.recipes().reduce((sum, r) => sum + r.styles.length, 0);
-  const templateCount = ReelTemplateSchema.options.length;
+  const templateCount = ReelTemplateSchema.options.filter(
+    (opt) => opt.shape.template.value !== 'none',
+  ).length;
   const slotSkillCount = SKILLS.length;
   const builtSceneCount = SCENES.length;
 
@@ -512,7 +605,7 @@ export function HowItWorksPage() {
               { n: '7', label: 'Firebase products' },
               { n: `${templateCount} + ${builtSceneCount}`, label: 'Reel & graphic templates' },
               { n: '142', label: 'Logged Kiro CLI runs' },
-              { n: '44', label: 'Written Kiro specs' },
+              { n: '49', label: 'Written Kiro specs' },
               { n: '≤ 1.02%', label: 'Preview vs export diff' },
             ].map((stat) => (
               <div
@@ -920,7 +1013,7 @@ export function HowItWorksPage() {
                 Built for creators talking to camera. Mixes{' '}
                 <strong>{templateCount} visual templates</strong> (big headlines, lists, stat
                 counters, charts, terminals, comparisons, quotes, logos, screenshots, and custom
-                scenes) across <strong>4 stage layouts</strong>,{' '}
+                scenes) across <strong>5 stage layouts</strong>,{' '}
                 <strong>
                   {recipeCount} recipes / {reelStyleCount} styles
                 </strong>
@@ -938,7 +1031,7 @@ export function HowItWorksPage() {
               <p className="mt-1.5 text-[12.5px] leading-[1.6] text-black/80">
                 Built for explainers, voiceovers, and standalone transparent overlays. Includes{' '}
                 <strong>{builtSceneCount} responsive scenes</strong> (stats, timelines, maps,
-                charts, versus cards, and photo callouts), <strong>8 curated style packs</strong>,{' '}
+                charts, versus cards, and photo callouts), <strong>11 curated studio looks</strong>,{' '}
                 <strong>{slotSkillCount} graphic skills</strong>, and a multi-beat{' '}
                 <strong>Film Mode</strong> that reviews its own screenshots to catch layout bugs.
               </p>

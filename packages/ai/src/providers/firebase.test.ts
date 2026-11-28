@@ -138,6 +138,22 @@ describe('firebaseProvider', () => {
       });
       expect(res).toEqual({ text: '{"ok":true}', ranOn: 'device' });
       expect(generateContent).toHaveBeenLastCalledWith([{ type: 'text', text: 'hello' }]);
+
+      // PREFER_ON_DEVICE when downloadable: cleanly downgrades to ONLY_IN_CLOUD without triggering
+      // an ungestured LanguageModel.create() download inside `@firebase/ai`.
+      getGenerativeModel.mockClear();
+      (globalThis as Record<string, unknown>).LanguageModel = {
+        availability: vi.fn(async () => 'downloadable'),
+      };
+      generateContent.mockResolvedValueOnce({
+        response: { text: () => '{"ok":true}', inferenceSource: 'in_cloud' },
+      });
+      const cloudFallback = await provider.generate({ ...REQ, mode: 'PREFER_ON_DEVICE' });
+      expect(cloudFallback).toEqual({ text: '{"ok":true}', ranOn: 'cloud' });
+      expect(getGenerativeModel).toHaveBeenCalledWith(
+        ai,
+        expect.objectContaining({ mode: 'only_in_cloud' }),
+      );
     } finally {
       if (origLm === undefined) delete (globalThis as Record<string, unknown>).LanguageModel;
       else (globalThis as Record<string, unknown>).LanguageModel = origLm;

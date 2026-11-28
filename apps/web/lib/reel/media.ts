@@ -92,7 +92,7 @@ function styleBucket(look: ReelLook, styleHint?: string): string {
 export function reelIllustrationRecipe(look: ReelLook, styleHint?: string): string {
   switch (styleBucket(look, styleHint)) {
     case 'apple-keynote':
-      return 'Sleek Apple industrial design studio object render of {subject}, smooth anodized aluminum and frosted glass surfaces, subtle cool rim light, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no watermark, no floor shadow.';
+      return 'Sleek industrial-design studio object render of {subject}, smooth anodized aluminum and frosted glass surfaces, subtle cool rim light, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no watermark, no floor shadow.';
     case 'kinetic-lime':
       return 'High-contrast bold graphic editorial cutout of {subject}, sharp obsidian ink shading with crisp electric lime and cobalt accent highlights, clean isolated silhouette on solid pure white background, completely empty white background, no text, no watermark, no floor shadow.';
     case 'risograph':
@@ -100,15 +100,15 @@ export function reelIllustrationRecipe(look: ReelLook, styleHint?: string): stri
     case 'blueprint':
       return 'Crisp isometric technical blueprint and architectural schematic illustration of {subject}, clean cyan and deep navy drafting linework with subtle amber highlight, isolated cleanly on solid pure white background, completely empty white background, no text, no watermark.';
     case 'kurzgesagt':
-      return 'Vibrant Kurzgesagt-inspired flat geometric vector illustration of {subject}, rich jewel-tone indigo, cyan, coral and solar gold shading with crisp clean silhouettes, isolated on solid pure white background, completely empty white background, no text, no watermark.';
+      return 'Vibrant flat geometric vector science illustration of {subject}, rich jewel-tone indigo, cyan, coral and solar gold shading with crisp clean silhouettes, isolated on solid pure white background, completely empty white background, no text, no watermark.';
     case 'vox-collage':
-      return 'Editorial Vox magazine photo-collage cutout illustration of {subject}, vintage archival print grain with subtle halftone dots, warm terracotta coral, sage green, charcoal ink and cream tones, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no letters, no watermark, no frame, no floor shadow.';
+      return 'Editorial documentary magazine photo-collage cutout illustration of {subject}, vintage archival print grain with subtle halftone dots, warm terracotta coral, sage green, charcoal ink and cream tones, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no letters, no watermark, no frame, no floor shadow.';
     case 'newsprint':
       return 'Archival investigative journalism lithograph & halftone ink illustration of {subject}, fine charcoal crosshatching with subtle crimson editorial accent, crisp isolated silhouette on solid pure white background, completely empty white background, no text, no letters, no watermark, no border.';
     case 'dark-3d':
       return 'Sleek high-contrast 3D editorial studio object illustration of {subject}, subtle luminous rim lighting, crisp geometric silhouette isolated on solid pure white background, completely empty white background, no text, no letters, no watermark, no floor shadow.';
     case 'warm-editorial':
-      return 'Warm New Yorker editorial gouache and ink illustration of {subject}, soft grain, muted terracotta orange, ochre, sage and charcoal ink tones, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no letters, no watermark, no floor line.';
+      return 'Warm editorial magazine gouache and ink illustration of {subject}, soft grain, muted terracotta orange, ochre, sage and charcoal ink tones, crisp clean silhouette isolated on solid pure white background, completely empty white background, no text, no letters, no watermark, no floor line.';
     default:
       return 'Crisp Swiss editorial ink and risograph illustration of {subject}, bold architectural linework with flat light slate shading, clean isolated silhouette on solid pure white background, completely empty white background, no text, no letters, no watermark, no floor shadow.';
   }
